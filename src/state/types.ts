@@ -5,11 +5,14 @@ export interface GameState {
   assembled: boolean;
   npcSpoken: boolean;
   appInstalled: boolean;
+  npcRelaxing: boolean; // NPC went to camp after player walked away
   tutorialComplete: boolean;
   boards: Board[];
   // UI-only override for transient phases (cutscenes, dialogs)
   // When null, phase is derived from the above fields
   phaseOverride: PhaseOverride | null;
+  // Where to resume when the player comes back to the NPC
+  resumePhase: ResumePoint | null;
 }
 
 export type PhaseOverride =
@@ -18,10 +21,18 @@ export type PhaseOverride =
   | { type: "assembly-reveal"; step: "they-fit" | "its-a-bot" | "npc-speech" }
   | { type: "need-phone" } // "uh... you'll need your phone"
   | { type: "installing" } // app install animation on phone
-  | { type: "tutorial-chat"; step: number } // NPC explaining the game
+  | { type: "waiting-app-click" } // phone open with speech bubble, waiting for player to click app
   | { type: "npc-nudge" } // "just click that app you just installed..."
   | { type: "npc-bye" } // "alrighty, maybe later" (walked away)
-  | { type: "npc-welcome-back" }; // "cool, let's play!"
+  | { type: "npc-welcome-back" } // "cool, let's play!"
+  | { type: "npc-question" } // "what do you think?" → thought bubble
+  | { type: "tutorial-chat"; step: number }; // NPC explaining the game
+
+// Where the player left off when they walked away
+export type ResumePoint =
+  | "need-phone"       // hadn't opened pocket yet
+  | "waiting-app-click" // app installed but not clicked
+  | { type: "tutorial-chat"; step: number }; // mid-tutorial
 
 // Derived phase — what the game "should" be showing based on state
 export type DerivedPhase =
@@ -55,7 +66,9 @@ export const INITIAL_STATE: GameState = {
   assembled: false,
   npcSpoken: false,
   appInstalled: false,
+  npcRelaxing: false,
   tutorialComplete: false,
   boards: [],
   phaseOverride: null,
+  resumePhase: null,
 };

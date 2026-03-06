@@ -43,7 +43,7 @@ export function useTrinketTracker(
       projected.z < 1;
 
     if (dist > SHOW_ARROW_DISTANCE || !onScreen) arrowActivated = true;
-    if (dist < HIDE_ARROW_DISTANCE) arrowActivated = false;
+    if (dist < HIDE_ARROW_DISTANCE && onScreen) arrowActivated = false;
 
     out.current!.distance = dist;
     out.current!.showArrow = arrowActivated;

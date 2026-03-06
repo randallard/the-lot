@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import type { GameState, PhaseOverride, GamePhase, Board } from "./types";
+import type { GameState, PhaseOverride, GamePhase, Board, ResumePoint } from "./types";
 import { INITIAL_STATE } from "./types";
 import { derivePhase, getActivePhase } from "./derivePhase";
 
@@ -43,6 +43,67 @@ export function useGameState() {
     }));
   }, []);
 
+  const setNpcRelaxing = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      npcRelaxing: true,
+      phaseOverride: { type: "npc-bye" },
+    }));
+  }, []);
+
+  // Player walked away — figure out where they were and save it
+  const npcWalkAway = useCallback((showBye: boolean) => {
+    setState((prev) => {
+      if (prev.npcRelaxing) return prev; // already relaxing
+
+      // Figure out resume point from current state
+      let resumePhase: ResumePoint | null = null;
+      const p = prev.phaseOverride;
+      if (p?.type === "tutorial-chat") {
+        resumePhase = { type: "tutorial-chat", step: p.step };
+      } else if (p?.type === "waiting-app-click" || p?.type === "npc-nudge") {
+        resumePhase = "waiting-app-click";
+      } else if (p?.type === "installing") {
+        resumePhase = "waiting-app-click";
+      } else if (prev.appInstalled && !prev.tutorialComplete) {
+        resumePhase = "waiting-app-click";
+      } else if (!prev.appInstalled) {
+        resumePhase = "need-phone";
+      }
+
+      return {
+        ...prev,
+        npcRelaxing: true,
+        resumePhase,
+        phaseOverride: showBye ? { type: "npc-bye" } : null,
+      };
+    });
+  }, []);
+
+  // Player returned to NPC — resume where they left off
+  const resumeFromNpc = useCallback(() => {
+    setState((prev) => {
+      const resume = prev.resumePhase;
+      if (!resume) return { ...prev, phaseOverride: null };
+
+      let override: PhaseOverride | null = null;
+      if (resume === "need-phone") {
+        override = { type: "need-phone" };
+      } else if (resume === "waiting-app-click") {
+        override = { type: "waiting-app-click" };
+      } else if (typeof resume === "object" && resume.type === "tutorial-chat") {
+        override = { type: "tutorial-chat", step: resume.step };
+      }
+
+      return {
+        ...prev,
+        npcRelaxing: false,
+        resumePhase: null,
+        phaseOverride: override,
+      };
+    });
+  }, []);
+
   const installApp = useCallback(() => {
     setState((prev) => ({
       ...prev,
@@ -83,6 +144,9 @@ export function useGameState() {
     collectPart,
     completeAssembly,
     markNpcSpoken,
+    setNpcRelaxing,
+    npcWalkAway,
+    resumeFromNpc,
     installApp,
     completeTutorial,
     saveBoard,

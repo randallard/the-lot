@@ -9,10 +9,13 @@ import { PocketView } from "./overlay/PocketView";
 import { PocketButton } from "./overlay/PocketButton";
 import { TrinketArrow } from "./overlay/TrinketArrow";
 import { SpeechBubble } from "./overlay/SpeechBubble";
+import { PhoneOverlay } from "./overlay/PhoneOverlay";
+import { ThoughtBubble } from "./overlay/ThoughtBubble";
 import { useInputDirection } from "./world/useInputDirection";
 import { useGameState } from "./state/useGameState";
 import type { TrinketTrackerState } from "./world/useTrinketTracker";
 import type { RushMode } from "./world/Player";
+import type { ScreenPos } from "./world/useScreenPosition";
 
 export default function App() {
   const game = useGameState();
@@ -31,6 +34,8 @@ export default function App() {
   });
   const cameraOffset = useRef<THREE.Vector3 | null>(null);
   const cameraLookAtOffset = useRef<THREE.Vector3 | null>(null);
+  const npcScreenPos = useRef<ScreenPos>({ x: 0.5, y: 0.5, visible: false });
+  const playerScreenPos = useRef<ScreenPos>({ x: 0.5, y: 0.5, visible: false });
 
   // Zoom camera through player to in front, looking back at their hands
   const zoomIn = phase.type === "part1-cutscene" || phase.type === "assembly-cutscene" || phase.type === "assembly-reveal";
@@ -62,9 +67,23 @@ export default function App() {
   }, [game.clearOverride]);
 
   const handleNpcClick = useCallback(() => {
-    // Player clicked NPC in world → "uh... you'll need your phone"
-    game.setPhaseOverride({ type: "need-phone" });
-  }, [game.setPhaseOverride]);
+    if (game.state.npcRelaxing && !game.state.tutorialComplete) {
+      // Player clicked relaxing NPC → "hows it going?" then resume
+      game.setPhaseOverride({ type: "npc-welcome-back" });
+    } else if (!game.state.appInstalled) {
+      // Player clicked NPC in world → "uh... you'll need your phone"
+      game.setPhaseOverride({ type: "need-phone" });
+    } else if (!game.state.tutorialComplete) {
+      game.setPhaseOverride({ type: "waiting-app-click" });
+    }
+  }, [game.setPhaseOverride, game.state.appInstalled, game.state.npcRelaxing, game.state.tutorialComplete]);
+
+  const handleNpcApproach = useCallback(() => {
+    // Player stood near relaxing NPC for 2 seconds → "hows it going?" then resume
+    if (game.state.npcRelaxing && !game.state.tutorialComplete) {
+      game.setPhaseOverride({ type: "npc-welcome-back" });
+    }
+  }, [game.setPhaseOverride, game.state.npcRelaxing, game.state.tutorialComplete]);
 
   const handleNeedPhoneDismiss = useCallback(() => {
     // After "you'll need your phone" → mark spoken, clear, let player check pocket
@@ -78,17 +97,51 @@ export default function App() {
   }, [game.installApp]);
 
   const handleInstallComplete = useCallback(() => {
-    // Install animation done → tutorial chat
+    // Install animation done → show phone with speech bubble overlaid
+    game.setPhaseOverride({ type: "waiting-app-click" });
+  }, [game.setPhaseOverride]);
+
+  const handleAppClick = useCallback(() => {
+    // Player clicked the app → start tutorial
     game.setPhaseOverride({ type: "tutorial-chat", step: 0 });
   }, [game.setPhaseOverride]);
 
+  const handleAppClose = useCallback(() => {
+    // Player closed the phone without clicking app → save progress, NPC bye
+    game.npcWalkAway(true);
+  }, [game.npcWalkAway]);
+
+  const handleNpcWalkAway = useCallback(() => {
+    // Player walked away from NPC at any point → save progress, bye, go to camp
+    if (!game.state.npcRelaxing) {
+      setPocketOpen(false);
+      game.npcWalkAway(true);
+    }
+  }, [game.npcWalkAway, game.state.npcRelaxing]);
+
+  const handleNpcByeDismiss = useCallback(() => {
+    // Bye dismissed → clear, NPC wanders to camp
+    game.clearOverride();
+  }, [game.clearOverride]);
+
+  const handleNpcQuestionChoice = useCallback((choice: "ready" | "who") => {
+    if (choice === "ready") {
+      game.setPhaseOverride({ type: "waiting-app-click" });
+    } else {
+      // TODO: "who are you?" dialog tree
+      game.clearOverride();
+    }
+  }, [game.setPhaseOverride, game.clearOverride]);
+
   const togglePocket = useCallback(() => {
-    const isInCutscene =
+    const blocked =
       phase.type === "part1-cutscene" ||
       phase.type === "assembly-cutscene" ||
       phase.type === "assembly-reveal" ||
-      phase.type === "installing";
-    if (!isInCutscene) setPocketOpen((prev) => !prev);
+      phase.type === "installing" ||
+      phase.type === "waiting-app-click" ||
+      phase.type === "tutorial-chat";
+    if (!blocked) setPocketOpen((prev) => !prev);
   }, [phase.type]);
 
   const handleRush = useCallback(() => {
@@ -107,7 +160,8 @@ export default function App() {
   const part1CutsceneDone = game.state.partsCollected >= 1 && phase.type !== "part1-cutscene";
   const showArrow =
     phase.type === "exploring" ||
-    phase.type === "between-parts";
+    phase.type === "between-parts" ||
+    (game.state.npcRelaxing && !game.state.phaseOverride);
   const needsPocketHint = game.state.npcSpoken && !game.state.appInstalled && !game.state.phaseOverride;
 
   return (
@@ -126,10 +180,15 @@ export default function App() {
           rushTarget={rushTarget}
           trinketTracker={trinketTracker}
           showNpc={game.state.assembled && phase.type !== "assembly-cutscene" && phase.type !== "assembly-reveal" && phase.type !== "installing"}
+          npcRelaxing={game.state.npcRelaxing}
           onNpcClick={handleNpcClick}
+          onNpcWalkAway={handleNpcWalkAway}
+          onNpcApproach={handleNpcApproach}
           cameraOffset={cameraOffset}
           cameraLookAtOffset={cameraLookAtOffset}
           hidePlayer={zoomIn}
+          npcScreenPos={npcScreenPos}
+          playerScreenPos={playerScreenPos}
         />
       </Canvas>
 
@@ -161,40 +220,68 @@ export default function App() {
         />
       )}
 
-      {/* NPC speech bubbles */}
+      {/* NPC speech bubbles — point at NPC */}
       {phase.type === "need-phone" && (
         <SpeechBubble
           text="uh... you'll need your phone"
           onDismiss={handleNeedPhoneDismiss}
-        />
-      )}
-
-      {phase.type === "npc-nudge" && (
-        <SpeechBubble
-          text="just click that app you just installed..."
-          onDismiss={() => game.clearOverride()}
+          speakerScreenPos={npcScreenPos}
         />
       )}
 
       {phase.type === "npc-bye" && (
         <SpeechBubble
-          text=":)"
-          onDismiss={() => game.clearOverride()}
+          text="alrighty, maybe later :)"
+          onDismiss={handleNpcByeDismiss}
+          speakerScreenPos={npcScreenPos}
+          autoClose={3500}
         />
       )}
 
       {phase.type === "npc-welcome-back" && (
         <SpeechBubble
-          text="cool, let's play!"
-          onDismiss={() =>
-            game.setPhaseOverride({ type: "tutorial-chat", step: 0 })
-          }
+          text="hows it going?"
+          onDismiss={() => game.resumeFromNpc()}
+          speakerScreenPos={npcScreenPos}
         />
+      )}
+
+      {phase.type === "npc-question" && (
+        <>
+          <SpeechBubble
+            text="what do you think?"
+            onDismiss={() => {}}
+            speakerScreenPos={npcScreenPos}
+          />
+          <ThoughtBubble
+            playerScreenPos={playerScreenPos}
+            choices={[
+              { label: "ready to play!", action: () => handleNpcQuestionChoice("ready") },
+              { label: "who are you?", action: () => handleNpcQuestionChoice("who") },
+            ]}
+          />
+        </>
       )}
 
       {/* Installing animation */}
       {phase.type === "installing" && (
         <InstallAnimation onComplete={handleInstallComplete} />
+      )}
+
+      {/* Phone with app, waiting for click — speech bubble from left (in modal) */}
+      {phase.type === "waiting-app-click" && (
+        <>
+          <PhoneOverlay
+            onAppClick={handleAppClick}
+            onClose={handleAppClose}
+          />
+          <SpeechBubble
+            text="those little bots love a little cheese and this is how you help them get some"
+            onDismiss={() => {}}
+            inModal
+            delay={500}
+          />
+        </>
       )}
 
       {/* Pocket view */}
