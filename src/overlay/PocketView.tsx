@@ -91,6 +91,46 @@ export function PocketView({ onClose, inventory }: PocketViewProps) {
           </div>
         )}
 
+        {inventory.includes("bot-parts") && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <div style={{ display: "flex", gap: 2 }}>
+              <div
+                style={{
+                  width: 22,
+                  height: 16,
+                  background: "#889099",
+                  borderRadius: 3,
+                  transform: "rotate(6deg)",
+                }}
+              />
+              <div
+                style={{
+                  width: 22,
+                  height: 16,
+                  background: "#889099",
+                  borderRadius: 3,
+                  transform: "rotate(-4deg)",
+                }}
+              />
+            </div>
+            <p
+              style={{
+                color: "#999",
+                fontSize: 12,
+                marginTop: 10,
+              }}
+            >
+              bot parts
+            </p>
+          </div>
+        )}
+
         {inventory.includes("phone") && (
           <div
             style={{
