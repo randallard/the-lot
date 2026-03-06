@@ -3,9 +3,10 @@ import { useEffect } from "react";
 interface PocketViewProps {
   onClose: () => void;
   inventory: string[];
+  onPhoneClick?: () => void;
 }
 
-export function PocketView({ onClose, inventory }: PocketViewProps) {
+export function PocketView({ onClose, inventory, onPhoneClick }: PocketViewProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === "Enter" || e.code === "KeyE") onClose();
@@ -133,10 +134,13 @@ export function PocketView({ onClose, inventory }: PocketViewProps) {
 
         {inventory.includes("phone") && (
           <div
+            onClick={onPhoneClick ? (e) => { e.stopPropagation(); onPhoneClick(); } : undefined}
             style={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              cursor: onPhoneClick ? "pointer" : "default",
+              padding: onPhoneClick ? 20 : 0,
             }}
           >
             <div
@@ -145,15 +149,43 @@ export function PocketView({ onClose, inventory }: PocketViewProps) {
                 height: 60,
                 background: "#222",
                 borderRadius: 6,
-                border: "2px solid #444",
+                border: onPhoneClick ? "2px solid #6a4c93" : "2px solid #444",
                 marginBottom: 10,
+                boxShadow: onPhoneClick ? "0 0 15px rgba(106, 76, 147, 0.4)" : "none",
+                transition: "border-color 0.3s, box-shadow 0.3s",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
-            />
+            >
+              {inventory.includes("gettcheese-app") && (
+                <div
+                  style={{
+                    width: 18,
+                    height: 18,
+                    background: "#6a4c93",
+                    borderRadius: 4,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 8,
+                      height: 6,
+                      background: "#889099",
+                      borderRadius: 2,
+                    }}
+                  />
+                </div>
+              )}
+            </div>
             <p
               style={{
-                color: "#999",
+                color: onPhoneClick ? "#6a4c93" : "#999",
                 fontSize: 12,
-                    }}
+              }}
             >
               phone
             </p>

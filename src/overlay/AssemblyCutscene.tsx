@@ -24,7 +24,8 @@ export function AssemblyCutscene({ onComplete }: AssemblyCutsceneProps) {
 
   useEffect(() => {
     if (assembled) {
-      const timer = setTimeout(onComplete, 1200);
+      // Snap animation briefly, then hand off to assembly reveal
+      const timer = setTimeout(onComplete, 600);
       return () => clearTimeout(timer);
     }
   }, [assembled, onComplete]);
@@ -163,20 +164,20 @@ export function AssemblyCutscene({ onComplete }: AssemblyCutsceneProps) {
         touchAction: "none",
       }}
     >
-      <p
-        style={{
-          color: "#d0d0d0",
-          fontSize: 20,
-          letterSpacing: 1.5,
-          textAlign: "center",
-          padding: "0 20px",
-          marginBottom: 48,
-        }}
-      >
-        {assembled
-          ? "they fit!"
-          : "you found another trinket — wait, do these fit together?"}
-      </p>
+      {!assembled && (
+        <p
+          style={{
+            color: "#d0d0d0",
+            fontSize: 20,
+            letterSpacing: 1.5,
+            textAlign: "center",
+            padding: "0 20px",
+            marginBottom: 48,
+          }}
+        >
+          you found another trinket — wait, do these fit together?
+        </p>
+      )}
 
       <div
         ref={containerRef}

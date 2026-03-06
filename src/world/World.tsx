@@ -4,12 +4,14 @@ import { Ground } from "./Ground";
 import { Player } from "./Player";
 import { CameraRig } from "./CameraRig";
 import { BotParts } from "./BotParts";
+import { Npc } from "./Npc";
 import { useTrinketTracker, type TrinketTrackerState } from "./useTrinketTracker";
 import type { RushMode } from "./Player";
 
 const SPAWN_DELAY = 6000;
 const PART1_POS = new THREE.Vector3(3, 0.08, -7);
 const PART2_POS = new THREE.Vector3(-40, 0.08, -5);
+const NPC_OFFSET = new THREE.Vector3(-0.7, 0, -0.3); // uncomfortably close, just to the left
 
 const PART2_DELAY = 2000;
 
@@ -21,14 +23,29 @@ interface WorldProps {
   rushMode: React.RefObject<RushMode>;
   rushTarget: React.RefObject<THREE.Vector3 | null>;
   trinketTracker: React.RefObject<TrinketTrackerState>;
+  showNpc: boolean;
+  onNpcClick?: () => void;
+  cameraOffset?: React.RefObject<THREE.Vector3 | null>;
+  cameraLookAtOffset?: React.RefObject<THREE.Vector3 | null>;
+  hidePlayer?: boolean;
 }
 
-export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker }: WorldProps) {
+export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, onNpcClick, cameraOffset, cameraLookAtOffset, hidePlayer }: WorldProps) {
   const playerPos = useRef(new THREE.Vector3(0, 0.75, 0));
   const [part1Spawned, setPart1Spawned] = useState(false);
   const [part1Collected, setPart1Collected] = useState(false);
   const [part2Spawned, setPart2Spawned] = useState(false);
   const [part2Collected, setPart2Collected] = useState(false);
+  const npcPos = useRef<[number, number, number] | null>(null);
+
+  // Capture NPC position when it first appears (relative to player)
+  if (showNpc && !npcPos.current && playerPos.current) {
+    npcPos.current = [
+      playerPos.current.x + NPC_OFFSET.x,
+      0,
+      playerPos.current.z + NPC_OFFSET.z,
+    ];
+  }
 
   // Current tracking target
   const currentTarget = useRef<THREE.Vector3 | null>(null);
@@ -97,9 +114,9 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
 
       <fog attach="fog" args={["#ffffff", 20, 60]} />
 
-      <CameraRig target={playerPos} />
+      <CameraRig target={playerPos} offset={cameraOffset} lookAtOffset={cameraLookAtOffset} />
       <Ground />
-      <Player positionRef={playerPos} inputDir={inputDir} rushMode={rushMode} rushTarget={rushTarget} />
+      <Player positionRef={playerPos} inputDir={inputDir} rushMode={rushMode} rushTarget={rushTarget} hidden={hidePlayer} />
       {part1Spawned && !part1Collected && (
         <BotParts
           position={[PART1_POS.x, PART1_POS.y, PART1_POS.z]}
@@ -115,6 +132,13 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
           playerPosition={playerPos}
           onPickup={handlePart2Pickup}
           rushMode={rushMode}
+        />
+      )}
+      {showNpc && npcPos.current && (
+        <Npc
+          position={npcPos.current}
+          playerPosition={playerPos}
+          onClick={onNpcClick}
         />
       )}
     </>

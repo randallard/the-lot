@@ -17,9 +17,10 @@ interface PlayerProps {
   inputDir: React.RefObject<InputDirection>;
   rushMode: React.RefObject<RushMode>;
   rushTarget: React.RefObject<THREE.Vector3 | null>;
+  hidden?: boolean;
 }
 
-export function Player({ positionRef, inputDir, rushMode, rushTarget }: PlayerProps) {
+export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden }: PlayerProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
 
@@ -69,7 +70,7 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget }: PlayerPr
   });
 
   return (
-    <mesh ref={meshRef} position={[0, 0.75, 0]} castShadow>
+    <mesh ref={meshRef} position={[0, 0.75, 0]} castShadow visible={!hidden}>
       <capsuleGeometry args={[0.3, 0.8, 8, 16]} />
       <meshStandardMaterial ref={matRef} color="#444444" transparent />
     </mesh>
