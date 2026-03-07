@@ -11,6 +11,7 @@ import { TrinketArrow } from "./overlay/TrinketArrow";
 import { SpeechBubble } from "./overlay/SpeechBubble";
 import { PhoneOverlay } from "./overlay/PhoneOverlay";
 import { TutorialDemo, TUTORIAL_DEMO_STEPS, TUTORIAL_STEP_TEXTS } from "./overlay/TutorialDemo";
+import { TUTORIAL_3D_STEPS, TUTORIAL_3D_STEP_COUNT } from "./world/tutorialSteps";
 import { BoardCreator } from "./overlay/BoardCreator";
 import { BoardSelector } from "./overlay/BoardSelector";
 import { SimulationView } from "./overlay/SimulationView";
@@ -46,10 +47,12 @@ export default function App() {
 
   // Zoom camera through player to in front, looking back at their hands
   const zoomIn = phase.type === "part1-cutscene" || phase.type === "assembly-cutscene" || phase.type === "assembly-reveal";
+  const inTutorial3D = phase.type === "tutorial-3d";
   if (zoomIn) {
     cameraOffset.current = new THREE.Vector3(0, 1.5, -0.3);
     cameraLookAtOffset.current = new THREE.Vector3(0, -0.5, -1.5);
-  } else {
+  } else if (!inTutorial3D) {
+    // tutorial-3d manages its own camera offsets via Tutorial3DScene
     cameraOffset.current = null;
     cameraLookAtOffset.current = null;
   }
@@ -69,9 +72,34 @@ export default function App() {
   }, [game.completeAssembly]);
 
   const handleAssemblyRevealDone = useCallback(() => {
-    // Speech bubble dismissed → clear overlay, NPC appears in world
-    game.clearOverride();
-  }, [game.clearOverride]);
+    // Speech bubble dismissed → start 3D bot tutorial
+    game.setPhaseOverride({ type: "tutorial-3d", step: 0 });
+  }, [game.setPhaseOverride]);
+
+  // Capture tutorial origin (player position when tutorial-3d starts)
+  const tutorial3DOrigin = useRef<[number, number, number] | null>(null);
+
+  const handleTutorial3DAdvance = useCallback(() => {
+    const current = game.state.phaseOverride;
+    if (current?.type !== "tutorial-3d") return;
+    const next = current.step + 1;
+    if (next < TUTORIAL_3D_STEP_COUNT) {
+      game.setPhaseOverride({ type: "tutorial-3d", step: next });
+    } else {
+      // Tutorial 3D done → set tutorialComplete, transition to phone flow
+      game.completeTutorial();
+      game.setPhaseOverride({ type: "need-phone" });
+    }
+  }, [game.state.phaseOverride, game.setPhaseOverride, game.completeTutorial]);
+
+  // Auto-advance timer for tutorial-3d steps
+  useEffect(() => {
+    if (phase.type !== "tutorial-3d") return;
+    const cfg = TUTORIAL_3D_STEPS[phase.step];
+    if (!cfg || cfg.advanceMode === "click") return;
+    const timer = setTimeout(handleTutorial3DAdvance, cfg.advanceMode.auto * 1000);
+    return () => clearTimeout(timer);
+  }, [phase, handleTutorial3DAdvance]);
 
   const handleNpcClick = useCallback(() => {
     if (game.state.npcRelaxing && !game.state.tutorialComplete) {
@@ -109,10 +137,15 @@ export default function App() {
   }, [game.setPhaseOverride]);
 
   const handleAppClick = useCallback(() => {
-    // Player clicked the app → start tutorial demo inside phone
     setPhoneNudged(false);
-    game.setPhaseOverride({ type: "tutorial-demo", step: 0 });
-  }, [game.setPhaseOverride]);
+    if (game.state.tutorialComplete) {
+      // 3D tutorial already done → skip phone tutorial, go to board creation
+      game.setPhaseOverride({ type: "board-creation" });
+    } else {
+      // Player clicked the app → start tutorial demo inside phone
+      game.setPhaseOverride({ type: "tutorial-demo", step: 0 });
+    }
+  }, [game.setPhaseOverride, game.state.tutorialComplete]);
 
   const handleTutorialDemoAdvance = useCallback(() => {
     const current = game.state.phaseOverride;
@@ -185,6 +218,7 @@ export default function App() {
       phase.type === "part1-cutscene" ||
       phase.type === "assembly-cutscene" ||
       phase.type === "assembly-reveal" ||
+      phase.type === "tutorial-3d" ||
       phase.type === "installing" ||
       phase.type === "waiting-app-click" ||
       phase.type === "tutorial-chat" ||
@@ -239,9 +273,11 @@ export default function App() {
           onNpcApproach={handleNpcApproach}
           cameraOffset={cameraOffset}
           cameraLookAtOffset={cameraLookAtOffset}
-          hidePlayer={zoomIn}
+          hidePlayer={zoomIn || inTutorial3D}
           npcScreenPos={npcScreenPos}
           playerScreenPos={playerScreenPos}
+          tutorial3DStep={inTutorial3D ? phase.step : null}
+          tutorial3DOrigin={tutorial3DOrigin}
         />
       </Canvas>
 
@@ -272,6 +308,34 @@ export default function App() {
           onDone={handleAssemblyRevealDone}
         />
       )}
+
+      {/* 3D Bot Tutorial — speech bubbles + click-to-advance overlay */}
+      {phase.type === "tutorial-3d" && (() => {
+        const cfg = TUTORIAL_3D_STEPS[phase.step];
+        if (!cfg) return null;
+        return (
+          <>
+            {cfg.speech && (
+              <SpeechBubble
+                text={cfg.speech}
+                onDismiss={handleTutorial3DAdvance}
+                speakerScreenPos={npcScreenPos}
+              />
+            )}
+            {!cfg.speech && cfg.advanceMode === "click" && (
+              <div
+                onClick={handleTutorial3DAdvance}
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  cursor: "pointer",
+                  zIndex: 5,
+                }}
+              />
+            )}
+          </>
+        );
+      })()}
 
       {/* NPC speech bubbles — point at NPC */}
       {phase.type === "need-phone" && (

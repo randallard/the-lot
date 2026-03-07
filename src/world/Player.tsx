@@ -27,6 +27,12 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden }: 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
 
+    // Don't process movement when hidden (e.g. during tutorial-3d)
+    if (hidden) {
+      if (positionRef.current) positionRef.current.copy(meshRef.current.position);
+      return;
+    }
+
     const isRushing = rushMode.current !== 0 && rushTarget.current;
 
     // Incorporeal while rushing

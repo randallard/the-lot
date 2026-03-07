@@ -6,6 +6,7 @@ import { Player } from "./Player";
 import { CameraRig } from "./CameraRig";
 import { BotParts } from "./BotParts";
 import { Npc } from "./Npc";
+import { Tutorial3DScene } from "./Tutorial3DScene";
 import { useTrinketTracker, type TrinketTrackerState } from "./useTrinketTracker";
 import type { RushMode } from "./Player";
 import type { ScreenPos } from "./useScreenPosition";
@@ -38,9 +39,11 @@ interface WorldProps {
   hidePlayer?: boolean;
   npcScreenPos: React.RefObject<ScreenPos>;
   playerScreenPos: React.RefObject<ScreenPos>;
+  tutorial3DStep?: number | null;
+  tutorial3DOrigin?: React.RefObject<[number, number, number] | null>;
 }
 
-export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos }: WorldProps) {
+export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, tutorial3DStep, tutorial3DOrigin }: WorldProps) {
   const playerPos = useRef(new THREE.Vector3(0, 0.75, 0));
   const [part1Spawned, setPart1Spawned] = useState(false);
   const [part1Collected, setPart1Collected] = useState(false);
@@ -57,6 +60,19 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
       0,
       playerPos.current.z + NPC_OFFSET.z,
     ];
+  }
+
+  // Capture tutorial origin when 3D tutorial starts
+  if (tutorial3DStep != null && tutorial3DOrigin && !tutorial3DOrigin.current) {
+    tutorial3DOrigin.current = [
+      playerPos.current.x,
+      0,
+      playerPos.current.z,
+    ];
+  }
+  // Clear origin when tutorial ends
+  if (tutorial3DStep == null && tutorial3DOrigin?.current) {
+    tutorial3DOrigin.current = null;
   }
 
   // Track player screen position
@@ -205,10 +221,18 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
         <Npc
           position={npcPos.current}
           playerPosition={playerPos}
-          onClick={onNpcClick}
+          onClick={tutorial3DStep != null ? undefined : onNpcClick}
           relaxing={npcRelaxing}
           screenPos={npcScreenPos}
           worldPosRef={npcWorldPos}
+        />
+      )}
+      {tutorial3DStep != null && tutorial3DOrigin?.current && cameraOffset && cameraLookAtOffset && (
+        <Tutorial3DScene
+          step={tutorial3DStep}
+          origin={tutorial3DOrigin.current}
+          cameraOffset={cameraOffset}
+          cameraLookAtOffset={cameraLookAtOffset}
         />
       )}
     </>

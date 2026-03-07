@@ -61,7 +61,9 @@ export function useGameState() {
       // Figure out resume point from current state
       let resumePhase: ResumePoint | null = null;
       const p = prev.phaseOverride;
-      if (p?.type === "tutorial-demo") {
+      if (p?.type === "tutorial-3d") {
+        resumePhase = { type: "tutorial-3d", step: p.step };
+      } else if (p?.type === "tutorial-demo") {
         resumePhase = { type: "tutorial-demo", step: p.step };
       } else if (p?.type === "tutorial-chat") {
         resumePhase = { type: "tutorial-chat", step: p.step };
@@ -107,6 +109,8 @@ export function useGameState() {
         override = { type: "game-setup" };
       } else if (resume === "game-over") {
         override = { type: "game-over" };
+      } else if (typeof resume === "object" && resume.type === "tutorial-3d") {
+        override = { type: "tutorial-3d", step: resume.step };
       } else if (typeof resume === "object" && resume.type === "tutorial-chat") {
         override = { type: "tutorial-chat", step: resume.step };
       } else if (typeof resume === "object" && resume.type === "tutorial-demo") {

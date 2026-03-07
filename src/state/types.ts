@@ -27,6 +27,7 @@ export type PhaseOverride =
   | { type: "npc-bye" } // "alrighty, maybe later" (walked away)
   | { type: "npc-welcome-back" } // "cool, let's play!"
   | { type: "npc-question" } // "what do you think?" → thought bubble
+  | { type: "tutorial-3d"; step: number } // 3D bot tutorial sequence
   | { type: "tutorial-chat"; step: number } // NPC explaining the game
   | { type: "tutorial-demo"; step: number } // animated board demo inside phone
   | { type: "board-creation" } // player building their first board
@@ -39,6 +40,7 @@ export type PhaseOverride =
 export type ResumePoint =
   | "need-phone"       // hadn't opened pocket yet
   | "waiting-app-click" // app installed but not clicked
+  | { type: "tutorial-3d"; step: number } // mid-3D tutorial
   | { type: "tutorial-chat"; step: number } // mid-tutorial
   | { type: "tutorial-demo"; step: number }
   | "board-creation"
