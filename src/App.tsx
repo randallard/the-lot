@@ -10,6 +10,12 @@ import { PocketButton } from "./overlay/PocketButton";
 import { TrinketArrow } from "./overlay/TrinketArrow";
 import { SpeechBubble } from "./overlay/SpeechBubble";
 import { PhoneOverlay } from "./overlay/PhoneOverlay";
+import { TutorialDemo, TUTORIAL_DEMO_STEPS, TUTORIAL_STEP_TEXTS } from "./overlay/TutorialDemo";
+import { BoardCreator } from "./overlay/BoardCreator";
+import { BoardSelector } from "./overlay/BoardSelector";
+import { SimulationView } from "./overlay/SimulationView";
+import { RoundResult } from "./overlay/RoundResult";
+import { GameOver } from "./overlay/GameOver";
 import { ThoughtBubble } from "./overlay/ThoughtBubble";
 import { useInputDirection } from "./world/useInputDirection";
 import { useGameState } from "./state/useGameState";
@@ -22,6 +28,7 @@ export default function App() {
   const { phase, inventory } = game;
 
   const [pocketOpen, setPocketOpen] = useState(false);
+  const [phoneNudged, setPhoneNudged] = useState(false);
   const inputDir = useInputDirection();
   const rushMode = useRef<RushMode>(0);
   const rushTarget = useRef<THREE.Vector3 | null>(null);
@@ -102,9 +109,49 @@ export default function App() {
   }, [game.setPhaseOverride]);
 
   const handleAppClick = useCallback(() => {
-    // Player clicked the app → start tutorial
-    game.setPhaseOverride({ type: "tutorial-chat", step: 0 });
+    // Player clicked the app → start tutorial demo inside phone
+    setPhoneNudged(false);
+    game.setPhaseOverride({ type: "tutorial-demo", step: 0 });
   }, [game.setPhaseOverride]);
+
+  const handleTutorialDemoAdvance = useCallback(() => {
+    const current = game.state.phaseOverride;
+    if (current?.type !== "tutorial-demo") return;
+    const next = current.step + 1;
+    if (next < TUTORIAL_DEMO_STEPS) {
+      game.setPhaseOverride({ type: "tutorial-demo", step: next });
+    } else {
+      // Tutorial demo done → board creation
+      game.completeTutorial();
+      game.setPhaseOverride({ type: "board-creation" });
+    }
+  }, [game.state.phaseOverride, game.setPhaseOverride, game.completeTutorial]);
+
+  const handleBoardSaved = useCallback((board: import("./state/types").Board) => {
+    game.saveBoard(board);
+    // First board created → start a 5-round game
+    game.startGame(board.boardSize);
+  }, [game.saveBoard, game.startGame]);
+
+  const handleBoardSelected = useCallback((board: import("./state/types").Board) => {
+    game.selectBoard(board);
+  }, [game.selectBoard]);
+
+  const handleCreateNewBoard = useCallback(() => {
+    game.setPhaseOverride({ type: "board-creation" });
+  }, [game.setPhaseOverride]);
+
+  const handleSimulationDone = useCallback(() => {
+    game.setPhaseOverride({ type: "game-round-result" });
+  }, [game.setPhaseOverride]);
+
+  const handleNextRound = useCallback(() => {
+    game.advanceRound();
+  }, [game.advanceRound]);
+
+  const handleGameDone = useCallback(() => {
+    game.endGame();
+  }, [game.endGame]);
 
   const handleAppClose = useCallback(() => {
     // Player closed the phone without clicking app → save progress, NPC bye
@@ -140,7 +187,13 @@ export default function App() {
       phase.type === "assembly-reveal" ||
       phase.type === "installing" ||
       phase.type === "waiting-app-click" ||
-      phase.type === "tutorial-chat";
+      phase.type === "tutorial-chat" ||
+      phase.type === "tutorial-demo" ||
+      phase.type === "board-creation" ||
+      phase.type === "game-setup" ||
+      phase.type === "game-playing" ||
+      phase.type === "game-round-result" ||
+      phase.type === "game-over";
     if (!blocked) setPocketOpen((prev) => !prev);
   }, [phase.type]);
 
@@ -268,19 +321,134 @@ export default function App() {
         <InstallAnimation onComplete={handleInstallComplete} />
       )}
 
+      {/* Tutorial demo — animated board explanation inside phone */}
+      {phase.type === "tutorial-demo" && (
+        <>
+          <PhoneOverlay mode="app" onClose={() => game.npcWalkAway(true)}>
+            <TutorialDemo step={phase.step} onAdvance={handleTutorialDemoAdvance} />
+          </PhoneOverlay>
+          <SpeechBubble
+            text={TUTORIAL_STEP_TEXTS[phase.step] ?? ""}
+            onDismiss={() => {}}
+            inModal
+          />
+        </>
+      )}
+
+      {/* Board creation — inside phone */}
+      {phase.type === "board-creation" && (
+        <>
+          <PhoneOverlay mode="app" onClose={() => game.npcWalkAway(true)}>
+            <BoardCreator
+              boardSize={game.state.currentGame?.boardSize ?? 2}
+              onBoardSaved={handleBoardSaved}
+              onCancel={() => game.npcWalkAway(true)}
+              existingBoards={game.state.boards}
+            />
+          </PhoneOverlay>
+          <SpeechBubble
+            text="make a path for your bot — set some traps too!"
+            onDismiss={() => {}}
+            inModal
+          />
+        </>
+      )}
+
+      {/* Game setup — board selector inside phone */}
+      {phase.type === "game-setup" && game.state.currentGame && (
+        <>
+          <PhoneOverlay mode="app" onClose={() => game.npcWalkAway(true)}>
+            <BoardSelector
+              boards={game.state.boards}
+              boardSize={game.state.currentGame.boardSize}
+              currentRound={game.state.currentGame.currentRound}
+              totalRounds={game.state.currentGame.totalRounds}
+              onSelect={handleBoardSelected}
+              onCreateNew={handleCreateNewBoard}
+            />
+          </PhoneOverlay>
+          <SpeechBubble
+            text="got your board picked?"
+            onDismiss={() => {}}
+            inModal
+          />
+        </>
+      )}
+
+      {/* Game playing — simulation playback inside phone */}
+      {phase.type === "game-playing" && game.state.currentGame && (
+        <>
+          <PhoneOverlay mode="app" onClose={() => {}}>
+            <SimulationView
+              game={game.state.currentGame}
+              onDone={handleSimulationDone}
+            />
+          </PhoneOverlay>
+        </>
+      )}
+
+      {/* Round result */}
+      {phase.type === "game-round-result" && game.state.currentGame && (
+        <>
+          <PhoneOverlay mode="app" onClose={() => {}}>
+            <RoundResult
+              game={game.state.currentGame}
+              onNext={handleNextRound}
+            />
+          </PhoneOverlay>
+          <SpeechBubble
+            text={
+              (() => {
+                const last = game.state.currentGame.rounds[game.state.currentGame.rounds.length - 1];
+                if (!last) return "";
+                if (last.winner === "player") return "nice one!";
+                if (last.winner === "opponent") return "got ya that time!";
+                return "whoa, a tie!";
+              })()
+            }
+            onDismiss={() => {}}
+            inModal
+          />
+        </>
+      )}
+
+      {/* Game over */}
+      {phase.type === "game-over" && game.state.currentGame && (
+        <>
+          <PhoneOverlay mode="app" onClose={() => {}}>
+            <GameOver
+              game={game.state.currentGame}
+              onDone={handleGameDone}
+            />
+          </PhoneOverlay>
+          <SpeechBubble
+            text={
+              game.state.currentGame.playerScore > game.state.currentGame.opponentScore
+                ? "good game! come back anytime"
+                : "nice try! come back for a rematch anytime"
+            }
+            onDismiss={() => {}}
+            inModal
+          />
+        </>
+      )}
+
       {/* Phone with app, waiting for click — speech bubble from left (in modal) */}
       {phase.type === "waiting-app-click" && (
         <>
           <PhoneOverlay
             onAppClick={handleAppClick}
             onClose={handleAppClose}
+            onNudge={() => setPhoneNudged(true)}
           />
-          <SpeechBubble
-            text="those little bots love a little cheese and this is how you help them get some"
-            onDismiss={() => {}}
-            inModal
-            delay={500}
-          />
+          {!phoneNudged && (
+            <SpeechBubble
+              text="those little bots love a little cheese and this is how you help them get some"
+              onDismiss={() => {}}
+              inModal
+              delay={500}
+            />
+          )}
         </>
       )}
 
