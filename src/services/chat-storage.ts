@@ -7,6 +7,7 @@ export interface ChatMessage {
   text: string;
   timestamp: number;
   isSeen?: boolean; // true when Haiku was unavailable
+  isUnread?: boolean; // true for async NPC messages not yet viewed
 }
 
 export interface ChatPreferences {
@@ -84,4 +85,43 @@ const FRIENDLY_EMOJIS = [
 
 export function getRandomEmoji(): string {
   return FRIENDLY_EMOJIS[Math.floor(Math.random() * FRIENDLY_EMOJIS.length)]!;
+}
+
+export function getUnreadCount(npcId: string): number {
+  return getChats(npcId).filter((m) => m.isUnread).length;
+}
+
+export function getTotalUnreadCount(): number {
+  try {
+    const data = localStorage.getItem(CHATS_KEY);
+    if (!data) return 0;
+    const allChats = JSON.parse(data) as Record<string, ChatMessage[]>;
+    let count = 0;
+    for (const msgs of Object.values(allChats)) {
+      count += msgs.filter((m) => m.isUnread).length;
+    }
+    return count;
+  } catch {
+    return 0;
+  }
+}
+
+export function markAsRead(npcId: string): void {
+  try {
+    const data = localStorage.getItem(CHATS_KEY);
+    if (!data) return;
+    const allChats: Record<string, ChatMessage[]> = JSON.parse(data);
+    const msgs = allChats[npcId];
+    if (!msgs) return;
+    let changed = false;
+    for (const msg of msgs) {
+      if (msg.isUnread) {
+        msg.isUnread = false;
+        changed = true;
+      }
+    }
+    if (changed) {
+      localStorage.setItem(CHATS_KEY, JSON.stringify(allChats));
+    }
+  } catch {}
 }

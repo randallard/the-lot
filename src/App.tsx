@@ -36,7 +36,11 @@ import {
   getPreferences,
   setPreferences,
   getRandomEmoji,
+  getTotalUnreadCount,
 } from "./services/chat-storage";
+import { recordResult } from "./services/npc-records";
+import { fetchPendingResults } from "./services/fetch-pending-results";
+import { processAsyncResults } from "./services/async-npc-messages";
 import type { TrinketTrackerState } from "./world/useTrinketTracker";
 import type { RushMode } from "./world/Player";
 import type { ScreenPos } from "./world/useScreenPosition";
@@ -64,6 +68,7 @@ export default function App() {
   const postGameChat = useRef(false);
   const [needsBubbleHint, setNeedsBubbleHint] = useState(false);
   const [bubbleHintExpanded, setBubbleHintExpanded] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(() => getTotalUnreadCount());
 
   // Show bubble hint when no saved offset exists for current screen size
   useEffect(() => {
@@ -134,6 +139,22 @@ export default function App() {
       // Clear active session if the game is finished (not incomplete)
       if (results.winner !== "incomplete") {
         clearActiveSession(results.npcId);
+        // Record win/loss
+        recordResult(results.npcId, results.winner);
+      }
+
+      // Process any bundled pending results from other completed games
+      if (results.pendingResults && results.pendingResults.length > 0) {
+        const asyncResults = results.pendingResults
+          .filter((r) => r.winner !== "incomplete")
+          .map((r) => ({
+            ...r,
+            winner: r.winner as "player" | "opponent" | "tie",
+            completedAt: Date.now(),
+          }));
+        processAsyncResults(asyncResults).then((count) => {
+          if (count > 0) setUnreadCount(getTotalUnreadCount());
+        });
       }
 
       setSelectedNpcId(results.npcId);
@@ -187,6 +208,18 @@ export default function App() {
       localStorage.removeItem("townage-playing-npc");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch pending results from Vercel KV for games completed without returning
+  useEffect(() => {
+    fetchPendingResults().then(async (results) => {
+      if (results.length === 0) return;
+      console.log("[App] Found", results.length, "pending async results");
+      const count = await processAsyncResults(results);
+      if (count > 0) {
+        setUnreadCount(getTotalUnreadCount());
+      }
+    });
   }, []);
 
   const handlePart1Pickup = useCallback(() => {
@@ -733,6 +766,7 @@ export default function App() {
             game.setPhaseOverride({ type: "settings-app" });
           }}
           onClose={() => game.clearOverride()}
+          chatUnreadCount={unreadCount}
         />
       )}
 
@@ -749,7 +783,10 @@ export default function App() {
       {/* Chat app */}
       {phase.type === "chat-app" && (
         <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
-          <ChatApp onClose={() => game.clearOverride()} />
+          <ChatApp
+            onClose={() => game.clearOverride()}
+            onUnreadChange={() => setUnreadCount(getTotalUnreadCount())}
+          />
         </PhoneOverlay>
       )}
 

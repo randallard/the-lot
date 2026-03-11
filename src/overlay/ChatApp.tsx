@@ -8,6 +8,8 @@ import {
   setPreferences,
   getRandomEmoji,
   getAllChatNpcIds,
+  getUnreadCount,
+  markAsRead,
   type ChatMessage,
 } from "../services/chat-storage";
 import { chatWithNpc } from "../services/haiku-npc";
@@ -16,10 +18,17 @@ import { ChatOptInModal } from "./ChatOptInModal";
 
 interface ChatAppProps {
   onClose: () => void;
+  onUnreadChange?: () => void;
 }
 
-export function ChatApp({ onClose }: ChatAppProps) {
+export function ChatApp({ onClose, onUnreadChange }: ChatAppProps) {
   const [activeNpcId, setActiveNpcId] = useState<string | null>(null);
+
+  const handleSelectNpc = useCallback((id: string) => {
+    setActiveNpcId(id);
+    markAsRead(id);
+    onUnreadChange?.();
+  }, [onUnreadChange]);
 
   if (activeNpcId) {
     return (
@@ -31,7 +40,7 @@ export function ChatApp({ onClose }: ChatAppProps) {
     );
   }
 
-  return <ContactsList onSelect={setActiveNpcId} onClose={onClose} />;
+  return <ContactsList onSelect={handleSelectNpc} onClose={onClose} />;
 }
 
 function ContactsList({
@@ -92,6 +101,7 @@ function ContactsList({
         if (!npc) return null;
         const chats = getChats(id);
         const lastMsg = chats[chats.length - 1];
+        const unread = getUnreadCount(id);
         return (
           <button
             key={id}
@@ -148,6 +158,17 @@ function ContactsList({
                 </p>
               )}
             </div>
+            {unread > 0 && (
+              <div
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: "#e74c3c",
+                  flexShrink: 0,
+                }}
+              />
+            )}
           </button>
         );
       })}

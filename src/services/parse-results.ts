@@ -12,6 +12,7 @@ export interface GameResults {
     opponentPoints: number;
     winner: "player" | "opponent" | "tie";
   }>;
+  pendingResults?: GameResults[];
 }
 
 export function parseResultsFromHash(): GameResults | null {

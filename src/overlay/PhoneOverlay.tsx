@@ -8,6 +8,7 @@ interface PhoneOverlayProps {
   onSettingsClick?: () => void;
   onClose: () => void;
   onNudge?: () => void;
+  chatUnreadCount?: number;
   children?: ReactNode;
 }
 
@@ -19,6 +20,7 @@ export function PhoneOverlay({
   onSettingsClick,
   onClose,
   onNudge,
+  chatUnreadCount = 0,
   children,
 }: PhoneOverlayProps) {
   const [nudge, setNudge] = useState(false);
@@ -93,7 +95,7 @@ export function PhoneOverlay({
               <HomeIcon icon={<span style={{ fontSize: 20 }}>🔍</span>} label="find..." bg="#2a2a3e" onClick={onFindClick} />
             )}
             {onChatClick && (
-              <HomeIcon icon={<span style={{ fontSize: 20 }}>💬</span>} label="messages" bg="#2a2a3e" onClick={onChatClick} />
+              <HomeIcon icon={<span style={{ fontSize: 20 }}>💬</span>} label="messages" bg="#2a2a3e" onClick={onChatClick} badge={chatUnreadCount > 0} />
             )}
             {onSettingsClick && (
               <HomeIcon icon={<span style={{ fontSize: 20 }}>⚙️</span>} label="settings" bg="#2a2a3e" onClick={onSettingsClick} />
@@ -141,7 +143,7 @@ export function PhoneOverlay({
   );
 }
 
-function HomeIcon({ icon, label, bg, onClick }: { icon: React.ReactNode; label: string; bg: string; onClick: () => void }) {
+function HomeIcon({ icon, label, bg, onClick, badge }: { icon: React.ReactNode; label: string; bg: string; onClick: () => void; badge?: boolean }) {
   return (
     <div
       style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}
@@ -157,9 +159,24 @@ function HomeIcon({ icon, label, bg, onClick }: { icon: React.ReactNode; label: 
           alignItems: "center",
           justifyContent: "center",
           boxShadow: "0 0 8px rgba(100, 100, 150, 0.2)",
+          position: "relative",
         }}
       >
         {icon}
+        {badge && (
+          <div
+            style={{
+              position: "absolute",
+              top: -3,
+              right: -3,
+              width: 10,
+              height: 10,
+              borderRadius: "50%",
+              background: "#e74c3c",
+              border: "2px solid #111",
+            }}
+          />
+        )}
       </div>
       <p style={{ color: "#888", fontSize: 9, margin: 0 }}>{label}</p>
     </div>

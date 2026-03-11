@@ -34,6 +34,16 @@ export function saveActiveSession(npcId: string, sessionId: string): void {
   } catch {}
 }
 
+export function getAllActiveSessions(): ActiveSession[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return [];
+    return JSON.parse(stored);
+  } catch {
+    return [];
+  }
+}
+
 export function clearActiveSession(npcId: string): void {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
