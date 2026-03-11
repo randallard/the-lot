@@ -6,7 +6,6 @@ import {
   getUnreadCount,
   getTotalUnreadCount,
   markAsRead,
-  type ChatMessage,
 } from "./chat-storage";
 
 describe("chat-storage unread features", () => {

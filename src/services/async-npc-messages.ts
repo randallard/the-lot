@@ -6,7 +6,7 @@
 import { getNpcById } from "../config/npcs";
 import { addMessage, genMessageId, getPreferences } from "./chat-storage";
 import { getNpcCommentary } from "./haiku-npc";
-import { recordResult, getRecord } from "./npc-records";
+import { recordResult } from "./npc-records";
 import { shouldNpcComment } from "./npc-response-chance";
 import { clearActiveSession } from "./active-sessions";
 import type { GameResults } from "./parse-results";
