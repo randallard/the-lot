@@ -49,7 +49,14 @@ export function useTrinketTracker(
     out.current!.showArrow = arrowActivated;
 
     if (arrowActivated) {
-      const screenDir = new THREE.Vector2(projected.x, projected.y);
+      let sx = projected.x;
+      let sy = projected.y;
+      // When target is behind camera, projected coords are inverted — flip them
+      if (projected.z > 1) {
+        sx = -sx;
+        sy = -sy;
+      }
+      const screenDir = new THREE.Vector2(sx, sy);
       if (screenDir.length() > 0) {
         out.current!.angle = Math.atan2(screenDir.x, screenDir.y);
         screenDir.normalize().multiplyScalar(0.7);

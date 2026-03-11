@@ -9,15 +9,21 @@ export interface InputDirection {
 export function useInputDirection() {
   const dir = useRef<InputDirection>({ x: 0, z: 0 });
   const keys = useRef({ w: false, a: false, s: false, d: false });
+  const disabled = useRef(false);
 
   useEffect(() => {
     const update = () => {
-      // Keyboard contributes when no touch is active
+      if (disabled.current) {
+        dir.current.x = 0;
+        dir.current.z = 0;
+        return;
+      }
       dir.current.x = (keys.current.d ? 1 : 0) - (keys.current.a ? 1 : 0);
       dir.current.z = (keys.current.s ? 1 : 0) - (keys.current.w ? 1 : 0);
     };
 
     const handleKey = (e: KeyboardEvent, pressed: boolean) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       switch (e.code) {
         case "KeyW": case "ArrowUp":    keys.current.w = pressed; break;
         case "KeyS": case "ArrowDown":   keys.current.s = pressed; break;
@@ -39,5 +45,5 @@ export function useInputDirection() {
     };
   }, []);
 
-  return dir;
+  return { dir, disabled };
 }

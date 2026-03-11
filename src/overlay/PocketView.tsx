@@ -9,11 +9,17 @@ interface PocketViewProps {
 export function PocketView({ onClose, inventory, onPhoneClick }: PocketViewProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === "Enter" || e.code === "KeyE") onClose();
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === "Enter") {
+        if (onPhoneClick) onPhoneClick();
+        else onClose();
+      } else if (e.code === "KeyE") {
+        onClose();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, onPhoneClick]);
 
   return (
     <div
@@ -158,28 +164,6 @@ export function PocketView({ onClose, inventory, onPhoneClick }: PocketViewProps
                 justifyContent: "center",
               }}
             >
-              {inventory.includes("gettcheese-app") && (
-                <div
-                  style={{
-                    width: 18,
-                    height: 18,
-                    background: "#6a4c93",
-                    borderRadius: 4,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 8,
-                      height: 6,
-                      background: "#889099",
-                      borderRadius: 2,
-                    }}
-                  />
-                </div>
-              )}
             </div>
             <p
               style={{

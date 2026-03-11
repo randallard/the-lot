@@ -14,6 +14,7 @@ interface CameraRigProps {
 
 export function CameraRig({ target, offset, lookAtOffset }: CameraRigProps) {
   const currentLookAt = useRef(new THREE.Vector3());
+  const snapped = useRef(false);
 
   useFrame((state, delta) => {
     if (!target.current) return;
@@ -22,6 +23,19 @@ export function CameraRig({ target, offset, lookAtOffset }: CameraRigProps) {
     const isOverride = !!offset?.current;
     const factor = isOverride ? FAST_LERP_FACTOR : LERP_FACTOR;
     const desired = target.current.clone().add(off);
+
+    // Snap camera to correct position on first frame (avoids slow lerp from origin)
+    if (!snapped.current) {
+      snapped.current = true;
+      state.camera.position.copy(desired);
+      const desiredLookAt = lookAtOffset?.current
+        ? target.current.clone().add(lookAtOffset.current)
+        : target.current;
+      currentLookAt.current.copy(desiredLookAt);
+      state.camera.lookAt(currentLookAt.current);
+      return;
+    }
+
     state.camera.position.lerp(desired, 1 - Math.exp(-factor * delta));
 
     const desiredLookAt = lookAtOffset?.current

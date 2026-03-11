@@ -1,12 +1,43 @@
-import { useState, useMemo, useCallback } from "react";
-import type { GameState, PhaseOverride, GamePhase, Board, ResumePoint, GameSession } from "./types";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import type { GameState, PhaseOverride, GamePhase, Board, ResumePoint } from "./types";
 import { INITIAL_STATE } from "./types";
 import { derivePhase, getActivePhase } from "./derivePhase";
-import { simulateRound } from "../game/game-simulation";
-import { requestNpcBoard } from "../game/inference-client";
+import type { GameResults } from "../services/parse-results";
+
+const STORAGE_KEY = "townage-game-state";
+
+function loadPersistedState(): GameState {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved) as GameState;
+      // If returning from a game with NPC Ryan, bring him back immediately
+      // (must happen before first render so the Npc component doesn't start walking to camp)
+      const returningNpc = localStorage.getItem("townage-playing-npc");
+      const returningFromRyan = returningNpc === "ryan";
+      console.log("[loadState] returningNpc:", returningNpc, "parsedRelaxing:", parsed.npcRelaxing, "→ npcRelaxing:", returningFromRyan ? false : parsed.npcRelaxing);
+      return {
+        ...INITIAL_STATE,
+        ...parsed,
+        phaseOverride: null,
+        gameResults: null,
+        npcRelaxing: returningFromRyan ? false : (parsed.npcRelaxing ?? false),
+        resumePhase: returningFromRyan ? null : (parsed.resumePhase ?? null),
+      };
+    }
+  } catch {}
+  return INITIAL_STATE;
+}
 
 export function useGameState() {
-  const [state, setState] = useState<GameState>(INITIAL_STATE);
+  const [state, setState] = useState<GameState>(loadPersistedState);
+
+  // Persist state changes to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {}
+  }, [state]);
 
   // Derived values
   const phase = useMemo<GamePhase>(() => getActivePhase(state), [state]);
@@ -15,9 +46,8 @@ export function useGameState() {
     const items: string[] = ["phone"];
     if (state.partsCollected === 1) items.push("trinket");
     if (state.assembled) items.push("bot-parts");
-    if (state.appInstalled) items.push("gettcheese-app");
     return items;
-  }, [state.partsCollected, state.assembled, state.appInstalled]);
+  }, [state.partsCollected, state.assembled]);
 
   // Actions — all return complete state replacement
   const collectPart = useCallback(() => {
@@ -55,22 +85,19 @@ export function useGameState() {
 
   // Player walked away — figure out where they were and save it
   const npcWalkAway = useCallback((showBye: boolean) => {
+    console.trace("[npcWalkAway] showBye:", showBye);
     setState((prev) => {
       if (prev.npcRelaxing) return prev; // already relaxing
 
       // Figure out resume point from current state
       let resumePhase: ResumePoint | null = null;
       const p = prev.phaseOverride;
-      if (p?.type === "tutorial-demo") {
-        resumePhase = { type: "tutorial-demo", step: p.step };
-      } else if (p?.type === "tutorial-chat") {
-        resumePhase = { type: "tutorial-chat", step: p.step };
+      if (p?.type === "opponents-list") {
+        resumePhase = "opponents-list";
+      } else if (p?.type === "game-select") {
+        resumePhase = "game-select";
       } else if (p?.type === "board-creation") {
         resumePhase = "board-creation";
-      } else if (p?.type === "game-setup" || p?.type === "game-playing" || p?.type === "game-round-result") {
-        resumePhase = "game-setup";
-      } else if (p?.type === "game-over") {
-        resumePhase = "game-over";
       } else if (p?.type === "waiting-app-click" || p?.type === "npc-nudge") {
         resumePhase = "waiting-app-click";
       } else if (p?.type === "installing") {
@@ -101,16 +128,12 @@ export function useGameState() {
         override = { type: "need-phone" };
       } else if (resume === "waiting-app-click") {
         override = { type: "waiting-app-click" };
+      } else if (resume === "opponents-list") {
+        override = { type: "opponents-list" };
+      } else if (resume === "game-select") {
+        override = { type: "game-select" };
       } else if (resume === "board-creation") {
         override = { type: "board-creation" };
-      } else if (resume === "game-setup") {
-        override = { type: "game-setup" };
-      } else if (resume === "game-over") {
-        override = { type: "game-over" };
-      } else if (typeof resume === "object" && resume.type === "tutorial-chat") {
-        override = { type: "tutorial-chat", step: resume.step };
-      } else if (typeof resume === "object" && resume.type === "tutorial-demo") {
-        override = { type: "tutorial-demo", step: resume.step };
       }
 
       return {
@@ -138,6 +161,17 @@ export function useGameState() {
     }));
   }, []);
 
+  // Skip the full tutorial — after assembly reveal, jump straight to free-play
+  const completeIntro = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      npcSpoken: true,
+      appInstalled: true,
+      tutorialComplete: true,
+      phaseOverride: null,
+    }));
+  }, []);
+
   const saveBoard = useCallback((board: Board) => {
     setState((prev) => ({
       ...prev,
@@ -145,129 +179,38 @@ export function useGameState() {
     }));
   }, []);
 
-  const startGame = useCallback((boardSize: number) => {
-    const session: GameSession = {
-      opponentType: "npc",
-      boardSize,
-      rounds: [],
-      currentRound: 1,
-      totalRounds: 5,
-      playerScore: 0,
-      opponentScore: 0,
-      playerBoard: null,
-      opponentBoard: null,
-    };
+  // Launch a game against an NPC — sets phase to launching-game
+  const launchGame = useCallback(() => {
     setState((prev) => ({
       ...prev,
-      currentGame: session,
-      phaseOverride: { type: "game-setup" },
+      phaseOverride: { type: "launching-game" },
     }));
   }, []);
 
-  const selectBoard = useCallback(async (board: Board) => {
-    // Capture game state before async work
-    let gameSnapshot: GameSession | null = null;
-    setState((prev) => {
-      if (!prev.currentGame) return prev;
-      gameSnapshot = prev.currentGame;
-      return {
-        ...prev,
-        currentGame: { ...prev.currentGame, playerBoard: board },
-        phaseOverride: { type: "game-playing" },
-      };
-    });
-
-    if (!gameSnapshot) return;
-    const game = gameSnapshot as GameSession;
-
-    try {
-      const npcBoard = await requestNpcBoard(
-        game.boardSize,
-        game.currentRound,
-        game.opponentScore,
-        game.playerScore,
-        game.rounds.map((r) => ({ round: r.round, playerBoard: r.playerBoard })),
-      );
-
-      // Run simulation
-      const result = simulateRound(game.currentRound, board, npcBoard, game.boardSize);
-
-      // Store both boards and the round result
-      setState((prev) => {
-        if (!prev.currentGame) return prev;
-        const newRound = {
-          round: prev.currentGame.currentRound,
-          playerBoard: board,
-          opponentBoard: npcBoard,
-          playerPoints: result.playerPoints,
-          opponentPoints: result.opponentPoints,
-          winner: result.winner,
-          steps: result.steps,
-        };
-        return {
-          ...prev,
-          currentGame: {
-            ...prev.currentGame,
-            playerBoard: board,
-            opponentBoard: npcBoard,
-            rounds: [...prev.currentGame.rounds, newRound],
-          },
-          phaseOverride: { type: "game-playing" },
-        };
-      });
-    } catch (err) {
-      console.error("Failed to get NPC board:", err);
-      // Fallback: stay on game-setup
-      setState((prev) => ({
-        ...prev,
-        phaseOverride: { type: "game-setup" },
-      }));
-    }
-  }, []);
-
-  const advanceRound = useCallback(() => {
-    setState((prev) => {
-      if (!prev.currentGame) return prev;
-      const game = prev.currentGame;
-      const lastRound = game.rounds[game.rounds.length - 1];
-      if (!lastRound) return prev;
-
-      const newPlayerScore = game.playerScore + lastRound.playerPoints;
-      const newOpponentScore = game.opponentScore + lastRound.opponentPoints;
-
-      if (game.currentRound >= game.totalRounds) {
-        return {
-          ...prev,
-          currentGame: {
-            ...game,
-            playerScore: newPlayerScore,
-            opponentScore: newOpponentScore,
-            playerBoard: null,
-            opponentBoard: null,
-          },
-          phaseOverride: { type: "game-over" },
-        };
-      }
-
-      return {
-        ...prev,
-        currentGame: {
-          ...game,
-          currentRound: game.currentRound + 1,
-          playerScore: newPlayerScore,
-          opponentScore: newOpponentScore,
-          playerBoard: null,
-          opponentBoard: null,
-        },
-        phaseOverride: { type: "game-setup" },
-      };
-    });
-  }, []);
-
-  const endGame = useCallback(() => {
+  // Bring NPC back from camp to stand near the player (e.g. returning from game)
+  const bringNpcBack = useCallback(() => {
     setState((prev) => ({
       ...prev,
-      currentGame: null,
+      npcRelaxing: false,
+      phaseOverride: null,
+      resumePhase: null,
+    }));
+  }, []);
+
+  // Receive results from spaces-game via URL hash
+  const receiveResults = useCallback((results: GameResults) => {
+    setState((prev) => ({
+      ...prev,
+      gameResults: results,
+      phaseOverride: { type: "npc-commentary" },
+    }));
+  }, []);
+
+  // Clear results and return to free-play
+  const clearResults = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      gameResults: null,
       phaseOverride: null,
     }));
   }, []);
@@ -294,11 +237,12 @@ export function useGameState() {
     resumeFromNpc,
     installApp,
     completeTutorial,
+    completeIntro,
     saveBoard,
-    startGame,
-    selectBoard,
-    advanceRound,
-    endGame,
+    launchGame,
+    bringNpcBack,
+    receiveResults,
+    clearResults,
     setPhaseOverride,
     clearOverride,
   };

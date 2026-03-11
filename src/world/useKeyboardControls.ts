@@ -17,6 +17,7 @@ export function useKeyboardControls() {
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent, pressed: boolean) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       switch (e.code) {
         case "KeyW":
         case "ArrowUp":

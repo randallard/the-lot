@@ -70,7 +70,7 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden }: 
   });
 
   return (
-    <mesh ref={meshRef} position={[0, 0.75, 0]} castShadow visible={!hidden}>
+    <mesh ref={meshRef} position={[positionRef.current?.x ?? 0, positionRef.current?.y ?? 0.75, positionRef.current?.z ?? 0]} castShadow visible={!hidden}>
       <capsuleGeometry args={[0.3, 0.8, 8, 16]} />
       <meshStandardMaterial ref={matRef} color="#444444" transparent />
     </mesh>

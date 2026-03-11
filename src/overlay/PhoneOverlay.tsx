@@ -1,16 +1,26 @@
 import { useEffect, useState, type ReactNode } from "react";
 
-export type PhoneMode = "homescreen" | "app" | "sidebar";
-
 interface PhoneOverlayProps {
-  mode?: PhoneMode;
+  mode?: "homescreen" | "app";
   onAppClick?: () => void;
+  onFindClick?: () => void;
+  onChatClick?: () => void;
+  onSettingsClick?: () => void;
   onClose: () => void;
   onNudge?: () => void;
   children?: ReactNode;
 }
 
-export function PhoneOverlay({ mode = "homescreen", onAppClick, onClose, onNudge, children }: PhoneOverlayProps) {
+export function PhoneOverlay({
+  mode = "homescreen",
+  onAppClick,
+  onFindClick,
+  onChatClick,
+  onSettingsClick,
+  onClose,
+  onNudge,
+  children,
+}: PhoneOverlayProps) {
   const [nudge, setNudge] = useState(false);
 
   useEffect(() => {
@@ -23,62 +33,75 @@ export function PhoneOverlay({ mode = "homescreen", onAppClick, onClose, onNudge
   }, [mode, onNudge]);
 
   useEffect(() => {
-    if (mode === "app") return; // no escape-to-close in app mode
     const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.code === "Escape" || e.code === "KeyE") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, mode]);
+  }, [onClose]);
 
   const isApp = mode === "app";
-  const isSidebar = mode === "sidebar";
-
-  const phoneWidth = isApp ? 420 : isSidebar ? 340 : 160;
-  const phoneHeight = isApp ? "85vh" : isSidebar ? "90vh" : 280;
+  const hasGrid = !!(onFindClick || onChatClick || onSettingsClick);
 
   return (
     <div
-      onClick={mode === "homescreen" ? onClose : undefined}
+      onClick={onClose}
       style={{
         position: "fixed",
         inset: 0,
         display: "flex",
         flexDirection: "column",
-        alignItems: isSidebar ? "flex-end" : "center",
+        alignItems: "center",
         justifyContent: "center",
-        background: mode === "homescreen" ? "rgba(0, 0, 0, 0.75)" : "rgba(0, 0, 0, 0.85)",
+        background: "rgba(0, 0, 0, 0.75)",
         zIndex: 10,
-        padding: isSidebar ? "16px 16px 16px 0" : 0,
       }}
     >
       {/* Phone */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: phoneWidth,
-          maxWidth: "95vw",
-          height: phoneHeight,
+          width: isApp ? 340 : hasGrid ? 200 : 160,
+          height: isApp ? 560 : hasGrid ? 320 : 280,
+          maxHeight: isApp ? "80vh" : undefined,
           background: "#111",
-          borderRadius: isApp || isSidebar ? 24 : 20,
+          borderRadius: 20,
           border: "3px solid #333",
           display: "flex",
           flexDirection: "column",
-          alignItems: children ? "stretch" : "center",
-          justifyContent: children ? "flex-start" : "center",
-          gap: children ? 0 : 12,
-          padding: children ? 0 : 24,
-          overflow: "hidden",
-          transition: "width 0.3s ease, height 0.3s ease",
+          alignItems: isApp ? "stretch" : "center",
+          justifyContent: isApp ? "flex-start" : "center",
+          gap: isApp ? 0 : 12,
+          padding: isApp ? 12 : 24,
+          overflow: isApp ? "auto" : "visible",
         }}
       >
-        {children ? (
-          <div style={{ flex: 1, overflow: "auto", padding: "16px" }}>
-            {children}
+        {isApp ? (
+          children
+        ) : hasGrid ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, justifyItems: "center" }}>
+            {onAppClick && (
+              <HomeIcon
+                icon={<div style={{ width: 22, height: 16, background: "#889099", borderRadius: 4 }} />}
+                label="get t' cheese"
+                bg="#6a4c93"
+                onClick={() => onAppClick()}
+              />
+            )}
+            {onFindClick && (
+              <HomeIcon icon={<span style={{ fontSize: 20 }}>🔍</span>} label="find..." bg="#2a2a3e" onClick={onFindClick} />
+            )}
+            {onChatClick && (
+              <HomeIcon icon={<span style={{ fontSize: 20 }}>💬</span>} label="messages" bg="#2a2a3e" onClick={onChatClick} />
+            )}
+            {onSettingsClick && (
+              <HomeIcon icon={<span style={{ fontSize: 20 }}>⚙️</span>} label="settings" bg="#2a2a3e" onClick={onSettingsClick} />
+            )}
           </div>
         ) : (
           <>
-            {/* App icon */}
+            {/* Single app icon (tutorial flow) */}
             <div
               onClick={(e) => {
                 e.stopPropagation();
@@ -96,7 +119,9 @@ export function PhoneOverlay({ mode = "homescreen", onAppClick, onClose, onNudge
                 boxShadow: nudge
                   ? "0 0 20px rgba(106, 76, 147, 0.6)"
                   : "0 0 10px rgba(106, 76, 147, 0.3)",
-                animation: nudge ? "pocket-pulse 1s ease-in-out infinite" : "none",
+                animation: nudge
+                  ? "pocket-pulse 1s ease-in-out infinite"
+                  : "none",
               }}
             >
               <div style={{ width: 24, height: 18, background: "#889099", borderRadius: 4 }} />
@@ -106,10 +131,8 @@ export function PhoneOverlay({ mode = "homescreen", onAppClick, onClose, onNudge
         )}
       </div>
 
-      {/* Nudge text */}
-      {mode === "homescreen" && nudge && <NudgeBubble />}
 
-      {mode === "homescreen" && (
+      {!isApp && (
         <p style={{ color: "#555", fontSize: 12, marginTop: 24 }}>
           click outside to close
         </p>
@@ -118,50 +141,27 @@ export function PhoneOverlay({ mode = "homescreen", onAppClick, onClose, onNudge
   );
 }
 
-function NudgeBubble() {
+function HomeIcon({ icon, label, bg, onClick }: { icon: React.ReactNode; label: string; bg: string; onClick: () => void }) {
   return (
     <div
-      style={{
-        position: "fixed",
-        top: "25%",
-        left: 24,
-        maxWidth: 320,
-        padding: "18px 28px",
-        background: "#fff",
-        border: "3px solid #222",
-        borderRadius: 20,
-        zIndex: 20,
-      }}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
     >
       <div
         style={{
-          position: "absolute",
-          left: -18,
-          top: "50%",
-          transform: "translateY(-50%)",
-          width: 0,
-          height: 0,
-          borderTop: "12px solid transparent",
-          borderBottom: "12px solid transparent",
-          borderRight: "18px solid #222",
+          width: 48,
+          height: 48,
+          background: bg,
+          borderRadius: 12,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 0 8px rgba(100, 100, 150, 0.2)",
         }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          left: -13,
-          top: "50%",
-          transform: "translateY(-50%)",
-          width: 0,
-          height: 0,
-          borderTop: "10px solid transparent",
-          borderBottom: "10px solid transparent",
-          borderRight: "15px solid #fff",
-        }}
-      />
-      <p style={{ color: "#222", fontSize: 16, lineHeight: 1.5 }}>
-        go ahead and click that app you just installed
-      </p>
+      >
+        {icon}
+      </div>
+      <p style={{ color: "#888", fontSize: 9, margin: 0 }}>{label}</p>
     </div>
   );
 }

@@ -3,9 +3,9 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { ScreenPos } from "./useScreenPosition";
 
-// NPC behavior: phone-out → walking-to-camp → sitting → sipping → getting-uke → playing-uke
+// NPC behavior: idle → walking-to-camp → sitting → sipping → getting-uke → playing-uke
 export type NpcBehavior =
-  | "phone-out"
+  | "idle"
   | "walking-to-camp"
   | "sitting"
   | "sipping"
@@ -17,6 +17,7 @@ interface NpcProps {
   playerPosition: React.RefObject<THREE.Vector3 | null>;
   onClick?: () => void;
   relaxing: boolean;
+  talking: boolean;
   screenPos: React.RefObject<ScreenPos>;
   worldPosRef?: React.RefObject<THREE.Vector3 | null>;
 }
@@ -25,13 +26,15 @@ const WALK_SPEED = 1.5;
 const SIP_INTERVAL = 4000;
 const UKE_DELAY = 12000;
 
-export function Npc({ position, playerPosition, onClick, relaxing, screenPos, worldPosRef }: NpcProps) {
+export function Npc({ position, playerPosition, onClick, relaxing, talking, screenPos, worldPosRef }: NpcProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const [behavior, setBehavior] = useState<NpcBehavior>("phone-out");
+  const hovered = useRef(false);
+  const [behavior, setBehavior] = useState<NpcBehavior>("idle");
   const [campPos, setCampPos] = useState<THREE.Vector3 | null>(null);
   const walkTarget = useRef<THREE.Vector3 | null>(null);
-  const sipTimer = useRef(0);
+
   const [sipping, setSipping] = useState(false);
+  const initialRelaxing = useRef(relaxing);
   const { camera } = useThree();
 
   // Track screen position for speech bubble pointing (mouth area)
@@ -48,10 +51,15 @@ export function Npc({ position, playerPosition, onClick, relaxing, screenPos, wo
     screenPos.current!.x = (projected.x + 1) / 2;
     screenPos.current!.y = (-projected.y + 1) / 2;
     screenPos.current!.visible = projected.z < 1;
+    // Screen height: project head top and feet
+    const headTop = new THREE.Vector3(0, 1.35, 0).applyMatrix4(groupRef.current.matrixWorld).project(camera);
+    const feet = new THREE.Vector3(0, 0, 0).applyMatrix4(groupRef.current.matrixWorld).project(camera);
+    screenPos.current!.screenHeight = Math.abs((-headTop.y + 1) / 2 - (-feet.y + 1) / 2) * window.innerHeight;
   });
 
   // When relaxing starts, compute camp position based on player direction
   useEffect(() => {
+    console.log("[npc] relaxing effect:", relaxing, "campPos:", !!campPos);
     if (!relaxing || campPos) return;
     if (!playerPosition.current || !groupRef.current) return;
 
@@ -68,8 +76,16 @@ export function Npc({ position, playerPosition, onClick, relaxing, screenPos, wo
     const perpDir = new THREE.Vector3(-dir.z, 0, dir.x).normalize();
     const camp = npcWorldPos.clone().addScaledVector(perpDir, 20);
     setCampPos(camp);
-    walkTarget.current = camp;
-    setBehavior("walking-to-camp");
+
+    if (initialRelaxing.current) {
+      // Was relaxing from mount (e.g. page reload) — teleport to camp
+      groupRef.current.position.set(camp.x, 0, camp.z);
+      setBehavior("sitting");
+    } else {
+      // Just started relaxing — walk to camp
+      walkTarget.current = camp;
+      setBehavior("walking-to-camp");
+    }
   }, [relaxing, campPos, playerPosition]);
 
   // Sipping timer
@@ -91,6 +107,19 @@ export function Npc({ position, playerPosition, onClick, relaxing, screenPos, wo
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
+
+    // When talking or hovered, just face the player and freeze all other movement
+    if (talking || hovered.current) {
+      if (playerPosition.current) {
+        const target = new THREE.Vector3(
+          playerPosition.current.x,
+          groupRef.current.position.y,
+          playerPosition.current.z
+        );
+        groupRef.current.lookAt(target);
+      }
+      return;
+    }
 
     if (behavior === "walking-to-camp" && walkTarget.current) {
       const pos = groupRef.current.position;
@@ -143,7 +172,7 @@ export function Npc({ position, playerPosition, onClick, relaxing, screenPos, wo
         // Gentle sway while playing
         groupRef.current.rotation.y += Math.sin(Date.now() * 0.002) * 0.003;
       }
-    } else if (behavior === "phone-out" || behavior === "sitting") {
+    } else if (behavior === "idle" || behavior === "sitting") {
       // Face the player
       if (playerPosition.current) {
         const target = new THREE.Vector3(
@@ -156,7 +185,6 @@ export function Npc({ position, playerPosition, onClick, relaxing, screenPos, wo
     }
   });
 
-  const showPhone = behavior === "phone-out";
   const showCoffee = behavior === "sitting" || behavior === "sipping";
   const showUke = behavior === "playing-uke" && !walkTarget.current;
 
@@ -175,30 +203,19 @@ export function Npc({ position, playerPosition, onClick, relaxing, screenPos, wo
           <meshStandardMaterial color="#5a5a6e" />
         </mesh>
 
-        {/* Phone (only when offering) */}
-        {showPhone && (
-          <>
-            <group position={[-0.37, 0.7, 0.17]}>
-              <mesh rotation={[-0.3, 0.4, 0]}>
-                <boxGeometry args={[0.15, 0.25, 0.02]} />
-                <meshStandardMaterial color="#c75b12" />
-              </mesh>
-            </group>
-            {/* Generous hitbox covering NPC + phone */}
-            <mesh
-              position={[0, 0.6, 0]}
-              onClick={(e) => {
-                e.stopPropagation();
-                onClick?.();
-              }}
-              onPointerOver={() => { document.body.style.cursor = "pointer"; }}
-              onPointerOut={() => { document.body.style.cursor = "default"; }}
-            >
-              <cylinderGeometry args={[0.8, 0.8, 2, 12]} />
-              <meshBasicMaterial visible={false} />
-            </mesh>
-          </>
-        )}
+        {/* Clickable hitbox */}
+        <mesh
+          position={[0, 0.6, 0]}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick?.();
+          }}
+          onPointerOver={() => { document.body.style.cursor = "pointer"; hovered.current = true; }}
+          onPointerOut={() => { document.body.style.cursor = "default"; hovered.current = false; }}
+        >
+          <cylinderGeometry args={[0.8, 0.8, 2, 12]} />
+          <meshBasicMaterial visible={false} />
+        </mesh>
 
         {/* Coffee cup (when sitting) */}
         {showCoffee && (
@@ -231,21 +248,6 @@ export function Npc({ position, playerPosition, onClick, relaxing, screenPos, wo
           </group>
         )}
 
-        {/* Clickable hitbox (when not holding phone — click body to talk) */}
-        {!showPhone && (
-          <mesh
-            position={[0, 0.6, 0]}
-            onClick={(e) => {
-              e.stopPropagation();
-              onClick?.();
-            }}
-            onPointerOver={() => { document.body.style.cursor = "pointer"; }}
-            onPointerOut={() => { document.body.style.cursor = "default"; }}
-          >
-            <cylinderGeometry args={[0.8, 0.8, 2, 12]} />
-            <meshBasicMaterial visible={false} />
-          </mesh>
-        )}
       </group>
 
       {/* Camp scene */}

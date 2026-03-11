@@ -10,6 +10,7 @@ export function PickupCutscene({ onDismiss }: PickupCutsceneProps) {
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 100);
     const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.code === "Enter") onDismiss();
     };
     window.addEventListener("keydown", onKey);

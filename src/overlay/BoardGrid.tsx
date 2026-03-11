@@ -1,135 +1,202 @@
 import type { CellContent, BoardMove } from "../state/types";
 
-export type SequenceItem = BoardMove & { color?: string };
-
 interface BoardGridProps {
   grid: CellContent[][];
-  sequence: SequenceItem[];
+  sequence: BoardMove[];
   boardSize: number;
-  highlightCell?: { row: number; col: number } | null;
   showNumbers?: boolean;
-  onCellClick?: (row: number, col: number) => void;
-  playerPos?: { row: number; col: number } | null;
-  opponentPos?: { row: number; col: number } | null;
+  highlightCell?: { row: number; col: number } | null;
   pieceColor?: string;
 }
+
+const CELL_SIZE = 56;
+const BLUE = "#4a90e2";
 
 export function BoardGrid({
   grid,
   sequence,
   boardSize,
+  showNumbers = false,
   highlightCell,
-  showNumbers = true,
-  onCellClick,
-  playerPos,
-  opponentPos,
-  pieceColor = "#4a90e2",
+  pieceColor,
 }: BoardGridProps) {
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: `repeat(${boardSize}, 1fr)`,
-        gap: 3,
-        width: "100%",
+        gridTemplateColumns: `repeat(${boardSize}, ${CELL_SIZE}px)`,
+        gridTemplateRows: `repeat(${boardSize}, ${CELL_SIZE}px)`,
+        gap: 2,
+        padding: 4,
       }}
     >
-      {grid.map((row, rIdx) =>
-        row.map((cell, cIdx) => {
-          const isHighlight = highlightCell?.row === rIdx && highlightCell?.col === cIdx;
-          const isPlayer = playerPos?.row === rIdx && playerPos?.col === cIdx;
-          const isOpponent = opponentPos?.row === rIdx && opponentPos?.col === cIdx;
-
-          // Find piece and trap sequence items at this position
-          const pieceSeq = sequence.find(
-            (s) => s.position.row === rIdx && s.position.col === cIdx && s.type === "piece",
-          );
-          const trapSeq = sequence.find(
-            (s) => s.position.row === rIdx && s.position.col === cIdx && s.type === "trap",
+      {grid.map((row, r) =>
+        row.map((_cell, c) => {
+          const isHighlighted =
+            highlightCell?.row === r && highlightCell?.col === c;
+          const movesHere = sequence.filter(
+            (m) => m.position.row === r && m.position.col === c,
           );
 
           return (
             <div
-              key={`${rIdx}-${cIdx}`}
-              onClick={onCellClick ? () => onCellClick(rIdx, cIdx) : undefined}
+              key={`${r}-${c}`}
               style={{
-                aspectRatio: "1",
-                background: isHighlight ? "#fffbe6" : "#fff",
+                width: CELL_SIZE,
+                height: CELL_SIZE,
+                background: isHighlighted
+                  ? "rgba(231, 76, 60, 0.15)"
+                  : "#1a1a2e",
                 borderRadius: 6,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 position: "relative",
-                cursor: onCellClick ? "pointer" : "default",
-                border: isHighlight ? "2px solid #f0a500" : "2px solid #e5e7eb",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                border: isHighlighted
+                  ? "2px solid rgba(231, 76, 60, 0.4)"
+                  : "1px solid #2a2a3e",
               }}
             >
-              {/* Piece icon (rendered behind trap) */}
-              {pieceSeq && (
-                <svg
-                  viewBox="0 0 40 40"
-                  style={{
-                    width: "80%",
-                    height: "80%",
-                    position: "absolute",
-                    animation: isHighlight ? "pulse 1.5s ease-in-out infinite" : undefined,
-                  }}
-                >
-                  <circle cx="20" cy="20" r="14" fill={(pieceSeq as SequenceItem).color ?? pieceColor} />
-                  {showNumbers && (
-                    <text x="20" y="20" fontSize="14" fill="white" textAnchor="middle" dy=".3em">
-                      {pieceSeq.order}
-                    </text>
-                  )}
-                </svg>
-              )}
-
-              {/* Trap icon (rendered on top of piece) */}
-              {trapSeq && (
-                <svg viewBox="0 0 40 40" style={{ width: "80%", height: "80%", position: "absolute" }}>
-                  <path d="M8 8 l24 24 m0 -24 l-24 24" stroke="#f5222d" strokeWidth="4" opacity="0.7" />
-                  {showNumbers && (
-                    <text x="35" y="18" fontSize="12" fill="#f5222d" textAnchor="middle" dy=".3em" fontWeight="bold">
-                      {trapSeq.order}
-                    </text>
-                  )}
-                </svg>
-              )}
-
-              {/* Player bot marker */}
-              {isPlayer && (
-                <div
-                  style={{
-                    position: "absolute",
-                    width: "55%",
-                    height: "55%",
-                    borderRadius: "50%",
-                    background: "#4a90e2",
-                    border: "2px solid #fff",
-                    boxShadow: "0 0 6px rgba(74,144,226,0.5)",
-                  }}
-                />
-              )}
-
-              {/* Opponent bot marker */}
-              {isOpponent && (
-                <div
-                  style={{
-                    position: "absolute",
-                    width: "55%",
-                    height: "55%",
-                    borderRadius: "50%",
-                    background: "#9b59b6",
-                    border: "2px solid #fff",
-                    boxShadow: "0 0 6px rgba(155,89,182,0.5)",
-                  }}
-                />
-              )}
+              {movesHere.map((move, i) => {
+                if (move.type === "trap") {
+                  return (
+                    <span
+                      key={i}
+                      style={{
+                        fontSize: 22,
+                        color: "#e74c3c",
+                        fontWeight: 900,
+                        position: "absolute",
+                      }}
+                    >
+                      X
+                    </span>
+                  );
+                }
+                const color =
+                  (move as BoardMove & { color?: string }).color ??
+                  pieceColor ??
+                  BLUE;
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      background: color,
+                      opacity: 0.7,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      position: "absolute",
+                    }}
+                  >
+                    {showNumbers && (
+                      <span
+                        style={{
+                          color: "#fff",
+                          fontSize: 14,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {move.order}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           );
         }),
       )}
+    </div>
+  );
+}
+
+export function CheeseTokenStack({
+  pulse = false,
+  small = false,
+}: {
+  pulse?: boolean;
+  small?: boolean;
+}) {
+  const chipColor = "#f5a623";
+  const rimColor = "#d4891a";
+  const chips = small ? [0, 1, 2] : [0, 1, 2, 3];
+  const w = small ? 36 : 52;
+  const faceH = small ? 18 : 26;
+  const edgeH = small ? 6 : 8;
+  const stackGap = small ? 5 : 6;
+  const totalH = small ? 42 : 64;
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: w,
+        height: totalH,
+        animation: pulse ? "pocket-pulse 1s ease-in-out infinite" : undefined,
+        filter: pulse ? "drop-shadow(0 0 8px #f5a623)" : undefined,
+      }}
+    >
+      {chips.map((i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            bottom: i * stackGap,
+            left: 0,
+            width: w,
+            height: faceH + edgeH,
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 2,
+              width: w - 4,
+              height: edgeH,
+              background: rimColor,
+              borderRadius: `0 0 ${w / 2}px ${w / 2}px`,
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: w,
+              height: faceH,
+              background: chipColor,
+              borderRadius: "50%",
+              border: `${small ? 2 : 3}px solid ${rimColor}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow:
+                i === chips.length - 1
+                  ? "0 2px 8px rgba(0,0,0,0.3)"
+                  : "none",
+            }}
+          >
+            {i === chips.length - 1 && (
+              <span
+                style={{
+                  fontSize: small ? 10 : 13,
+                  fontWeight: 800,
+                  color: "#fff",
+                  textShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                  position: "relative",
+                }}
+              >
+                1
+              </span>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

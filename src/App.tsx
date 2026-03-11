@@ -10,15 +10,33 @@ import { PocketButton } from "./overlay/PocketButton";
 import { TrinketArrow } from "./overlay/TrinketArrow";
 import { SpeechBubble } from "./overlay/SpeechBubble";
 import { PhoneOverlay } from "./overlay/PhoneOverlay";
-import { TutorialDemo, TUTORIAL_DEMO_STEPS, TUTORIAL_STEP_TEXTS } from "./overlay/TutorialDemo";
-import { BoardCreator } from "./overlay/BoardCreator";
-import { BoardSelector } from "./overlay/BoardSelector";
-import { SimulationView } from "./overlay/SimulationView";
-import { RoundResult } from "./overlay/RoundResult";
-import { GameOver } from "./overlay/GameOver";
 import { ThoughtBubble } from "./overlay/ThoughtBubble";
+import { BoardCreator } from "./overlay/BoardCreator";
+import { OpponentsList } from "./overlay/OpponentsList";
+import { GameSelect } from "./overlay/GameSelect";
+import { FindApp } from "./overlay/FindApp";
+import { NpcChatBubble } from "./overlay/NpcChatBubble";
+import { ChatApp } from "./overlay/ChatApp";
+import { SettingsApp } from "./overlay/SettingsApp";
+import { ChatOptInModal } from "./overlay/ChatOptInModal";
+import { ChatInfoModal } from "./overlay/ChatInfoModal";
+import { BubbleHint } from "./overlay/BubbleHint";
+import { hasOffsetForCurrentSize, isBubbleHintDismissed } from "./overlay/bubble-offset";
 import { useInputDirection } from "./world/useInputDirection";
 import { useGameState } from "./state/useGameState";
+import { getNpcById } from "./config/npcs";
+import { launchGame } from "./services/launch-game";
+import { parseResultsFromHash } from "./services/parse-results";
+import { clearActiveSession } from "./services/active-sessions";
+import { getNpcCommentary, chatWithNpc } from "./services/haiku-npc";
+import {
+  getChats,
+  addMessage,
+  genMessageId,
+  getPreferences,
+  setPreferences,
+  getRandomEmoji,
+} from "./services/chat-storage";
 import type { TrinketTrackerState } from "./world/useTrinketTracker";
 import type { RushMode } from "./world/Player";
 import type { ScreenPos } from "./world/useScreenPosition";
@@ -28,8 +46,39 @@ export default function App() {
   const { phase, inventory } = game;
 
   const [pocketOpen, setPocketOpen] = useState(false);
-  const [phoneNudged, setPhoneNudged] = useState(false);
-  const inputDir = useInputDirection();
+  const [selectedNpcId, setSelectedNpcId] = useState("myco");
+  const [npcDialogue, setNpcDialogue] = useState<string | null>(null);
+  const [findTargetNpcId, setFindTargetNpcId] = useState<string | null>(null);
+
+  // Chat interaction state
+  const [chatNpcId, setChatNpcId] = useState<string | null>(null);
+  const [chatRespondingNpcId, setChatRespondingNpcId] = useState<string | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatResponse, setChatResponse] = useState<{ text: string; isSeen: boolean } | null>(null);
+  const [showOptIn, setShowOptIn] = useState(false);
+  const [pendingChatNpcId, setPendingChatNpcId] = useState<string | null>(null);
+  const [showChatInfo, setShowChatInfo] = useState<"unavailable" | "privacy" | null>(null);
+  const [showNpcIntro, setShowNpcIntro] = useState(false);
+  const [chatContinue, setChatContinue] = useState(false);
+  const [_playingGameNpcId, setPlayingGameNpcId] = useState<string | null>(null);
+  const postGameChat = useRef(false);
+  const [needsBubbleHint, setNeedsBubbleHint] = useState(false);
+  const [bubbleHintExpanded, setBubbleHintExpanded] = useState(false);
+
+  // Show bubble hint when no saved offset exists for current screen size
+  useEffect(() => {
+    const check = () => {
+      setNeedsBubbleHint(
+        !isBubbleHintDismissed() &&
+        (!hasOffsetForCurrentSize("pc") || !hasOffsetForCurrentSize("npc"))
+      );
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  const { dir: inputDir, disabled: inputDisabled } = useInputDirection();
   const rushMode = useRef<RushMode>(0);
   const rushTarget = useRef<THREE.Vector3 | null>(null);
   const trinketTracker = useRef<TrinketTrackerState>({
@@ -41,8 +90,25 @@ export default function App() {
   });
   const cameraOffset = useRef<THREE.Vector3 | null>(null);
   const cameraLookAtOffset = useRef<THREE.Vector3 | null>(null);
-  const npcScreenPos = useRef<ScreenPos>({ x: 0.5, y: 0.5, visible: false });
-  const playerScreenPos = useRef<ScreenPos>({ x: 0.5, y: 0.5, visible: false });
+  const npcScreenPos = useRef<ScreenPos>({ x: 0.5, y: 0.5, visible: false, screenHeight: 0 });
+  const playerScreenPos = useRef<ScreenPos>({ x: 0.5, y: 0.5, visible: false, screenHeight: 0 });
+  const mycoScreenPos = useRef<ScreenPos>({ x: 0.5, y: 0.5, visible: false, screenHeight: 0 });
+  const emberScreenPos = useRef<ScreenPos>({ x: 0.5, y: 0.5, visible: false, screenHeight: 0 });
+  // Restore player position only when returning from spaces-game (not on plain refresh)
+  const [savedPlayerPos] = useState<{ x: number; z: number } | null>(() => {
+    try {
+      const npc = localStorage.getItem("townage-playing-npc");
+      const pos = localStorage.getItem("townage-player-pos");
+      if (npc && pos) {
+        const parsed = JSON.parse(pos);
+        console.log("[restore] npc:", npc, "pos:", parsed);
+        return parsed;
+      }
+      console.log("[restore] no saved position, npc:", npc, "pos:", pos);
+    } catch {}
+    return null;
+  });
+  const playerWorldPos = useRef<{ x: number; z: number } | null>(savedPlayerPos);
 
   // Zoom camera through player to in front, looking back at their hands
   const zoomIn = phase.type === "part1-cutscene" || phase.type === "assembly-cutscene" || phase.type === "assembly-reveal";
@@ -53,6 +119,75 @@ export default function App() {
     cameraOffset.current = null;
     cameraLookAtOffset.current = null;
   }
+
+  // Check for game results in URL hash on mount, or restore playing-game context
+  useEffect(() => {
+    const results = parseResultsFromHash();
+    const savedPlayingNpc = localStorage.getItem("townage-playing-npc");
+    // Clean up saved position (already read during init)
+    localStorage.removeItem("townage-player-pos");
+
+    if (results) {
+      // Clear saved context — we're back with results
+      localStorage.removeItem("townage-playing-npc");
+
+      // Clear active session if the game is finished (not incomplete)
+      if (results.winner !== "incomplete") {
+        clearActiveSession(results.npcId);
+      }
+
+      setSelectedNpcId(results.npcId);
+      setPlayingGameNpcId(results.npcId);
+      postGameChat.current = true;
+      // Bring Ryan back to stand near the player (position already restored)
+      if (results.npcId === "ryan") {
+        game.bringNpcBack();
+      }
+
+      const npc = getNpcById(results.npcId);
+      if (!npc) return;
+
+      // Show NPC response as chat bubble
+      setChatRespondingNpcId(results.npcId);
+      setChatLoading(true);
+
+      const prefs = getPreferences();
+      if (prefs.useHaiku) {
+        getNpcCommentary(npc, results).then((text) => {
+          setChatLoading(false);
+          setChatResponse({ text, isSeen: false });
+          setPlayingGameNpcId(null);
+        }).catch(() => {
+          setChatLoading(false);
+          const fallback = results.winner === "incomplete"
+            ? "leaving already? we can finish later"
+            : results.winner === "player"
+              ? npc.personality.loseReaction
+              : results.winner === "opponent"
+                ? npc.personality.winReaction
+                : npc.personality.greeting;
+          setChatResponse({ text: fallback, isSeen: false });
+          setPlayingGameNpcId(null);
+        });
+      } else {
+        // Emoji fallback
+        setTimeout(() => {
+          const emoji = results.winner === "incomplete" ? "🤷" :
+            results.winner === "player" ? "😤" :
+            results.winner === "opponent" ? "😎" : "🤝";
+          setChatLoading(false);
+          setChatResponse({ text: emoji, isSeen: false });
+          setPlayingGameNpcId(null);
+        }, 800);
+      }
+    } else if (savedPlayingNpc) {
+      // Returned without results (e.g. browser back) — NPC should still be nearby
+      setSelectedNpcId(savedPlayingNpc);
+      setPlayingGameNpcId(savedPlayingNpc);
+      localStorage.removeItem("townage-playing-npc");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handlePart1Pickup = useCallback(() => {
     rushMode.current = 0;
@@ -69,105 +204,101 @@ export default function App() {
   }, [game.completeAssembly]);
 
   const handleAssemblyRevealDone = useCallback(() => {
-    // Speech bubble dismissed → clear overlay, NPC appears in world
     game.clearOverride();
+    setShowNpcIntro(true);
   }, [game.clearOverride]);
 
+  const handleGameNpcClick = useCallback((npcId: string) => {
+    // Only allow chat in free-play (tutorial complete, no overlays)
+    if (game.state.phaseOverride || !game.state.tutorialComplete) return;
+    if (chatNpcId || chatRespondingNpcId) return;
+    setFindTargetNpcId(null);
+
+    const prefs = getPreferences();
+    if (!prefs.optInShown) {
+      setPendingChatNpcId(npcId);
+      setShowOptIn(true);
+    } else {
+      setChatNpcId(npcId);
+    }
+  }, [game.state.phaseOverride, game.state.tutorialComplete, chatNpcId, chatRespondingNpcId]);
+
   const handleNpcClick = useCallback(() => {
-    if (game.state.npcRelaxing && !game.state.tutorialComplete) {
-      // Player clicked relaxing NPC → "hows it going?" then resume
+    if (game.state.tutorialComplete) {
+      // Post-tutorial — chat with NPC Ryan
+      handleGameNpcClick("ryan");
+    } else if (game.state.npcRelaxing) {
       game.setPhaseOverride({ type: "npc-welcome-back" });
     } else if (!game.state.appInstalled) {
-      // Player clicked NPC in world → "uh... you'll need your phone"
       game.setPhaseOverride({ type: "need-phone" });
-    } else if (!game.state.tutorialComplete) {
+    } else {
       game.setPhaseOverride({ type: "waiting-app-click" });
     }
-  }, [game.setPhaseOverride, game.state.appInstalled, game.state.npcRelaxing, game.state.tutorialComplete]);
+  }, [game.setPhaseOverride, game.state.appInstalled, game.state.npcRelaxing, game.state.tutorialComplete, handleGameNpcClick]);
 
   const handleNpcApproach = useCallback(() => {
-    // Player stood near relaxing NPC for 2 seconds → "hows it going?" then resume
     if (game.state.npcRelaxing && !game.state.tutorialComplete) {
       game.setPhaseOverride({ type: "npc-welcome-back" });
     }
   }, [game.setPhaseOverride, game.state.npcRelaxing, game.state.tutorialComplete]);
 
   const handleNeedPhoneDismiss = useCallback(() => {
-    // After "you'll need your phone" → mark spoken, clear, let player check pocket
     game.markNpcSpoken();
   }, [game.markNpcSpoken]);
 
   const handlePhoneClick = useCallback(() => {
-    // Player clicked phone in pocket → install app
     setPocketOpen(false);
     game.installApp();
   }, [game.installApp]);
 
   const handleInstallComplete = useCallback(() => {
-    // Install animation done → show phone with speech bubble overlaid
     game.setPhaseOverride({ type: "waiting-app-click" });
   }, [game.setPhaseOverride]);
 
   const handleAppClick = useCallback(() => {
-    // Player clicked the app → start tutorial demo inside phone
-    setPhoneNudged(false);
-    game.setPhaseOverride({ type: "tutorial-demo", step: 0 });
-  }, [game.setPhaseOverride]);
-
-  const handleTutorialDemoAdvance = useCallback(() => {
-    const current = game.state.phaseOverride;
-    if (current?.type !== "tutorial-demo") return;
-    const next = current.step + 1;
-    if (next < TUTORIAL_DEMO_STEPS) {
-      game.setPhaseOverride({ type: "tutorial-demo", step: next });
-    } else {
-      // Tutorial demo done → board creation
-      game.completeTutorial();
-      game.setPhaseOverride({ type: "board-creation" });
-    }
-  }, [game.state.phaseOverride, game.setPhaseOverride, game.completeTutorial]);
-
-  const handleBoardSaved = useCallback((board: import("./state/types").Board) => {
-    game.saveBoard(board);
-    // First board created → start a 5-round game
-    game.startGame(board.boardSize);
-  }, [game.saveBoard, game.startGame]);
-
-  const handleBoardSelected = useCallback((board: import("./state/types").Board) => {
-    game.selectBoard(board);
-  }, [game.selectBoard]);
-
-  const handleCreateNewBoard = useCallback(() => {
-    game.setPhaseOverride({ type: "board-creation" });
-  }, [game.setPhaseOverride]);
-
-  const handleSimulationDone = useCallback(() => {
-    game.setPhaseOverride({ type: "game-round-result" });
-  }, [game.setPhaseOverride]);
-
-  const handleNextRound = useCallback(() => {
-    game.advanceRound();
-  }, [game.advanceRound]);
-
-  const handleGameDone = useCallback(() => {
-    game.endGame();
-  }, [game.endGame]);
+    // Skip tutorial — go to opponents list
+    game.completeTutorial();
+    game.setPhaseOverride({ type: "opponents-list" });
+  }, [game.setPhaseOverride, game.completeTutorial]);
 
   const handleAppClose = useCallback(() => {
-    // Player closed the phone without clicking app → save progress, NPC bye
     game.npcWalkAway(true);
   }, [game.npcWalkAway]);
 
+  const handlePlayOpponent = useCallback((npcId: string) => {
+    setSelectedNpcId(npcId);
+    game.setPhaseOverride({ type: "game-select" });
+  }, [game.setPhaseOverride]);
+
+  const handleGameSelect = useCallback((_game: string) => {
+    const npc = getNpcById(selectedNpcId);
+    if (!npc) return;
+    // Save which NPC we're playing and player position so we can restore on return
+    try {
+      localStorage.setItem("townage-playing-npc", selectedNpcId);
+      if (playerWorldPos.current) {
+        localStorage.setItem("townage-player-pos", JSON.stringify(playerWorldPos.current));
+      }
+      console.log("[launch] saved npc:", selectedNpcId, "pos:", playerWorldPos.current);
+    } catch {}
+    // Navigate first, then update state (state update is for the spinner if navigation is slow)
+    launchGame(npc);
+    game.launchGame();
+  }, [game.launchGame, selectedNpcId]);
+
+  const handleGameSelectBack = useCallback(() => {
+    game.setPhaseOverride({ type: "opponents-list" });
+  }, [game.setPhaseOverride]);
+
   const handleNpcWalkAway = useCallback(() => {
-    // Player walked away from NPC at any point → save progress, bye, go to camp
+    if (game.state.tutorialComplete) return; // No walk-away after tutorial
     if (!game.state.npcRelaxing) {
       setPocketOpen(false);
       game.npcWalkAway(true);
     }
-  }, [game.npcWalkAway, game.state.npcRelaxing]);
+  }, [game.npcWalkAway, game.state.npcRelaxing, game.state.tutorialComplete]);
 
   const handleNpcByeDismiss = useCallback(() => {
-    // Bye dismissed → clear, NPC wanders to camp
     game.clearOverride();
   }, [game.clearOverride]);
 
@@ -175,27 +306,154 @@ export default function App() {
     if (choice === "ready") {
       game.setPhaseOverride({ type: "waiting-app-click" });
     } else {
-      // TODO: "who are you?" dialog tree
       game.clearOverride();
     }
   }, [game.setPhaseOverride, game.clearOverride]);
 
+  const handleCommentaryDismiss = useCallback(() => {
+    setNpcDialogue(null);
+    game.clearResults();
+    setTimeout(() => game.npcWalkAway(false), 1000);
+  }, [game.clearResults, game.npcWalkAway]);
+
+  const handleOptInAccept = useCallback(() => {
+    setPreferences({ useHaiku: true, optInShown: true });
+    setShowOptIn(false);
+    if (pendingChatNpcId) {
+      setChatNpcId(pendingChatNpcId);
+      setPendingChatNpcId(null);
+    }
+  }, [pendingChatNpcId]);
+
+  const handleOptInDecline = useCallback(() => {
+    setPreferences({ useHaiku: false, optInShown: true });
+    setShowOptIn(false);
+    if (pendingChatNpcId) {
+      setChatNpcId(pendingChatNpcId);
+      setPendingChatNpcId(null);
+    }
+  }, [pendingChatNpcId]);
+
+  const handleChatSend = useCallback(async (message: string) => {
+    if (!chatNpcId) return;
+    const npc = getNpcById(chatNpcId);
+    if (!npc) return;
+
+    const respondingNpcId = chatNpcId;
+    setChatNpcId(null);
+    setChatContinue(false);
+    setChatResponse(null);
+    setChatRespondingNpcId(respondingNpcId);
+    setChatLoading(true);
+
+    // Save player message
+    addMessage(respondingNpcId, {
+      id: genMessageId(),
+      sender: "player",
+      text: message,
+      timestamp: Date.now(),
+    });
+
+    const prefs = getPreferences();
+    if (!prefs.useHaiku) {
+      await new Promise((r) => setTimeout(r, 800));
+      const emoji = getRandomEmoji();
+      addMessage(respondingNpcId, {
+        id: genMessageId(),
+        sender: "npc",
+        text: emoji,
+        timestamp: Date.now(),
+      });
+      setChatLoading(false);
+      setChatResponse({ text: emoji, isSeen: false });
+      setChatNpcId(respondingNpcId);
+      setChatContinue(true);
+      return;
+    }
+
+    try {
+      const history = getChats(respondingNpcId);
+      const response = await chatWithNpc(npc, history);
+      addMessage(respondingNpcId, {
+        id: genMessageId(),
+        sender: "npc",
+        text: response,
+        timestamp: Date.now(),
+      });
+      setChatLoading(false);
+      setChatResponse({ text: response, isSeen: false });
+      setChatNpcId(respondingNpcId);
+      setChatContinue(true);
+    } catch {
+      // Haiku unavailable — keep loading briefly, then show "seen"
+      setTimeout(() => {
+        addMessage(respondingNpcId, {
+          id: genMessageId(),
+          sender: "npc",
+          text: "\u{1F440}",
+          timestamp: Date.now(),
+          isSeen: true,
+        });
+        setChatLoading(false);
+        setChatResponse({ text: "\u{1F440}", isSeen: true });
+        setChatNpcId(respondingNpcId);
+        setChatContinue(true);
+      }, 1500);
+    }
+  }, [chatNpcId]);
+
+  const dismissChatResponse = useCallback(() => {
+    const wasPostGame = postGameChat.current;
+    setChatResponse(null);
+    setChatRespondingNpcId(null);
+    setChatContinue(false);
+    if (wasPostGame) {
+      postGameChat.current = false;
+      setTimeout(() => game.npcWalkAway(false), 1000);
+    }
+  }, [game.npcWalkAway]);
+
+  const handleChatClose = useCallback(() => {
+    const wasPostGame = postGameChat.current;
+    setChatNpcId(null);
+    setChatResponse(null);
+    setChatRespondingNpcId(null);
+    setChatContinue(false);
+    if (wasPostGame) {
+      postGameChat.current = false;
+      setTimeout(() => game.npcWalkAway(false), 1000);
+    }
+  }, [game.npcWalkAway]);
+
+  const handleFind = useCallback((npcId: string) => {
+    setFindTargetNpcId(npcId);
+    game.clearOverride(); // close phone
+  }, [game.clearOverride]);
+
   const togglePocket = useCallback(() => {
+    // Post-tutorial: pocket button opens/closes phone homescreen
+    if (game.state.tutorialComplete && game.state.appInstalled) {
+      if (phase.type === "phone-home" || phase.type === "find-app" || phase.type === "chat-app" || phase.type === "settings-app") {
+        game.clearOverride();
+      } else if (!game.state.phaseOverride) {
+        game.setPhaseOverride({ type: "phone-home" });
+      }
+      return;
+    }
+
     const blocked =
       phase.type === "part1-cutscene" ||
       phase.type === "assembly-cutscene" ||
       phase.type === "assembly-reveal" ||
       phase.type === "installing" ||
       phase.type === "waiting-app-click" ||
-      phase.type === "tutorial-chat" ||
-      phase.type === "tutorial-demo" ||
       phase.type === "board-creation" ||
-      phase.type === "game-setup" ||
-      phase.type === "game-playing" ||
-      phase.type === "game-round-result" ||
-      phase.type === "game-over";
+      phase.type === "opponents-list" ||
+      phase.type === "game-select" ||
+      phase.type === "launching-game" ||
+      phase.type === "npc-commentary";
     if (!blocked) setPocketOpen((prev) => !prev);
-  }, [phase.type]);
+  }, [phase.type, game.state.tutorialComplete, game.state.appInstalled, game.state.phaseOverride, game.clearOverride, game.setPhaseOverride]);
 
   const handleRush = useCallback(() => {
     rushMode.current = 1;
@@ -203,19 +461,76 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.code === "KeyE") togglePocket();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [togglePocket]);
 
+  // Phone home hotkeys: f=find, m=messages, s=settings
+  useEffect(() => {
+    if (phase.type !== "phone-home") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "f") { e.preventDefault(); game.setPhaseOverride({ type: "find-app" }); }
+      else if (e.key === "m") { e.preventDefault(); game.setPhaseOverride({ type: "chat-app" }); }
+      else if (e.key === "s") { e.preventDefault(); game.setPhaseOverride({ type: "settings-app" }); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase.type, game.setPhaseOverride]);
+
+  // Enter key / tap on empty space → rush toward arrow target
+  const showArrowRef = useRef(false);
+  const hasModalRef = useRef(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === "Enter" && showArrowRef.current && !hasModalRef.current) {
+        handleRush();
+      }
+    };
+    const onClick = (e: MouseEvent) => {
+      // Only trigger on clicks that hit the canvas (empty space), not UI elements
+      // Skip if rushMode already set by a 3D object click (e.g. bot parts)
+      const target = e.target as HTMLElement;
+      if (target.tagName === "CANVAS" && showArrowRef.current && !hasModalRef.current && rushMode.current === 0) {
+        handleRush();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("click", onClick);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("click", onClick);
+    };
+  }, [handleRush]);
+
   // Derive flags for World component
   const part1CutsceneDone = game.state.partsCollected >= 1 && phase.type !== "part1-cutscene";
   const showArrow =
     phase.type === "exploring" ||
     phase.type === "between-parts" ||
-    (game.state.npcRelaxing && !game.state.phaseOverride);
+    (findTargetNpcId !== null && phase.type === "free-play");
   const needsPocketHint = game.state.npcSpoken && !game.state.appInstalled && !game.state.phaseOverride;
+
+  // Disable WASD movement while any modal/overlay is open
+  const hasModal =
+    !!game.state.phaseOverride ||
+    pocketOpen ||
+    !!chatNpcId ||
+    !!chatResponse ||
+    chatLoading ||
+    showOptIn ||
+    !!showChatInfo ||
+    showNpcIntro ||
+    bubbleHintExpanded ||
+    zoomIn;
+  inputDisabled.current = hasModal;
+  showArrowRef.current = showArrow;
+  hasModalRef.current = hasModal;
 
   return (
     <div style={{ width: "100vw", height: "100vh", background: "#ffffff" }}>
@@ -242,12 +557,22 @@ export default function App() {
           hidePlayer={zoomIn}
           npcScreenPos={npcScreenPos}
           playerScreenPos={playerScreenPos}
+          onMycoClick={() => handleGameNpcClick("myco")}
+          onEmberClick={() => handleGameNpcClick("ember")}
+          mycoScreenPos={mycoScreenPos}
+          emberScreenPos={emberScreenPos}
+          findTargetNpcId={findTargetNpcId}
+          npcTalking={hasModal}
+          partsCollected={game.state.partsCollected}
+          initialPlayerPos={savedPlayerPos}
+          playerWorldPos={playerWorldPos}
         />
       </Canvas>
 
       <VirtualJoystick inputDir={inputDir} />
       <PocketButton onClick={togglePocket} pulse={needsPocketHint} />
       <PocketHint show={needsPocketHint} />
+      <BubbleHint show={game.state.tutorialComplete && needsBubbleHint} onExpandedChange={setBubbleHintExpanded} />
       {showArrow && (
         <TrinketArrow tracker={trinketTracker} onRush={handleRush} />
       )}
@@ -270,6 +595,19 @@ export default function App() {
             game.setPhaseOverride({ type: "assembly-reveal", step })
           }
           onDone={handleAssemblyRevealDone}
+        />
+      )}
+
+      {/* NPC intro after assembly — "hit me up if you want to chat" */}
+      {showNpcIntro && (
+        <SpeechBubble
+          text="I'm NPC Ryan, hit me up if you want to chat"
+          onDismiss={() => {
+            setShowNpcIntro(false);
+            game.completeIntro();
+            setTimeout(() => game.npcWalkAway(false), 1000);
+          }}
+          speakerScreenPos={npcScreenPos}
         />
       )}
 
@@ -321,29 +659,35 @@ export default function App() {
         <InstallAnimation onComplete={handleInstallComplete} />
       )}
 
-      {/* Tutorial demo — animated board explanation inside phone */}
-      {phase.type === "tutorial-demo" && (
+      {/* Phone with app, waiting for click — speech bubble from left (in modal) */}
+      {phase.type === "waiting-app-click" && (
         <>
-          <PhoneOverlay mode="app" onClose={() => game.npcWalkAway(true)}>
-            <TutorialDemo step={phase.step} onAdvance={handleTutorialDemoAdvance} />
-          </PhoneOverlay>
+          <PhoneOverlay
+            onAppClick={handleAppClick}
+            onClose={handleAppClose}
+          />
           <SpeechBubble
-            text={TUTORIAL_STEP_TEXTS[phase.step] ?? ""}
+            text="those little bots love a little cheese and this is how you help them get some"
             onDismiss={() => {}}
             inModal
+            delay={500}
           />
         </>
       )}
 
-      {/* Board creation — inside phone */}
+      {/* Board creation — inside phone (kept for potential future use) */}
       {phase.type === "board-creation" && (
         <>
-          <PhoneOverlay mode="app" onClose={() => game.npcWalkAway(true)}>
+          <PhoneOverlay mode="app" onClose={() => {
+            game.state.tutorialComplete ? game.clearOverride() : game.npcWalkAway(true);
+          }}>
             <BoardCreator
-              boardSize={game.state.currentGame?.boardSize ?? 2}
-              onBoardSaved={handleBoardSaved}
+              boardSize={2}
+              onBoardSaved={(board) => {
+                game.saveBoard(board);
+                game.setPhaseOverride({ type: "opponents-list" });
+              }}
               onCancel={() => game.npcWalkAway(true)}
-              existingBoards={game.state.boards}
             />
           </PhoneOverlay>
           <SpeechBubble
@@ -354,102 +698,190 @@ export default function App() {
         </>
       )}
 
-      {/* Game setup — board selector inside phone */}
-      {phase.type === "game-setup" && game.state.currentGame && (
-        <>
-          <PhoneOverlay mode="app" onClose={() => game.npcWalkAway(true)}>
-            <BoardSelector
-              boards={game.state.boards}
-              boardSize={game.state.currentGame.boardSize}
-              currentRound={game.state.currentGame.currentRound}
-              totalRounds={game.state.currentGame.totalRounds}
-              onSelect={handleBoardSelected}
-              onCreateNew={handleCreateNewBoard}
-            />
-          </PhoneOverlay>
-          <SpeechBubble
-            text="got your board picked?"
-            onDismiss={() => {}}
-            inModal
+      {/* Opponents list */}
+      {phase.type === "opponents-list" && (
+        <PhoneOverlay mode="app" onClose={() => {
+          game.state.tutorialComplete ? game.clearOverride() : game.npcWalkAway(true);
+        }}>
+          <OpponentsList onPlay={handlePlayOpponent} />
+        </PhoneOverlay>
+      )}
+
+      {/* Game selection */}
+      {phase.type === "game-select" && (
+        <PhoneOverlay mode="app" onClose={() => {
+          game.state.tutorialComplete ? game.clearOverride() : game.npcWalkAway(true);
+        }}>
+          <GameSelect
+            npcName={getNpcById(selectedNpcId)?.displayName ?? selectedNpcId}
+            onSelect={handleGameSelect}
+            onBack={handleGameSelectBack}
           />
-        </>
+        </PhoneOverlay>
       )}
 
-      {/* Game playing — simulation playback inside phone */}
-      {phase.type === "game-playing" && game.state.currentGame && (
-        <>
-          <PhoneOverlay mode="app" onClose={() => {}}>
-            <SimulationView
-              game={game.state.currentGame}
-              onDone={handleSimulationDone}
-            />
-          </PhoneOverlay>
-        </>
+      {/* Phone homescreen in free-play */}
+      {phase.type === "phone-home" && (
+        <PhoneOverlay
+          onFindClick={() => {
+            game.setPhaseOverride({ type: "find-app" });
+          }}
+          onChatClick={() => {
+            game.setPhaseOverride({ type: "chat-app" });
+          }}
+          onSettingsClick={() => {
+            game.setPhaseOverride({ type: "settings-app" });
+          }}
+          onClose={() => game.clearOverride()}
+        />
       )}
 
-      {/* Round result */}
-      {phase.type === "game-round-result" && game.state.currentGame && (
+      {/* Find app */}
+      {phase.type === "find-app" && (
+        <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
+          <FindApp
+            onFind={handleFind}
+            onClose={() => game.clearOverride()}
+          />
+        </PhoneOverlay>
+      )}
+
+      {/* Chat app */}
+      {phase.type === "chat-app" && (
+        <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
+          <ChatApp onClose={() => game.clearOverride()} />
+        </PhoneOverlay>
+      )}
+
+      {/* Settings app */}
+      {phase.type === "settings-app" && (
+        <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
+          <SettingsApp onClose={() => game.clearOverride()} />
+        </PhoneOverlay>
+      )}
+
+      {/* NPC chat bubble — player choosing what to say */}
+      {chatNpcId && (
+        <NpcChatBubble
+          playerScreenPos={playerScreenPos}
+          onSend={handleChatSend}
+          onClose={chatContinue ? handleChatClose : () => setChatNpcId(null)}
+          onPlayGame={() => {
+            const npcId = chatNpcId!;
+            setChatNpcId(null);
+            setChatResponse(null);
+            setChatRespondingNpcId(null);
+            setChatContinue(false);
+            setPlayingGameNpcId(npcId);
+            setSelectedNpcId(npcId);
+            game.setPhaseOverride({ type: "game-select" });
+          }}
+          continueMode={chatContinue}
+        />
+      )}
+
+      {/* NPC typing indicator */}
+      {chatLoading && chatRespondingNpcId && (
+        <SpeechBubble
+          text="..."
+          onDismiss={() => {}}
+          speakerScreenPos={
+            chatRespondingNpcId === "myco" ? mycoScreenPos :
+            chatRespondingNpcId === "ember" ? emberScreenPos :
+            npcScreenPos
+          }
+        />
+      )}
+
+      {/* NPC chat response */}
+      {chatResponse && chatRespondingNpcId && !chatLoading && (
         <>
-          <PhoneOverlay mode="app" onClose={() => {}}>
-            <RoundResult
-              game={game.state.currentGame}
-              onNext={handleNextRound}
-            />
-          </PhoneOverlay>
           <SpeechBubble
-            text={
-              (() => {
-                const last = game.state.currentGame.rounds[game.state.currentGame.rounds.length - 1];
-                if (!last) return "";
-                if (last.winner === "player") return "nice one!";
-                if (last.winner === "opponent") return "got ya that time!";
-                return "whoa, a tie!";
-              })()
+            text={chatResponse.text}
+            onDismiss={chatContinue ? handleChatClose : dismissChatResponse}
+            speakerScreenPos={
+              chatRespondingNpcId === "myco" ? mycoScreenPos :
+              chatRespondingNpcId === "ember" ? emberScreenPos :
+              npcScreenPos
             }
-            onDismiss={() => {}}
-            inModal
           />
-        </>
-      )}
-
-      {/* Game over */}
-      {phase.type === "game-over" && game.state.currentGame && (
-        <>
-          <PhoneOverlay mode="app" onClose={() => {}}>
-            <GameOver
-              game={game.state.currentGame}
-              onDone={handleGameDone}
-            />
-          </PhoneOverlay>
-          <SpeechBubble
-            text={
-              game.state.currentGame.playerScore > game.state.currentGame.opponentScore
-                ? "good game! come back anytime"
-                : "nice try! come back for a rematch anytime"
-            }
-            onDismiss={() => {}}
-            inModal
-          />
-        </>
-      )}
-
-      {/* Phone with app, waiting for click — speech bubble from left (in modal) */}
-      {phase.type === "waiting-app-click" && (
-        <>
-          <PhoneOverlay
-            onAppClick={handleAppClick}
-            onClose={handleAppClose}
-            onNudge={() => setPhoneNudged(true)}
-          />
-          {!phoneNudged && (
-            <SpeechBubble
-              text="those little bots love a little cheese and this is how you help them get some"
-              onDismiss={() => {}}
-              inModal
-              delay={500}
-            />
+          {chatResponse.isSeen && (
+            <button
+              onClick={() => setShowChatInfo("unavailable")}
+              style={{
+                position: "fixed",
+                bottom: 80,
+                right: 24,
+                background: "#1a1a2e",
+                border: "1px solid #2a2a3e",
+                borderRadius: 20,
+                padding: "8px 16px",
+                color: "#6a4c93",
+                fontSize: 13,
+                cursor: "pointer",
+                zIndex: 25,
+              }}
+            >
+              (?) what happened
+            </button>
           )}
         </>
+      )}
+
+      {/* Chat opt-in modal */}
+      {showOptIn && (
+        <ChatOptInModal
+          onAccept={handleOptInAccept}
+          onDecline={handleOptInDecline}
+        />
+      )}
+
+      {/* Chat info modal */}
+      {showChatInfo && (
+        <ChatInfoModal
+          mode={showChatInfo}
+          onClose={() => setShowChatInfo(null)}
+        />
+      )}
+
+      {/* Launching game — navigating to spaces-game */}
+      {phase.type === "launching-game" && (
+        <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: "100%",
+              gap: 16,
+              padding: 24,
+            }}
+          >
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                border: "3px solid #6a4c93",
+                borderTop: "3px solid transparent",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+              }}
+            />
+            <p style={{ color: "#9b59b6", fontSize: 14, fontWeight: 600 }}>
+              loading game...
+            </p>
+          </div>
+        </PhoneOverlay>
+      )}
+
+      {/* NPC commentary on game results */}
+      {phase.type === "npc-commentary" && (
+        <SpeechBubble
+          text={npcDialogue ?? getNpcById(selectedNpcId)?.personality.greeting ?? "good game!"}
+          onDismiss={handleCommentaryDismiss}
+          speakerScreenPos={npcScreenPos}
+        />
       )}
 
       {/* Pocket view */}
@@ -464,6 +896,12 @@ export default function App() {
           }
         />
       )}
+
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
@@ -514,6 +952,7 @@ function AssemblyReveal({
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.code === "Enter") advance();
     };
     window.addEventListener("keydown", onKey);
@@ -618,7 +1057,7 @@ function AssemblyReveal({
             }}
           />
           <p style={{ color: "#222", fontSize: 16, lineHeight: 1.5 }}>
-            that's a nice little bot you've got there — here's the app for it
+            that's a great find! there's a game they used to be able to play... maybe someday...
           </p>
         </div>
       )}

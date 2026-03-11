@@ -6,6 +6,7 @@ import { Player } from "./Player";
 import { CameraRig } from "./CameraRig";
 import { BotParts } from "./BotParts";
 import { Npc } from "./Npc";
+import { GameNpc } from "./GameNpc";
 import { useTrinketTracker, type TrinketTrackerState } from "./useTrinketTracker";
 import type { RushMode } from "./Player";
 import type { ScreenPos } from "./useScreenPosition";
@@ -19,6 +20,10 @@ const PART2_DELAY = 2000;
 const NPC_WALK_AWAY_DIST = 6; // how far player must walk before NPC gives up
 const NPC_APPROACH_DIST = 4; // how close player must be to trigger welcome back
 const NPC_IDLE_TIME = 2; // seconds player must stand still near NPC
+
+// Game NPC world positions
+const MYCO_POS: [number, number, number] = [25, 0, -20];
+const EMBER_POS: [number, number, number] = [-30, 0, 15];
 
 interface WorldProps {
   onPart1Pickup?: () => void;
@@ -38,16 +43,32 @@ interface WorldProps {
   hidePlayer?: boolean;
   npcScreenPos: React.RefObject<ScreenPos>;
   playerScreenPos: React.RefObject<ScreenPos>;
+  // Game NPCs
+  onMycoClick?: () => void;
+  onEmberClick?: () => void;
+  mycoScreenPos: React.RefObject<ScreenPos>;
+  emberScreenPos: React.RefObject<ScreenPos>;
+  findTargetNpcId: string | null;
+  npcTalking: boolean;
+  partsCollected: 0 | 1 | 2;
+  initialPlayerPos?: { x: number; z: number } | null;
+  playerWorldPos?: React.RefObject<{ x: number; z: number } | null>;
 }
 
-export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos }: WorldProps) {
-  const playerPos = useRef(new THREE.Vector3(0, 0.75, 0));
-  const [part1Spawned, setPart1Spawned] = useState(false);
-  const [part1Collected, setPart1Collected] = useState(false);
-  const [part2Spawned, setPart2Spawned] = useState(false);
-  const [part2Collected, setPart2Collected] = useState(false);
+export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, onMycoClick, onEmberClick, mycoScreenPos, emberScreenPos, findTargetNpcId, npcTalking, partsCollected, initialPlayerPos, playerWorldPos }: WorldProps) {
+  const playerPos = useRef(new THREE.Vector3(
+    initialPlayerPos?.x ?? 0,
+    0.75,
+    initialPlayerPos?.z ?? 0,
+  ));
+  const [part1Spawned, setPart1Spawned] = useState(partsCollected >= 1);
+  const [part1Collected, setPart1Collected] = useState(partsCollected >= 1);
+  const [part2Spawned, setPart2Spawned] = useState(partsCollected >= 2);
+  const [part2Collected, setPart2Collected] = useState(partsCollected >= 2);
   const npcPos = useRef<[number, number, number] | null>(null);
   const npcWorldPos = useRef<THREE.Vector3 | null>(null);
+  const mycoWorldPos = useRef<THREE.Vector3 | null>(null);
+  const emberWorldPos = useRef<THREE.Vector3 | null>(null);
   const { camera } = useThree();
 
   // Capture NPC position when it first appears (relative to player)
@@ -57,17 +78,27 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
       0,
       playerPos.current.z + NPC_OFFSET.z,
     ];
+    console.log("[world] NPC spawned at", npcPos.current, "player at", [playerPos.current.x, playerPos.current.z], "relaxing:", npcRelaxing);
   }
 
-  // Track player screen position
+  // Track player screen position + expose world position
   useFrame(() => {
     if (!playerPos.current) return;
+    if (playerWorldPos) {
+      playerWorldPos.current = { x: playerPos.current.x, z: playerPos.current.z };
+    }
     const headPos = playerPos.current.clone();
     headPos.y += 0.8;
     const projected = headPos.project(camera);
     playerScreenPos.current!.x = (projected.x + 1) / 2;
     playerScreenPos.current!.y = (-projected.y + 1) / 2;
     playerScreenPos.current!.visible = projected.z < 1;
+    // Player capsule: y=0.75, radius=0.3, segment=0.8 → top ~1.55, bottom ~0.15
+    const pTop = playerPos.current.clone(); pTop.y = 1.55;
+    const pBot = playerPos.current.clone(); pBot.y = 0.15;
+    const topProj = pTop.project(camera);
+    const botProj = pBot.project(camera);
+    playerScreenPos.current!.screenHeight = Math.abs((-topProj.y + 1) / 2 - (-botProj.y + 1) / 2) * window.innerHeight;
   });
 
   // Detect player walking away from NPC while phone is out
@@ -125,26 +156,36 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
     currentTarget.current = PART1_POS;
   } else if (part2Spawned && !part2Collected) {
     currentTarget.current = PART2_POS;
-  } else if (!npcRelaxing) {
+  } else if (!findTargetNpcId) {
     currentTarget.current = null;
   }
 
-  // NPC position updates every frame via ref — keep tracker synced
+  // NPC/find-target position updates every frame via ref — keep tracker synced
   useFrame(() => {
-    if (npcRelaxing && npcWorldPos.current) {
+    if (findTargetNpcId === "myco" && mycoWorldPos.current) {
+      currentTarget.current = mycoWorldPos.current;
+    } else if (findTargetNpcId === "ember" && emberWorldPos.current) {
+      currentTarget.current = emberWorldPos.current;
+    } else if (findTargetNpcId === "ryan" && npcWorldPos.current) {
       currentTarget.current = npcWorldPos.current;
     }
     rushTarget.current = currentTarget.current;
   });
 
-  const trackerActive = (part1Spawned && !part1Collected) || (part2Spawned && !part2Collected) || npcRelaxing;
+  const trackerActive = (part1Spawned && !part1Collected) || (part2Spawned && !part2Collected) || !!findTargetNpcId;
   useTrinketTracker(playerPos, currentTarget, trackerActive, trinketTracker);
 
   useEffect(() => {
+    // Skip spawn logic if parts already collected (resuming)
+    if (partsCollected >= 1) return;
+
     const timer = setTimeout(() => setPart1Spawned(true), SPAWN_DELAY);
 
     const handleInteract = (e: KeyboardEvent | MouseEvent) => {
-      if (e instanceof KeyboardEvent && e.code !== "Enter") return;
+      if (e instanceof KeyboardEvent) {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        if (e.code !== "Enter") return;
+      }
       setPart1Spawned(true);
     };
 
@@ -207,10 +248,29 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
           playerPosition={playerPos}
           onClick={onNpcClick}
           relaxing={npcRelaxing}
+          talking={npcTalking}
           screenPos={npcScreenPos}
           worldPosRef={npcWorldPos}
         />
       )}
+
+      {/* Game NPCs — always visible */}
+      <GameNpc
+        position={MYCO_POS}
+        bodyColor="#1B5E20"
+        playerPosition={playerPos}
+        onClick={onMycoClick}
+        screenPos={mycoScreenPos}
+        worldPosRef={mycoWorldPos}
+      />
+      <GameNpc
+        position={EMBER_POS}
+        bodyColor="#8B7355"
+        playerPosition={playerPos}
+        onClick={onEmberClick}
+        screenPos={emberScreenPos}
+        worldPosRef={emberWorldPos}
+      />
     </>
   );
 }

@@ -5,6 +5,7 @@ export interface ScreenPos {
   x: number; // 0-1 screen space
   y: number;
   visible: boolean;
+  screenHeight: number; // character height in pixels
 }
 
 export function useScreenPosition(
