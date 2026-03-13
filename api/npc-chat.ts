@@ -17,7 +17,7 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    const { systemPrompt, gameResults, context, messages } = await req.json();
+    const { systemPrompt, gameResults, context, messages, useTool } = await req.json();
 
     // Build messages: either from chat history or game results
     let apiMessages;
@@ -27,9 +27,34 @@ export default async function handler(req: Request): Promise<Response> {
       apiMessages = [
         {
           role: "user",
-          content: `Game just ended. ${context} Score: player ${gameResults.playerScore} - ${gameResults.opponentScore} you. Give a brief, in-character reaction (1-2 sentences max).`,
+          content: `Game just ended. ${context} Score: player ${gameResults.playerScore} - ${gameResults.opponentScore} you. React casually — a few words is fine.`,
         },
       ];
+    }
+
+    const toolDef = {
+      name: "respond",
+      description: "Send your response to the player. Set continues=true if your response naturally invites a reply (e.g. you asked a question or made an offer). Set continues=false if you're wrapping up or just acknowledging.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          dialogue: { type: "string", description: "What you say to the player" },
+          continues: { type: "boolean", description: "True if the player should get a chance to reply" },
+        },
+        required: ["dialogue", "continues"],
+      },
+    };
+
+    const apiBody: Record<string, unknown> = {
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 200,
+      system: systemPrompt,
+      messages: apiMessages,
+    };
+
+    if (useTool) {
+      apiBody.tools = [toolDef];
+      apiBody.tool_choice = { type: "tool", name: "respond" };
     }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -39,12 +64,7 @@ export default async function handler(req: Request): Promise<Response> {
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 200,
-        system: systemPrompt,
-        messages: apiMessages,
-      }),
+      body: JSON.stringify(apiBody),
     });
 
     if (!response.ok) {
@@ -57,9 +77,20 @@ export default async function handler(req: Request): Promise<Response> {
     }
 
     const data = await response.json();
-    const dialogue = data.content?.[0]?.text ?? "good game!";
 
-    return new Response(JSON.stringify({ dialogue }), {
+    // Extract response — tool use or plain text
+    let dialogue = "good game!";
+    let continues = false;
+
+    const toolBlock = data.content?.find((b: { type: string }) => b.type === "tool_use");
+    if (toolBlock?.input) {
+      dialogue = toolBlock.input.dialogue ?? dialogue;
+      continues = !!toolBlock.input.continues;
+    } else {
+      dialogue = data.content?.[0]?.text ?? dialogue;
+    }
+
+    return new Response(JSON.stringify({ dialogue, continues }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

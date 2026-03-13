@@ -16,6 +16,8 @@ const mockNpc: NpcConfig = {
     greeting: "hi",
     winReaction: "won",
     loseReaction: "lost",
+    gameInviteResponse: "which game?",
+    gameAcceptText: "let's go!",
   },
   appearance: { bodyColor: "#1B5E20" },
 };

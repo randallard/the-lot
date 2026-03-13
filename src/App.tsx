@@ -21,6 +21,8 @@ import { SettingsApp } from "./overlay/SettingsApp";
 import { ChatOptInModal } from "./overlay/ChatOptInModal";
 import { ChatInfoModal } from "./overlay/ChatInfoModal";
 import { BubbleHint } from "./overlay/BubbleHint";
+import { MoodSlider } from "./overlay/MoodSlider";
+import { MoodResponsesModal } from "./overlay/MoodResponsesModal";
 import { hasOffsetForCurrentSize, isBubbleHintDismissed } from "./overlay/bubble-offset";
 import { useInputDirection } from "./world/useInputDirection";
 import { useGameState } from "./state/useGameState";
@@ -28,7 +30,10 @@ import { getNpcById } from "./config/npcs";
 import { launchGame } from "./services/launch-game";
 import { parseResultsFromHash } from "./services/parse-results";
 import { clearActiveSession } from "./services/active-sessions";
-import { getNpcCommentary, chatWithNpc } from "./services/haiku-npc";
+import { getNpcCommentary, chatWithNpc, getGameAcceptText } from "./services/haiku-npc";
+import { hasSeenIntro, markIntroSeen } from "./services/npc-intro-seen";
+import { nudgeFriendliness, NUDGE_GAME_PLAYED, NUDGE_CHAT } from "./services/npc-friendliness";
+import { needsMoodCheck } from "./services/enthusiasm";
 import {
   getChats,
   addMessage,
@@ -63,8 +68,12 @@ export default function App() {
   const [pendingChatNpcId, setPendingChatNpcId] = useState<string | null>(null);
   const [showChatInfo, setShowChatInfo] = useState<"unavailable" | "privacy" | null>(null);
   const [showNpcIntro, setShowNpcIntro] = useState(false);
+  const [showPhoneHint, setShowPhoneHint] = useState(false);
+  const [moodCheckNpcId, setMoodCheckNpcId] = useState<string | null>(null);
+  const [showCustomizeMood, setShowCustomizeMood] = useState(false);
   const [chatContinue, setChatContinue] = useState(false);
   const [_playingGameNpcId, setPlayingGameNpcId] = useState<string | null>(null);
+  const [gameAcceptText, setGameAcceptText] = useState<string | null>(null);
   const postGameChat = useRef(false);
   const [needsBubbleHint, setNeedsBubbleHint] = useState(false);
   const [bubbleHintExpanded, setBubbleHintExpanded] = useState(false);
@@ -139,8 +148,8 @@ export default function App() {
       // Clear active session if the game is finished (not incomplete)
       if (results.winner !== "incomplete") {
         clearActiveSession(results.npcId);
-        // Record win/loss
         recordResult(results.npcId, results.winner);
+        nudgeFriendliness(results.npcId, NUDGE_GAME_PLAYED);
       }
 
       // Process any bundled pending results from other completed games
@@ -222,6 +231,34 @@ export default function App() {
     });
   }, []);
 
+  // Generate game-accept text: first time use static intro, then Haiku
+  const gameAcceptNpcId = phase.type === "game-accept" ? phase.npcId : null;
+  const gameAcceptPlayerChose = phase.type === "game-accept" ? phase.playerChose : null;
+  useEffect(() => {
+    if (!gameAcceptNpcId) return;
+    const npc = getNpcById(gameAcceptNpcId);
+    if (!npc) return;
+
+    if (!hasSeenIntro(gameAcceptNpcId)) {
+      // First time — show the long intro text
+      markIntroSeen(gameAcceptNpcId);
+      setGameAcceptText(npc.personality.gameAcceptText ?? "let's do this!");
+      return;
+    }
+
+    // Subsequent — ask Haiku for a short response
+    let cancelled = false;
+    const prefs = getPreferences();
+    if (prefs.useHaiku) {
+      getGameAcceptText(npc, gameAcceptPlayerChose ?? "spaces-game")
+        .then((text) => { if (!cancelled) setGameAcceptText(text); })
+        .catch(() => { if (!cancelled) setGameAcceptText("alright, let's go!"); });
+    } else {
+      setGameAcceptText("alright, let's go!");
+    }
+    return () => { cancelled = true; };
+  }, [gameAcceptNpcId, gameAcceptPlayerChose]);
+
   const handlePart1Pickup = useCallback(() => {
     rushMode.current = 0;
     game.collectPart();
@@ -244,8 +281,14 @@ export default function App() {
   const handleGameNpcClick = useCallback((npcId: string) => {
     // Only allow chat in free-play (tutorial complete, no overlays)
     if (game.state.phaseOverride || !game.state.tutorialComplete) return;
-    if (chatNpcId || chatRespondingNpcId) return;
+    if (chatNpcId || chatRespondingNpcId || moodCheckNpcId) return;
     setFindTargetNpcId(null);
+
+    // Daily mood check — NPC asks before player gets to talk
+    if (needsMoodCheck()) {
+      setMoodCheckNpcId(npcId);
+      return;
+    }
 
     const prefs = getPreferences();
     if (!prefs.optInShown) {
@@ -254,7 +297,7 @@ export default function App() {
     } else {
       setChatNpcId(npcId);
     }
-  }, [game.state.phaseOverride, game.state.tutorialComplete, chatNpcId, chatRespondingNpcId]);
+  }, [game.state.phaseOverride, game.state.tutorialComplete, chatNpcId, chatRespondingNpcId, moodCheckNpcId]);
 
   const handleNpcClick = useCallback(() => {
     if (game.state.tutorialComplete) {
@@ -417,6 +460,7 @@ export default function App() {
       setChatResponse({ text: response, isSeen: false });
       setChatNpcId(respondingNpcId);
       setChatContinue(true);
+      nudgeFriendliness(respondingNpcId, NUDGE_CHAT);
     } catch {
       // Haiku unavailable — keep loading briefly, then show "seen"
       setTimeout(() => {
@@ -514,15 +558,84 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [phase.type, game.setPhaseOverride]);
 
-  // Enter key / tap on empty space → rush toward arrow target
+  // Enter key / tap on empty space → rush toward arrow target or chat with closest NPC
   const showArrowRef = useRef(false);
   const hasModalRef = useRef(false);
+  const tutorialCompleteRef = useRef(false);
+  tutorialCompleteRef.current = game.state.tutorialComplete;
 
+  const needsPocketHintRef = useRef(false);
+  needsPocketHintRef.current = game.state.npcSpoken && !game.state.appInstalled && !game.state.phaseOverride;
+
+  const trinketArrowRef = useRef(false);
+  trinketArrowRef.current = phase.type === "exploring" || phase.type === "between-parts";
+
+  const chatWithClosestNpc = useCallback((): boolean => {
+    // Don't fire if pocket hint is showing (player should open phone first)
+    if (needsPocketHintRef.current) return false;
+    const player = playerScreenPos.current;
+    if (!player.visible) return false;
+    const npcs: { id: string; pos: ScreenPos }[] = [
+      { id: "ryan", pos: npcScreenPos.current },
+      { id: "myco", pos: mycoScreenPos.current },
+      { id: "ember", pos: emberScreenPos.current },
+    ];
+    let closest: string | null = null;
+    let minDist = Infinity;
+    // Only consider NPCs that are on screen (visible) and reasonably close
+    // Screen coords are 0-1, so 0.3 means within ~30% of screen
+    const MAX_SCREEN_DIST = 0.3;
+    for (const { id, pos } of npcs) {
+      if (!pos.visible) continue;
+      const dx = pos.x - player.x;
+      const dy = pos.y - player.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < minDist && dist < MAX_SCREEN_DIST) {
+        minDist = dist;
+        closest = id;
+      }
+    }
+    if (closest) { handleGameNpcClick(closest); return true; }
+    return false;
+  }, [handleGameNpcClick]);
+
+  // Enter key — priority-based interaction with the latest interactive element on screen
+  // 1. Modals (speech bubbles, cutscenes) handle their own Enter
+  // 2. Trinket nearby (within pickup range) → collect
+  // 3. Arrow showing → rush toward target
+  // 4. Visible NPC nearby → chat
+  // 5. Nothing on screen → open phone
+  const ENTER_PICKUP_DIST = 5; // world units — generous so Enter works after rush stops at ~2u
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.code === "Enter" && showArrowRef.current && !hasModalRef.current) {
+      if (e.code !== "Enter") return;
+      if (hasModalRef.current) return; // modals handle their own Enter
+
+      const dist = trinketTracker.current.distance;
+
+      // Trinket phase: pick up if close, rush if far, ignore if not spawned (dist=0)
+      if (trinketArrowRef.current && dist > 0) {
+        if (dist < ENTER_PICKUP_DIST) {
+          rushMode.current = 0;
+          game.collectPart();
+        } else {
+          handleRush();
+        }
+        return;
+      }
+
+      // Find-NPC arrow → rush toward NPC
+      if (showArrowRef.current) {
         handleRush();
+        return;
+      }
+
+      // Chat with closest visible NPC, or open phone as fallback
+      if (tutorialCompleteRef.current) {
+        if (!chatWithClosestNpc()) {
+          togglePocket();
+        }
       }
     };
     const onClick = (e: MouseEvent) => {
@@ -539,7 +652,7 @@ export default function App() {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("click", onClick);
     };
-  }, [handleRush]);
+  }, [handleRush, game.collectPart, togglePocket]);
 
   // Derive flags for World component
   const part1CutsceneDone = game.state.partsCollected >= 1 && phase.type !== "part1-cutscene";
@@ -559,6 +672,8 @@ export default function App() {
     showOptIn ||
     !!showChatInfo ||
     showNpcIntro ||
+    showPhoneHint ||
+    !!moodCheckNpcId ||
     bubbleHintExpanded ||
     zoomIn;
   inputDisabled.current = hasModal;
@@ -590,6 +705,7 @@ export default function App() {
           hidePlayer={zoomIn}
           npcScreenPos={npcScreenPos}
           playerScreenPos={playerScreenPos}
+          showGameNpcs={game.state.tutorialComplete}
           onMycoClick={() => handleGameNpcClick("myco")}
           onEmberClick={() => handleGameNpcClick("ember")}
           mycoScreenPos={mycoScreenPos}
@@ -631,16 +747,55 @@ export default function App() {
         />
       )}
 
-      {/* NPC intro after assembly — "hit me up if you want to chat" */}
-      {showNpcIntro && (
+      {/* NPC intro after assembly — mood check then phone hint */}
+      {showNpcIntro && !showPhoneHint && (
+        <MoodSlider
+          speakerScreenPos={npcScreenPos}
+          playerScreenPos={playerScreenPos}
+          greeting="I'm NPC Ryan - how are you today?"
+          npcId="ryan"
+          skipAsk
+          onShowCustomize={() => setShowCustomizeMood(true)}
+          onDone={() => setShowPhoneHint(true)}
+        />
+      )}
+      {showPhoneHint && (
         <SpeechBubble
-          text="I'm NPC Ryan, hit me up if you want to chat"
+          text="well hey - I'm in your phone if you ever want to chat or play a game"
           onDismiss={() => {
+            setShowPhoneHint(false);
             setShowNpcIntro(false);
             game.completeIntro();
             setTimeout(() => game.npcWalkAway(false), 1000);
           }}
           speakerScreenPos={npcScreenPos}
+        />
+      )}
+
+      {/* Daily mood check — any NPC asks before chat starts */}
+      {moodCheckNpcId && (
+        <MoodSlider
+          speakerScreenPos={
+            moodCheckNpcId === "myco" ? mycoScreenPos :
+            moodCheckNpcId === "ember" ? emberScreenPos :
+            npcScreenPos
+          }
+          playerScreenPos={playerScreenPos}
+          greeting={getNpcById(moodCheckNpcId)?.personality.greeting ?? "hey"}
+          npcId={moodCheckNpcId}
+          onShowCustomize={() => setShowCustomizeMood(true)}
+          onDone={() => {
+            const npcId = moodCheckNpcId;
+            setMoodCheckNpcId(null);
+            // Now proceed to normal chat flow
+            const prefs = getPreferences();
+            if (!prefs.optInShown) {
+              setPendingChatNpcId(npcId);
+              setShowOptIn(true);
+            } else {
+              setChatNpcId(npcId);
+            }
+          }}
         />
       )}
 
@@ -741,6 +896,69 @@ export default function App() {
       )}
 
       {/* Game selection */}
+      {/* NPC responds to "let's play a game" — speech bubble + player choices */}
+      {phase.type === "game-invite" && (() => {
+        const inviteNpc = getNpcById(phase.npcId);
+        const npcPos = phase.npcId === "myco" ? mycoScreenPos :
+          phase.npcId === "ember" ? emberScreenPos : npcScreenPos;
+        return (
+          <>
+            <SpeechBubble
+              text={inviteNpc?.personality.gameInviteResponse ?? "which game?"}
+              onDismiss={() => {}}
+              speakerScreenPos={npcPos}
+            />
+            <ThoughtBubble
+              playerScreenPos={playerScreenPos}
+              choices={[
+                {
+                  label: "Spaces Game",
+                  action: () => game.setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "spaces-game" }),
+                },
+                {
+                  label: `You can choose, ${inviteNpc?.displayName ?? "friend"}`,
+                  action: () => game.setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "npc-choice" }),
+                },
+              ]}
+            />
+          </>
+        );
+      })()}
+
+      {/* NPC pre-game text — dismiss launches the game directly */}
+      {phase.type === "game-accept" && (() => {
+        const acceptNpc = getNpcById(phase.npcId);
+        const npcPos = phase.npcId === "myco" ? mycoScreenPos :
+          phase.npcId === "ember" ? emberScreenPos : npcScreenPos;
+        return gameAcceptText ? (
+          <SpeechBubble
+            text={gameAcceptText}
+            onDismiss={() => {
+              const npc = getNpcById(phase.npcId);
+              if (!npc) return;
+              setSelectedNpcId(phase.npcId);
+              setPlayingGameNpcId(phase.npcId);
+              setGameAcceptText(null);
+              try {
+                localStorage.setItem("townage-playing-npc", phase.npcId);
+                if (playerWorldPos.current) {
+                  localStorage.setItem("townage-player-pos", JSON.stringify(playerWorldPos.current));
+                }
+              } catch {}
+              launchGame(npc);
+              game.launchGame();
+            }}
+            speakerScreenPos={npcPos}
+          />
+        ) : (
+          <SpeechBubble
+            text={`${acceptNpc?.emoji ?? ""} ...`}
+            onDismiss={() => {}}
+            speakerScreenPos={npcPos}
+          />
+        );
+      })()}
+
       {phase.type === "game-select" && (
         <PhoneOverlay mode="app" onClose={() => {
           game.state.tutorialComplete ? game.clearOverride() : game.npcWalkAway(true);
@@ -809,9 +1027,8 @@ export default function App() {
             setChatResponse(null);
             setChatRespondingNpcId(null);
             setChatContinue(false);
-            setPlayingGameNpcId(npcId);
             setSelectedNpcId(npcId);
-            game.setPhaseOverride({ type: "game-select" });
+            game.setPhaseOverride({ type: "game-invite", npcId });
           }}
           continueMode={chatContinue}
         />
@@ -879,6 +1096,11 @@ export default function App() {
           mode={showChatInfo}
           onClose={() => setShowChatInfo(null)}
         />
+      )}
+
+      {/* Mood response customization modal */}
+      {showCustomizeMood && (
+        <MoodResponsesModal onClose={() => setShowCustomizeMood(false)} />
       )}
 
       {/* Launching game — navigating to spaces-game */}
@@ -971,7 +1193,7 @@ function AssemblyReveal({
     if (step === "they-fit") {
       t = setTimeout(() => setClickable(true), 400);
     } else if (step === "its-a-bot") {
-      t = setTimeout(() => onStepChange("npc-speech"), 2000);
+      t = setTimeout(() => onStepChange("npc-speech"), 1200);
     } else if (step === "npc-speech") {
       t = setTimeout(() => setClickable(true), 1000);
     }
@@ -1094,7 +1316,7 @@ function AssemblyReveal({
             }}
           />
           <p style={{ color: "#222", fontSize: 16, lineHeight: 1.5 }}>
-            that's a great find! there's a game they used to be able to play... maybe someday...
+            hey - that's a nice find! those little bots have a pretty cool game they can play... someday we'll get it built in here...
           </p>
         </div>
       )}
@@ -1206,13 +1428,13 @@ function PocketHint({ show }: { show: boolean }) {
     setIsTouch("ontouchstart" in window || navigator.maxTouchPoints > 0);
   }, []);
 
-  if (!show || isTouch) return null;
+  if (!show) return null;
 
   return (
     <p
       style={{
         position: "fixed",
-        bottom: 24,
+        bottom: isTouch ? 104 : 24,
         left: "50%",
         transform: "translateX(-50%)",
         color: "#6a4c93",
@@ -1221,9 +1443,10 @@ function PocketHint({ show }: { show: boolean }) {
         zIndex: 5,
         opacity: 0.8,
         animation: "pocket-pulse 1s ease-in-out infinite",
+        whiteSpace: "nowrap",
       }}
     >
-      press E to check your pockets
+      {isTouch ? "tap the E button to open your phone" : "press E to check your pockets"}
     </p>
   );
 }

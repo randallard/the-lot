@@ -44,6 +44,7 @@ interface WorldProps {
   npcScreenPos: React.RefObject<ScreenPos>;
   playerScreenPos: React.RefObject<ScreenPos>;
   // Game NPCs
+  showGameNpcs: boolean;
   onMycoClick?: () => void;
   onEmberClick?: () => void;
   mycoScreenPos: React.RefObject<ScreenPos>;
@@ -55,7 +56,7 @@ interface WorldProps {
   playerWorldPos?: React.RefObject<{ x: number; z: number } | null>;
 }
 
-export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, onMycoClick, onEmberClick, mycoScreenPos, emberScreenPos, findTargetNpcId, npcTalking, partsCollected, initialPlayerPos, playerWorldPos }: WorldProps) {
+export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, showGameNpcs, onMycoClick, onEmberClick, mycoScreenPos, emberScreenPos, findTargetNpcId, npcTalking, partsCollected, initialPlayerPos, playerWorldPos }: WorldProps) {
   const playerPos = useRef(new THREE.Vector3(
     initialPlayerPos?.x ?? 0,
     0.75,
@@ -65,6 +66,12 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
   const [part1Collected, setPart1Collected] = useState(partsCollected >= 1);
   const [part2Spawned, setPart2Spawned] = useState(partsCollected >= 2);
   const [part2Collected, setPart2Collected] = useState(partsCollected >= 2);
+
+  // Sync collected state when partsCollected prop changes (e.g. Enter key pickup)
+  useEffect(() => {
+    if (partsCollected >= 1) setPart1Collected(true);
+    if (partsCollected >= 2) setPart2Collected(true);
+  }, [partsCollected]);
   const npcPos = useRef<[number, number, number] | null>(null);
   const npcWorldPos = useRef<THREE.Vector3 | null>(null);
   const mycoWorldPos = useRef<THREE.Vector3 | null>(null);
@@ -143,12 +150,24 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
   // Current tracking target
   const currentTarget = useRef<THREE.Vector3 | null>(null);
 
-  // Spawn part 2 a couple seconds after the part 1 cutscene is dismissed
+  // Spawn part 2 a couple seconds after the part 1 cutscene is dismissed (or on Enter/click)
   useEffect(() => {
-    if (part1CutsceneDone && !part2Spawned) {
-      const timer = setTimeout(() => setPart2Spawned(true), PART2_DELAY);
-      return () => clearTimeout(timer);
-    }
+    if (!part1CutsceneDone || part2Spawned) return;
+    const timer = setTimeout(() => setPart2Spawned(true), PART2_DELAY);
+    const handleInteract = (e: KeyboardEvent | MouseEvent) => {
+      if (e instanceof KeyboardEvent) {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+        if (e.code !== "Enter") return;
+      }
+      setPart2Spawned(true);
+    };
+    window.addEventListener("keydown", handleInteract);
+    window.addEventListener("click", handleInteract);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("keydown", handleInteract);
+      window.removeEventListener("click", handleInteract);
+    };
   }, [part1CutsceneDone, part2Spawned]);
 
   // Update tracking target based on state (parts are static, so render-time is fine)
@@ -254,23 +273,27 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
         />
       )}
 
-      {/* Game NPCs — always visible */}
-      <GameNpc
-        position={MYCO_POS}
-        bodyColor="#1B5E20"
-        playerPosition={playerPos}
-        onClick={onMycoClick}
-        screenPos={mycoScreenPos}
-        worldPosRef={mycoWorldPos}
-      />
-      <GameNpc
-        position={EMBER_POS}
-        bodyColor="#8B7355"
-        playerPosition={playerPos}
-        onClick={onEmberClick}
-        screenPos={emberScreenPos}
-        worldPosRef={emberWorldPos}
-      />
+      {/* Game NPCs — visible after tutorial */}
+      {showGameNpcs && (
+        <>
+          <GameNpc
+            position={MYCO_POS}
+            bodyColor="#1B5E20"
+            playerPosition={playerPos}
+            onClick={onMycoClick}
+            screenPos={mycoScreenPos}
+            worldPosRef={mycoWorldPos}
+          />
+          <GameNpc
+            position={EMBER_POS}
+            bodyColor="#8B7355"
+            playerPosition={playerPos}
+            onClick={onEmberClick}
+            screenPos={emberScreenPos}
+            worldPosRef={emberWorldPos}
+          />
+        </>
+      )}
     </>
   );
 }

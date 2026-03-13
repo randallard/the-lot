@@ -31,6 +31,8 @@ export type PhaseOverride =
   | { type: "npc-welcome-back" } // "cool, let's play!"
   | { type: "npc-question" } // "what do you think?" → thought bubble
   | { type: "opponents-list" } // opponents screen after install
+  | { type: "game-invite"; npcId: string } // NPC says "which game?" + player choices
+  | { type: "game-accept"; npcId: string; playerChose: "spaces-game" | "npc-choice" } // NPC pre-game text before launching
   | { type: "game-select" } // choosing which game to play
   | { type: "board-creation" } // player building their board
   | { type: "phone-home" } // phone homescreen in free-play

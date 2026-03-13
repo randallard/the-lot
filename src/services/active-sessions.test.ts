@@ -3,6 +3,7 @@ import {
   getActiveSession,
   saveActiveSession,
   clearActiveSession,
+  getAllActiveSessions,
 } from "./active-sessions";
 
 describe("active-sessions", () => {
@@ -82,6 +83,26 @@ describe("active-sessions", () => {
       localStorage.setItem("townage-active-sessions", "garbage");
       // Should not throw
       clearActiveSession("myco");
+    });
+  });
+
+  describe("getAllActiveSessions", () => {
+    it("returns empty array when no sessions", () => {
+      expect(getAllActiveSessions()).toEqual([]);
+    });
+
+    it("returns all saved sessions", () => {
+      saveActiveSession("myco", "session-1");
+      saveActiveSession("ember", "session-2");
+      const sessions = getAllActiveSessions();
+      expect(sessions).toHaveLength(2);
+      expect(sessions).toContainEqual({ npcId: "myco", sessionId: "session-1" });
+      expect(sessions).toContainEqual({ npcId: "ember", sessionId: "session-2" });
+    });
+
+    it("handles corrupted localStorage", () => {
+      localStorage.setItem("townage-active-sessions", "bad-json");
+      expect(getAllActiveSessions()).toEqual([]);
     });
   });
 });

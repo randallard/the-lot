@@ -13,6 +13,7 @@ import {
   type ChatMessage,
 } from "../services/chat-storage";
 import { chatWithNpc } from "../services/haiku-npc";
+import { nudgeFriendliness, NUDGE_CHAT } from "../services/npc-friendliness";
 import { ChatInfoModal } from "./ChatInfoModal";
 import { ChatOptInModal } from "./ChatOptInModal";
 
@@ -50,10 +51,48 @@ function ContactsList({
   onSelect: (id: string) => void;
   onClose: () => void;
 }) {
+  const [filter, setFilter] = useState("");
+  const [selectedIdx, setSelectedIdx] = useState(0);
   const npcIds = new Set([
     ...NPC_CONFIGS.map((n) => n.id),
     ...getAllChatNpcIds(),
   ]);
+
+  const filteredIds = [...npcIds].filter((id) => {
+    if (!filter) return true;
+    const npc = getNpcById(id);
+    if (!npc) return false;
+    const q = filter.toLowerCase();
+    return npc.displayName.toLowerCase().includes(q) || npc.id.toLowerCase().includes(q);
+  });
+
+  // Reset selection when filter changes
+  useEffect(() => {
+    setSelectedIdx(0);
+  }, [filter]);
+
+  const handleKey = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (filteredIds.length === 0) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIdx((s) => Math.min(s + 1, filteredIds.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIdx((s) => Math.max(s - 1, 0));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (filteredIds[selectedIdx]) onSelect(filteredIds[selectedIdx]);
+      }
+    },
+    [filteredIds, selectedIdx, onSelect],
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [handleKey]);
 
   return (
     <div
@@ -96,20 +135,51 @@ function ContactsList({
         </button>
       </div>
 
-      {[...npcIds].map((id) => {
+      <input
+        type="text"
+        placeholder="search..."
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setSelectedIdx((s) => Math.min(s + 1, filteredIds.length - 1));
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setSelectedIdx((s) => Math.max(s - 1, 0));
+          } else if (e.key === "Enter" && filteredIds[selectedIdx]) {
+            e.preventDefault();
+            e.stopPropagation();
+            onSelect(filteredIds[selectedIdx]);
+          }
+        }}
+        style={{
+          padding: "8px 12px",
+          background: "#1a1a2e",
+          border: "1px solid #2a2a3e",
+          borderRadius: 10,
+          color: "#ccc",
+          fontSize: 13,
+          outline: "none",
+          margin: "0 4px 4px",
+        }}
+      />
+
+      {filteredIds.map((id, i) => {
         const npc = getNpcById(id);
         if (!npc) return null;
         const chats = getChats(id);
         const lastMsg = chats[chats.length - 1];
         const unread = getUnreadCount(id);
+        const isSel = i === selectedIdx;
         return (
           <button
             key={id}
             onClick={() => onSelect(id)}
             style={{
               width: "100%",
-              background: "#1a1a2e",
-              border: "1px solid #2a2a3e",
+              background: isSel ? "#2a2a4e" : "#1a1a2e",
+              border: isSel ? "1px solid #6a4c93" : "1px solid #2a2a3e",
               borderRadius: 12,
               padding: "12px 16px",
               display: "flex",
@@ -247,6 +317,7 @@ function ConversationView({
         };
         addMessage(npcId, npcMsg);
         setMessages((prev) => [...prev, npcMsg]);
+        nudgeFriendliness(npcId, NUDGE_CHAT);
       } catch {
         const npcMsg: ChatMessage = {
           id: genMessageId(),

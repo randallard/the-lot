@@ -30,6 +30,24 @@ export function AssemblyCutscene({ onComplete }: AssemblyCutsceneProps) {
     }
   }, [assembled, onComplete]);
 
+  // Enter key auto-snaps pieces together
+  useEffect(() => {
+    if (assembled) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === "Enter") {
+        e.preventDefault();
+        setPos1({ x: 0, y: 0 });
+        setPos2({ x: 0, y: 0 });
+        mode.current = "idle";
+        activePiece.current = null;
+        setAssembled(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [assembled]);
+
   const setActivePos = useCallback((pos: { x: number; y: number }) => {
     if (activePiece.current === 1) setPos1(pos);
     else if (activePiece.current === 2) setPos2(pos);
@@ -210,7 +228,7 @@ export function AssemblyCutscene({ onComplete }: AssemblyCutsceneProps) {
             marginTop: 40,
           }}
         >
-          drag to fit
+          drag to fit or press enter
         </p>
       )}
     </div>

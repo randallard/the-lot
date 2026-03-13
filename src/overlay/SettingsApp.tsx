@@ -1,19 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   getPreferences,
   setPreferences,
   clearAllChats,
 } from "../services/chat-storage";
 import { ChatInfoModal } from "./ChatInfoModal";
+import { EnthusiasmSettings } from "./EnthusiasmSettings";
+import { MoodResponsesModal } from "./MoodResponsesModal";
 
 interface SettingsAppProps {
   onClose: () => void;
 }
 
+const SETTINGS_ITEMS = 5; // AI toggle, NPC Vibes, Check-in, Privacy, Clear
+
 export function SettingsApp({ onClose }: SettingsAppProps) {
   const [prefs, setPrefs] = useState(getPreferences);
   const [showInfo, setShowInfo] = useState(false);
   const [showCleared, setShowCleared] = useState(false);
+  const [showEnthusiasm, setShowEnthusiasm] = useState(false);
+  const [showMoodResponses, setShowMoodResponses] = useState(false);
+  const [selectedIdx, setSelectedIdx] = useState(0);
 
   const toggleHaiku = () => {
     const next = { ...prefs, useHaiku: !prefs.useHaiku, optInShown: true };
@@ -26,6 +33,36 @@ export function SettingsApp({ onClose }: SettingsAppProps) {
     setShowCleared(true);
     setTimeout(() => setShowCleared(false), 2000);
   };
+
+  const settingsActions = useCallback(() => [
+    toggleHaiku,
+    () => setShowEnthusiasm(true),
+    () => setShowMoodResponses(true),
+    () => setShowInfo(true),
+    handleClear,
+  ], []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIdx((s) => Math.min(s + 1, SETTINGS_ITEMS - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIdx((s) => Math.max(s - 1, 0));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        settingsActions()[selectedIdx]?.();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedIdx, settingsActions]);
+
+  if (showEnthusiasm) {
+    return <EnthusiasmSettings onBack={() => setShowEnthusiasm(false)} />;
+  }
 
   return (
     <div
@@ -71,8 +108,8 @@ export function SettingsApp({ onClose }: SettingsAppProps) {
       {/* Chat AI toggle */}
       <div
         style={{
-          background: "#1a1a2e",
-          border: "1px solid #2a2a3e",
+          background: selectedIdx === 0 ? "#2a2a4e" : "#1a1a2e",
+          border: selectedIdx === 0 ? "1px solid #6a4c93" : "1px solid #2a2a3e",
           borderRadius: 12,
           padding: "14px 16px",
         }}
@@ -130,12 +167,78 @@ export function SettingsApp({ onClose }: SettingsAppProps) {
         </div>
       </div>
 
+      {/* NPC Enthusiasm */}
+      <button
+        onClick={() => setShowEnthusiasm(true)}
+        style={{
+          background: selectedIdx === 1 ? "#2a2a4e" : "#1a1a2e",
+          border: selectedIdx === 1 ? "1px solid #6a4c93" : "1px solid #2a2a3e",
+          borderRadius: 12,
+          padding: "14px 16px",
+          textAlign: "left",
+          cursor: "pointer",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <p
+            style={{
+              color: "#ccc",
+              fontSize: 14,
+              fontWeight: 600,
+              margin: 0,
+            }}
+          >
+            NPC Vibes
+          </p>
+          <p style={{ color: "#666", fontSize: 11, margin: "2px 0 0" }}>
+            your mood + per-NPC energy
+          </p>
+        </div>
+        <span style={{ color: "#666", fontSize: 14 }}>→</span>
+      </button>
+
+      {/* Check-in responses */}
+      <button
+        onClick={() => setShowMoodResponses(true)}
+        style={{
+          background: selectedIdx === 2 ? "#2a2a4e" : "#1a1a2e",
+          border: selectedIdx === 2 ? "1px solid #6a4c93" : "1px solid #2a2a3e",
+          borderRadius: 12,
+          padding: "14px 16px",
+          textAlign: "left",
+          cursor: "pointer",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <p
+            style={{
+              color: "#ccc",
+              fontSize: 14,
+              fontWeight: 600,
+              margin: 0,
+            }}
+          >
+            Check-in Responses
+          </p>
+          <p style={{ color: "#666", fontSize: 11, margin: "2px 0 0" }}>
+            customize how you tell NPCs how you're doing
+          </p>
+        </div>
+        <span style={{ color: "#666", fontSize: 14 }}>→</span>
+      </button>
+
       {/* Privacy info */}
       <button
         onClick={() => setShowInfo(true)}
         style={{
-          background: "#1a1a2e",
-          border: "1px solid #2a2a3e",
+          background: selectedIdx === 3 ? "#2a2a4e" : "#1a1a2e",
+          border: selectedIdx === 3 ? "1px solid #6a4c93" : "1px solid #2a2a3e",
           borderRadius: 12,
           padding: "14px 16px",
           textAlign: "left",
@@ -162,8 +265,8 @@ export function SettingsApp({ onClose }: SettingsAppProps) {
       <button
         onClick={handleClear}
         style={{
-          background: "#1a1a2e",
-          border: "1px solid #2a2a3e",
+          background: selectedIdx === 4 ? "#2a2a4e" : "#1a1a2e",
+          border: selectedIdx === 4 ? "1px solid #6a4c93" : "1px solid #2a2a3e",
           borderRadius: 12,
           padding: "14px 16px",
           textAlign: "left",
@@ -184,6 +287,10 @@ export function SettingsApp({ onClose }: SettingsAppProps) {
 
       {showInfo && (
         <ChatInfoModal mode="privacy" onClose={() => setShowInfo(false)} />
+      )}
+
+      {showMoodResponses && (
+        <MoodResponsesModal onClose={() => setShowMoodResponses(false)} />
       )}
     </div>
   );
