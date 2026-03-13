@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 interface PhoneOverlayProps {
   mode?: "homescreen" | "app";

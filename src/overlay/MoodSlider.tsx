@@ -474,7 +474,7 @@ function ReplyBubble({
   playerScreenPos: React.RefObject<ScreenPos>;
   replyText: string;
   setReplyText: (t: string) => void;
-  inputRef: React.RefObject<HTMLInputElement>;
+  inputRef: React.RefObject<HTMLInputElement | null>;
   onSend: () => void;
   onBye: () => void;
 }) {
