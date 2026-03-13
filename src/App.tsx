@@ -20,10 +20,8 @@ import { ChatApp } from "./overlay/ChatApp";
 import { SettingsApp } from "./overlay/SettingsApp";
 import { ChatOptInModal } from "./overlay/ChatOptInModal";
 import { ChatInfoModal } from "./overlay/ChatInfoModal";
-import { BubbleHint } from "./overlay/BubbleHint";
 import { MoodSlider } from "./overlay/MoodSlider";
 import { MoodResponsesModal } from "./overlay/MoodResponsesModal";
-import { hasOffsetForCurrentSize, isBubbleHintDismissed } from "./overlay/bubble-offset";
 import { useInputDirection } from "./world/useInputDirection";
 import { useGameState } from "./state/useGameState";
 import { getNpcById } from "./config/npcs";
@@ -75,22 +73,7 @@ export default function App() {
   const [_playingGameNpcId, setPlayingGameNpcId] = useState<string | null>(null);
   const [gameAcceptText, setGameAcceptText] = useState<string | null>(null);
   const postGameChat = useRef(false);
-  const [needsBubbleHint, setNeedsBubbleHint] = useState(false);
-  const [bubbleHintExpanded, setBubbleHintExpanded] = useState(false);
   const [unreadCount, setUnreadCount] = useState(() => getTotalUnreadCount());
-
-  // Show bubble hint when no saved offset exists for current screen size
-  useEffect(() => {
-    const check = () => {
-      setNeedsBubbleHint(
-        !isBubbleHintDismissed() &&
-        (!hasOffsetForCurrentSize("pc") || !hasOffsetForCurrentSize("npc"))
-      );
-    };
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
 
   const { dir: inputDir, disabled: inputDisabled } = useInputDirection();
   const rushMode = useRef<RushMode>(0);
@@ -300,27 +283,13 @@ export default function App() {
   }, [game.state.phaseOverride, game.state.tutorialComplete, chatNpcId, chatRespondingNpcId, moodCheckNpcId]);
 
   const handleNpcClick = useCallback(() => {
-    if (game.state.tutorialComplete) {
-      // Post-tutorial — chat with NPC Ryan
-      handleGameNpcClick("ryan");
-    } else if (game.state.npcRelaxing) {
-      game.setPhaseOverride({ type: "npc-welcome-back" });
-    } else if (!game.state.appInstalled) {
-      game.setPhaseOverride({ type: "need-phone" });
-    } else {
-      game.setPhaseOverride({ type: "waiting-app-click" });
-    }
-  }, [game.setPhaseOverride, game.state.appInstalled, game.state.npcRelaxing, game.state.tutorialComplete, handleGameNpcClick]);
+    handleGameNpcClick("ryan");
+  }, [handleGameNpcClick]);
 
   const handleNpcApproach = useCallback(() => {
-    if (game.state.npcRelaxing && !game.state.tutorialComplete) {
-      game.setPhaseOverride({ type: "npc-welcome-back" });
-    }
-  }, [game.setPhaseOverride, game.state.npcRelaxing, game.state.tutorialComplete]);
+    // No-op — NPC approach no longer triggers automatic dialogue
+  }, []);
 
-  const handleNeedPhoneDismiss = useCallback(() => {
-    game.markNpcSpoken();
-  }, [game.markNpcSpoken]);
 
   const handlePhoneClick = useCallback(() => {
     setPocketOpen(false);
@@ -508,6 +477,13 @@ export default function App() {
   }, [game.clearOverride]);
 
   const togglePocket = useCallback(() => {
+    // First time pressing E after NPC hint — skip tutorial, go straight to phone
+    if (game.state.npcSpoken && !game.state.tutorialComplete) {
+      game.completeIntro();
+      game.setPhaseOverride({ type: "phone-home" });
+      return;
+    }
+
     // Post-tutorial: pocket button opens/closes phone homescreen
     if (game.state.tutorialComplete && game.state.appInstalled) {
       if (phase.type === "phone-home" || phase.type === "find-app" || phase.type === "chat-app" || phase.type === "settings-app") {
@@ -530,7 +506,7 @@ export default function App() {
       phase.type === "launching-game" ||
       phase.type === "npc-commentary";
     if (!blocked) setPocketOpen((prev) => !prev);
-  }, [phase.type, game.state.tutorialComplete, game.state.appInstalled, game.state.phaseOverride, game.clearOverride, game.setPhaseOverride]);
+  }, [phase.type, game.state.npcSpoken, game.state.tutorialComplete, game.state.appInstalled, game.state.phaseOverride, game.clearOverride, game.setPhaseOverride, game.completeIntro]);
 
   const handleRush = useCallback(() => {
     rushMode.current = 1;
@@ -674,7 +650,6 @@ export default function App() {
     showNpcIntro ||
     showPhoneHint ||
     !!moodCheckNpcId ||
-    bubbleHintExpanded ||
     zoomIn;
   inputDisabled.current = hasModal;
   showArrowRef.current = showArrow;
@@ -721,7 +696,7 @@ export default function App() {
       <VirtualJoystick inputDir={inputDir} />
       <PocketButton onClick={togglePocket} pulse={needsPocketHint} />
       <PocketHint show={needsPocketHint} />
-      <BubbleHint show={game.state.tutorialComplete && needsBubbleHint} onExpandedChange={setBubbleHintExpanded} />
+
       {showArrow && (
         <TrinketArrow tracker={trinketTracker} onRush={handleRush} />
       )}
@@ -755,8 +730,19 @@ export default function App() {
           greeting="I'm NPC Ryan - how are you today?"
           npcId="ryan"
           skipAsk
+          isIntro
           onShowCustomize={() => setShowCustomizeMood(true)}
-          onDone={() => setShowPhoneHint(true)}
+          onDone={() => {
+            const prefs = getPreferences();
+            if (prefs.useHaiku) {
+              // Haiku already mentioned the phone — skip scripted hint
+              setShowNpcIntro(false);
+              game.markNpcSpoken();
+              setTimeout(() => game.npcWalkAway(false), 1000);
+            } else {
+              setShowPhoneHint(true);
+            }
+          }}
         />
       )}
       {showPhoneHint && (
@@ -765,7 +751,7 @@ export default function App() {
           onDismiss={() => {
             setShowPhoneHint(false);
             setShowNpcIntro(false);
-            game.completeIntro();
+            game.markNpcSpoken();
             setTimeout(() => game.npcWalkAway(false), 1000);
           }}
           speakerScreenPos={npcScreenPos}
@@ -799,29 +785,12 @@ export default function App() {
         />
       )}
 
-      {/* NPC speech bubbles — point at NPC */}
-      {phase.type === "need-phone" && (
-        <SpeechBubble
-          text="uh... you'll need your phone"
-          onDismiss={handleNeedPhoneDismiss}
-          speakerScreenPos={npcScreenPos}
-        />
-      )}
-
       {phase.type === "npc-bye" && (
         <SpeechBubble
           text="alrighty, maybe later :)"
           onDismiss={handleNpcByeDismiss}
           speakerScreenPos={npcScreenPos}
           autoClose={3500}
-        />
-      )}
-
-      {phase.type === "npc-welcome-back" && (
-        <SpeechBubble
-          text="hows it going?"
-          onDismiss={() => game.resumeFromNpc()}
-          speakerScreenPos={npcScreenPos}
         />
       )}
 

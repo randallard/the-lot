@@ -34,14 +34,15 @@ export default async function handler(req: Request): Promise<Response> {
 
     const toolDef = {
       name: "respond",
-      description: "Send your response to the player. Set continues=true if your response naturally invites a reply (e.g. you asked a question or made an offer). Set continues=false if you're wrapping up or just acknowledging.",
+      description: "Send your response to the player. Set continues=true if your response naturally invites a reply (e.g. you asked a question or made an offer). Set continues=false if you're wrapping up or just acknowledging. Always provide a defaultReply — a short, natural thing the player might say back (like 'sounds good', 'yeah!', 'nah I'm good', 'see ya').",
       input_schema: {
         type: "object" as const,
         properties: {
           dialogue: { type: "string", description: "What you say to the player" },
           continues: { type: "boolean", description: "True if the player should get a chance to reply" },
+          defaultReply: { type: "string", description: "A short default response the player might say — pre-filled so they can just hit enter to move on" },
         },
-        required: ["dialogue", "continues"],
+        required: ["dialogue", "continues", "defaultReply"],
       },
     };
 
@@ -81,16 +82,18 @@ export default async function handler(req: Request): Promise<Response> {
     // Extract response — tool use or plain text
     let dialogue = "good game!";
     let continues = false;
+    let defaultReply = "";
 
     const toolBlock = data.content?.find((b: { type: string }) => b.type === "tool_use");
     if (toolBlock?.input) {
       dialogue = toolBlock.input.dialogue ?? dialogue;
       continues = !!toolBlock.input.continues;
+      defaultReply = toolBlock.input.defaultReply ?? "";
     } else {
       dialogue = data.content?.[0]?.text ?? dialogue;
     }
 
-    return new Response(JSON.stringify({ dialogue, continues }), {
+    return new Response(JSON.stringify({ dialogue, continues, defaultReply }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

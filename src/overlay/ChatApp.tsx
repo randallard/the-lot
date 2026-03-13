@@ -14,6 +14,7 @@ import {
 } from "../services/chat-storage";
 import { chatWithNpc } from "../services/haiku-npc";
 import { nudgeFriendliness, NUDGE_CHAT } from "../services/npc-friendliness";
+import { getRank } from "../services/npc-records";
 import { ChatInfoModal } from "./ChatInfoModal";
 import { ChatOptInModal } from "./ChatOptInModal";
 
@@ -171,6 +172,7 @@ function ContactsList({
         const chats = getChats(id);
         const lastMsg = chats[chats.length - 1];
         const unread = getUnreadCount(id);
+        const rank = getRank(id);
         const isSel = i === selectedIdx;
         return (
           <button
@@ -191,6 +193,7 @@ function ContactsList({
           >
             <span style={{ fontSize: 22 }}>{npc.emoji}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <p
                 style={{
                   color: "#ccc",
@@ -201,6 +204,19 @@ function ContactsList({
               >
                 {npc.displayName}
               </p>
+              {rank && (
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "1px 5px",
+                  borderRadius: 4,
+                  background: rank === "S" ? "#FFD700" : rank === "A" ? "#C0C0C0" : "#8B6914",
+                  color: rank === "S" ? "#1a1a2e" : rank === "A" ? "#1a1a2e" : "#fff",
+                }}>
+                  {rank}
+                </span>
+              )}
+              </div>
               {lastMsg ? (
                 <p
                   style={{

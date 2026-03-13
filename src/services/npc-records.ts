@@ -12,6 +12,7 @@ export interface NpcRecord {
   totalGames: number;
   currentWinStreak: number;
   currentLossStreak: number;
+  bestWinStreak?: number;
 }
 
 function defaultRecord(): NpcRecord {
@@ -45,6 +46,22 @@ export function getRecord(npcId: string): NpcRecord {
   return all[npcId] ?? defaultRecord();
 }
 
+/** Best win streak ever achieved against this NPC. */
+export function getBestWinStreak(npcId: string): number {
+  const all = loadAll();
+  const record = all[npcId];
+  return record ? (record.bestWinStreak ?? record.currentWinStreak) : 0;
+}
+
+/** S = 5+ win streak, A = 3+, B = 1+, null = no wins. */
+export function getRank(npcId: string): "S" | "A" | "B" | null {
+  const best = getBestWinStreak(npcId);
+  if (best >= 5) return "S";
+  if (best >= 3) return "A";
+  if (best >= 1) return "B";
+  return null;
+}
+
 export function recordResult(
   npcId: string,
   winner: "player" | "opponent" | "tie",
@@ -58,6 +75,7 @@ export function recordResult(
     record.wins++;
     record.currentWinStreak++;
     record.currentLossStreak = 0;
+    record.bestWinStreak = Math.max(record.bestWinStreak ?? 0, record.currentWinStreak);
   } else if (winner === "opponent") {
     record.losses++;
     record.currentLossStreak++;

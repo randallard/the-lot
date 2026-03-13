@@ -33,6 +33,7 @@ export function SpeechBubble({
   // Drag state
   const dragOffset = useRef<{ x: number; y: number } | null>(null);
   const dragging = useRef(false);
+  const justDragged = useRef(false);
   const dragStart = useRef({ mx: 0, my: 0, bx: 0, by: 0 });
   const lastCalcPos = useRef({ x: 0, y: 0 });
   const lastSpeaker = useRef<{ x: number; y: number; charH: number }>({ x: 0, y: 0, charH: 80 });
@@ -78,7 +79,9 @@ export function SpeechBubble({
     };
     const endDrag = () => {
       if (!dragging.current) return;
+      const didMove = dragOffset.current !== null;
       dragging.current = false;
+      if (didMove) justDragged.current = true;
       if (dragOffset.current) {
         const sp = lastSpeaker.current;
         const off = dragOffset.current;
@@ -143,6 +146,10 @@ export function SpeechBubble({
     };
     const onClick = () => {
       if (dragging.current) return;
+      if (justDragged.current) {
+        justDragged.current = false;
+        return;
+      }
       onDismiss();
     };
     window.addEventListener("keydown", onKey);
