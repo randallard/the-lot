@@ -10,11 +10,11 @@ export function getScreenSizeIndex(): number {
   return BREAKPOINTS.length;
 }
 
-function storageKey(role: "pc" | "npc", idx: number): string {
+function storageKey(role: string, idx: number): string {
   return `bubble-offset-${role}-${idx}`;
 }
 
-export function loadBubbleOffset(role: "pc" | "npc"): { x: number; y: number } | null {
+export function loadBubbleOffset(role: string): { x: number; y: number } | null {
   const idx = getScreenSizeIndex();
   try {
     const saved = localStorage.getItem(storageKey(role, idx));
@@ -23,14 +23,14 @@ export function loadBubbleOffset(role: "pc" | "npc"): { x: number; y: number } |
   return null;
 }
 
-export function saveBubbleOffset(role: "pc" | "npc", offset: { x: number; y: number }): void {
+export function saveBubbleOffset(role: string, offset: { x: number; y: number }): void {
   const idx = getScreenSizeIndex();
   try {
     localStorage.setItem(storageKey(role, idx), JSON.stringify(offset));
   } catch {}
 }
 
-export function hasOffsetForCurrentSize(role: "pc" | "npc"): boolean {
+export function hasOffsetForCurrentSize(role: string): boolean {
   const idx = getScreenSizeIndex();
   return localStorage.getItem(storageKey(role, idx)) !== null;
 }

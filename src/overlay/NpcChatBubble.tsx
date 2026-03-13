@@ -8,6 +8,10 @@ interface NpcChatBubbleProps {
   onClose: () => void;
   onPlayGame?: () => void;
   continueMode?: boolean;
+  /** Pre-fill the text input (e.g. Haiku's suggested reply). */
+  defaultText?: string;
+  /** When true, start with "let's play" selected instead of text input. */
+  defaultPlay?: boolean;
 }
 
 export function NpcChatBubble({
@@ -16,11 +20,12 @@ export function NpcChatBubble({
   onClose,
   onPlayGame,
   continueMode,
+  defaultText,
+  defaultPlay,
 }: NpcChatBubbleProps) {
-  // Initial: 0 = play game, 1 = greeting, 2 = text input
-  // Continue: 0 = text input, 1 = play game
-  const [selected, setSelected] = useState(0);
-  const [text, setText] = useState("");
+  // 0 = text input, 1 = play game
+  const [selected, setSelected] = useState(defaultPlay && onPlayGame ? 1 : 0);
+  const [text, setText] = useState(defaultText ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: "50%", top: "40%" });
@@ -114,12 +119,12 @@ export function NpcChatBubble({
     };
   }, []);
 
-  // Auto-focus input in continue mode
+  // Auto-focus input (unless "let's play" is pre-selected)
   useEffect(() => {
-    if (continueMode) {
+    if (!(defaultPlay && onPlayGame)) {
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [continueMode]);
+  }, []);
 
   // Track player position
   useEffect(() => {
@@ -183,9 +188,8 @@ export function NpcChatBubble({
     return () => cancelAnimationFrame(raf);
   }, [playerScreenPos]);
 
-  const optionCount = continueMode
-    ? (onPlayGame ? 2 : 1)
-    : (onPlayGame ? 3 : 2);
+  // 0 = text input, 1 = play game
+  const optionCount = onPlayGame ? 2 : 1;
 
   // Keyboard navigation (only when input is not focused)
   useEffect(() => {
@@ -196,32 +200,25 @@ export function NpcChatBubble({
         const dir = e.key === "ArrowUp" ? -1 : 1;
         setSelected((s) => {
           const next = ((s + dir) % optionCount + optionCount) % optionCount;
-          // Focus input when selecting the text input option
-          const textIdx = continueMode ? 0 : (onPlayGame ? 2 : 1);
-          if (next === textIdx) setTimeout(() => inputRef.current?.focus(), 0);
+          if (next === 0) setTimeout(() => inputRef.current?.focus(), 0);
           return next;
         });
       } else if (e.key === "Enter") {
-        if (continueMode) {
-          if (selected === 1 && onPlayGame) onPlayGame();
-        } else {
-          if (onPlayGame && selected === 0) onPlayGame();
-          else if (selected === (onPlayGame ? 1 : 0)) onSend("How's it going?");
-        }
+        if (selected === 1 && onPlayGame) onPlayGame();
       } else if (e.key === "Escape") {
         onClose();
       }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [selected, onSend, onClose, onPlayGame, continueMode, optionCount]);
+  }, [selected, onClose, onPlayGame, optionCount]);
 
   const playGameButton = onPlayGame && (
     <OptionButton
       label="let's play a game"
-      selected={continueMode ? selected === 1 : selected === 0}
+      selected={selected === 1}
       onClick={onPlayGame}
-      onFocus={() => setSelected(continueMode ? 1 : 0)}
+      onFocus={() => setSelected(1)}
     />
   );
 
@@ -266,54 +263,22 @@ export function NpcChatBubble({
         <div style={tailStyle} />
         <div style={tailInnerStyle} />
 
-        {continueMode ? (
-          <>
-            {/* Continue mode: text input first, play game second */}
-            <TextInput
-              ref={inputRef}
-              text={text}
-              setText={setText}
-              selected={selected === 0}
-              onFocus={() => setSelected(0)}
-              onSend={(msg) => { onSend(msg); setText(""); }}
-              onClose={onClose}
-              onPrevNext={(dir) => {
-                if (onPlayGame) {
-                  setSelected(dir === "up" ? 1 : 1);
-                  inputRef.current?.blur();
-                }
-              }}
-            />
-            {playGameButton}
-          </>
-        ) : (
-          <>
-            {/* Initial mode: play game first, greeting second, text input third */}
-            {playGameButton}
-            <OptionButton
-              label="How's it going?"
-              selected={selected === (onPlayGame ? 1 : 0)}
-              onClick={() => onSend("How's it going?")}
-              onFocus={() => setSelected(onPlayGame ? 1 : 0)}
-            />
-            <TextInput
-              ref={inputRef}
-              text={text}
-              setText={setText}
-              selected={selected === (onPlayGame ? 2 : 1)}
-              onFocus={() => setSelected(onPlayGame ? 2 : 1)}
-              onSend={(msg) => { onSend(msg); setText(""); }}
-              onClose={onClose}
-              onPrevNext={(dir) => {
-                const textIdx = onPlayGame ? 2 : 1;
-                if (dir === "up") {
-                  setSelected(textIdx - 1);
-                  inputRef.current?.blur();
-                }
-              }}
-            />
-          </>
-        )}
+        <TextInput
+          ref={inputRef}
+          text={text}
+          setText={setText}
+          selected={selected === 0}
+          onFocus={() => setSelected(0)}
+          onSend={(msg) => { onSend(msg); setText(""); }}
+          onClose={onClose}
+          onPrevNext={(dir) => {
+            if (onPlayGame && dir === "down") {
+              setSelected(1);
+              inputRef.current?.blur();
+            }
+          }}
+        />
+        {playGameButton}
       </div>
     </>
   );

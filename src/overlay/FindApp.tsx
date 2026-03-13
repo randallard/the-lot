@@ -1,12 +1,20 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { NPC_CONFIGS } from "../config/npcs";
+import { getOverallSpacesRank } from "../services/npc-board-records";
 
 interface FindAppProps {
   onFind: (npcId: string) => void;
   onClose: () => void;
+  onShowRank?: (npcId: string) => void;
 }
 
-export function FindApp({ onFind, onClose }: FindAppProps) {
+const RANK_COLORS: Record<string, { bg: string; fg: string }> = {
+  S: { bg: "#FFD700", fg: "#1a1a2e" },
+  A: { bg: "#C0C0C0", fg: "#1a1a2e" },
+  B: { bg: "#8B6914", fg: "#fff" },
+};
+
+export function FindApp({ onFind, onClose, onShowRank }: FindAppProps) {
   const [query, setQuery] = useState("");
   const [highlightIdx, setHighlightIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -109,7 +117,7 @@ export function FindApp({ onFind, onClose }: FindAppProps) {
           }}
         >
           <span style={{ fontSize: 22 }}>{npc.emoji}</span>
-          <div>
+          <div style={{ flex: 1 }}>
             <p
               style={{
                 color: "#ccc",
@@ -124,6 +132,31 @@ export function FindApp({ onFind, onClose }: FindAppProps) {
               {npc.description}
             </p>
           </div>
+          {(() => {
+            const rank = getOverallSpacesRank(npc.id);
+            if (!rank && !onShowRank) return null;
+            const c = rank ? RANK_COLORS[rank] : null;
+            return (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShowRank?.(npc.id);
+                }}
+                style={{
+                  background: c?.bg ?? "transparent",
+                  color: c?.fg ?? "#555",
+                  border: rank ? "none" : "1px solid #333",
+                  borderRadius: 4,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "2px 6px",
+                  cursor: "pointer",
+                }}
+              >
+                {rank ?? "rank"}
+              </button>
+            );
+          })()}
         </button>
       ))}
 

@@ -6,8 +6,7 @@ export function derivePhase(state: GameState): DerivedPhase {
     return { type: "exploring" };
   }
 
-  if (!state.appInstalled) return { type: "npc-waiting" };
-  if (!state.tutorialComplete) return { type: "app-ready" };
+  if (!state.tutorialComplete) return { type: "npc-waiting" };
   return { type: "free-play" };
 }
 

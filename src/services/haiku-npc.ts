@@ -59,12 +59,12 @@ export async function getNpcCommentary(
         },
         context:
           results.winner === "incomplete"
-            ? "The player left the game before finishing."
+            ? "You and the player were playing together but they had to leave before finishing. Be understanding — suggest picking it up later."
             : results.winner === "player"
-              ? "The player beat you."
+              ? "You just played a game together and the player beat you."
               : results.winner === "opponent"
-                ? "You beat the player."
-                : "It was a tie.",
+                ? "You just played a game together and you beat the player."
+                : "You just played a game together and it was a tie.",
       }),
     });
 
@@ -75,7 +75,7 @@ export async function getNpcCommentary(
   } catch {
     // Fall back to static personality strings
     if (results.winner === "incomplete") {
-      return "leaving already? we can finish later";
+      return "no worries, we'll pick up where we left off later";
     } else if (results.winner === "player") {
       return npc.personality.loseReaction;
     } else if (results.winner === "opponent") {
@@ -93,11 +93,11 @@ export async function getNpcCommentary(
 export async function getGameAcceptText(
   npc: NpcConfig,
   playerChose: "spaces-game" | "npc-choice",
-): Promise<string> {
+): Promise<{ dialogue: string; chosenGame: string }> {
   const games = "Spaces Game";
   const prompt =
     playerChose === "npc-choice"
-      ? `The player asked you to choose a game. Available games: ${games}. Pick one and say what you picked. Keep it chill and short — like texting a friend.`
+      ? `The player asked you to choose a game from this list: ${games}. Pick one at random and let them know which one you chose. Keep it chill and short — like texting a friend.`
       : `The player chose Spaces Game. Acknowledge it casually — you're about to play. Keep it short, like between friends.`;
 
   const response = await fetch("/api/npc-chat", {
@@ -106,12 +106,14 @@ export async function getGameAcceptText(
     body: JSON.stringify({
       systemPrompt: buildSystemPrompt(npc),
       messages: [{ role: "user", content: prompt }],
+      useTool: true,
     }),
   });
 
   if (!response.ok) throw new Error(`API error: ${response.status}`);
   const data = await response.json();
-  return data.dialogue;
+  // For now only Spaces Game exists; when more are added, parse from dialogue or add a tool field
+  return { dialogue: data.dialogue, chosenGame: "spaces-game" };
 }
 
 export async function chatWithNpc(

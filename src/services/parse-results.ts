@@ -12,6 +12,7 @@ export interface GameResults {
     opponentPoints: number;
     winner: "player" | "opponent" | "tie";
   }>;
+  boardSize?: number;
   pendingResults?: GameResults[];
 }
 

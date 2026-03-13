@@ -4,6 +4,7 @@ import { getMoodResponse } from "../services/mood-responses";
 import { getPreferences, setPreferences } from "../services/chat-storage";
 import { getNpcById } from "../config/npcs";
 import { SpeechBubble } from "./SpeechBubble";
+import { NpcChatBubble } from "./NpcChatBubble";
 import { ChatOptInModal } from "./ChatOptInModal";
 import type { ScreenPos } from "../world/useScreenPosition";
 
@@ -18,6 +19,8 @@ interface MoodSliderProps {
   onShowCustomize?: () => void;
   /** When true, this is the first-time intro — Haiku should mention the phone (E key). */
   isIntro?: boolean;
+  /** Called when the player wants to play a game with this NPC. */
+  onPlayGame?: () => void;
 }
 
 type Step = "greeting" | "asking" | "responding" | "npc-reply" | "player-reply" | "npc-followup";
@@ -36,19 +39,18 @@ export function MoodSlider({
   skipAsk,
   onShowCustomize,
   isIntro,
+  onPlayGame,
 }: MoodSliderProps) {
   const [step, setStep] = useState<Step>("greeting");
   const [value, setValue] = useState(DEFAULT_LEVEL);
   const [freeText, setFreeText] = useState("");
   const [npcReply, setNpcReply] = useState<string | null>(null);
-  const [npcContinues, setNpcContinues] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [chatHistory, setChatHistory] = useState<{ role: string; content: string }[]>([]);
   const [focusRow, setFocusRow] = useState<FocusRow>("slider");
   const [selectedBtn, setSelectedBtn] = useState(0);
   const sliderRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const replyInputRef = useRef<HTMLInputElement>(null);
 
   const btnCount = onShowCustomize ? 3 : 2;
   const [showOptIn, setShowOptIn] = useState(false);
@@ -56,6 +58,8 @@ export function MoodSlider({
 
   const npcConfig = getNpcById(npcId);
   const systemPrompt = (npcConfig?.personality.systemPrompt ?? "You are a friendly NPC.") + " Keep it very short — a few words, max one sentence.";
+
+  const defaultActionRef = useRef<"chat" | "play">("chat");
 
   const sendToHaiku = useCallback((msgs: { role: string; content: string }[], onResult: (dialogue: string, continues: boolean, defaultReply: string) => void) => {
     fetch("/api/npc-chat", {
@@ -68,8 +72,14 @@ export function MoodSlider({
       }),
     })
       .then((r) => r.ok ? r.json() : Promise.reject())
-      .then((data) => onResult(data.dialogue, !!data.continues, data.defaultReply ?? ""))
-      .catch(() => onResult("alright", false, ""));
+      .then((data) => {
+        defaultActionRef.current = data.defaultAction === "play" ? "play" : "chat";
+        onResult(data.dialogue, !!data.continues, data.defaultReply ?? "");
+      })
+      .catch(() => {
+        defaultActionRef.current = "chat";
+        onResult("alright", false, "");
+      });
   }, [systemPrompt]);
 
   const doSubmitMood = useCallback((level: number, playerAnswer: string, useHaiku: boolean) => {
@@ -79,7 +89,7 @@ export function MoodSlider({
       // Scripted fallback — "alright!" only for high slider AND no free text
       const usedFreeText = playerAnswer !== `Hi, I'm ${getMoodResponse(level)}` && playerAnswer !== "I'd rather not say";
       setNpcReply((!usedFreeText && level >= 4) ? "alright!" : "alright");
-      setNpcContinues(false);
+
       setStep("npc-reply");
       return;
     }
@@ -88,14 +98,14 @@ export function MoodSlider({
       ? ` This is your first time meeting the player. Let them know they can press E to open their phone and from there they can find any NPC right away. The other NPCs can't wait to help them figure out the games — challenge them all and try to get an S rank!`
       : "";
     const msgs = [
-      { role: "user", content: `The player answered "${playerAnswer}" to "how are you doing today?" Give a brief, supportive response.${introHint} You may ask a follow-up or make a friendly offer if it feels natural, or just acknowledge warmly.` },
+      { role: "user", content: `The player answered "${playerAnswer}" to "how are you doing today?" Give a brief, supportive response.${introHint} You may ask a follow-up or make a friendly offer if it feels natural, or just acknowledge warmly. Remember the whole point of this world is playing games with NPCs — when wrapping up, nudge them toward playing.` },
     ];
     setChatHistory(msgs);
     setStep("npc-reply");
 
-    sendToHaiku(msgs, (dialogue, continues, defaultReply) => {
+    sendToHaiku(msgs, (dialogue, _continues, defaultReply) => {
       setNpcReply(dialogue);
-      setNpcContinues(continues);
+
       if (defaultReply) setReplyText(defaultReply);
       setChatHistory((prev) => [...prev, { role: "assistant", content: dialogue }]);
     });
@@ -130,8 +140,8 @@ export function MoodSlider({
     submitMood(SKIP_LEVEL, "I'd rather not say");
   }, [submitMood]);
 
-  const handlePlayerReply = useCallback(() => {
-    const text = replyText.trim();
+  const handlePlayerReply = useCallback((msg: string) => {
+    const text = msg.trim();
     if (!text) return;
     setReplyText("");
     const newMsgs = [...chatHistory, { role: "user", content: text }];
@@ -139,13 +149,13 @@ export function MoodSlider({
     setNpcReply(null);
     setStep("npc-followup");
 
-    sendToHaiku(newMsgs, (dialogue, continues, defaultReply) => {
+    sendToHaiku(newMsgs, (dialogue, _continues, defaultReply) => {
       setNpcReply(dialogue);
-      setNpcContinues(continues);
+
       if (defaultReply) setReplyText(defaultReply);
       setChatHistory((prev) => [...prev, { role: "assistant", content: dialogue }]);
     });
-  }, [replyText, chatHistory, sendToHaiku]);
+  }, [chatHistory, sendToHaiku]);
 
   // Focus management for responding step
   useEffect(() => {
@@ -248,22 +258,23 @@ export function MoodSlider({
     return (
       <SpeechBubble
         text={npcReply}
-        onDismiss={npcContinues ? () => setStep("player-reply") : onDone}
+        onDismiss={() => setStep("player-reply")}
         speakerScreenPos={speakerScreenPos}
       />
     );
   }
 
-  // Step 5: Player replies to NPC's follow-up — input inside a speech bubble
+  // Step 5: Player replies — "let's play" or text input
   if (step === "player-reply") {
     return (
-      <ReplyBubble
+      <NpcChatBubble
         playerScreenPos={playerScreenPos}
-        replyText={replyText}
-        setReplyText={setReplyText}
-        inputRef={replyInputRef}
         onSend={handlePlayerReply}
-        onBye={onDone}
+        onClose={onDone}
+        onPlayGame={onPlayGame}
+        continueMode
+        defaultText={replyText}
+        defaultPlay={defaultActionRef.current === "play"}
       />
     );
   }
@@ -282,7 +293,7 @@ export function MoodSlider({
     return (
       <SpeechBubble
         text={npcReply}
-        onDismiss={npcContinues ? () => setStep("player-reply") : onDone}
+        onDismiss={() => setStep("player-reply")}
         speakerScreenPos={speakerScreenPos}
       />
     );
@@ -458,140 +469,6 @@ export function MoodSlider({
           onDecline={() => handleOptIn(false)}
         />
       )}
-    </div>
-  );
-}
-
-/** Speech-bubble-style input that tracks the player position */
-function ReplyBubble({
-  playerScreenPos,
-  replyText,
-  setReplyText,
-  inputRef,
-  onSend,
-  onBye,
-}: {
-  playerScreenPos: React.RefObject<ScreenPos>;
-  replyText: string;
-  setReplyText: (t: string) => void;
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  onSend: () => void;
-  onBye: () => void;
-}) {
-  const bubbleRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: "50%", top: "40%" });
-  const [tailLeft, setTailLeft] = useState(0);
-
-  // Auto-focus
-  useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 50);
-  }, [inputRef]);
-
-  // Track player position
-  useEffect(() => {
-    if (!playerScreenPos) return;
-    let raf: number;
-    const update = () => {
-      const sp = playerScreenPos.current;
-      if (!sp || !sp.visible) { raf = requestAnimationFrame(update); return; }
-      const px = sp.x * window.innerWidth;
-      const py = sp.y * window.innerHeight;
-      const bw = bubbleRef.current?.getBoundingClientRect().width ?? 240;
-      const bh = bubbleRef.current?.getBoundingClientRect().height ?? 80;
-      const charH = sp.screenHeight || 80;
-      const gap = charH * 0.05;
-      const bx = Math.max(12, Math.min(window.innerWidth - bw - 12, px - bw / 2 - 20));
-      const by = Math.max(12, py - charH * 0.3 - bh - gap);
-      setPos({ left: `${bx}px`, top: `${by}px` });
-      if (bubbleRef.current) {
-        const rect = bubbleRef.current.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        setTailLeft(Math.max(20, Math.min(rect.width - 40, rect.width / 2 + (px - cx) * 0.5)));
-      }
-      raf = requestAnimationFrame(update);
-    };
-    raf = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(raf);
-  }, [playerScreenPos]);
-
-  return (
-    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 200 }}>
-      <div
-        ref={bubbleRef}
-        style={{
-          position: "fixed",
-          left: pos.left,
-          top: pos.top,
-          padding: "10px 14px",
-          background: "#fff",
-          border: "3px solid #222",
-          borderRadius: 20,
-          zIndex: 201,
-          display: "flex",
-          gap: 6,
-          minWidth: 200,
-          maxWidth: 280,
-          pointerEvents: "auto",
-        }}
-      >
-        {/* Tail */}
-        <div style={{
-          position: "absolute", bottom: -18, left: tailLeft,
-          width: 0, height: 0,
-          borderLeft: "12px solid transparent",
-          borderRight: "12px solid transparent",
-          borderTop: "18px solid #222",
-        }} />
-        <div style={{
-          position: "absolute", bottom: -13, left: tailLeft + 2,
-          width: 0, height: 0,
-          borderLeft: "10px solid transparent",
-          borderRight: "10px solid transparent",
-          borderTop: "15px solid #fff",
-        }} />
-
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="say something..."
-          value={replyText}
-          onChange={(e) => setReplyText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && replyText.trim()) {
-              e.stopPropagation();
-              onSend();
-            } else if (e.key === "Escape") {
-              onBye();
-            }
-          }}
-          style={{
-            flex: 1, padding: "6px 0", border: "none",
-            background: "transparent", outline: "none",
-            fontSize: 14, color: "#333",
-          }}
-        />
-        <button
-          onClick={() => { if (replyText.trim()) onSend(); }}
-          style={{
-            padding: "6px 12px",
-            background: replyText.trim() ? "#6a4c93" : "#ccc",
-            color: "#fff", border: "none", borderRadius: 8,
-            fontSize: 12, cursor: replyText.trim() ? "pointer" : "default", fontWeight: 600,
-          }}
-        >
-          chat
-        </button>
-        <button
-          onClick={onBye}
-          style={{
-            padding: "6px 10px", background: "#f8f8f8",
-            border: "2px solid #ddd", borderRadius: 8,
-            color: "#666", fontSize: 12, cursor: "pointer",
-          }}
-        >
-          bye
-        </button>
-      </div>
     </div>
   );
 }

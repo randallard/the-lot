@@ -14,9 +14,9 @@ import type { ScreenPos } from "./useScreenPosition";
 const SPAWN_DELAY = 6000;
 const PART1_POS = new THREE.Vector3(3, 0.08, -7);
 const PART2_POS = new THREE.Vector3(-40, 0.08, -5);
+const PART2_DELAY = 2000;
 const NPC_OFFSET = new THREE.Vector3(-0.7, 0, -0.3); // uncomfortably close, just to the left
 
-const PART2_DELAY = 2000;
 const NPC_WALK_AWAY_DIST = 6; // how far player must walk before NPC gives up
 const NPC_APPROACH_DIST = 4; // how close player must be to trigger welcome back
 const NPC_IDLE_TIME = 2; // seconds player must stand still near NPC
@@ -150,15 +150,20 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
   // Current tracking target
   const currentTarget = useRef<THREE.Vector3 | null>(null);
 
-  // Spawn part 2 a couple seconds after the part 1 cutscene is dismissed (or on Enter/click)
+  // Spawn part 2 after a delay, or immediately on Enter/click
   useEffect(() => {
     if (!part1CutsceneDone || part2Spawned) return;
-    const timer = setTimeout(() => setPart2Spawned(true), PART2_DELAY);
+    console.log("[world] part2 spawn effect: waiting for Enter/click or delay");
+    const timer = setTimeout(() => {
+      console.log("[world] part2 spawned via timer");
+      setPart2Spawned(true);
+    }, PART2_DELAY);
     const handleInteract = (e: KeyboardEvent | MouseEvent) => {
       if (e instanceof KeyboardEvent) {
         if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
         if (e.code !== "Enter") return;
       }
+      console.log("[world] part2 spawned via Enter/click");
       setPart2Spawned(true);
     };
     window.addEventListener("keydown", handleInteract);

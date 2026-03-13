@@ -34,15 +34,16 @@ export default async function handler(req: Request): Promise<Response> {
 
     const toolDef = {
       name: "respond",
-      description: "Send your response to the player. Set continues=true if your response naturally invites a reply (e.g. you asked a question or made an offer). Set continues=false if you're wrapping up or just acknowledging. Always provide a defaultReply — a short, natural thing the player might say back (like 'sounds good', 'yeah!', 'nah I'm good', 'see ya').",
+      description: "Send your response to the player. This is a game where the whole point is getting the player to open their phone and challenge NPCs to games. Set continues=true if your response naturally invites a reply. Set continues=false if you're wrapping up. Always provide a defaultReply. When the conversation is winding down, set defaultAction to 'play' so the player can jump straight into a game by hitting enter.",
       input_schema: {
         type: "object" as const,
         properties: {
           dialogue: { type: "string", description: "What you say to the player" },
           continues: { type: "boolean", description: "True if the player should get a chance to reply" },
-          defaultReply: { type: "string", description: "A short default response the player might say — pre-filled so they can just hit enter to move on" },
+          defaultReply: { type: "string", description: "A short default the player might say — pre-filled so they can hit enter to move on" },
+          defaultAction: { type: "string", enum: ["chat", "play"], description: "What happens when the player sends the defaultReply. 'play' = start a game, 'chat' = send as chat message. Use 'play' when the conversation is naturally ending." },
         },
-        required: ["dialogue", "continues", "defaultReply"],
+        required: ["dialogue", "continues", "defaultReply", "defaultAction"],
       },
     };
 
@@ -83,17 +84,19 @@ export default async function handler(req: Request): Promise<Response> {
     let dialogue = "good game!";
     let continues = false;
     let defaultReply = "";
+    let defaultAction = "chat";
 
     const toolBlock = data.content?.find((b: { type: string }) => b.type === "tool_use");
     if (toolBlock?.input) {
       dialogue = toolBlock.input.dialogue ?? dialogue;
       continues = !!toolBlock.input.continues;
       defaultReply = toolBlock.input.defaultReply ?? "";
+      defaultAction = toolBlock.input.defaultAction ?? "chat";
     } else {
       dialogue = data.content?.[0]?.text ?? dialogue;
     }
 
-    return new Response(JSON.stringify({ dialogue, continues, defaultReply }), {
+    return new Response(JSON.stringify({ dialogue, continues, defaultReply, defaultAction }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

@@ -24,6 +24,7 @@ export function useTrinketTracker(
   useFrame(() => {
     if (!playerPosition.current || !targetPos.current || !active) {
       out.current!.showArrow = false;
+      out.current!.distance = 0;
       arrowActivated = false;
       return;
     }

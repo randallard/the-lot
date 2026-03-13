@@ -55,6 +55,7 @@ export function useGameState() {
       const next = Math.min(prev.partsCollected + 1, 2) as 0 | 1 | 2;
       const override: PhaseOverride =
         next === 1 ? { type: "part1-cutscene" } : { type: "assembly-cutscene" };
+      console.log("[collectPart] partsCollected:", prev.partsCollected, "→", next, "override:", override.type);
       return { ...prev, partsCollected: next, phaseOverride: override };
     });
   }, []);
@@ -98,14 +99,6 @@ export function useGameState() {
         resumePhase = "game-select";
       } else if (p?.type === "board-creation") {
         resumePhase = "board-creation";
-      } else if (p?.type === "waiting-app-click" || p?.type === "npc-nudge") {
-        resumePhase = "waiting-app-click";
-      } else if (p?.type === "installing") {
-        resumePhase = "waiting-app-click";
-      } else if (prev.appInstalled && !prev.tutorialComplete) {
-        resumePhase = "waiting-app-click";
-      } else if (!prev.appInstalled) {
-        resumePhase = "need-phone";
       }
 
       return {
@@ -124,11 +117,7 @@ export function useGameState() {
       if (!resume) return { ...prev, phaseOverride: null };
 
       let override: PhaseOverride | null = null;
-      if (resume === "need-phone") {
-        override = { type: "need-phone" };
-      } else if (resume === "waiting-app-click") {
-        override = { type: "waiting-app-click" };
-      } else if (resume === "opponents-list") {
+      if (resume === "opponents-list") {
         override = { type: "opponents-list" };
       } else if (resume === "game-select") {
         override = { type: "game-select" };
@@ -145,14 +134,6 @@ export function useGameState() {
     });
   }, []);
 
-  const installApp = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      appInstalled: true,
-      phaseOverride: { type: "installing" },
-    }));
-  }, []);
-
   const completeTutorial = useCallback(() => {
     setState((prev) => ({
       ...prev,
@@ -166,7 +147,6 @@ export function useGameState() {
     setState((prev) => ({
       ...prev,
       npcSpoken: true,
-      appInstalled: true,
       tutorialComplete: true,
       phaseOverride: null,
     }));
@@ -179,10 +159,11 @@ export function useGameState() {
     }));
   }, []);
 
-  // Launch a game against an NPC — sets phase to launching-game
+  // Launch a game against an NPC — sets phase to launching-game and sends Ryan to camp
   const launchGame = useCallback(() => {
     setState((prev) => ({
       ...prev,
+      npcRelaxing: true,
       phaseOverride: { type: "launching-game" },
     }));
   }, []);
@@ -235,7 +216,6 @@ export function useGameState() {
     setNpcRelaxing,
     npcWalkAway,
     resumeFromNpc,
-    installApp,
     completeTutorial,
     completeIntro,
     saveBoard,
