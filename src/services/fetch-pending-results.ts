@@ -26,10 +26,13 @@ export async function fetchPendingResults(): Promise<AsyncResult[]> {
     );
 
     if (!response.ok) {
-      console.error(
-        "[fetchPendingResults] API error:",
-        response.status,
-      );
+      // Endpoint may not exist yet — silently skip
+      return [];
+    }
+
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.includes("application/json")) {
+      // Got HTML/text back — endpoint not deployed yet
       return [];
     }
 

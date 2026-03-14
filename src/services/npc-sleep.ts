@@ -1,12 +1,12 @@
 /**
- * Per-NPC chat rate limiting with a rolling 12-hour window.
+ * Per-NPC chat rate limiting with a rolling window.
  * When an NPC hits the message limit, they "fall asleep" until
  * the oldest messages age out of the window.
  */
 
+import { SLEEP_CONFIG, WINDOW_MS } from "../config/sleep";
+
 const STORAGE_KEY = "townage-npc-sleep";
-const MESSAGE_LIMIT = 20;
-const WINDOW_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 function loadAll(): Record<string, number[]> {
   try {
@@ -31,16 +31,17 @@ function prune(timestamps: number[]): number[] {
 
 /** Record a player message for rate limiting. */
 export function recordMessage(npcId: string): void {
+  if (!SLEEP_CONFIG.enabled) return;
   const all = loadAll();
   const timestamps = prune(all[npcId] ?? []);
   timestamps.push(Date.now());
   all[npcId] = timestamps;
   saveAll(all);
-  const remaining = MESSAGE_LIMIT - timestamps.length;
+  const remaining = SLEEP_CONFIG.messageLimit - timestamps.length;
   if (remaining <= 0) {
-    console.log(`[npc-sleep] ${npcId} fell asleep! (${timestamps.length}/${MESSAGE_LIMIT} messages)`);
+    console.log(`[npc-sleep] ${npcId} fell asleep! (${timestamps.length}/${SLEEP_CONFIG.messageLimit} messages)`);
   } else {
-    console.log(`[npc-sleep] ${npcId}: ${timestamps.length}/${MESSAGE_LIMIT} messages — ${remaining} until sleep`);
+    console.log(`[npc-sleep] ${npcId}: ${timestamps.length}/${SLEEP_CONFIG.messageLimit} messages — ${remaining} until sleep`);
   }
 }
 
@@ -52,11 +53,12 @@ export function getMessageCount(npcId: string): number {
 
 /** True if this NPC has hit their message limit. */
 export function isAsleep(npcId: string): boolean {
+  if (!SLEEP_CONFIG.enabled) return false;
   const count = getMessageCount(npcId);
-  const asleep = count >= MESSAGE_LIMIT;
+  const asleep = count >= SLEEP_CONFIG.messageLimit;
   if (asleep) {
     const wake = getTimeUntilWake(npcId);
-    console.log(`[npc-sleep] ${npcId} is asleep (${count}/${MESSAGE_LIMIT}) — wakes ${wake ?? "soon"}`);
+    console.log(`[npc-sleep] ${npcId} is asleep (${count}/${SLEEP_CONFIG.messageLimit}) — wakes ${wake ?? "soon"}`);
   }
   return asleep;
 }
@@ -65,8 +67,7 @@ export function isAsleep(npcId: string): boolean {
 export function getWakeTime(npcId: string): number | null {
   const all = loadAll();
   const timestamps = prune(all[npcId] ?? []);
-  if (timestamps.length < MESSAGE_LIMIT) return null;
-  // The oldest message in the window — when it expires, count drops below limit
+  if (timestamps.length < SLEEP_CONFIG.messageLimit) return null;
   const oldest = Math.min(...timestamps);
   return oldest + WINDOW_MS;
 }
@@ -85,7 +86,8 @@ export function getTimeUntilWake(npcId: string): string | null {
 
 /** Messages remaining before this NPC sleeps. */
 export function getMessagesRemaining(npcId: string): number {
-  return Math.max(0, MESSAGE_LIMIT - getMessageCount(npcId));
+  if (!SLEEP_CONFIG.enabled) return Infinity;
+  return Math.max(0, SLEEP_CONFIG.messageLimit - getMessageCount(npcId));
 }
 
 /**
@@ -95,12 +97,11 @@ export function getMessagesRemaining(npcId: string): number {
 export function almostAsleep(npcId: string): void {
   const all = loadAll();
   const now = Date.now();
-  // Fill with MESSAGE_LIMIT - 1 timestamps spread across last hour
-  all[npcId] = Array.from({ length: MESSAGE_LIMIT - 1 }, (_, i) =>
-    now - (MESSAGE_LIMIT - 1 - i) * 60_000,
+  all[npcId] = Array.from({ length: SLEEP_CONFIG.messageLimit - 1 }, (_, i) =>
+    now - (SLEEP_CONFIG.messageLimit - 1 - i) * 60_000,
   );
   saveAll(all);
-  console.log(`[npc-sleep] ${npcId} set to ${MESSAGE_LIMIT - 1}/${MESSAGE_LIMIT} — one message from sleep`);
+  console.log(`[npc-sleep] ${npcId} set to ${SLEEP_CONFIG.messageLimit - 1}/${SLEEP_CONFIG.messageLimit} — one message from sleep`);
 }
 
 /** DEV HELPER — set ALL game NPCs to 1 message before sleep. */
