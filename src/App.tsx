@@ -22,6 +22,7 @@ import { SettingsApp } from "./overlay/SettingsApp";
 import { TownReport } from "./overlay/TownReport";
 import { ChatOptInModal } from "./overlay/ChatOptInModal";
 import { ChatInfoModal } from "./overlay/ChatInfoModal";
+import { SupportForm } from "./overlay/SupportForm";
 import { MoodSlider } from "./overlay/MoodSlider";
 import { MoodResponsesModal } from "./overlay/MoodResponsesModal";
 import { useInputDirection } from "./world/useInputDirection";
@@ -78,6 +79,7 @@ export default function App() {
   const [moodCheckNpcId, setMoodCheckNpcId] = useState<string | null>(null);
   const [showCustomizeMood, setShowCustomizeMood] = useState(false);
   const [chatContinue, setChatContinue] = useState(false);
+  const [showSupportForm, setShowSupportForm] = useState(false);
   const [_playingGameNpcId, setPlayingGameNpcId] = useState<string | null>(null);
   const [gameAcceptText, setGameAcceptText] = useState<string | null>(null);
   const postGameChat = useRef(false);
@@ -281,7 +283,6 @@ export default function App() {
   }, [game.clearOverride]);
 
   const handleGameNpcClick = useCallback((npcId: string) => {
-    console.log("[npcClick]", npcId, "override:", game.state.phaseOverride, "tutorial:", game.state.tutorialComplete, "chatNpcId:", chatNpcId, "responding:", chatRespondingNpcId, "mood:", moodCheckNpcId);
     // Only allow chat in free-play (tutorial complete, no overlays)
     if (game.state.phaseOverride || !game.state.tutorialComplete) return;
     if (chatNpcId || chatRespondingNpcId || moodCheckNpcId) return;
@@ -431,18 +432,28 @@ export default function App() {
 
     try {
       const history = getChats(respondingNpcId);
-      const response = await chatWithNpc(npc, history);
+      const result = await chatWithNpc(npc, history);
       addMessage(respondingNpcId, {
         id: genMessageId(),
         sender: "npc",
-        text: response,
+        text: result.text,
         timestamp: Date.now(),
       });
       setChatLoading(false);
-      setChatResponse({ text: response, isSeen: false });
-      setChatNpcId(respondingNpcId);
-      setChatContinue(true);
+      setChatResponse({ text: result.text, isSeen: false });
       nudgeFriendliness(respondingNpcId, NUDGE_CHAT);
+      if (result.escalate) {
+        // Show Ryan's message briefly, then open support form
+        setChatRespondingNpcId(respondingNpcId);
+        setTimeout(() => {
+          setChatResponse(null);
+          setChatRespondingNpcId(null);
+          setShowSupportForm(true);
+        }, 2000);
+      } else {
+        setChatNpcId(respondingNpcId);
+        setChatContinue(true);
+      }
     } catch {
       // Haiku unavailable — keep loading briefly, then show "seen"
       setTimeout(() => {
@@ -584,11 +595,9 @@ export default function App() {
       }
     }
     if (closest) {
-      console.log("[enter] chatWithClosestNpc →", closest, "dist:", minDist.toFixed(3));
       handleGameNpcClick(closest);
       return true;
     }
-    console.log("[enter] no visible NPC found");
     return false;
   }, [handleGameNpcClick]);
 
@@ -603,23 +612,17 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.code !== "Enter") return;
-      console.log("[enter] hasModal:", hasModalRef.current, "trinketPhase:", trinketArrowRef.current, "tutorialComplete:", tutorialCompleteRef.current);
       if (hasModalRef.current) return; // modals handle their own Enter
 
       const dist = trinketTracker.current.distance;
 
       // Trinket phase: pick up if close, rush if far, skip delay if not spawned
       if (trinketArrowRef.current) {
-        console.log("[enter] trinket phase, dist:", dist);
         if (dist > 0 && dist < ENTER_PICKUP_DIST) {
-          console.log("[enter] picking up trinket");
           rushMode.current = 0;
           game.collectPart();
         } else if (dist > 0) {
-          console.log("[enter] rushing toward trinket");
           handleRush();
-        } else {
-          console.log("[enter] trinket not spawned yet, waiting");
         }
         // dist === 0: World's listener handles spawning the trinket
         return;
@@ -674,6 +677,7 @@ export default function App() {
     chatLoading ||
     showOptIn ||
     !!showChatInfo ||
+    showSupportForm ||
     showNpcIntro ||
     showPhoneHint ||
     !!moodCheckNpcId ||
@@ -1096,6 +1100,14 @@ export default function App() {
         <ChatInfoModal
           mode={showChatInfo}
           onClose={() => setShowChatInfo(null)}
+        />
+      )}
+
+      {/* Support form (escalation from NPC Ryan) */}
+      {showSupportForm && (
+        <SupportForm
+          npcScreenPos={npcScreenPos}
+          onClose={() => setShowSupportForm(false)}
         />
       )}
 

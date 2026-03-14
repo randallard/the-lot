@@ -17,7 +17,7 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    const { systemPrompt, gameResults, context, messages, useTool } = await req.json();
+    const { systemPrompt, gameResults, context, messages, useTool, useEscalate } = await req.json();
 
     // Build messages: either from chat history or game results
     let apiMessages;
@@ -47,6 +47,18 @@ export default async function handler(req: Request): Promise<Response> {
       },
     };
 
+    const escalateTool = {
+      name: "escalate_to_ryan",
+      description: "Use this when the player wants to send feedback, report a bug, make a suggestion, or ask something you can't answer. This opens a form where they can write a message and optionally leave their email. Say something like 'let me get that to Ryan' in your dialogue.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          dialogue: { type: "string", description: "What you say to the player before the form opens — e.g. 'I'll pass that along to Ryan, he'll get back to you'" },
+        },
+        required: ["dialogue"],
+      },
+    };
+
     const apiBody: Record<string, unknown> = {
       model: "claude-haiku-4-5-20251001",
       max_tokens: 200,
@@ -57,6 +69,10 @@ export default async function handler(req: Request): Promise<Response> {
     if (useTool) {
       apiBody.tools = [toolDef];
       apiBody.tool_choice = { type: "tool", name: "respond" };
+    } else if (useEscalate) {
+      apiBody.tools = [escalateTool];
+      // Let the model decide whether to escalate (auto) — don't force it
+      apiBody.tool_choice = { type: "auto" };
     }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -85,9 +101,13 @@ export default async function handler(req: Request): Promise<Response> {
     let continues = false;
     let defaultReply = "";
     let defaultAction = "chat";
+    let escalate = false;
 
     const toolBlock = data.content?.find((b: { type: string }) => b.type === "tool_use");
-    if (toolBlock?.input) {
+    if (toolBlock?.name === "escalate_to_ryan" && toolBlock?.input) {
+      dialogue = toolBlock.input.dialogue ?? "let me pass that along to Ryan";
+      escalate = true;
+    } else if (toolBlock?.input) {
       dialogue = toolBlock.input.dialogue ?? dialogue;
       continues = !!toolBlock.input.continues;
       defaultReply = toolBlock.input.defaultReply ?? "";
@@ -96,7 +116,7 @@ export default async function handler(req: Request): Promise<Response> {
       dialogue = data.content?.[0]?.text ?? dialogue;
     }
 
-    return new Response(JSON.stringify({ dialogue, continues, defaultReply, defaultAction }), {
+    return new Response(JSON.stringify({ dialogue, continues, defaultReply, defaultAction, escalate }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

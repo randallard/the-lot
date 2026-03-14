@@ -329,11 +329,11 @@ function ConversationView({
 
       try {
         const history = getChats(npcId);
-        const response = await chatWithNpc(npc, history);
+        const result = await chatWithNpc(npc, history);
         const npcMsg: ChatMessage = {
           id: genMessageId(),
           sender: "npc",
-          text: response,
+          text: result.text,
           timestamp: Date.now(),
         };
         addMessage(npcId, npcMsg);
@@ -519,7 +519,11 @@ function ConversationView({
                 fontSize: 13,
               }}
             >
-              <span className="typing-dots">...</span>
+              <span className="typing-dots">
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+              </span>
             </div>
           </div>
         )}
@@ -615,11 +619,23 @@ function ConversationView({
 
       <style>{`
         .typing-dots {
-          animation: typing-pulse 1.5s ease-in-out infinite;
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          height: 1em;
         }
-        @keyframes typing-pulse {
-          0%, 100% { opacity: 0.4; }
-          50% { opacity: 1; }
+        .typing-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #888;
+          animation: typing-bounce 1.4s ease-in-out infinite;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing-bounce {
+          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+          30% { transform: translateY(-4px); opacity: 1; }
         }
       `}</style>
     </div>

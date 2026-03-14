@@ -3,6 +3,8 @@ import type { GameResults } from "./parse-results";
 import type { ChatMessage } from "./chat-storage";
 import { getEffectiveLevel, enthusiasmPromptSuffix } from "./enthusiasm";
 import { getFriendlinessLevel } from "./npc-friendliness";
+import { getGameKnowledge, AVAILABLE_GAMES } from "../config/game-knowledge";
+import { SUPPORT_CONFIG } from "../config/support";
 import { getMessageCount } from "./npc-sleep";
 import { shouldWarn } from "../config/sleep";
 
@@ -39,7 +41,8 @@ function buildSystemPrompt(npc: NpcConfig): string {
     friendlinessContext = " You and the player are close. Real warmth, maybe a callback to something you've talked about. The kind of vibe where you don't need to fill silence.";
   }
 
-  return npc.personality.systemPrompt + enthusiasm + friendlinessContext;
+  const gameKnowledge = getGameKnowledge(npc.id, npc.skillLevel);
+  return npc.personality.systemPrompt + gameKnowledge + enthusiasm + friendlinessContext;
 }
 
 export async function getNpcCommentary(
@@ -96,7 +99,7 @@ export async function getGameAcceptText(
   npc: NpcConfig,
   playerChose: "spaces-game" | "npc-choice",
 ): Promise<{ dialogue: string; chosenGame: string }> {
-  const games = "Spaces Game";
+  const games = AVAILABLE_GAMES.join(", ");
   const prompt =
     playerChose === "npc-choice"
       ? `The player asked you to choose a game from this list: ${games}. Pick one at random and let them know which one you chose. Keep it chill and short — like texting a friend.`
@@ -118,10 +121,15 @@ export async function getGameAcceptText(
   return { dialogue: data.dialogue, chosenGame: "spaces-game" };
 }
 
+export interface ChatResponse {
+  text: string;
+  escalate?: boolean;
+}
+
 export async function chatWithNpc(
   npc: NpcConfig,
   history: ChatMessage[],
-): Promise<string> {
+): Promise<ChatResponse> {
   const recentHistory = history.slice(-20);
   const messages = recentHistory.map((msg) => ({
     role: msg.sender === "player" ? ("user" as const) : ("assistant" as const),
@@ -133,16 +141,20 @@ export async function chatWithNpc(
     systemPrompt += " You're getting really sleepy and need to rest soon. Mention that you're getting tired and need to take a nap, but reassure the player you'll pick up right where you left off when you wake up. Stay in character — don't break the fourth wall about message limits.";
   }
 
+  // Ryan gets the escalation tool when support is enabled
+  const useEscalate = npc.id === "ryan" && SUPPORT_CONFIG.enabled;
+
   const response = await fetch("/api/npc-chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       systemPrompt,
       messages,
+      ...(useEscalate ? { useEscalate: true } : {}),
     }),
   });
 
   if (!response.ok) throw new Error(`API error: ${response.status}`);
   const data = await response.json();
-  return data.dialogue;
+  return { text: data.dialogue, escalate: !!data.escalate };
 }
