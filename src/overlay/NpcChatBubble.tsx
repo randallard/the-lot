@@ -29,6 +29,7 @@ export function NpcChatBubble({
   const inputRef = useRef<HTMLInputElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: "50%", top: "40%" });
+  const [positioned, setPositioned] = useState(false);
   const [tailStyle, setTailStyle] = useState<React.CSSProperties>({});
   const [tailInnerStyle, setTailInnerStyle] = useState<React.CSSProperties>({});
 
@@ -122,7 +123,10 @@ export function NpcChatBubble({
   // Auto-focus input (unless "let's play" is pre-selected)
   useEffect(() => {
     if (!(defaultPlay && onPlayGame)) {
-      setTimeout(() => inputRef.current?.focus(), 50);
+      setTimeout(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      }, 50);
     }
   }, []);
 
@@ -152,6 +156,7 @@ export function NpcChatBubble({
       if (!dragging.current) {
         setPos({ left: `${bx}px`, top: `${by}px` });
       }
+      setPositioned(true);
 
       // Tail points toward the player from the bubble bottom
       if (bubbleRef.current) {
@@ -255,6 +260,8 @@ export function NpcChatBubble({
           gap: 8,
           minWidth: continueMode ? 200 : 240,
           cursor: dragging.current ? "grabbing" : "grab",
+          opacity: positioned ? 1 : 0,
+          transition: "opacity 0.15s ease-in",
           userSelect: "none",
           touchAction: "none",
         }}
@@ -342,7 +349,10 @@ const TextInput = forwardRef<HTMLInputElement, {
       placeholder="say something..."
       value={text}
       onChange={(e) => setText(e.target.value)}
-      onFocus={onFocus}
+      onFocus={(e) => {
+        onFocus();
+        e.currentTarget.select();
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           e.stopPropagation();

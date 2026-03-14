@@ -97,8 +97,10 @@ export function FindApp({ onFind, onClose, onShowRank }: FindAppProps) {
       />
 
       {filtered.map((npc, i) => (
-        <button
+        <div
           key={npc.id}
+          role="button"
+          tabIndex={0}
           onClick={() => onFind(npc.id)}
           style={{
             width: "100%",
@@ -114,6 +116,7 @@ export function FindApp({ onFind, onClose, onShowRank }: FindAppProps) {
             gap: 12,
             cursor: "pointer",
             textAlign: "left",
+            boxSizing: "border-box",
           }}
         >
           <span style={{ fontSize: 22 }}>{npc.emoji}</span>
@@ -157,7 +160,7 @@ export function FindApp({ onFind, onClose, onShowRank }: FindAppProps) {
               </button>
             );
           })()}
-        </button>
+        </div>
       ))}
 
       {filtered.length === 0 && (

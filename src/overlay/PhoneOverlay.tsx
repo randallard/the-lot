@@ -1,10 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { getTownHappiness, getHappinessEmoji } from "../services/town-happiness";
 
 interface PhoneOverlayProps {
   mode?: "homescreen" | "app";
   onFindClick?: () => void;
   onChatClick?: () => void;
   onSettingsClick?: () => void;
+  onTownReportClick?: () => void;
   onClose: () => void;
   chatUnreadCount?: number;
   children?: ReactNode;
@@ -15,6 +17,7 @@ export function PhoneOverlay({
   onFindClick,
   onChatClick,
   onSettingsClick,
+  onTownReportClick,
   onClose,
   chatUnreadCount = 0,
   children,
@@ -27,12 +30,14 @@ export function PhoneOverlay({
     if (onFindClick) homeActions.push(onFindClick);
     if (onChatClick) homeActions.push(onChatClick);
     if (onSettingsClick) homeActions.push(onSettingsClick);
+    if (onTownReportClick) homeActions.push(onTownReportClick);
   }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.code === "Escape" || e.code === "KeyE") { onClose(); return; }
+      if (mode === "homescreen" && e.code === "KeyT" && onTownReportClick) { onTownReportClick(); return; }
       if (mode !== "homescreen" || homeActions.length === 0) return;
       const cols = 2;
       if (e.key === "ArrowRight") {
@@ -117,6 +122,13 @@ export function PhoneOverlay({
                 const i = idx++;
                 icons.push(
                   <HomeIcon key="settings" icon={<span style={{ fontSize: 20 }}>⚙️</span>} label="settings" bg="#2a2a3e" onClick={onSettingsClick} selected={selectedIcon === i} />
+                );
+              }
+              if (onTownReportClick) {
+                const i = idx++;
+                const emoji = getHappinessEmoji(getTownHappiness());
+                icons.push(
+                  <HomeIcon key="town-report" icon={<span style={{ fontSize: 20 }}>{emoji}</span>} label="townage" bg="#2a2a3e" onClick={onTownReportClick} selected={selectedIcon === i} />
                 );
               }
               return icons;

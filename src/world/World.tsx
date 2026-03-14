@@ -24,6 +24,7 @@ const NPC_IDLE_TIME = 2; // seconds player must stand still near NPC
 // Game NPC world positions
 const MYCO_POS: [number, number, number] = [25, 0, -20];
 const EMBER_POS: [number, number, number] = [-30, 0, 15];
+const SPROUT_POS: [number, number, number] = [15, 0, 25];
 
 interface WorldProps {
   onPart1Pickup?: () => void;
@@ -47,8 +48,13 @@ interface WorldProps {
   showGameNpcs: boolean;
   onMycoClick?: () => void;
   onEmberClick?: () => void;
+  onSproutClick?: () => void;
   mycoScreenPos: React.RefObject<ScreenPos>;
   emberScreenPos: React.RefObject<ScreenPos>;
+  sproutScreenPos: React.RefObject<ScreenPos>;
+  mycoAsleep?: boolean;
+  emberAsleep?: boolean;
+  sproutAsleep?: boolean;
   findTargetNpcId: string | null;
   npcTalking: boolean;
   partsCollected: 0 | 1 | 2;
@@ -56,7 +62,7 @@ interface WorldProps {
   playerWorldPos?: React.RefObject<{ x: number; z: number } | null>;
 }
 
-export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, showGameNpcs, onMycoClick, onEmberClick, mycoScreenPos, emberScreenPos, findTargetNpcId, npcTalking, partsCollected, initialPlayerPos, playerWorldPos }: WorldProps) {
+export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, showGameNpcs, onMycoClick, onEmberClick, onSproutClick, mycoScreenPos, emberScreenPos, sproutScreenPos, mycoAsleep, emberAsleep, sproutAsleep, findTargetNpcId, npcTalking, partsCollected, initialPlayerPos, playerWorldPos }: WorldProps) {
   const playerPos = useRef(new THREE.Vector3(
     initialPlayerPos?.x ?? 0,
     0.75,
@@ -76,6 +82,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
   const npcWorldPos = useRef<THREE.Vector3 | null>(null);
   const mycoWorldPos = useRef<THREE.Vector3 | null>(null);
   const emberWorldPos = useRef<THREE.Vector3 | null>(null);
+  const sproutWorldPos = useRef<THREE.Vector3 | null>(null);
   const { camera } = useThree();
 
   // Capture NPC position when it first appears (relative to player)
@@ -190,6 +197,8 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
       currentTarget.current = mycoWorldPos.current;
     } else if (findTargetNpcId === "ember" && emberWorldPos.current) {
       currentTarget.current = emberWorldPos.current;
+    } else if (findTargetNpcId === "sprout" && sproutWorldPos.current) {
+      currentTarget.current = sproutWorldPos.current;
     } else if (findTargetNpcId === "ryan" && npcWorldPos.current) {
       currentTarget.current = npcWorldPos.current;
     }
@@ -288,6 +297,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
             onClick={onMycoClick}
             screenPos={mycoScreenPos}
             worldPosRef={mycoWorldPos}
+            asleep={mycoAsleep}
           />
           <GameNpc
             position={EMBER_POS}
@@ -296,6 +306,16 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
             onClick={onEmberClick}
             screenPos={emberScreenPos}
             worldPosRef={emberWorldPos}
+            asleep={emberAsleep}
+          />
+          <GameNpc
+            position={SPROUT_POS}
+            bodyColor="#66BB6A"
+            playerPosition={playerPos}
+            onClick={onSproutClick}
+            screenPos={sproutScreenPos}
+            worldPosRef={sproutWorldPos}
+            asleep={sproutAsleep}
           />
         </>
       )}

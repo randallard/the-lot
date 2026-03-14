@@ -3,6 +3,7 @@ import type { GameResults } from "./parse-results";
 import type { ChatMessage } from "./chat-storage";
 import { getEffectiveLevel, enthusiasmPromptSuffix } from "./enthusiasm";
 import { getFriendlinessLevel } from "./npc-friendliness";
+import { getMessagesRemaining } from "./npc-sleep";
 
 /**
  * Build a full NPC system prompt combining:
@@ -126,11 +127,17 @@ export async function chatWithNpc(
     content: msg.text,
   }));
 
+  let systemPrompt = buildSystemPrompt(npc);
+  const remaining = getMessagesRemaining(npc.id);
+  if (remaining <= 2) {
+    systemPrompt += " You're getting really sleepy and need to rest soon. Mention that you're getting tired and need to take a nap, but reassure the player you'll pick up right where you left off when you wake up. Stay in character — don't break the fourth wall about message limits.";
+  }
+
   const response = await fetch("/api/npc-chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      systemPrompt: buildSystemPrompt(npc),
+      systemPrompt,
       messages,
     }),
   });

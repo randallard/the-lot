@@ -33,6 +33,7 @@ export type PhaseOverride =
   | { type: "find-app" } // find NPC app
   | { type: "chat-app" } // messaging app
   | { type: "settings-app" } // settings app
+  | { type: "town-report" } // town happiness report
   | { type: "launching-game" } // navigating to spaces-game
   | { type: "npc-commentary" } // NPC reacting to game results
   | { type: "rank-detail"; npcId: string }; // per-game rank breakdown

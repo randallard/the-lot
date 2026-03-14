@@ -15,6 +15,7 @@ import {
 import { chatWithNpc } from "../services/haiku-npc";
 import { nudgeFriendliness, NUDGE_CHAT } from "../services/npc-friendliness";
 import { getRank } from "../services/npc-records";
+import { isAsleep, recordMessage, getTimeUntilWake } from "../services/npc-sleep";
 import { ChatInfoModal } from "./ChatInfoModal";
 import { ChatOptInModal } from "./ChatOptInModal";
 
@@ -196,7 +197,7 @@ function ContactsList({
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <p
                 style={{
-                  color: "#ccc",
+                  color: isAsleep(id) ? "#666" : "#ccc",
                   fontSize: 14,
                   fontWeight: 600,
                   margin: 0,
@@ -204,6 +205,9 @@ function ContactsList({
               >
                 {npc.displayName}
               </p>
+              {isAsleep(id) && (
+                <span style={{ color: "#6a7fff", fontSize: 10 }}>zzz</span>
+              )}
               {rank && (
                 <span style={{
                   fontSize: 10,
@@ -277,7 +281,7 @@ function ConversationView({
   );
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showInfo, setShowInfo] = useState<"unavailable" | "privacy" | null>(
+  const [showInfo, setShowInfo] = useState<"unavailable" | "privacy" | "sleeping" | null>(
     null,
   );
   const [showOptIn, setShowOptIn] = useState(false);
@@ -302,6 +306,7 @@ function ConversationView({
         timestamp: Date.now(),
       };
       addMessage(npcId, playerMsg);
+      recordMessage(npcId);
       setMessages((prev) => [...prev, playerMsg]);
       setText("");
       setLoading(true);
@@ -520,55 +525,82 @@ function ConversationView({
         )}
       </div>
 
-      {/* Input */}
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          padding: "8px 4px",
-          borderTop: "1px solid #2a2a3e",
-        }}
-      >
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="Type a message..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && text.trim()) {
-              e.stopPropagation();
-              sendMessage(text);
-            }
-          }}
+      {/* Input or sleep banner */}
+      {isAsleep(npcId) ? (
+        <div
           style={{
-            flex: 1,
-            padding: "8px 12px",
-            background: "#1a1a2e",
-            border: "1px solid #2a2a3e",
-            borderRadius: 10,
-            color: "#ccc",
-            fontSize: 13,
-            outline: "none",
-          }}
-        />
-        <button
-          onClick={() => sendMessage(text)}
-          disabled={!text.trim() || loading}
-          style={{
-            padding: "8px 14px",
-            background: text.trim() && !loading ? "#6a4c93" : "#333",
-            color: "#fff",
-            border: "none",
-            borderRadius: 10,
-            fontSize: 13,
-            cursor: text.trim() && !loading ? "pointer" : "default",
-            fontWeight: 600,
+            padding: "12px 8px",
+            borderTop: "1px solid #2a2a3e",
+            textAlign: "center",
           }}
         >
-          →
-        </button>
-      </div>
+          <p style={{ color: "#888", fontSize: 12, margin: "0 0 4px" }}>
+            {npc?.displayName ?? "NPC"} is sleeping... wakes {getTimeUntilWake(npcId) ?? "soon"}
+          </p>
+          <button
+            onClick={() => setShowInfo("sleeping")}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#6a4c93",
+              fontSize: 11,
+              cursor: "pointer",
+              textDecoration: "underline",
+            }}
+          >
+            why?
+          </button>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            padding: "8px 4px",
+            borderTop: "1px solid #2a2a3e",
+          }}
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Type a message..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && text.trim()) {
+                e.stopPropagation();
+                sendMessage(text);
+              }
+            }}
+            style={{
+              flex: 1,
+              padding: "8px 12px",
+              background: "#1a1a2e",
+              border: "1px solid #2a2a3e",
+              borderRadius: 10,
+              color: "#ccc",
+              fontSize: 13,
+              outline: "none",
+            }}
+          />
+          <button
+            onClick={() => sendMessage(text)}
+            disabled={!text.trim() || loading}
+            style={{
+              padding: "8px 14px",
+              background: text.trim() && !loading ? "#6a4c93" : "#333",
+              color: "#fff",
+              border: "none",
+              borderRadius: 10,
+              fontSize: 13,
+              cursor: text.trim() && !loading ? "pointer" : "default",
+              fontWeight: 600,
+            }}
+          >
+            →
+          </button>
+        </div>
+      )}
 
       {showOptIn && (
         <ChatOptInModal

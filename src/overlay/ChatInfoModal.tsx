@@ -1,12 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface ChatInfoModalProps {
   onClose: () => void;
-  mode: "unavailable" | "privacy";
+  mode: "unavailable" | "privacy" | "sleeping";
 }
 
 export function ChatInfoModal({ onClose, mode }: ChatInfoModalProps) {
   const [showPrivacy, setShowPrivacy] = useState(mode === "privacy");
+
+  // Enter/Escape key dismisses the modal (delayed registration to skip the opening keypress)
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    const timer = setTimeout(() => {
+      window.addEventListener("keydown", handleKey);
+    }, 100);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
 
   return (
     <div
@@ -36,7 +53,42 @@ export function ChatInfoModal({ onClose, mode }: ChatInfoModalProps) {
           gap: 14,
         }}
       >
-        {!showPrivacy ? (
+        {mode === "sleeping" ? (
+          <>
+            <p
+              style={{
+                fontSize: 16,
+                color: "#e0e0e0",
+                fontWeight: 700,
+                margin: 0,
+              }}
+            >
+              Zzz... sleeping
+            </p>
+            <p
+              style={{
+                fontSize: 14,
+                color: "#999",
+                lineHeight: 1.6,
+                margin: 0,
+              }}
+            >
+              This NPC has gone to sleep after chatting a lot. Each NPC can
+              handle about 20 messages before they need a rest.
+            </p>
+            <p
+              style={{
+                fontSize: 13,
+                color: "#888",
+                lineHeight: 1.6,
+                margin: 0,
+              }}
+            >
+              They'll wake up on their own after a while — go explore, play
+              some games, or chat with someone else in the meantime.
+            </p>
+          </>
+        ) : !showPrivacy ? (
           <>
             <p
               style={{
@@ -128,19 +180,21 @@ export function ChatInfoModal({ onClose, mode }: ChatInfoModalProps) {
         )}
 
         <button
+          autoFocus={mode === "sleeping"}
           onClick={onClose}
           style={{
             padding: "10px 16px",
-            background: "transparent",
-            color: "#666",
-            border: "1px solid #333",
+            background: mode === "sleeping" ? "#6a4c93" : "transparent",
+            color: mode === "sleeping" ? "#fff" : "#666",
+            border: mode === "sleeping" ? "none" : "1px solid #333",
             borderRadius: 10,
             fontSize: 13,
             cursor: "pointer",
             marginTop: 4,
+            outline: "none",
           }}
         >
-          close
+          {mode === "sleeping" ? "got it" : "close"}
         </button>
       </div>
     </div>

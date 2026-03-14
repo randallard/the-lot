@@ -19,6 +19,7 @@ import { RankDetail } from "./overlay/RankDetail";
 import { NpcChatBubble } from "./overlay/NpcChatBubble";
 import { ChatApp } from "./overlay/ChatApp";
 import { SettingsApp } from "./overlay/SettingsApp";
+import { TownReport } from "./overlay/TownReport";
 import { ChatOptInModal } from "./overlay/ChatOptInModal";
 import { ChatInfoModal } from "./overlay/ChatInfoModal";
 import { MoodSlider } from "./overlay/MoodSlider";
@@ -44,6 +45,7 @@ import {
 } from "./services/chat-storage";
 import { recordResult } from "./services/npc-records";
 import { recordBoardResult } from "./services/npc-board-records";
+import { isAsleep, recordMessage, getTimeUntilWake } from "./services/npc-sleep";
 import { fetchPendingResults } from "./services/fetch-pending-results";
 import { processAsyncResults } from "./services/async-npc-messages";
 import type { TrinketTrackerState } from "./world/useTrinketTracker";
@@ -66,7 +68,11 @@ export default function App() {
   const [chatResponse, setChatResponse] = useState<{ text: string; isSeen: boolean } | null>(null);
   const [showOptIn, setShowOptIn] = useState(false);
   const [pendingChatNpcId, setPendingChatNpcId] = useState<string | null>(null);
-  const [showChatInfo, setShowChatInfo] = useState<"unavailable" | "privacy" | null>(null);
+  const [showChatInfo, _setShowChatInfo] = useState<"unavailable" | "privacy" | "sleeping" | null>(null);
+  const setShowChatInfo = useCallback((v: "unavailable" | "privacy" | "sleeping" | null) => {
+    console.log("[showChatInfo]", v, new Error().stack?.split("\n")[2]?.trim());
+    _setShowChatInfo(v);
+  }, []);
   const [showNpcIntro, setShowNpcIntro] = useState(false);
   const [showPhoneHint, setShowPhoneHint] = useState(false);
   const [moodCheckNpcId, setMoodCheckNpcId] = useState<string | null>(null);
@@ -76,6 +82,13 @@ export default function App() {
   const [gameAcceptText, setGameAcceptText] = useState<string | null>(null);
   const postGameChat = useRef(false);
   const [unreadCount, setUnreadCount] = useState(() => getTotalUnreadCount());
+  // NPC sleep state — re-checked after each chat send
+  const [sleepVersion, setSleepVersion] = useState(0);
+  const mycoAsleep = isAsleep("myco");
+  const emberAsleep = isAsleep("ember");
+  const sproutAsleep = isAsleep("sprout");
+  // Force re-evaluation when sleepVersion changes (used after recordMessage)
+  void sleepVersion;
 
   const { dir: inputDir, disabled: inputDisabled } = useInputDirection();
   const rushMode = useRef<RushMode>(0);
@@ -93,6 +106,7 @@ export default function App() {
   const playerScreenPos = useRef<ScreenPos>({ x: 0.5, y: 0.5, visible: false, screenHeight: 0 });
   const mycoScreenPos = useRef<ScreenPos>({ x: 0.5, y: 0.5, visible: false, screenHeight: 0 });
   const emberScreenPos = useRef<ScreenPos>({ x: 0.5, y: 0.5, visible: false, screenHeight: 0 });
+  const sproutScreenPos = useRef<ScreenPos>({ x: 0.5, y: 0.5, visible: false, screenHeight: 0 });
   // Restore player position only when returning from spaces-game (not on plain refresh)
   const [savedPlayerPos] = useState<{ x: number; z: number } | null>(() => {
     try {
@@ -267,10 +281,18 @@ export default function App() {
   }, [game.clearOverride]);
 
   const handleGameNpcClick = useCallback((npcId: string) => {
+    console.log("[npcClick]", npcId, "override:", game.state.phaseOverride, "tutorial:", game.state.tutorialComplete, "chatNpcId:", chatNpcId, "responding:", chatRespondingNpcId, "mood:", moodCheckNpcId);
     // Only allow chat in free-play (tutorial complete, no overlays)
     if (game.state.phaseOverride || !game.state.tutorialComplete) return;
     if (chatNpcId || chatRespondingNpcId || moodCheckNpcId) return;
     setFindTargetNpcId(null);
+
+    // NPC is asleep — show sleep info
+    if (npcId !== "ryan" && isAsleep(npcId)) {
+      console.log("[sleep] setting showChatInfo to sleeping for", npcId);
+      setShowChatInfo("sleeping");
+      return;
+    }
 
     // Daily mood check — NPC asks before player gets to talk
     if (needsMoodCheck()) {
@@ -362,12 +384,25 @@ export default function App() {
     const npc = getNpcById(chatNpcId);
     if (!npc) return;
 
+    // Block if NPC fell asleep (e.g. hit limit mid-conversation)
+    if (chatNpcId !== "ryan" && isAsleep(chatNpcId)) {
+      setChatNpcId(null);
+      setChatContinue(false);
+      setSleepVersion((v) => v + 1);
+      setShowChatInfo("sleeping");
+      return;
+    }
+
     const respondingNpcId = chatNpcId;
     setChatNpcId(null);
     setChatContinue(false);
     setChatResponse(null);
     setChatRespondingNpcId(respondingNpcId);
     setChatLoading(true);
+
+    // Record for rate limiting
+    recordMessage(respondingNpcId);
+    setSleepVersion((v) => v + 1);
 
     // Save player message
     addMessage(respondingNpcId, {
@@ -466,7 +501,7 @@ export default function App() {
 
     // Post-tutorial: pocket button opens/closes phone homescreen
     if (game.state.tutorialComplete) {
-      if (phase.type === "phone-home" || phase.type === "find-app" || phase.type === "chat-app" || phase.type === "settings-app" || phase.type === "rank-detail") {
+      if (phase.type === "phone-home" || phase.type === "find-app" || phase.type === "chat-app" || phase.type === "settings-app" || phase.type === "rank-detail" || phase.type === "town-report") {
         game.clearOverride();
       } else if (!game.state.phaseOverride) {
         game.setPhaseOverride({ type: "phone-home" });
@@ -533,6 +568,7 @@ export default function App() {
       { id: "ryan", pos: npcScreenPos.current },
       { id: "myco", pos: mycoScreenPos.current },
       { id: "ember", pos: emberScreenPos.current },
+      { id: "sprout", pos: sproutScreenPos.current },
     ];
     let closest: string | null = null;
     let minDist = Infinity;
@@ -547,7 +583,12 @@ export default function App() {
         closest = id;
       }
     }
-    if (closest) { handleGameNpcClick(closest); return true; }
+    if (closest) {
+      console.log("[enter] chatWithClosestNpc →", closest, "dist:", minDist.toFixed(3));
+      handleGameNpcClick(closest);
+      return true;
+    }
+    console.log("[enter] no visible NPC found");
     return false;
   }, [handleGameNpcClick]);
 
@@ -584,10 +625,13 @@ export default function App() {
         return;
       }
 
-      // Find-NPC arrow → rush toward NPC
+      // Find-NPC arrow → rush if arrow is visible, chat if close enough
       if (showArrowRef.current) {
-        handleRush();
-        return;
+        if (trinketTracker.current.showArrow) {
+          handleRush();
+          return;
+        }
+        // Arrow hidden = close to target NPC, fall through to chat
       }
 
       // Chat with closest visible NPC, or open phone as fallback
@@ -611,7 +655,7 @@ export default function App() {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("click", onClick);
     };
-  }, [handleRush, game.collectPart, togglePocket]);
+  }, [handleRush, game.collectPart, togglePocket, chatWithClosestNpc]);
 
   // Derive flags for World component
   const part1CutsceneDone = game.state.partsCollected >= 1 && phase.type !== "part1-cutscene";
@@ -641,7 +685,7 @@ export default function App() {
   return (
     <div style={{ width: "100vw", height: "100vh", background: "#ffffff" }}>
       <Canvas
-        shadows
+        shadows={{ type: THREE.BasicShadowMap }}
         camera={{ position: [0, 8, 12], fov: 50 }}
         style={{ width: "100%", height: "100%" }}
       >
@@ -666,8 +710,13 @@ export default function App() {
           showGameNpcs={game.state.tutorialComplete}
           onMycoClick={() => handleGameNpcClick("myco")}
           onEmberClick={() => handleGameNpcClick("ember")}
+          onSproutClick={() => handleGameNpcClick("sprout")}
           mycoScreenPos={mycoScreenPos}
           emberScreenPos={emberScreenPos}
+          sproutScreenPos={sproutScreenPos}
+          mycoAsleep={mycoAsleep}
+          emberAsleep={emberAsleep}
+          sproutAsleep={sproutAsleep}
           findTargetNpcId={findTargetNpcId}
           npcTalking={hasModal}
           partsCollected={game.state.partsCollected}
@@ -752,6 +801,7 @@ export default function App() {
           speakerScreenPos={
             moodCheckNpcId === "myco" ? mycoScreenPos :
             moodCheckNpcId === "ember" ? emberScreenPos :
+            moodCheckNpcId === "sprout" ? sproutScreenPos :
             npcScreenPos
           }
           playerScreenPos={playerScreenPos}
@@ -825,7 +875,8 @@ export default function App() {
       {phase.type === "game-invite" && (() => {
         const inviteNpc = getNpcById(phase.npcId);
         const npcPos = phase.npcId === "myco" ? mycoScreenPos :
-          phase.npcId === "ember" ? emberScreenPos : npcScreenPos;
+          phase.npcId === "ember" ? emberScreenPos :
+          phase.npcId === "sprout" ? sproutScreenPos : npcScreenPos;
         return (
           <>
             <SpeechBubble
@@ -855,7 +906,8 @@ export default function App() {
       {phase.type === "game-accept" && (() => {
         const acceptNpc = getNpcById(phase.npcId);
         const npcPos = phase.npcId === "myco" ? mycoScreenPos :
-          phase.npcId === "ember" ? emberScreenPos : npcScreenPos;
+          phase.npcId === "ember" ? emberScreenPos :
+          phase.npcId === "sprout" ? sproutScreenPos : npcScreenPos;
         return gameAcceptText ? (
           <SpeechBubble
             text={gameAcceptText}
@@ -909,6 +961,9 @@ export default function App() {
           onSettingsClick={() => {
             game.setPhaseOverride({ type: "settings-app" });
           }}
+          onTownReportClick={() => {
+            game.setPhaseOverride({ type: "town-report" });
+          }}
           onClose={() => game.clearOverride()}
           chatUnreadCount={unreadCount}
         />
@@ -952,12 +1007,19 @@ export default function App() {
         </PhoneOverlay>
       )}
 
+      {/* Town report */}
+      {phase.type === "town-report" && (
+        <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
+          <TownReport onBack={() => game.setPhaseOverride({ type: "phone-home" })} />
+        </PhoneOverlay>
+      )}
+
       {/* NPC chat bubble — player choosing what to say */}
       {chatNpcId && (
         <NpcChatBubble
           playerScreenPos={playerScreenPos}
           onSend={handleChatSend}
-          onClose={chatContinue ? handleChatClose : () => setChatNpcId(null)}
+          onClose={chatContinue ? handleChatClose : () => { setChatNpcId(null); setChatRespondingNpcId(null); setChatResponse(null); }}
           onPlayGame={() => {
             const npcId = chatNpcId!;
             setChatNpcId(null);
@@ -979,6 +1041,7 @@ export default function App() {
           speakerScreenPos={
             chatRespondingNpcId === "myco" ? mycoScreenPos :
             chatRespondingNpcId === "ember" ? emberScreenPos :
+            chatRespondingNpcId === "sprout" ? sproutScreenPos :
             npcScreenPos
           }
         />
@@ -993,6 +1056,7 @@ export default function App() {
             speakerScreenPos={
               chatRespondingNpcId === "myco" ? mycoScreenPos :
               chatRespondingNpcId === "ember" ? emberScreenPos :
+              chatRespondingNpcId === "sprout" ? sproutScreenPos :
               npcScreenPos
             }
           />

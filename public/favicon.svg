@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Ground -->
+  <rect x="2" y="20" width="28" height="10" rx="3" fill="#4a7c59"/>
+  <!-- Sky -->
+  <rect x="2" y="2" width="28" height="18" rx="3" fill="#87CEEB"/>
+  <!-- NPC body -->
+  <rect x="12" y="12" width="8" height="8" rx="2" fill="#6a4c93"/>
+  <!-- NPC head -->
+  <circle cx="16" cy="10" r="4" fill="#6a4c93"/>
+</svg>

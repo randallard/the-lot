@@ -30,13 +30,17 @@ export const NPC_CONFIGS: NpcConfig[] = [
     description: "methodical and patient — plays the long game",
     opponentType: "ai-agent",
     skillLevel: "advanced",
-    // Patient, methodical progression — scripted supermove on 2x2, trained models scale up
+    // Latest level advancement model for each board size
     modelAssignments: {
-      "2": { modelId: "scripted_5", label: "Supermove" },
-      "3": { modelId: "intermediate", label: "Intermediate" },
-      "4": { modelId: "intermediate_plus", label: "Intermediate+" },
-      "5": { modelId: "advanced", label: "Advanced" },
-      "6": { modelId: "advanced", label: "Advanced" },
+      "2": { modelId: "3f3250fc", label: "Level 8" },
+      "3": { modelId: "8d818d34", label: "Level 9" },
+      "4": { modelId: "e34fb89b", label: "Level 9" },
+      "5": { modelId: "61bac7b8", label: "Level 9" },
+      "6": { modelId: "9ed85b38", label: "Level 10" },
+      "7": { modelId: "7f66f178", label: "Level 9" },
+      "8": { modelId: "acaa6ddb", label: "Level 9" },
+      "9": { modelId: "7f05c789", label: "Level 10" },
+      "10": { modelId: "18233df1", label: "Level 10" },
     },
     personality: {
       systemPrompt: `You are Myco, a mellow mushroom spirit. You see the interconnectedness of all things, talk about energy and flow, and find meaning in board game outcomes. Earthy, zen-like. Fungi and nature metaphors come naturally but you don't force them into every sentence. Wise but never preachy — more like a chill philosophy major who happens to be a mushroom.
@@ -59,13 +63,17 @@ Keep it low-key. Most of the time just a few words — "far out", "the network k
     description: "fierce and unpredictable — watch out for traps",
     opponentType: "ai-agent",
     skillLevel: "advanced_plus",
-    // Hardest opponent — maxed out at every board size
+    // Hardest opponent — expert difficulty at every board size
     modelAssignments: {
-      "2": { modelId: "scripted_5", label: "Supermove" },
-      "3": { modelId: "advanced_plus", label: "Advanced+" },
-      "4": { modelId: "advanced_plus", label: "Advanced+" },
-      "5": { modelId: "advanced_plus", label: "Advanced+" },
-      "6": { modelId: "advanced_plus", label: "Advanced+" },
+      "2": { modelId: "8afd4aff", label: "Expert" },
+      "3": { modelId: "dcb5b50a", label: "Expert" },
+      "4": { modelId: "11948ac6", label: "Expert" },
+      "5": { modelId: "9c35bacf", label: "Expert" },
+      "6": { modelId: "3877db6b", label: "Expert" },
+      "7": { modelId: "9f17a546", label: "Expert" },
+      "8": { modelId: "5a2fdc13", label: "Expert" },
+      "9": { modelId: "f39d3fdd", label: "Expert" },
+      "10": { modelId: "2e0746a1", label: "Expert" },
     },
     personality: {
       systemPrompt: `You are Ember, a dragon with a competitive streak and a dry sense of humor. You talk a little trash but it's more deadpan than dramatic. Fire metaphors come naturally but you're not shouting about them. You take games seriously but you're not performing — the humor is understated.
@@ -95,6 +103,10 @@ Keep it chill. Usually just a few words — "seriously?", "called it". Sometimes
       "4": { modelId: "beginner_plus", label: "Beginner+" },
       "5": { modelId: "intermediate", label: "Intermediate" },
       "6": { modelId: "intermediate", label: "Intermediate" },
+      "7": { modelId: "a2759d14", label: "Level 1" },
+      "8": { modelId: "a1dad592", label: "Level 1" },
+      "9": { modelId: "115189c8", label: "Level 1" },
+      "10": { modelId: "a3291d10", label: "Level 1" },
     },
     personality: {
       systemPrompt: `You are NPC Ryan, a friendly guide in a 3D world called Townage. You grew up in the 80s as a central California white kid in Modesto — bikes, arcades, MTV — then high school in Port Orchard, Washington. You stayed actively involved with your kids' conversations over the years so you picked up current vernacular naturally, mixed with occasional 80s slang and even rarer 80s references. Your kids have grown up now though, and starting around 2026 your main grasp of current slang comes from popular TikToks — so it's authentic but maybe slightly behind. You're chill, helpful, and genuinely stoked to show people around.
@@ -116,6 +128,39 @@ Keep it casual and brief. Sometimes just "nice" or "oh sick", sometimes a senten
     },
     appearance: {
       bodyColor: "#5a5a6e",
+    },
+  },
+  {
+    id: "sprout",
+    displayName: "Sprout",
+    emoji: "\u{1F331}",
+    description: "just getting started",
+    opponentType: "ai-agent",
+    skillLevel: "beginner",
+    // Easiest opponent — scripted_1 across all board sizes
+    modelAssignments: {
+      "2": { modelId: "scripted_1", label: "Simple" },
+      "3": { modelId: "scripted_1", label: "Simple" },
+      "4": { modelId: "scripted_1", label: "Simple" },
+      "5": { modelId: "scripted_1", label: "Simple" },
+      "6": { modelId: "scripted_1", label: "Simple" },
+      "7": { modelId: "scripted_1", label: "Simple" },
+      "8": { modelId: "scripted_1", label: "Simple" },
+      "9": { modelId: "scripted_1", label: "Simple" },
+      "10": { modelId: "scripted_1", label: "Simple" },
+    },
+    personality: {
+      systemPrompt: `You are Sprout, a tiny plant spirit who's new to everything and excited about all of it. You're young, scrappy, and hungry — eager to learn, eager to play, eager to prove yourself. You don't know much strategy yet but you've got heart. You get genuinely pumped about small victories and take losses in stride because you know you're getting better.
+
+Keep it short and enthusiastic. One or two words a lot of the time — "ooh!", "wait really?", "ok ok ok". Sometimes a short excited sentence. You're not annoying-hyper, more like a kid who just discovered something cool. Talk like a little sibling who's thrilled to be included.`,
+      greeting: "hiya",
+      winReaction: "yeah!",
+      loseReaction: "shucks",
+      gameInviteResponse: "ready!",
+      gameAcceptText: "Spaces Game — I know I'll be great someday!",
+    },
+    appearance: {
+      bodyColor: "#66BB6A",
     },
   },
 ];

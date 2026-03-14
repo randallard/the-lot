@@ -13,6 +13,7 @@ export function ChoiceBubble({ choices, defaultIndex = 0, speakerScreenPos }: Ch
   const [selected, setSelected] = useState(defaultIndex);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: "50%", top: "40%" });
+  const [positioned, setPositioned] = useState(false);
   const [tailStyle, setTailStyle] = useState<React.CSSProperties>({});
   const [tailInnerStyle, setTailInnerStyle] = useState<React.CSSProperties>({});
 
@@ -124,6 +125,7 @@ export function ChoiceBubble({ choices, defaultIndex = 0, speakerScreenPos }: Ch
       if (!dragging.current) {
         setPos({ left: `${bx}px`, top: `${by}px` });
       }
+      setPositioned(true);
 
       // Tail
       if (bubbleRef.current) {
@@ -188,6 +190,8 @@ export function ChoiceBubble({ choices, defaultIndex = 0, speakerScreenPos }: Ch
         flexDirection: "column",
         gap: 8,
         cursor: dragging.current ? "grabbing" : "grab",
+        opacity: positioned ? 1 : 0,
+        transition: "opacity 0.15s ease-in",
         userSelect: "none",
         touchAction: "none",
       }}

@@ -101,27 +101,44 @@ export function getBoardRank(npcId: string, boardSize: number): "S" | "A" | "B" 
   return null;
 }
 
+const ALL_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+const RANK_VALUE: Record<string, number> = { S: 3, A: 2, B: 1 };
+
 /**
  * Overall Spaces Game rank against an NPC.
- * S = S rank on ALL board sizes played in the last 3 months.
- * Falls back to min rank across played sizes.
+ * S = S rank on ALL 9 board sizes (2-10) — perfect mastery.
+ * A = all played sizes are S but not all 9 covered, OR A+ on all 9,
+ *     OR average rank across played sizes is A-level (>= 2.0).
+ * B = any rank on any size.
  */
 export function getOverallSpacesRank(npcId: string): "S" | "A" | "B" | null {
-  const played = getBoardSizesPlayed(npcId);
-  if (played.length === 0) return null;
-
-  // Only consider sizes with recent games
   const cutoff = Date.now() - THREE_MONTHS_MS;
   const all = loadAll();
-  const recentSizes = played.filter((s) => {
-    const entries = all[makeKey(npcId, s)] ?? [];
-    return entries.some((e) => e.timestamp >= cutoff);
-  });
-  if (recentSizes.length === 0) return null;
 
-  const ranks = recentSizes.map((s) => getBoardRank(npcId, s));
-  if (ranks.every((r) => r === "S")) return "S";
-  if (ranks.every((r) => r === "S" || r === "A")) return "A";
-  if (ranks.some((r) => r !== null)) return "B";
-  return null;
+  // Get ranks for all sizes with recent games
+  const recentRanks: { size: number; rank: "S" | "A" | "B" | null }[] = [];
+  for (const s of ALL_SIZES) {
+    const entries = all[makeKey(npcId, s)] ?? [];
+    if (entries.some((e) => e.timestamp >= cutoff)) {
+      recentRanks.push({ size: s, rank: getBoardRank(npcId, s) });
+    }
+  }
+
+  const ranked = recentRanks.filter((r) => r.rank !== null);
+  if (ranked.length === 0) return null;
+
+  const allCovered = recentRanks.length === ALL_SIZES.length;
+  const allS = ranked.length === recentRanks.length && ranked.every((r) => r.rank === "S");
+  const allAPlus = ranked.length === recentRanks.length && ranked.every((r) => r.rank === "S" || r.rank === "A");
+
+  // S: S on every single board size
+  if (allS && allCovered) return "S";
+
+  // A: all played are S but missing sizes, OR A+ on all 9, OR average >= A
+  if (allS && !allCovered) return "A";
+  if (allAPlus && allCovered) return "A";
+  const avg = ranked.reduce((sum, r) => sum + RANK_VALUE[r.rank!], 0) / ranked.length;
+  if (avg >= 2) return "A";
+
+  return "B";
 }
