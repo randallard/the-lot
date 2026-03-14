@@ -45,7 +45,7 @@ import {
 } from "./services/chat-storage";
 import { recordResult } from "./services/npc-records";
 import { recordBoardResult } from "./services/npc-board-records";
-import { isAsleep, recordMessage, getTimeUntilWake } from "./services/npc-sleep";
+import { isAsleep, recordMessage } from "./services/npc-sleep";
 import { fetchPendingResults } from "./services/fetch-pending-results";
 import { processAsyncResults } from "./services/async-npc-messages";
 import type { TrinketTrackerState } from "./world/useTrinketTracker";

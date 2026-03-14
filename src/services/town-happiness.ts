@@ -12,8 +12,6 @@ import { NPC_CONFIGS } from "../config/npcs";
 import { getFriendliness } from "./npc-friendliness";
 import { getRecord } from "./npc-records";
 
-const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
-
 /** 0-4 happiness score. */
 export function getTownHappiness(): number {
   const gameNpcs = NPC_CONFIGS.filter((n) => n.opponentType);
@@ -23,8 +21,7 @@ export function getTownHappiness(): number {
   const avgFriendliness =
     gameNpcs.reduce((sum, n) => sum + Math.max(0, getFriendliness(n.id)), 0) / gameNpcs.length;
 
-  // 2. Game activity — what fraction of NPCs have been played recently?
-  const now = Date.now();
+  // 2. Game activity — what fraction of NPCs have been played?
   let recentlyPlayed = 0;
   for (const npc of gameNpcs) {
     const record = getRecord(npc.id);
