@@ -13,6 +13,8 @@ export interface LotLaunchData {
 }
 
 const GAME_URL = import.meta.env.VITE_SPACES_GAME_URL || "https://spaces-game-api.vercel.app";
+const KINGS_COOKING_URL =
+  import.meta.env.VITE_KINGS_COOKING_URL || "https://randallard.github.io/kings-cooking";
 
 function generateSessionId(): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -53,5 +55,37 @@ export function buildLaunchUrl(npc: NpcConfig): string {
 
 export function launchGame(npc: NpcConfig): void {
   const url = buildLaunchUrl(npc);
+  window.location.assign(url);
+}
+
+export interface KingsChessLotLaunchData {
+  sessionId: string;
+  npcId: string;
+  npcDisplayName: string;
+  agentType: "scripted_1";
+  returnUrl: string;
+}
+
+export function buildKingsChessLaunchUrl(npc: NpcConfig): string {
+  const sessionId = generateSessionId();
+  const returnUrl = window.location.origin + window.location.pathname;
+
+  const payload: KingsChessLotLaunchData = {
+    sessionId,
+    npcId: npc.id,
+    npcDisplayName: npc.displayName,
+    agentType: npc.agentType ?? "scripted_1",
+    returnUrl,
+  };
+
+  const compressed = LZString.compressToEncodedURIComponent(
+    JSON.stringify(payload),
+  );
+
+  return `${KINGS_COOKING_URL}/#lot=${compressed}`;
+}
+
+export function launchKingsChess(npc: NpcConfig): void {
+  const url = buildKingsChessLaunchUrl(npc);
   window.location.assign(url);
 }

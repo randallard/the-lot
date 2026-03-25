@@ -1,10 +1,26 @@
 interface GameSelectProps {
   npcName: string;
+  games?: ("spaces-game" | "kings-cooking")[];
   onSelect: (game: string) => void;
   onBack: () => void;
 }
 
-export function GameSelect({ npcName, onSelect, onBack }: GameSelectProps) {
+const gameCardStyle: React.CSSProperties = {
+  width: "100%",
+  background: "#1a1a2e",
+  border: "2px solid #2a2a3e",
+  borderRadius: 12,
+  padding: "16px 20px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  cursor: "pointer",
+};
+
+export function GameSelect({ npcName, games, onSelect, onBack }: GameSelectProps) {
+  const showSpaces = !games || games.includes("spaces-game");
+  const showKingsChess = games?.includes("kings-cooking") ?? false;
+
   return (
     <div
       style={{
@@ -32,49 +48,33 @@ export function GameSelect({ npcName, onSelect, onBack }: GameSelectProps) {
         playing against {npcName}
       </p>
 
-      <div
-        style={{
-          width: "100%",
-          background: "#1a1a2e",
-          border: "2px solid #2a2a3e",
-          borderRadius: 12,
-          padding: "16px 20px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          cursor: "pointer",
-        }}
-        onClick={() => onSelect("spaces-game")}
-      >
-        <div>
-          <p
-            style={{
-              color: "#ccc",
-              fontSize: 14,
-              fontWeight: 600,
-              margin: 0,
-            }}
-          >
-            Spaces Game
-          </p>
-          <p style={{ color: "#666", fontSize: 11, margin: "4px 0 0" }}>
-            strategy board game — 5 rounds
-          </p>
+      {showSpaces && (
+        <div style={gameCardStyle} onClick={() => onSelect("spaces-game")}>
+          <div>
+            <p style={{ color: "#ccc", fontSize: 14, fontWeight: 600, margin: 0 }}>
+              Spaces Game
+            </p>
+            <p style={{ color: "#666", fontSize: 11, margin: "4px 0 0" }}>
+              strategy board game — 5 rounds
+            </p>
+          </div>
+          <span style={{ color: "#6a4c93", fontSize: 18 }}>→</span>
         </div>
+      )}
 
-        <span style={{ color: "#6a4c93", fontSize: 18 }}>→</span>
-      </div>
-
-      <p
-        style={{
-          color: "#444",
-          fontSize: 11,
-          fontStyle: "italic",
-          margin: "4px 0 0",
-        }}
-      >
-        more to come...
-      </p>
+      {showKingsChess && (
+        <div style={gameCardStyle} onClick={() => onSelect("kings-cooking")}>
+          <div>
+            <p style={{ color: "#ccc", fontSize: 14, fontWeight: 600, margin: 0 }}>
+              King's Cooking
+            </p>
+            <p style={{ color: "#666", fontSize: 11, margin: "4px 0 0" }}>
+              chess variant — 3-column board
+            </p>
+          </div>
+          <span style={{ color: "#6a4c93", fontSize: 18 }}>→</span>
+        </div>
+      )}
 
       <button
         onClick={onBack}

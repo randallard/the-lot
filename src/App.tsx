@@ -25,11 +25,13 @@ import { ChatInfoModal } from "./overlay/ChatInfoModal";
 import { SupportForm } from "./overlay/SupportForm";
 import { MoodSlider } from "./overlay/MoodSlider";
 import { MoodResponsesModal } from "./overlay/MoodResponsesModal";
+import { StartupNotification } from "./overlay/StartupNotification";
 import { useInputDirection } from "./world/useInputDirection";
 import { useGameState } from "./state/useGameState";
 import { getNpcById } from "./config/npcs";
-import { launchGame } from "./services/launch-game";
-import { parseResultsFromHash } from "./services/parse-results";
+import { launchGame, launchKingsChess } from "./services/launch-game";
+import { parseResultsFromHash, parseKingsChessResultsFromHash } from "./services/parse-results";
+import { recordKingsChessResult } from "./services/npc-kings-chess-records";
 import { clearActiveSession } from "./services/active-sessions";
 import { getNpcCommentary, chatWithNpc, getGameAcceptText } from "./services/haiku-npc";
 import { hasSeenIntro, markIntroSeen } from "./services/npc-intro-seen";
@@ -137,12 +139,74 @@ export default function App() {
 
   // Check for game results in URL hash on mount, or restore playing-game context
   useEffect(() => {
-    const results = parseResultsFromHash();
+    const kingsChessResults = parseKingsChessResultsFromHash();
+    const results = kingsChessResults ? null : parseResultsFromHash();
     const savedPlayingNpc = localStorage.getItem("townage-playing-npc");
     // Clean up saved position (already read during init)
     localStorage.removeItem("townage-player-pos");
 
-    if (results) {
+    if (kingsChessResults) {
+      localStorage.removeItem("townage-playing-npc");
+      if (kingsChessResults.winner !== "incomplete") {
+        recordKingsChessResult(kingsChessResults.npcId, kingsChessResults.winner);
+        nudgeFriendliness(kingsChessResults.npcId, NUDGE_GAME_PLAYED);
+      }
+      setSelectedNpcId(kingsChessResults.npcId);
+      setPlayingGameNpcId(kingsChessResults.npcId);
+      postGameChat.current = true;
+      if (kingsChessResults.npcId === "ryan") game.bringNpcBack();
+
+      const kcNpc = getNpcById(kingsChessResults.npcId);
+      if (kcNpc) {
+        if (kingsChessResults.winner !== "incomplete") {
+          const kcScore = `${kingsChessResults.playerScore}–${kingsChessResults.opponentScore}`;
+          const kcResultText =
+            kingsChessResults.winner === "player" ? `King's Cooking · you won ${kcScore}` :
+            kingsChessResults.winner === "opponent" ? `King's Cooking · ${kcNpc.displayName} won ${kcScore}` :
+            `King's Cooking · tie ${kcScore}`;
+          addMessage(kingsChessResults.npcId, { id: genMessageId(), sender: "system", text: kcResultText, timestamp: Date.now() });
+        }
+        setChatRespondingNpcId(kingsChessResults.npcId);
+        setChatLoading(true);
+        const prefs = getPreferences();
+        const fallback =
+          kingsChessResults.winner === "player"
+            ? kcNpc.personality.loseReaction
+            : kingsChessResults.winner === "opponent"
+              ? kcNpc.personality.winReaction
+              : kcNpc.personality.greeting;
+        if (prefs.useHaiku) {
+          getNpcCommentary(kcNpc, {
+            sessionId: kingsChessResults.sessionId,
+            npcId: kingsChessResults.npcId,
+            winner: kingsChessResults.winner,
+            playerScore: kingsChessResults.playerScore,
+            opponentScore: kingsChessResults.opponentScore,
+            rounds: [],
+          }).then((text) => {
+            addMessage(kingsChessResults.npcId, { id: genMessageId(), sender: "npc", text, timestamp: Date.now() });
+            setChatLoading(false);
+            setChatResponse({ text, isSeen: false });
+            setPlayingGameNpcId(null);
+          }).catch(() => {
+            addMessage(kingsChessResults.npcId, { id: genMessageId(), sender: "npc", text: fallback, timestamp: Date.now() });
+            setChatLoading(false);
+            setChatResponse({ text: fallback, isSeen: false });
+            setPlayingGameNpcId(null);
+          });
+        } else {
+          setTimeout(() => {
+            const emoji =
+              kingsChessResults.winner === "player" ? "😤" :
+              kingsChessResults.winner === "opponent" ? "😎" : "🤝";
+            addMessage(kingsChessResults.npcId, { id: genMessageId(), sender: "npc", text: emoji, timestamp: Date.now() });
+            setChatLoading(false);
+            setChatResponse({ text: emoji, isSeen: false });
+            setPlayingGameNpcId(null);
+          }, 800);
+        }
+      }
+    } else if (results) {
       // Clear saved context — we're back with results
       localStorage.removeItem("townage-playing-npc");
 
@@ -181,6 +245,15 @@ export default function App() {
       const npc = getNpcById(results.npcId);
       if (!npc) return;
 
+      if (results.winner !== "incomplete") {
+        const scoreStr = `${results.playerScore}–${results.opponentScore}`;
+        const sgResultText =
+          results.winner === "player" ? `Spaces Game · you won ${scoreStr}` :
+          results.winner === "opponent" ? `Spaces Game · ${npc.displayName} won ${scoreStr}` :
+          `Spaces Game · tie ${scoreStr}`;
+        addMessage(results.npcId, { id: genMessageId(), sender: "system", text: sgResultText, timestamp: Date.now() });
+      }
+
       // Show NPC response as chat bubble
       setChatRespondingNpcId(results.npcId);
       setChatLoading(true);
@@ -188,6 +261,7 @@ export default function App() {
       const prefs = getPreferences();
       if (prefs.useHaiku) {
         getNpcCommentary(npc, results).then((text) => {
+          addMessage(results.npcId, { id: genMessageId(), sender: "npc", text, timestamp: Date.now() });
           setChatLoading(false);
           setChatResponse({ text, isSeen: false });
           setPlayingGameNpcId(null);
@@ -200,6 +274,7 @@ export default function App() {
               : results.winner === "opponent"
                 ? npc.personality.winReaction
                 : npc.personality.greeting;
+          addMessage(results.npcId, { id: genMessageId(), sender: "npc", text: fallback, timestamp: Date.now() });
           setChatResponse({ text: fallback, isSeen: false });
           setPlayingGameNpcId(null);
         });
@@ -209,6 +284,7 @@ export default function App() {
           const emoji = results.winner === "incomplete" ? "🤷" :
             results.winner === "player" ? "😤" :
             results.winner === "opponent" ? "😎" : "🤝";
+          addMessage(results.npcId, { id: genMessageId(), sender: "npc", text: emoji, timestamp: Date.now() });
           setChatLoading(false);
           setChatResponse({ text: emoji, isSeen: false });
           setPlayingGameNpcId(null);
@@ -243,10 +319,15 @@ export default function App() {
     const npc = getNpcById(gameAcceptNpcId);
     if (!npc) return;
 
+    const isKingsChess = gameAcceptPlayerChose === "kings-cooking";
+
     if (!hasSeenIntro(gameAcceptNpcId)) {
       // First time — show the long intro text
       markIntroSeen(gameAcceptNpcId);
-      setGameAcceptText(npc.personality.gameAcceptText ?? "let's do this!");
+      const introText = isKingsChess
+        ? (npc.personality.kingsChessAcceptText ?? npc.personality.gameAcceptText ?? "let's do this!")
+        : npc.personality.gameAcceptText ?? "let's do this!";
+      setGameAcceptText(introText);
       return;
     }
 
@@ -324,7 +405,7 @@ export default function App() {
     game.setPhaseOverride({ type: "game-select" });
   }, [game.setPhaseOverride]);
 
-  const handleGameSelect = useCallback((_game: string) => {
+  const handleGameSelect = useCallback((selectedGame: string) => {
     const npc = getNpcById(selectedNpcId);
     if (!npc) return;
     // Save which NPC we're playing and player position so we can restore on return
@@ -333,10 +414,13 @@ export default function App() {
       if (playerWorldPos.current) {
         localStorage.setItem("townage-player-pos", JSON.stringify(playerWorldPos.current));
       }
-      console.log("[launch] saved npc:", selectedNpcId, "pos:", playerWorldPos.current);
     } catch {}
     // Navigate first, then update state (state update is for the spinner if navigation is slow)
-    launchGame(npc);
+    if (selectedGame === "kings-cooking") {
+      launchKingsChess(npc);
+    } else {
+      launchGame(npc);
+    }
     game.launchGame();
   }, [game.launchGame, selectedNpcId]);
 
@@ -688,6 +772,7 @@ export default function App() {
 
   return (
     <div style={{ width: "100vw", height: "100vh", background: "#ffffff" }}>
+      <StartupNotification />
       <Canvas
         shadows={{ type: THREE.BasicShadowMap }}
         camera={{ position: [0, 8, 12], fov: 50 }}
@@ -892,13 +977,17 @@ export default function App() {
               speakerScreenPos={playerScreenPos}
               defaultIndex={1}
               choices={[
-                {
+                ...(inviteNpc?.games?.includes("spaces-game") !== false ? [{
                   label: "Spaces Game",
-                  action: () => game.setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "spaces-game" }),
-                },
+                  action: () => game.setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "spaces-game" as const }),
+                }] : []),
+                ...(inviteNpc?.games?.includes("kings-cooking") ? [{
+                  label: "King's Cooking",
+                  action: () => game.setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "kings-cooking" as const }),
+                }] : []),
                 {
                   label: `You choose, ${inviteNpc?.displayName ?? "friend"}`,
-                  action: () => game.setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "npc-choice" }),
+                  action: () => game.setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "npc-choice" as const }),
                 },
               ]}
             />
@@ -927,7 +1016,11 @@ export default function App() {
                   localStorage.setItem("townage-player-pos", JSON.stringify(playerWorldPos.current));
                 }
               } catch {}
-              launchGame(npc);
+              if (phase.playerChose === "kings-cooking") {
+                launchKingsChess(npc);
+              } else {
+                launchGame(npc);
+              }
               game.launchGame();
             }}
             speakerScreenPos={npcPos}
@@ -947,6 +1040,7 @@ export default function App() {
         }}>
           <GameSelect
             npcName={getNpcById(selectedNpcId)?.displayName ?? selectedNpcId}
+            games={getNpcById(selectedNpcId)?.games}
             onSelect={handleGameSelect}
             onBack={handleGameSelectBack}
           />
@@ -979,7 +1073,7 @@ export default function App() {
           <FindApp
             onFind={handleFind}
             onClose={() => game.clearOverride()}
-            onShowRank={(npcId) => game.setPhaseOverride({ type: "rank-detail", npcId })}
+            onShowRank={(npcId) => game.setPhaseOverride({ type: "rank-detail", npcId, from: "find-app" })}
           />
         </PhoneOverlay>
       )}
@@ -989,7 +1083,11 @@ export default function App() {
         <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
           <RankDetail
             npcId={phase.npcId}
-            onBack={() => game.setPhaseOverride({ type: "find-app" })}
+            onBack={() => game.setPhaseOverride({ type: phase.from ?? "find-app" })}
+            onFind={() => {
+              setFindTargetNpcId(phase.npcId);
+              game.clearOverride();
+            }}
           />
         </PhoneOverlay>
       )}
@@ -1014,7 +1112,10 @@ export default function App() {
       {/* Town report */}
       {phase.type === "town-report" && (
         <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
-          <TownReport onBack={() => game.setPhaseOverride({ type: "phone-home" })} />
+          <TownReport
+            onBack={() => game.setPhaseOverride({ type: "phone-home" })}
+            onShowRank={(npcId) => game.setPhaseOverride({ type: "rank-detail", npcId, from: "town-report" })}
+          />
         </PhoneOverlay>
       )}
 

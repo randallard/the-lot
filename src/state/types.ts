@@ -26,7 +26,7 @@ export type PhaseOverride =
   | { type: "npc-welcome-back" } // "cool, let's play!"
   | { type: "opponents-list" } // opponents screen
   | { type: "game-invite"; npcId: string } // NPC says "which game?" + player choices
-  | { type: "game-accept"; npcId: string; playerChose: "spaces-game" | "npc-choice" } // NPC pre-game text before launching
+  | { type: "game-accept"; npcId: string; playerChose: "spaces-game" | "kings-cooking" | "npc-choice" } // NPC pre-game text before launching
   | { type: "game-select" } // choosing which game to play
   | { type: "board-creation" } // player building their board
   | { type: "phone-home" } // phone homescreen in free-play
@@ -36,7 +36,7 @@ export type PhaseOverride =
   | { type: "town-report" } // town happiness report
   | { type: "launching-game" } // navigating to spaces-game
   | { type: "npc-commentary" } // NPC reacting to game results
-  | { type: "rank-detail"; npcId: string }; // per-game rank breakdown
+  | { type: "rank-detail"; npcId: string; from?: "find-app" | "town-report" }; // per-game rank breakdown
 
 // Where the player left off when they walked away
 export type ResumePoint =

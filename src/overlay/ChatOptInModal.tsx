@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { checkChatServerHealth } from "../services/haiku-npc";
 
 interface ChatOptInModalProps {
   onAccept: () => void;
@@ -6,21 +7,34 @@ interface ChatOptInModalProps {
 }
 
 export function ChatOptInModal({ onAccept, onDecline }: ChatOptInModalProps) {
-  const [selected, setSelected] = useState(0); // 0 = accept, 1 = decline
+  const [serverStatus, setServerStatus] = useState<"checking" | "ok" | "unavailable">("checking");
+  // Default selection to emoji (1) while checking; switch to AI (0) only once confirmed healthy
+  const [selected, setSelected] = useState(1);
+  const aiDisabled = serverStatus !== "ok";
+
+  useEffect(() => {
+    checkChatServerHealth().then((ok) => {
+      setServerStatus(ok ? "ok" : "unavailable");
+      if (ok) setSelected(0);
+    });
+  }, []);
 
   const handleKey = useCallback(
     (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Tab") {
         e.preventDefault();
-        setSelected((s) => (s === 0 ? 1 : 0));
+        setSelected((s) => {
+          const next = s === 0 ? 1 : 0;
+          return next === 0 && aiDisabled ? 1 : next;
+        });
       } else if (e.key === "Enter") {
         e.preventDefault();
-        if (selected === 0) onAccept();
+        if (selected === 0 && !aiDisabled) onAccept();
         else onDecline();
       }
     },
-    [selected, onAccept, onDecline],
+    [selected, aiDisabled, onAccept, onDecline],
   );
 
   useEffect(() => {
@@ -82,21 +96,28 @@ export function ChatOptInModal({ onAccept, onDecline }: ChatOptInModalProps) {
         </p>
 
         <button
-          onClick={onAccept}
+          onClick={aiDisabled ? undefined : onAccept}
+          disabled={aiDisabled}
           style={{
             padding: "12px 20px",
-            background: selected === 0 ? "#6a4c93" : "#3a3a4e",
-            color: "#fff",
-            border: selected === 0 ? "2px solid #9b8abf" : "2px solid transparent",
+            background: aiDisabled ? "#252535" : selected === 0 ? "#6a4c93" : "#3a3a4e",
+            color: aiDisabled ? "#555" : "#fff",
+            border: selected === 0 && !aiDisabled ? "2px solid #9b8abf" : "2px solid transparent",
             borderRadius: 12,
             fontSize: 15,
             fontWeight: 600,
-            cursor: "pointer",
+            cursor: aiDisabled ? "default" : "pointer",
             marginTop: 4,
           }}
         >
-          Enable AI Responses
+          {serverStatus === "checking" ? "Enable AI Responses — checking..." : "Enable AI Responses"}
         </button>
+
+        {serverStatus === "unavailable" && (
+          <p style={{ fontSize: 11, color: "#e74c3c", margin: "-8px 0 0", textAlign: "center" }}>
+            Chat server unavailable right now — AI responses disabled
+          </p>
+        )}
 
         <button
           onClick={onDecline}

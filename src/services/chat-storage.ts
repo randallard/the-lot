@@ -3,7 +3,7 @@ const PREFS_KEY = "townage-chat-prefs";
 
 export interface ChatMessage {
   id: string;
-  sender: "player" | "npc";
+  sender: "player" | "npc" | "system";
   text: string;
   timestamp: number;
   isSeen?: boolean; // true when Haiku was unavailable

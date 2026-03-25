@@ -7,10 +7,13 @@ import {
   getBoardWinStreak,
   getOverallSpacesRank,
 } from "../services/npc-board-records";
+import { getRecord } from "../services/npc-records";
+import { getKingsChessRecord } from "../services/npc-kings-chess-records";
 
 interface RankDetailProps {
   npcId: string;
   onBack: () => void;
+  onFind?: () => void;
 }
 
 const RANK_COLORS: Record<string, { bg: string; fg: string }> = {
@@ -38,13 +41,27 @@ function RankBadge({ rank }: { rank: "S" | "A" | "B" | null }) {
   );
 }
 
-export function RankDetail({ npcId, onBack }: RankDetailProps) {
+function WLT({ wins, losses, ties }: { wins: number; losses: number; ties: number }) {
+  return (
+    <div style={{ display: "flex", gap: 10 }}>
+      <span style={{ color: "#4caf50", fontSize: 12 }}>{wins}W</span>
+      <span style={{ color: "#e74c3c", fontSize: 12 }}>{losses}L</span>
+      {ties > 0 && <span style={{ color: "#888", fontSize: 12 }}>{ties}T</span>}
+    </div>
+  );
+}
+
+export function RankDetail({ npcId, onBack, onFind }: RankDetailProps) {
   const npc = getNpcById(npcId);
   const [showUnplayed, setShowUnplayed] = useState(false);
 
   const played = getBoardSizesPlayed(npcId);
   const unplayed = getUnplayedBoardSizes(npcId);
   const overallRank = getOverallSpacesRank(npcId);
+  const sgRecord = getRecord(npcId);
+  const kcRecord = getKingsChessRecord(npcId);
+
+  const hasKC = npc?.games?.includes("kings-cooking");
 
   return (
     <div
@@ -72,9 +89,25 @@ export function RankDetail({ npcId, onBack }: RankDetailProps) {
           ‹
         </button>
         <span style={{ fontSize: 20 }}>{npc?.emoji ?? "?"}</span>
-        <span style={{ color: "#ccc", fontSize: 14, fontWeight: 600 }}>
+        <span style={{ color: "#ccc", fontSize: 14, fontWeight: 600, flex: 1 }}>
           {npc?.displayName ?? npcId}
         </span>
+        {onFind && (
+          <button
+            onClick={onFind}
+            style={{
+              background: "transparent",
+              border: "1px solid #333",
+              color: "#888",
+              fontSize: 11,
+              borderRadius: 8,
+              padding: "4px 10px",
+              cursor: "pointer",
+            }}
+          >
+            find →
+          </button>
+        )}
       </div>
 
       {/* Spaces Game section */}
@@ -100,13 +133,18 @@ export function RankDetail({ npcId, onBack }: RankDetailProps) {
           <RankBadge rank={overallRank} />
         </div>
 
+        {sgRecord.totalGames > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <WLT wins={sgRecord.wins} losses={sgRecord.losses} ties={sgRecord.ties} />
+          </div>
+        )}
+
         {played.length === 0 && (
           <p style={{ color: "#555", fontSize: 12, fontStyle: "italic", margin: 0 }}>
             no games played yet
           </p>
         )}
 
-        {/* Played board sizes */}
         {played.map((size) => {
           const rank = getBoardRank(npcId, size);
           const streak = getBoardWinStreak(npcId, size);
@@ -136,7 +174,6 @@ export function RankDetail({ npcId, onBack }: RankDetailProps) {
           );
         })}
 
-        {/* Unplayed sizes toggle */}
         {unplayed.length > 0 && (
           <>
             <button
@@ -179,6 +216,39 @@ export function RankDetail({ npcId, onBack }: RankDetailProps) {
           </>
         )}
       </div>
+
+      {/* King's Cooking section */}
+      {hasKC && (
+        <div
+          style={{
+            background: "#12121e",
+            border: "1px solid #2a2a3e",
+            borderRadius: 12,
+            padding: "14px 16px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 10,
+            }}
+          >
+            <span style={{ color: "#9b59b6", fontSize: 13, fontWeight: 700 }}>
+              King's Cooking
+            </span>
+          </div>
+
+          {kcRecord.totalGames === 0 ? (
+            <p style={{ color: "#555", fontSize: 12, fontStyle: "italic", margin: 0 }}>
+              no games played yet
+            </p>
+          ) : (
+            <WLT wins={kcRecord.wins} losses={kcRecord.losses} ties={kcRecord.ties} />
+          )}
+        </div>
+      )}
 
       <button
         onClick={onBack}

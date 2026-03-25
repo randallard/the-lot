@@ -1,4 +1,6 @@
 import type { NpcConfig } from "../config/npcs";
+
+const NPC_CHAT_BASE = import.meta.env.VITE_NPC_CHAT_URL ?? "";
 import type { GameResults } from "./parse-results";
 import type { ChatMessage } from "./chat-storage";
 import { getEffectiveLevel, enthusiasmPromptSuffix } from "./enthusiasm";
@@ -50,7 +52,7 @@ export async function getNpcCommentary(
   results: GameResults,
 ): Promise<string> {
   try {
-    const response = await fetch("/api/npc-chat", {
+    const response = await fetch(`${NPC_CHAT_BASE}/api/npc-chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -97,15 +99,21 @@ export async function getNpcCommentary(
  */
 export async function getGameAcceptText(
   npc: NpcConfig,
-  playerChose: "spaces-game" | "npc-choice",
+  playerChose: "spaces-game" | "kings-cooking" | "npc-choice",
 ): Promise<{ dialogue: string; chosenGame: string }> {
   const games = AVAILABLE_GAMES.join(", ");
+  const gameName =
+    playerChose === "spaces-game"
+      ? "Spaces Game"
+      : playerChose === "kings-cooking"
+        ? "King's Cooking"
+        : null;
   const prompt =
     playerChose === "npc-choice"
       ? `The player asked you to choose a game from this list: ${games}. Pick one at random and let them know which one you chose. Keep it chill and short — like texting a friend.`
-      : `The player chose Spaces Game. Acknowledge it casually — you're about to play. Keep it short, like between friends.`;
+      : `The player chose ${gameName!}. Acknowledge it casually — you're about to play. Keep it short, like between friends.`;
 
-  const response = await fetch("/api/npc-chat", {
+  const response = await fetch(`${NPC_CHAT_BASE}/api/npc-chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -117,8 +125,8 @@ export async function getGameAcceptText(
 
   if (!response.ok) throw new Error(`API error: ${response.status}`);
   const data = await response.json();
-  // For now only Spaces Game exists; when more are added, parse from dialogue or add a tool field
-  return { dialogue: data.dialogue, chosenGame: "spaces-game" };
+  const chosenGame = playerChose === "npc-choice" ? "spaces-game" : playerChose;
+  return { dialogue: data.dialogue, chosenGame };
 }
 
 export interface ChatResponse {
@@ -144,7 +152,7 @@ export async function chatWithNpc(
   // Ryan gets the escalation tool when support is enabled
   const useEscalate = npc.id === "ryan" && SUPPORT_CONFIG.enabled;
 
-  const response = await fetch("/api/npc-chat", {
+  const response = await fetch(`${NPC_CHAT_BASE}/api/npc-chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -157,4 +165,14 @@ export async function chatWithNpc(
   if (!response.ok) throw new Error(`API error: ${response.status}`);
   const data = await response.json();
   return { text: data.dialogue, escalate: !!data.escalate };
+}
+
+/** Health check — GET returns 405 if the server is reachable. No API credits used. */
+export async function checkChatServerHealth(): Promise<boolean> {
+  try {
+    const res = await fetch(`${NPC_CHAT_BASE}/api/npc-chat`, { method: "GET" });
+    return res.status === 405; // expected "Method not allowed" = server is up
+  } catch {
+    return false;
+  }
 }

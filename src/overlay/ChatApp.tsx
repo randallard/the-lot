@@ -232,7 +232,7 @@ function ContactsList({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {lastMsg.sender === "player" ? "You: " : ""}
+                  {lastMsg.sender === "player" ? "You: " : lastMsg.sender === "system" ? "🎮 " : ""}
                   {lastMsg.text}
                 </p>
               ) : (
@@ -471,41 +471,56 @@ function ConversationView({
             style={{
               display: "flex",
               justifyContent:
-                msg.sender === "player" ? "flex-end" : "flex-start",
+                msg.sender === "system" ? "center" : msg.sender === "player" ? "flex-end" : "flex-start",
             }}
           >
-            <div
-              style={{
-                maxWidth: "80%",
-                padding: "8px 12px",
-                borderRadius: 14,
-                background:
-                  msg.sender === "player" ? "#6a4c93" : "#2a2a3e",
-                color: msg.sender === "player" ? "#fff" : "#ccc",
-                fontSize: 13,
-                lineHeight: 1.4,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <span>{msg.text}</span>
-              {msg.isSeen && (
-                <button
-                  onClick={() => setShowInfo("unavailable")}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "#666",
-                    fontSize: 11,
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                >
-                  (?)
-                </button>
-              )}
-            </div>
+            {msg.sender === "system" ? (
+              <div
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 10,
+                  background: "#222",
+                  color: "#666",
+                  fontSize: 11,
+                  fontStyle: "italic",
+                }}
+              >
+                {msg.text}
+              </div>
+            ) : (
+              <div
+                style={{
+                  maxWidth: "80%",
+                  padding: "8px 12px",
+                  borderRadius: 14,
+                  background:
+                    msg.sender === "player" ? "#6a4c93" : "#2a2a3e",
+                  color: msg.sender === "player" ? "#fff" : "#ccc",
+                  fontSize: 13,
+                  lineHeight: 1.4,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <span>{msg.text}</span>
+                {msg.isSeen && (
+                  <button
+                    onClick={() => setShowInfo("unavailable")}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "#666",
+                      fontSize: 11,
+                      cursor: "pointer",
+                      padding: 0,
+                    }}
+                  >
+                    (?)
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ))}
         {loading && (

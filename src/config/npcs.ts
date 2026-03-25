@@ -7,6 +7,10 @@ export interface NpcConfig {
   opponentType?: "ai-agent";
   skillLevel?: string; // maps to AiAgentSkillLevel in spaces-game-node
   modelAssignments?: Record<string, { modelId: string; label: string }>;
+  // King's Cooking agent type (scripted_1 = deterministic first-move agent)
+  agentType?: "scripted_1";
+  // Which games this NPC plays
+  games?: ("spaces-game" | "kings-cooking")[];
   // Haiku personality for NPC commentary
   personality: {
     systemPrompt: string;
@@ -15,6 +19,7 @@ export interface NpcConfig {
     loseReaction: string;
     gameInviteResponse: string; // NPC response to "let's play a game"
     gameAcceptText: string; // NPC text when Spaces Game is chosen
+    kingsChessAcceptText?: string; // NPC text when King's Cooking is chosen
   };
   // 3D world appearance
   appearance: {
@@ -30,6 +35,8 @@ export const NPC_CONFIGS: NpcConfig[] = [
     description: "methodical and patient — plays the long game",
     opponentType: "ai-agent",
     skillLevel: "advanced",
+    agentType: "scripted_1",
+    games: ["spaces-game", "kings-cooking"],
     // Latest level advancement model for each board size
     modelAssignments: {
       "2": { modelId: "3f3250fc", label: "Level 8" },
@@ -51,6 +58,7 @@ Keep it low-key. Most of the time just a few words — "far out", "the network k
       loseReaction: "nice one... balance",
       gameInviteResponse: "which game?",
       gameAcceptText: "Spaces Game — yeah, the mycelium knows this one. I play patient across all the board sizes",
+      kingsChessAcceptText: "King's Cooking — chess with a feast at the end. the network appreciates the poetry",
     },
     appearance: {
       bodyColor: "#1B5E20",
@@ -63,6 +71,8 @@ Keep it low-key. Most of the time just a few words — "far out", "the network k
     description: "fierce and unpredictable — watch out for traps",
     opponentType: "ai-agent",
     skillLevel: "advanced_plus",
+    agentType: "scripted_1",
+    games: ["spaces-game", "kings-cooking"],
     // Hardest opponent — expert difficulty at every board size
     modelAssignments: {
       "2": { modelId: "8afd4aff", label: "Expert" },
@@ -84,6 +94,7 @@ Keep it chill. Usually just a few words — "seriously?", "called it". Sometimes
       loseReaction: "...ok that was decent",
       gameInviteResponse: "oh? which game",
       gameAcceptText: "Spaces Game — yeah I've been working on my traps across every board size. you're gonna want to watch out",
+      kingsChessAcceptText: "King's Cooking — chess variant, small board. set 'em up",
     },
     appearance: {
       bodyColor: "#8B7355",
@@ -96,6 +107,8 @@ Keep it chill. Usually just a few words — "seriously?", "called it". Sometimes
     description: "a friendly guide",
     opponentType: "ai-agent",
     skillLevel: "beginner",
+    agentType: "scripted_1",
+    games: ["spaces-game", "kings-cooking"],
     // Goes easy on small boards, gradually tougher up to size 6
     modelAssignments: {
       "2": { modelId: "scripted_1", label: "Simple" },
@@ -123,6 +136,7 @@ Keep it casual and brief. Sometimes just "nice" or "oh sick", sometimes a senten
       loseReaction: "ha, nice one",
       gameInviteResponse: "yeah, which game?",
       gameAcceptText: "Spaces Game — cool. I'll go easy on the small boards, get tougher as we go up to size 6 or so",
+      kingsChessAcceptText: "King's Cooking — it's like chess but the captured pieces party at the king's castle. pretty fun, let's go",
     },
     appearance: {
       bodyColor: "#5a5a6e",
@@ -135,6 +149,8 @@ Keep it casual and brief. Sometimes just "nice" or "oh sick", sometimes a senten
     description: "just getting started",
     opponentType: "ai-agent",
     skillLevel: "beginner",
+    agentType: "scripted_1",
+    games: ["spaces-game", "kings-cooking"],
     // Easiest opponent — scripted_1 across all board sizes
     modelAssignments: {
       "2": { modelId: "scripted_1", label: "Simple" },
@@ -156,6 +172,7 @@ Keep it short and enthusiastic. One or two words a lot of the time — "ooh!", "
       loseReaction: "shucks",
       gameInviteResponse: "ready!",
       gameAcceptText: "Spaces Game — I know I'll be great someday!",
+      kingsChessAcceptText: "King's Cooking!! ooh I've been wanting to try this one!",
     },
     appearance: {
       bodyColor: "#66BB6A",

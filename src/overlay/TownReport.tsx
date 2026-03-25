@@ -6,11 +6,12 @@ import { isAsleep, getTimeUntilWake } from "../services/npc-sleep";
 
 interface TownReportProps {
   onBack: () => void;
+  onShowRank?: (npcId: string) => void;
 }
 
 const FRIENDLINESS_LABELS = ["cold", "neutral", "warming up", "friendly", "good friends", "close"];
 
-export function TownReport({ onBack }: TownReportProps) {
+export function TownReport({ onBack, onShowRank }: TownReportProps) {
   const happiness = getTownHappiness();
   const emoji = getHappinessEmoji(happiness);
   const gameNpcs = NPC_CONFIGS.filter((n) => n.opponentType);
@@ -66,20 +67,23 @@ export function TownReport({ onBack }: TownReportProps) {
           const sleeping = isAsleep(npc.id);
           const wakeTime = sleeping ? getTimeUntilWake(npc.id) : null;
 
+          const clickable = !!onShowRank;
           return (
             <div
               key={npc.id}
+              onClick={clickable ? () => onShowRank!(npc.id) : undefined}
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: "6px 0",
                 borderBottom: "1px solid #1e1e30",
+                cursor: clickable ? "pointer" : undefined,
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 14 }}>{npc.emoji}</span>
-                <span style={{ color: "#aaa", fontSize: 12 }}>{npc.displayName}</span>
+                <span style={{ color: clickable ? "#ccc" : "#aaa", fontSize: 12 }}>{npc.displayName}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ color: "#666", fontSize: 10 }}>
@@ -91,6 +95,7 @@ export function TownReport({ onBack }: TownReportProps) {
                     zzz {wakeTime ? `(${wakeTime})` : ""}
                   </span>
                 )}
+                {clickable && <span style={{ color: "#555", fontSize: 10 }}>›</span>}
               </div>
             </div>
           );

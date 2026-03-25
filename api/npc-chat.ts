@@ -1,10 +1,20 @@
 export const config = { runtime: "edge" };
 
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
 export default async function handler(req: Request): Promise<Response> {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS });
+  }
+
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...CORS },
     });
   }
 
@@ -12,7 +22,7 @@ export default async function handler(req: Request): Promise<Response> {
   if (!apiKey) {
     return new Response(JSON.stringify({ error: "API key not configured" }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...CORS },
     });
   }
 
@@ -90,7 +100,7 @@ export default async function handler(req: Request): Promise<Response> {
       console.error("Anthropic API error:", errorText);
       return new Response(JSON.stringify({ error: "Upstream API error" }), {
         status: 502,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...CORS },
       });
     }
 
@@ -118,13 +128,13 @@ export default async function handler(req: Request): Promise<Response> {
 
     return new Response(JSON.stringify({ dialogue, continues, defaultReply, defaultAction, escalate }), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...CORS },
     });
   } catch (error) {
     console.error("NPC chat error:", error);
     return new Response(JSON.stringify({ error: "Internal error" }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...CORS },
     });
   }
 }

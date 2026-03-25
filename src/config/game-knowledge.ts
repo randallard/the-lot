@@ -4,7 +4,7 @@
  */
 
 /** The canonical list of games NPCs know how to play. Update this when adding new games. */
-export const AVAILABLE_GAMES = ["Spaces Game"];
+export const AVAILABLE_GAMES = ["Spaces Game", "King's Cooking"];
 
 /** Shared world context — all NPCs know this */
 const WORLD_CONTEXT = `
@@ -15,8 +15,18 @@ TOWNAGE: This place is early days. More games are on the way, maybe different to
 
 GAMES: NPCs only know how to play these games: ${AVAILABLE_GAMES.join(", ")}. Never mention or suggest games that aren't on this list.`;
 
+const KINGS_COOKING_KNOWLEDGE = `
+
+WHAT YOU KNOW ABOUT KING'S COOKING:
+- It's a chess variant on a small 3-column board. No king on the board — the kings stay at their castles
+- Pieces move like normal chess (rooks, bishops, knights, queens, pawns — standard rules including en passant)
+- Captured pieces join their king's party at the castle instead of disappearing
+- Rooks and queens with a clear path can move straight off the board in one move — they exit to the opponent's castle
+- Victory: the king who hosts the most guests (pieces that made it off the board from the opponent's side) wins
+- It's quicker than standard chess because of the small board — games don't take long`;
+
 /** Beginner NPCs (Sprout) — knows the gist, not the details */
-const BEGINNER_GAME_KNOWLEDGE = WORLD_CONTEXT + `
+const BEGINNER_GAME_KNOWLEDGE = WORLD_CONTEXT + KINGS_COOKING_KNOWLEDGE + `
 
 WHAT YOU KNOW ABOUT SPACES GAME (your level of understanding — you're still learning):
 - Both players build a board: you lay out moves to get your bot from one side to the other, and set traps to block the other player's bot
@@ -29,7 +39,7 @@ WHAT YOU KNOW ABOUT SPACES GAME (your level of understanding — you're still le
 If the player asks something you don't know — like detailed strategy, how the AI works, technical stuff about the game, or anything about how Townage itself is built — tell them NPC Ryan probably knows. Something casual like "hmm I'm not sure, Ryan would know that better than me" or "ooh good question, you should ask Ryan about that". Don't make stuff up.`;
 
 /** Intermediate NPCs (Myco) — understands strategy, reads the game */
-const INTERMEDIATE_GAME_KNOWLEDGE = WORLD_CONTEXT + `
+const INTERMEDIATE_GAME_KNOWLEDGE = WORLD_CONTEXT + KINGS_COOKING_KNOWLEDGE + `
 
 WHAT YOU KNOW ABOUT SPACES GAME (you've played a lot and understand the deeper patterns):
 - Both players independently build a board each round: lay a path of moves from your start to the goal on the opposite side, and place traps to block the opponent's bot
@@ -43,7 +53,7 @@ WHAT YOU KNOW ABOUT SPACES GAME (you've played a lot and understand the deeper p
 If the player asks about technical details — how the AI agents work, training, fog of war mechanics, or anything about Townage development — point them to NPC Ryan. Keep it natural: "Ryan's the one who knows all that behind-the-scenes stuff" or "that's more Ryan's area". Don't guess at technical answers.`;
 
 /** Advanced NPCs (Ember) — deep strategic understanding */
-const ADVANCED_GAME_KNOWLEDGE = WORLD_CONTEXT + `
+const ADVANCED_GAME_KNOWLEDGE = WORLD_CONTEXT + KINGS_COOKING_KNOWLEDGE + `
 
 WHAT YOU KNOW ABOUT SPACES GAME (you're a serious competitor who's studied the game deeply):
 - Both players independently construct a board each round: a sequence of moves forming a path from start to the opposite side, plus traps placed on the grid to block the opponent's bot
@@ -64,6 +74,7 @@ YOUR EXISTENCE: You're kind of a proxy for Real Ryan — the person who actually
 TOWNAGE: This place is early days but there's a big plan. The vision is to add more games over time, add graphics and interactions to the world, expand to different towns, maybe the ability to invite an IRL friend and travel between townages. Someday the little bots might play Spaces Game live in 3D right here in Townage, watching them navigate boards against each other.
 
 GAMES: NPCs only know how to play these games: ${AVAILABLE_GAMES.join(", ")}. Never mention or suggest games that aren't on this list.
+${KINGS_COOKING_KNOWLEDGE}
 
 DETAILED GAME KNOWLEDGE (you know this inside and out — Real Ryan filled you in):
 - SPACES GAME: Both players independently build a board each round. You lay a path of moves from your start side to the goal on the opposite side, and place traps on the grid to block the opponent's bot. Neither player sees the other's board until after simulation

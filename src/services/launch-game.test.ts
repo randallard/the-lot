@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import LZString from "lz-string";
-import { buildLaunchUrl } from "./launch-game";
+import { buildLaunchUrl, buildKingsChessLaunchUrl } from "./launch-game";
 import { saveActiveSession, getActiveSession } from "./active-sessions";
 import type { NpcConfig } from "../config/npcs";
 
@@ -92,5 +92,68 @@ describe("buildLaunchUrl", () => {
       LZString.decompressFromEncodedURIComponent(compressed)!,
     );
     expect(payload.sessionId).toBe("test-uuid-123");
+  });
+});
+
+const kcNpc: NpcConfig = {
+  id: "sprout",
+  displayName: "Sprout",
+  emoji: "\u{1F331}",
+  description: "test npc",
+  agentType: "scripted_1",
+  games: ["spaces-game", "kings-cooking"],
+  personality: {
+    systemPrompt: "test",
+    greeting: "hiya",
+    winReaction: "yeah!",
+    loseReaction: "shucks",
+    gameInviteResponse: "ready!",
+    gameAcceptText: "let's go!",
+    kingsChessAcceptText: "King's Cooking!!",
+  },
+  appearance: { bodyColor: "#66BB6A" },
+};
+
+describe("buildKingsChessLaunchUrl", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    Object.defineProperty(window, "location", {
+      value: { origin: "https://townage.vercel.app", pathname: "/" },
+      writable: true,
+    });
+    vi.stubGlobal("crypto", { randomUUID: () => "kc-uuid-999" });
+  });
+
+  it("returns URL with #lot= hash", () => {
+    const url = buildKingsChessLaunchUrl(kcNpc);
+    expect(url).toMatch(/#lot=.+$/);
+  });
+
+  it("encodes kings-cooking payload correctly", () => {
+    const url = buildKingsChessLaunchUrl(kcNpc);
+    const compressed = url.split("#lot=")[1];
+    const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed)!);
+    expect(payload.npcId).toBe("sprout");
+    expect(payload.npcDisplayName).toBe("Sprout");
+    expect(payload.agentType).toBe("scripted_1");
+    expect(payload.returnUrl).toBe("https://townage.vercel.app/");
+    expect(payload.sessionId).toBe("kc-uuid-999");
+  });
+
+  it("uses default agentType when npc has none", () => {
+    const npcWithoutAgent: NpcConfig = { ...kcNpc, agentType: undefined };
+    const url = buildKingsChessLaunchUrl(npcWithoutAgent);
+    const compressed = url.split("#lot=")[1];
+    const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed)!);
+    expect(payload.agentType).toBe("scripted_1");
+  });
+
+  it("does not include spaces-game fields", () => {
+    const url = buildKingsChessLaunchUrl(kcNpc);
+    const compressed = url.split("#lot=")[1];
+    const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed)!);
+    expect(payload.opponentType).toBeUndefined();
+    expect(payload.skillLevel).toBeUndefined();
+    expect(payload.modelAssignments).toBeUndefined();
   });
 });
