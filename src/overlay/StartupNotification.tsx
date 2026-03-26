@@ -1,10 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getPreferences } from "../services/chat-storage";
 import { checkChatServerHealth } from "../services/haiku-npc";
 
-export function StartupNotification() {
+interface StartupNotificationProps {
+  onOpenSettings: () => void;
+}
+
+export function StartupNotification({ onOpenSettings }: StartupNotificationProps) {
   const [visible, setVisible] = useState(true);
   const [serverStatus, setServerStatus] = useState<"checking" | "ok" | "unavailable">("checking");
+  const ref = useRef<HTMLDivElement>(null);
 
   const prefs = getPreferences();
 
@@ -12,6 +17,18 @@ export function StartupNotification() {
     if (!prefs.optInShown) return;
     checkChatServerHealth().then((ok) => setServerStatus(ok ? "ok" : "unavailable"));
   }, []);
+
+  // Any click outside the notification closes it
+  useEffect(() => {
+    if (!visible) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setVisible(false);
+      }
+    };
+    window.addEventListener("mousedown", handler);
+    return () => window.removeEventListener("mousedown", handler);
+  }, [visible]);
 
   if (!visible || !prefs.optInShown) return null;
 
@@ -24,6 +41,7 @@ export function StartupNotification() {
 
   return (
     <div
+      ref={ref}
       style={{
         position: "fixed",
         top: 12,
@@ -43,9 +61,25 @@ export function StartupNotification() {
         whiteSpace: "nowrap",
       }}
     >
-      <span>chat: <strong style={{ color: "#ccc" }}>{chatMode}</strong></span>
-      <span style={{ color: "#444" }}>|</span>
-      <span style={{ color: serverColor }}>{serverLabel}</span>
+      <button
+        onClick={() => { setVisible(false); onOpenSettings(); }}
+        style={{
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          color: "inherit",
+          fontSize: "inherit",
+          fontFamily: "inherit",
+        }}
+      >
+        <span>chat: <strong style={{ color: "#ccc" }}>{chatMode}</strong></span>
+        <span style={{ color: "#444" }}>|</span>
+        <span style={{ color: serverColor }}>{serverLabel}</span>
+      </button>
       <button
         onClick={() => setVisible(false)}
         style={{
