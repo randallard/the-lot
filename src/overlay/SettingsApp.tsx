@@ -7,14 +7,14 @@ import {
 import { ChatInfoModal } from "./ChatInfoModal";
 import { EnthusiasmSettings } from "./EnthusiasmSettings";
 import { MoodResponsesModal } from "./MoodResponsesModal";
-
 interface SettingsAppProps {
   onClose: () => void;
+  onOpenBodyEditor?: () => void;
 }
 
-const SETTINGS_ITEMS = 5; // AI toggle, NPC Vibes, Check-in, Privacy, Clear
+const SETTINGS_ITEMS = 6; // AI toggle, NPC Vibes, Check-in, Privacy, Clear, Edit Appearance
 
-export function SettingsApp({ onClose }: SettingsAppProps) {
+export function SettingsApp({ onClose, onOpenBodyEditor }: SettingsAppProps) {
   const [prefs, setPrefs] = useState(getPreferences);
   const [showInfo, setShowInfo] = useState(false);
   const [showCleared, setShowCleared] = useState(false);
@@ -40,7 +40,8 @@ export function SettingsApp({ onClose }: SettingsAppProps) {
     () => setShowMoodResponses(true),
     () => setShowInfo(true),
     handleClear,
-  ], []);
+    () => onOpenBodyEditor?.(),
+  ], [onOpenBodyEditor]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -63,6 +64,7 @@ export function SettingsApp({ onClose }: SettingsAppProps) {
   if (showEnthusiasm) {
     return <EnthusiasmSettings onBack={() => setShowEnthusiasm(false)} />;
   }
+
 
   return (
     <div
@@ -283,6 +285,28 @@ export function SettingsApp({ onClose }: SettingsAppProps) {
         >
           {showCleared ? "Cleared!" : "Clear Chat History"}
         </p>
+      </button>
+
+      {/* Edit Appearance */}
+      <button
+        onClick={() => onOpenBodyEditor?.()}
+        style={{
+          background: selectedIdx === 5 ? "#2a2a4e" : "#1a1a2e",
+          border: selectedIdx === 5 ? "1px solid #6a4c93" : "1px solid #2a2a3e",
+          borderRadius: 12,
+          padding: "14px 16px",
+          textAlign: "left",
+          cursor: "pointer",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <p style={{ color: "#ccc", fontSize: 14, fontWeight: 600, margin: 0 }}>Edit Appearance</p>
+          <p style={{ color: "#666", fontSize: 11, margin: "2px 0 0" }}>shape your character</p>
+        </div>
+        <span style={{ color: "#666", fontSize: 14 }}>→</span>
       </button>
 
       {showInfo && (

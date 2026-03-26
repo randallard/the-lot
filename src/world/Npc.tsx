@@ -2,6 +2,13 @@ import { useRef, useState, useEffect } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { ScreenPos } from "./useScreenPosition";
+import {
+  type CharacterBodyShape,
+  NPC_DEFAULTS,
+  NPC_BODY_CENTER_Y,
+  computePositions,
+  handRotations,
+} from "../services/body-shapes";
 
 // NPC behavior: idle → walking-to-camp → sitting → sipping → getting-uke → playing-uke
 export type NpcBehavior =
@@ -20,13 +27,15 @@ interface NpcProps {
   talking: boolean;
   screenPos: React.RefObject<ScreenPos>;
   worldPosRef?: React.RefObject<THREE.Vector3 | null>;
+  bodyShape?: CharacterBodyShape;
 }
 
 const WALK_SPEED = 1.5;
 const SIP_INTERVAL = 4000;
 const UKE_DELAY = 12000;
 
-export function Npc({ position, playerPosition, onClick, relaxing, talking, screenPos, worldPosRef }: NpcProps) {
+export function Npc({ position, playerPosition, onClick, relaxing, talking, screenPos, worldPosRef, bodyShape }: NpcProps) {
+  const shape = bodyShape ?? NPC_DEFAULTS;
   const groupRef = useRef<THREE.Group>(null);
   const hovered = useRef(false);
   const [behavior, setBehavior] = useState<NpcBehavior>("idle");
@@ -188,19 +197,48 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
   const showCoffee = behavior === "sitting" || behavior === "sipping";
   const showUke = behavior === "playing-uke" && !walkTarget.current;
 
+  const npcColor = "#5a5a6e";
+  const { head, body, forearm, hand } = shape;
+  const pos = computePositions(shape, NPC_BODY_CENTER_Y);
+  const rot = handRotations(hand.open);
+
   return (
     <>
       <group ref={groupRef} position={position}>
         {/* Body */}
-        <mesh position={[0, 0.5, 0]} castShadow>
-          <capsuleGeometry args={[0.3, 0.3, 8, 16]} />
-          <meshStandardMaterial color="#5a5a6e" />
+        <mesh position={[0, NPC_BODY_CENTER_Y, 0]} castShadow>
+          <capsuleGeometry args={[body.radius, body.height, body.capSegments, body.radialSegments]} />
+          <meshStandardMaterial color={npcColor} />
         </mesh>
 
         {/* Head */}
-        <mesh position={[0, 1.05, 0]} castShadow>
-          <sphereGeometry args={[0.3, 12, 12]} />
-          <meshStandardMaterial color="#5a5a6e" />
+        <mesh position={[0, pos.headY, 0]} castShadow>
+          <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
+          <meshStandardMaterial color={npcColor} />
+        </mesh>
+
+        {/* Left forearm */}
+        <mesh position={[-pos.forearmX, pos.forearmCenterY, 0]} castShadow>
+          <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
+          <meshStandardMaterial color={npcColor} />
+        </mesh>
+
+        {/* Left hand */}
+        <mesh position={[-pos.forearmX, pos.handCenterY, 0]} scale={[1, hand.open.flattenY, 1]} rotation={rot.left} castShadow>
+          <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
+          <meshStandardMaterial color={npcColor} />
+        </mesh>
+
+        {/* Right forearm */}
+        <mesh position={[pos.forearmX, pos.forearmCenterY, 0]} castShadow>
+          <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
+          <meshStandardMaterial color={npcColor} />
+        </mesh>
+
+        {/* Right hand */}
+        <mesh position={[pos.forearmX, pos.handCenterY, 0]} scale={[1, hand.open.flattenY, 1]} rotation={rot.right} castShadow>
+          <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
+          <meshStandardMaterial color={npcColor} />
         </mesh>
 
         {/* Clickable hitbox */}

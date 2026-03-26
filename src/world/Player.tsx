@@ -2,6 +2,13 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { InputDirection } from "./useInputDirection";
+import {
+  type CharacterBodyShape,
+  PLAYER_DEFAULTS,
+  PLAYER_BODY_CENTER_Y,
+  computePositions,
+  handRotations,
+} from "../services/body-shapes";
 
 const SPEED = 5;
 const RUSH_ARRIVE_DISTANCE = 2;
@@ -18,30 +25,37 @@ interface PlayerProps {
   rushMode: React.RefObject<RushMode>;
   rushTarget: React.RefObject<THREE.Vector3 | null>;
   hidden?: boolean;
+  bodyShape?: CharacterBodyShape;
 }
 
-export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden }: PlayerProps) {
-  const meshRef = useRef<THREE.Mesh>(null);
+export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bodyShape }: PlayerProps) {
+  const shape = bodyShape ?? PLAYER_DEFAULTS;
+  const groupRef = useRef<THREE.Group>(null);
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
+  const headMatRef = useRef<THREE.MeshStandardMaterial>(null);
+  const armMatsRef = useRef<(THREE.MeshStandardMaterial | null)[]>([null, null, null, null]);
 
   useFrame((_, delta) => {
-    if (!meshRef.current) return;
+    if (!groupRef.current) return;
 
     const isRushing = rushMode.current !== 0 && rushTarget.current;
 
-    // Incorporeal while rushing
+    // Fade body, head + arms together while rushing
     if (matRef.current) {
       const targetOpacity = isRushing ? 0.3 : 1;
-      matRef.current.opacity += (targetOpacity - matRef.current.opacity) * 0.15;
-      matRef.current.transparent = matRef.current.opacity < 1;
+      for (const mat of [matRef.current, headMatRef.current, ...armMatsRef.current]) {
+        if (!mat) continue;
+        mat.opacity += (targetOpacity - mat.opacity) * 0.15;
+        mat.transparent = mat.opacity < 1;
+      }
     }
 
     if (isRushing) {
       const target = rushTarget.current!;
       const toTarget = new THREE.Vector3(
-        target.x - meshRef.current.position.x,
+        target.x - groupRef.current.position.x,
         0,
-        target.z - meshRef.current.position.z
+        target.z - groupRef.current.position.z
       );
       const dist = toTarget.length();
       const stopDist = rushMode.current === 2 ? RUSH_PICKUP_DISTANCE : RUSH_ARRIVE_DISTANCE;
@@ -51,28 +65,70 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden }: 
       } else {
         const dir = toTarget.normalize();
         const speed = Math.max(dist * RUSH_DECAY, RUSH_MIN_SPEED);
-        meshRef.current.position.addScaledVector(dir, speed * delta);
-        meshRef.current.rotation.y = Math.atan2(dir.x, dir.z);
+        groupRef.current.position.addScaledVector(dir, speed * delta);
+        groupRef.current.rotation.y = Math.atan2(dir.x, dir.z);
       }
     } else {
       const { x, z } = inputDir.current!;
 
       if (x !== 0 || z !== 0) {
         const direction = new THREE.Vector3(x, 0, z).normalize();
-        meshRef.current.position.addScaledVector(direction, SPEED * delta);
-        meshRef.current.rotation.y = Math.atan2(direction.x, direction.z);
+        groupRef.current.position.addScaledVector(direction, SPEED * delta);
+        groupRef.current.rotation.y = Math.atan2(direction.x, direction.z);
       }
     }
 
     if (positionRef.current) {
-      positionRef.current.copy(meshRef.current.position);
+      positionRef.current.copy(groupRef.current.position);
     }
   });
 
+  const { head, body, forearm, hand } = shape;
+  const pos = computePositions(shape, PLAYER_BODY_CENTER_Y);
+  const rot = handRotations(hand.open);
+  const COLOR = "#444444";
+
   return (
-    <mesh ref={meshRef} position={[positionRef.current?.x ?? 0, positionRef.current?.y ?? 0.75, positionRef.current?.z ?? 0]} castShadow visible={!hidden}>
-      <capsuleGeometry args={[0.3, 0.8, 8, 16]} />
-      <meshStandardMaterial ref={matRef} color="#444444" transparent />
-    </mesh>
+    <group
+      ref={groupRef}
+      position={[positionRef.current?.x ?? 0, positionRef.current?.y ?? 0.75, positionRef.current?.z ?? 0]}
+      visible={!hidden}
+    >
+      {/* Body */}
+      <mesh castShadow>
+        <capsuleGeometry args={[body.radius, body.height, body.capSegments, body.radialSegments]} />
+        <meshStandardMaterial ref={matRef} color={COLOR} transparent />
+      </mesh>
+
+      {/* Head */}
+      <mesh position={[0, pos.headY, 0]} castShadow>
+        <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
+        <meshStandardMaterial ref={headMatRef} color={COLOR} transparent />
+      </mesh>
+
+      {/* Left forearm */}
+      <mesh position={[-pos.forearmX, pos.forearmCenterY, 0]} castShadow>
+        <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
+        <meshStandardMaterial ref={el => { armMatsRef.current[0] = el; }} color={COLOR} transparent />
+      </mesh>
+
+      {/* Left hand — Y and Z mirrored for natural symmetry */}
+      <mesh position={[-pos.forearmX, pos.handCenterY, 0]} scale={[1, hand.open.flattenY, 1]} rotation={rot.left} castShadow>
+        <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
+        <meshStandardMaterial ref={el => { armMatsRef.current[1] = el; }} color={COLOR} transparent />
+      </mesh>
+
+      {/* Right forearm */}
+      <mesh position={[pos.forearmX, pos.forearmCenterY, 0]} castShadow>
+        <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
+        <meshStandardMaterial ref={el => { armMatsRef.current[2] = el; }} color={COLOR} transparent />
+      </mesh>
+
+      {/* Right hand */}
+      <mesh position={[pos.forearmX, pos.handCenterY, 0]} scale={[1, hand.open.flattenY, 1]} rotation={rot.right} castShadow>
+        <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
+        <meshStandardMaterial ref={el => { armMatsRef.current[3] = el; }} color={COLOR} transparent />
+      </mesh>
+    </group>
   );
 }

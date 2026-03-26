@@ -38,6 +38,11 @@ import { hasSeenIntro, markIntroSeen } from "./services/npc-intro-seen";
 import { nudgeFriendliness, NUDGE_GAME_PLAYED, NUDGE_CHAT } from "./services/npc-friendliness";
 import { needsMoodCheck } from "./services/enthusiasm";
 import {
+  type CharacterBodyShape,
+  getBodyShape,
+} from "./services/body-shapes";
+import { BodyEditorModal } from "./overlay/BodyEditorModal";
+import {
   getChats,
   addMessage,
   genMessageId,
@@ -86,6 +91,17 @@ export default function App() {
   const [gameAcceptText, setGameAcceptText] = useState<string | null>(null);
   const postGameChat = useRef(false);
   const [unreadCount, setUnreadCount] = useState(() => getTotalUnreadCount());
+  const [bodyShapes, setBodyShapes] = useState<Record<string, CharacterBodyShape>>(() => ({
+    player: getBodyShape("player"),
+    myco: getBodyShape("myco"),
+    ember: getBodyShape("ember"),
+    ryan: getBodyShape("ryan"),
+    sprout: getBodyShape("sprout"),
+  }));
+  const handleShapeChange = useCallback((id: string, shape: CharacterBodyShape) => {
+    setBodyShapes(prev => ({ ...prev, [id]: shape }));
+  }, []);
+  const [bodyEditorSubject, setBodyEditorSubject] = useState<string | null>(null);
   // NPC sleep state — re-checked after each chat send
   const [sleepVersion, setSleepVersion] = useState(0);
   const mycoAsleep = isAsleep("myco");
@@ -811,6 +827,7 @@ export default function App() {
           partsCollected={game.state.partsCollected}
           initialPlayerPos={savedPlayerPos}
           playerWorldPos={playerWorldPos}
+          bodyShapes={bodyShapes}
         />
       </Canvas>
 
@@ -977,11 +994,11 @@ export default function App() {
               speakerScreenPos={playerScreenPos}
               defaultIndex={1}
               choices={[
-                ...(inviteNpc?.games?.includes("spaces-game") !== false ? [{
+                ...(inviteNpc?.games?.["spaces-game"] !== undefined || !inviteNpc?.games ? [{
                   label: "Spaces Game",
                   action: () => game.setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "spaces-game" as const }),
                 }] : []),
-                ...(inviteNpc?.games?.includes("kings-cooking") ? [{
+                ...(inviteNpc?.games?.["kings-cooking"] ? [{
                   label: "King's Cooking",
                   action: () => game.setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "kings-cooking" as const }),
                 }] : []),
@@ -1088,6 +1105,7 @@ export default function App() {
               setFindTargetNpcId(phase.npcId);
               game.clearOverride();
             }}
+            onOpenBodyEditor={() => setBodyEditorSubject(phase.npcId)}
           />
         </PhoneOverlay>
       )}
@@ -1105,7 +1123,7 @@ export default function App() {
       {/* Settings app */}
       {phase.type === "settings-app" && (
         <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
-          <SettingsApp onClose={() => game.clearOverride()} />
+          <SettingsApp onClose={() => game.clearOverride()} onOpenBodyEditor={() => setBodyEditorSubject("player")} />
         </PhoneOverlay>
       )}
 
@@ -1263,6 +1281,15 @@ export default function App() {
           onClose={() => setPocketOpen(false)}
           inventory={inventory}
           onPhoneClick={undefined}
+        />
+      )}
+
+      {/* Body editor — full-screen modal, above everything */}
+      {bodyEditorSubject !== null && (
+        <BodyEditorModal
+          subjectId={bodyEditorSubject}
+          onClose={() => setBodyEditorSubject(null)}
+          onShapeChange={handleShapeChange}
         />
       )}
 

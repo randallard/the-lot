@@ -8,7 +8,7 @@ export interface LotLaunchData {
   npcDisplayName: string;
   opponentType: "ai-agent";
   skillLevel: string;
-  modelAssignments: Record<string, { modelId: string; label: string }>;
+  modelAssignments?: Record<string, { modelId: string; label: string }>;
   returnUrl: string;
 }
 

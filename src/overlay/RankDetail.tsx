@@ -14,6 +14,7 @@ interface RankDetailProps {
   npcId: string;
   onBack: () => void;
   onFind?: () => void;
+  onOpenBodyEditor?: () => void;
 }
 
 const RANK_COLORS: Record<string, { bg: string; fg: string }> = {
@@ -51,7 +52,7 @@ function WLT({ wins, losses, ties }: { wins: number; losses: number; ties: numbe
   );
 }
 
-export function RankDetail({ npcId, onBack, onFind }: RankDetailProps) {
+export function RankDetail({ npcId, onBack, onFind, onOpenBodyEditor }: RankDetailProps) {
   const npc = getNpcById(npcId);
   const [showUnplayed, setShowUnplayed] = useState(false);
 
@@ -92,6 +93,20 @@ export function RankDetail({ npcId, onBack, onFind }: RankDetailProps) {
         <span style={{ color: "#ccc", fontSize: 14, fontWeight: 600, flex: 1 }}>
           {npc?.displayName ?? npcId}
         </span>
+        <button
+          onClick={() => onOpenBodyEditor?.()}
+          style={{
+            background: "transparent",
+            border: "1px solid #333",
+            color: "#888",
+            fontSize: 11,
+            borderRadius: 8,
+            padding: "4px 10px",
+            cursor: "pointer",
+          }}
+        >
+          appearance
+        </button>
         {onFind && (
           <button
             onClick={onFind}

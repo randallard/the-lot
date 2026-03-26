@@ -1,6 +1,8 @@
+import type { NpcConfig } from "../config/npcs";
+
 interface GameSelectProps {
   npcName: string;
-  games?: ("spaces-game" | "kings-cooking")[];
+  games?: NpcConfig["games"];
   onSelect: (game: string) => void;
   onBack: () => void;
 }
@@ -18,8 +20,8 @@ const gameCardStyle: React.CSSProperties = {
 };
 
 export function GameSelect({ npcName, games, onSelect, onBack }: GameSelectProps) {
-  const showSpaces = !games || games.includes("spaces-game");
-  const showKingsChess = games?.includes("kings-cooking") ?? false;
+  const showSpaces = !games || !!games["spaces-game"];
+  const showKingsChess = !!games?.["kings-cooking"];
 
   return (
     <div

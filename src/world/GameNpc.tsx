@@ -2,6 +2,13 @@ import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { ScreenPos } from "./useScreenPosition";
+import {
+  type CharacterBodyShape,
+  NPC_DEFAULTS,
+  NPC_BODY_CENTER_Y,
+  computePositions,
+  handRotations,
+} from "../services/body-shapes";
 
 interface GameNpcProps {
   position: [number, number, number];
@@ -11,6 +18,7 @@ interface GameNpcProps {
   screenPos: React.RefObject<ScreenPos>;
   worldPosRef?: React.RefObject<THREE.Vector3 | null>;
   asleep?: boolean;
+  bodyShape?: CharacterBodyShape;
 }
 
 // Z bubble state
@@ -38,7 +46,9 @@ export function GameNpc({
   screenPos,
   worldPosRef,
   asleep,
+  bodyShape,
 }: GameNpcProps) {
+  const shape = bodyShape ?? NPC_DEFAULTS;
   const groupRef = useRef<THREE.Group>(null);
   const hovered = useRef(false);
   const { camera } = useThree();
@@ -144,17 +154,50 @@ export function GameNpc({
         </>
       ) : (
         <>
-          {/* Body */}
-          <mesh position={[0, 0.5, 0]} castShadow>
-            <capsuleGeometry args={[0.3, 0.3, 8, 16]} />
-            <meshStandardMaterial color={bodyColor} />
-          </mesh>
+          {(() => {
+            const { head, body, forearm, hand } = shape;
+            const pos = computePositions(shape, NPC_BODY_CENTER_Y);
+            const rot = handRotations(hand.open);
+            return (
+              <>
+                {/* Body */}
+                <mesh position={[0, NPC_BODY_CENTER_Y, 0]} castShadow>
+                  <capsuleGeometry args={[body.radius, body.height, body.capSegments, body.radialSegments]} />
+                  <meshStandardMaterial color={bodyColor} />
+                </mesh>
 
-          {/* Head */}
-          <mesh position={[0, 1.05, 0]} castShadow>
-            <sphereGeometry args={[0.3, 12, 12]} />
-            <meshStandardMaterial color={bodyColor} />
-          </mesh>
+                {/* Head */}
+                <mesh position={[0, pos.headY, 0]} castShadow>
+                  <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
+                  <meshStandardMaterial color={bodyColor} />
+                </mesh>
+
+                {/* Left forearm */}
+                <mesh position={[-pos.forearmX, pos.forearmCenterY, 0]} castShadow>
+                  <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
+                  <meshStandardMaterial color={bodyColor} />
+                </mesh>
+
+                {/* Left hand */}
+                <mesh position={[-pos.forearmX, pos.handCenterY, 0]} scale={[1, hand.open.flattenY, 1]} rotation={rot.left} castShadow>
+                  <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
+                  <meshStandardMaterial color={bodyColor} />
+                </mesh>
+
+                {/* Right forearm */}
+                <mesh position={[pos.forearmX, pos.forearmCenterY, 0]} castShadow>
+                  <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
+                  <meshStandardMaterial color={bodyColor} />
+                </mesh>
+
+                {/* Right hand */}
+                <mesh position={[pos.forearmX, pos.handCenterY, 0]} scale={[1, hand.open.flattenY, 1]} rotation={rot.right} castShadow>
+                  <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
+                  <meshStandardMaterial color={bodyColor} />
+                </mesh>
+              </>
+            );
+          })()}
         </>
       )}
 

@@ -10,6 +10,7 @@ import { GameNpc } from "./GameNpc";
 import { useTrinketTracker, type TrinketTrackerState } from "./useTrinketTracker";
 import type { RushMode } from "./Player";
 import type { ScreenPos } from "./useScreenPosition";
+import type { CharacterBodyShape } from "../services/body-shapes";
 
 const SPAWN_DELAY = 6000;
 const PART1_POS = new THREE.Vector3(3, 0.08, -7);
@@ -60,9 +61,10 @@ interface WorldProps {
   partsCollected: 0 | 1 | 2;
   initialPlayerPos?: { x: number; z: number } | null;
   playerWorldPos?: React.RefObject<{ x: number; z: number } | null>;
+  bodyShapes?: Record<string, CharacterBodyShape>;
 }
 
-export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, showGameNpcs, onMycoClick, onEmberClick, onSproutClick, mycoScreenPos, emberScreenPos, sproutScreenPos, mycoAsleep, emberAsleep, sproutAsleep, findTargetNpcId, npcTalking, partsCollected, initialPlayerPos, playerWorldPos }: WorldProps) {
+export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, showGameNpcs, onMycoClick, onEmberClick, onSproutClick, mycoScreenPos, emberScreenPos, sproutScreenPos, mycoAsleep, emberAsleep, sproutAsleep, findTargetNpcId, npcTalking, partsCollected, initialPlayerPos, playerWorldPos, bodyShapes }: WorldProps) {
   const playerPos = useRef(new THREE.Vector3(
     initialPlayerPos?.x ?? 0,
     0.75,
@@ -257,7 +259,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
 
       <CameraRig target={playerPos} offset={cameraOffset} lookAtOffset={cameraLookAtOffset} />
       <Ground />
-      <Player positionRef={playerPos} inputDir={inputDir} rushMode={rushMode} rushTarget={rushTarget} hidden={hidePlayer} />
+      <Player positionRef={playerPos} inputDir={inputDir} rushMode={rushMode} rushTarget={rushTarget} hidden={hidePlayer} bodyShape={bodyShapes?.["player"]} />
       {part1Spawned && !part1Collected && (
         <BotParts
           position={[PART1_POS.x, PART1_POS.y, PART1_POS.z]}
@@ -284,6 +286,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
           talking={npcTalking}
           screenPos={npcScreenPos}
           worldPosRef={npcWorldPos}
+          bodyShape={bodyShapes?.["ryan"]}
         />
       )}
 
@@ -298,6 +301,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
             screenPos={mycoScreenPos}
             worldPosRef={mycoWorldPos}
             asleep={mycoAsleep}
+            bodyShape={bodyShapes?.["myco"]}
           />
           <GameNpc
             position={EMBER_POS}
@@ -307,6 +311,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
             screenPos={emberScreenPos}
             worldPosRef={emberWorldPos}
             asleep={emberAsleep}
+            bodyShape={bodyShapes?.["ember"]}
           />
           <GameNpc
             position={SPROUT_POS}
@@ -316,6 +321,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
             screenPos={sproutScreenPos}
             worldPosRef={sproutWorldPos}
             asleep={sproutAsleep}
+            bodyShape={bodyShapes?.["sprout"]}
           />
         </>
       )}
