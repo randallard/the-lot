@@ -20,18 +20,18 @@ describe("NPC_CONFIGS", () => {
     }
   });
 
-  it("game NPCs have opponent config", () => {
-    const gameNpcs = NPC_CONFIGS.filter((n) => n.opponentType);
-    expect(gameNpcs.length).toBeGreaterThanOrEqual(2);
-    for (const npc of gameNpcs) {
-      expect(npc.skillLevel).toBeTruthy();
+  it("all NPCs have spaces-game config", () => {
+    for (const npc of NPC_CONFIGS) {
+      const sg = npc.games?.["spaces-game"];
+      expect(sg).toBeDefined();
+      expect(sg!.opponentType).toBe("ai-agent");
+      expect(sg!.skillLevel).toBeTruthy();
     }
   });
 
-  it("all NPCs have opponent config", () => {
+  it("all NPCs have kings-cooking config", () => {
     for (const npc of NPC_CONFIGS) {
-      expect(npc.opponentType).toBe("ai-agent");
-      expect(npc.skillLevel).toBeTruthy();
+      expect(npc.games?.["kings-cooking"]).toBeDefined();
     }
   });
 });

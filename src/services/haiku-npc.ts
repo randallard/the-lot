@@ -43,7 +43,7 @@ function buildSystemPrompt(npc: NpcConfig): string {
     friendlinessContext = " You and the player are close. Real warmth, maybe a callback to something you've talked about. The kind of vibe where you don't need to fill silence.";
   }
 
-  const gameKnowledge = getGameKnowledge(npc.id, npc.skillLevel);
+  const gameKnowledge = getGameKnowledge(npc.id, npc.games?.["spaces-game"]?.skillLevel);
   return npc.personality.systemPrompt + gameKnowledge + enthusiasm + friendlinessContext;
 }
 

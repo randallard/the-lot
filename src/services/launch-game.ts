@@ -36,13 +36,14 @@ export function buildLaunchUrl(npc: NpcConfig): string {
 
   const returnUrl = window.location.origin + window.location.pathname;
 
+  const sg = npc.games?.["spaces-game"]!;
   const payload: LotLaunchData = {
     sessionId,
     npcId: npc.id,
     npcDisplayName: npc.displayName,
-    opponentType: npc.opponentType!,
-    skillLevel: npc.skillLevel!,
-    modelAssignments: npc.modelAssignments!,
+    opponentType: sg.opponentType,
+    skillLevel: sg.skillLevel,
+    modelAssignments: sg.modelAssignments,
     returnUrl,
   };
 
@@ -62,7 +63,7 @@ export interface KingsChessLotLaunchData {
   sessionId: string;
   npcId: string;
   npcDisplayName: string;
-  agentType: "scripted_1";
+  agentType: "scripted_1" | "scripted_2";
   returnUrl: string;
 }
 
@@ -74,7 +75,7 @@ export function buildKingsChessLaunchUrl(npc: NpcConfig): string {
     sessionId,
     npcId: npc.id,
     npcDisplayName: npc.displayName,
-    agentType: npc.agentType ?? "scripted_1",
+    agentType: npc.games?.["kings-cooking"]?.agentType ?? "scripted_1",
     returnUrl,
   };
 

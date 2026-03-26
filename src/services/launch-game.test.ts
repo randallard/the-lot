@@ -9,8 +9,12 @@ const mockNpc: NpcConfig = {
   displayName: "Myco",
   emoji: "\u{1F344}",
   description: "test npc",
-  opponentType: "ai-agent",
-  skillLevel: "scripted_5",
+  games: {
+    "spaces-game": {
+      opponentType: "ai-agent",
+      skillLevel: "scripted_5",
+    },
+  },
   personality: {
     systemPrompt: "test",
     greeting: "hi",
@@ -100,8 +104,9 @@ const kcNpc: NpcConfig = {
   displayName: "Sprout",
   emoji: "\u{1F331}",
   description: "test npc",
-  agentType: "scripted_1",
-  games: ["spaces-game", "kings-cooking"],
+  games: {
+    "kings-cooking": { agentType: "scripted_1" },
+  },
   personality: {
     systemPrompt: "test",
     greeting: "hiya",
@@ -140,9 +145,9 @@ describe("buildKingsChessLaunchUrl", () => {
     expect(payload.sessionId).toBe("kc-uuid-999");
   });
 
-  it("uses default agentType when npc has none", () => {
-    const npcWithoutAgent: NpcConfig = { ...kcNpc, agentType: undefined };
-    const url = buildKingsChessLaunchUrl(npcWithoutAgent);
+  it("uses default agentType when npc has no kings-cooking config", () => {
+    const npcWithoutKC: NpcConfig = { ...kcNpc, games: {} };
+    const url = buildKingsChessLaunchUrl(npcWithoutKC);
     const compressed = url.split("#lot=")[1];
     const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed)!);
     expect(payload.agentType).toBe("scripted_1");

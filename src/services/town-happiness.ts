@@ -14,7 +14,7 @@ import { getRecord } from "./npc-records";
 
 /** 0-4 happiness score. */
 export function getTownHappiness(): number {
-  const gameNpcs = NPC_CONFIGS.filter((n) => n.opponentType);
+  const gameNpcs = NPC_CONFIGS.filter((n) => n.games?.["spaces-game"]);
   if (gameNpcs.length === 0) return 2;
 
   // 1. Average friendliness (0 to 4)

@@ -14,7 +14,7 @@ const FRIENDLINESS_LABELS = ["cold", "neutral", "warming up", "friendly", "good 
 export function TownReport({ onBack, onShowRank }: TownReportProps) {
   const happiness = getTownHappiness();
   const emoji = getHappinessEmoji(happiness);
-  const gameNpcs = NPC_CONFIGS.filter((n) => n.opponentType);
+  const gameNpcs = NPC_CONFIGS.filter((n) => n.games?.["spaces-game"]);
 
   return (
     <div

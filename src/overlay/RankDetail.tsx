@@ -61,7 +61,7 @@ export function RankDetail({ npcId, onBack, onFind }: RankDetailProps) {
   const sgRecord = getRecord(npcId);
   const kcRecord = getKingsChessRecord(npcId);
 
-  const hasKC = npc?.games?.includes("kings-cooking");
+  const hasKC = !!npc?.games?.["kings-cooking"];
 
   return (
     <div
