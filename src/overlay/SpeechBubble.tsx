@@ -3,7 +3,8 @@ import type { ScreenPos } from "../world/useScreenPosition";
 import { loadBubbleOffset, saveBubbleOffset } from "./bubble-offset";
 
 interface SpeechBubbleProps {
-  text: string;
+  text?: string;
+  loading?: boolean;
   onDismiss: () => void;
   delay?: number;
   autoClose?: number; // Auto-dismiss after this many ms (no click-to-dismiss)
@@ -11,8 +12,35 @@ interface SpeechBubbleProps {
   speakerScreenPos?: React.RefObject<ScreenPos>; // Screen position of speaker
 }
 
+function TypingDots({ dark }: { dark?: boolean }) {
+  return (
+    <>
+      <style>{`
+        .sb-dots { display: inline-flex; align-items: center; gap: 4px; height: 1em; }
+        .sb-dot {
+          width: 7px; height: 7px; border-radius: 50%;
+          animation: sb-bounce 1s ease-in-out infinite;
+        }
+        .sb-dot:nth-child(2) { animation-delay: 0.15s; }
+        .sb-dot:nth-child(3) { animation-delay: 0.30s; }
+        @keyframes sb-bounce {
+          0%, 100% { transform: translateY(0); opacity: 0.35; }
+          10% { transform: translateY(-6px); opacity: 1; }
+          20% { transform: translateY(0); opacity: 0.35; }
+        }
+      `}</style>
+      <span className="sb-dots">
+        <span className="sb-dot" style={{ background: dark ? "#555" : "#bbb" }} />
+        <span className="sb-dot" style={{ background: dark ? "#555" : "#bbb" }} />
+        <span className="sb-dot" style={{ background: dark ? "#555" : "#bbb" }} />
+      </span>
+    </>
+  );
+}
+
 export function SpeechBubble({
   text,
+  loading,
   onDismiss,
   delay = 0,
   autoClose,
@@ -274,7 +302,7 @@ export function SpeechBubble({
             borderLeft: "10px solid transparent", borderRight: "10px solid transparent",
             borderBottom: "15px solid #fff",
           }} />
-          <p style={{ color: "#222", fontSize: 14, lineHeight: 1.4, textAlign: "center" }}>{text}</p>
+          {loading ? <TypingDots dark /> : <p style={{ color: "#222", fontSize: 14, lineHeight: 1.4, textAlign: "center" }}>{text}</p>}
         </div>
       );
     }
@@ -307,7 +335,7 @@ export function SpeechBubble({
           borderTop: "10px solid transparent", borderBottom: "10px solid transparent",
           borderRight: "15px solid #fff",
         }} />
-        <p style={{ color: "#222", fontSize: 16, lineHeight: 1.5 }}>{text}</p>
+        {loading ? <TypingDots dark /> : <p style={{ color: "#222", fontSize: 16, lineHeight: 1.5 }}>{text}</p>}
       </div>
     );
   }
@@ -323,7 +351,7 @@ export function SpeechBubble({
         left: bubblePos.left,
         top: bubblePos.top,
         maxWidth: 320,
-        padding: "18px 28px",
+        padding: loading ? "14px 20px" : "18px 28px",
         background: "#fff",
         border: "3px solid #222",
         borderRadius: 20,
@@ -337,7 +365,7 @@ export function SpeechBubble({
     >
       <div style={tailStyle} />
       <div style={tailInnerStyle} />
-      <p style={{ color: "#222", fontSize: 16, lineHeight: 1.5 }}>{text}</p>
+      {loading ? <TypingDots dark /> : <p style={{ color: "#222", fontSize: 16, lineHeight: 1.5 }}>{text}</p>}
     </div>
   );
 }

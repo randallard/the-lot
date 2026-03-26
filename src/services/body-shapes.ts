@@ -238,6 +238,7 @@ function migrate(raw: unknown, id: string): CharacterBodyShape {
       widthSegments:  (rawHand?.widthSegments as number)  ?? defaults.hand.open.widthSegments,
       heightSegments: (rawHand?.heightSegments as number) ?? defaults.hand.open.heightSegments,
       rotation:       [0, 0, 0],
+      handForearmGap: defaults.hand.open.handForearmGap,
     };
     hand = { open: legacyOpen, closed: JSON.parse(JSON.stringify(defaults.hand.closed)) };
   } else {

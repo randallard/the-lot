@@ -1159,7 +1159,7 @@ export default function App() {
       {/* NPC typing indicator */}
       {chatLoading && chatRespondingNpcId && (
         <SpeechBubble
-          text="..."
+          loading
           onDismiss={() => {}}
           speakerScreenPos={
             chatRespondingNpcId === "myco" ? mycoScreenPos :

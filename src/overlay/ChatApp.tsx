@@ -640,17 +640,18 @@ function ConversationView({
           height: 1em;
         }
         .typing-dot {
-          width: 6px;
-          height: 6px;
+          width: 7px;
+          height: 7px;
           border-radius: 50%;
           background: #888;
-          animation: typing-bounce 1.4s ease-in-out infinite;
+          animation: typing-bounce 1s ease-in-out infinite;
         }
-        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.30s; }
         @keyframes typing-bounce {
-          0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-          30% { transform: translateY(-4px); opacity: 1; }
+          0%, 100% { transform: translateY(0); opacity: 0.35; }
+          10% { transform: translateY(-6px); opacity: 1; }
+          20% { transform: translateY(0); opacity: 0.35; }
         }
       `}</style>
     </div>

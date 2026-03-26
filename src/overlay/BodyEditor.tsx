@@ -152,14 +152,12 @@ function patchHandRotation(
 
 function HandPoseSliders({
   pose,
-  label,
   poseLabel,
   handPose,
   shape,
   onChange,
 }: {
   pose: "open" | "closed";
-  label: string;
   poseLabel: string;
   handPose: HandPose;
   shape: CharacterBodyShape;
@@ -234,7 +232,6 @@ export function BodyEditor({ shape, onChange, openSections, onToggleSection }: B
           <>
             <HandPoseSliders
               pose="open"
-              label="open"
               poseLabel="open (resting)"
               handPose={shape.hand.open}
               shape={shape}
@@ -242,7 +239,6 @@ export function BodyEditor({ shape, onChange, openSections, onToggleSection }: B
             />
             <HandPoseSliders
               pose="closed"
-              label="closed"
               poseLabel="closed (fist — stored for animations)"
               handPose={shape.hand.closed}
               shape={shape}
