@@ -8,7 +8,9 @@ import {
   NPC_BODY_CENTER_Y,
   computePositions,
   handRotations,
+  deg2rad,
 } from "../services/body-shapes";
+import { Eyes } from "./Eyes";
 
 interface GameNpcProps {
   position: [number, number, number];
@@ -40,7 +42,7 @@ function makeZBubbles(): ZBubble[] {
 
 export function GameNpc({
   position,
-  bodyColor,
+  bodyColor: _bodyColor,
   playerPosition,
   onClick,
   screenPos,
@@ -102,6 +104,8 @@ export function GameNpc({
     }
   });
 
+  const color = shape.bodyColor;
+
   return (
     <group ref={groupRef} position={position}>
       {asleep ? (
@@ -127,13 +131,13 @@ export function GameNpc({
           {/* Blanket (NPC's color) */}
           <mesh position={[0, 0.26, 0.1]} castShadow>
             <boxGeometry args={[0.7, 0.05, 0.8]} />
-            <meshStandardMaterial color={bodyColor} />
+            <meshStandardMaterial color={color} />
           </mesh>
 
           {/* Head peeking out */}
           <mesh position={[0, 0.35, -0.3]} castShadow>
             <sphereGeometry args={[0.18, 10, 10]} />
-            <meshStandardMaterial color={bodyColor} />
+            <meshStandardMaterial color={color} />
           </mesh>
 
           {/* Z bubbles */}
@@ -163,37 +167,38 @@ export function GameNpc({
                 {/* Body */}
                 <mesh position={[0, NPC_BODY_CENTER_Y, 0]} castShadow>
                   <capsuleGeometry args={[body.radius, body.height, body.capSegments, body.radialSegments]} />
-                  <meshStandardMaterial color={bodyColor} />
+                  <meshStandardMaterial color={color} />
                 </mesh>
 
                 {/* Head */}
-                <mesh position={[0, pos.headY, 0]} castShadow>
+                <mesh position={[0, pos.headY, 0]} rotation={[deg2rad(head.rotation[0]), deg2rad(head.rotation[1]), deg2rad(head.rotation[2])]} castShadow>
                   <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
-                  <meshStandardMaterial color={bodyColor} />
+                  <meshStandardMaterial color={color} />
                 </mesh>
+                <Eyes eyes={shape.eyes} headY={pos.headY} headRadius={head.radius} />
 
                 {/* Left forearm */}
                 <mesh position={[-pos.forearmX, pos.forearmCenterY, 0]} castShadow>
                   <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
-                  <meshStandardMaterial color={bodyColor} />
+                  <meshStandardMaterial color={color} />
                 </mesh>
 
                 {/* Left hand */}
-                <mesh position={[-pos.forearmX, pos.handCenterY, 0]} scale={[1, hand.open.flattenY, 1]} rotation={rot.left} castShadow>
+                <mesh position={[-pos.forearmX, pos.handCenterY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.left} castShadow>
                   <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
-                  <meshStandardMaterial color={bodyColor} />
+                  <meshStandardMaterial color={color} />
                 </mesh>
 
                 {/* Right forearm */}
                 <mesh position={[pos.forearmX, pos.forearmCenterY, 0]} castShadow>
                   <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
-                  <meshStandardMaterial color={bodyColor} />
+                  <meshStandardMaterial color={color} />
                 </mesh>
 
                 {/* Right hand */}
-                <mesh position={[pos.forearmX, pos.handCenterY, 0]} scale={[1, hand.open.flattenY, 1]} rotation={rot.right} castShadow>
+                <mesh position={[pos.forearmX, pos.handCenterY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.right} castShadow>
                   <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
-                  <meshStandardMaterial color={bodyColor} />
+                  <meshStandardMaterial color={color} />
                 </mesh>
               </>
             );

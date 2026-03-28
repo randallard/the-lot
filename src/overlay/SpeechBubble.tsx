@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ScreenPos } from "../world/useScreenPosition";
 import { loadBubbleOffset, saveBubbleOffset } from "./bubble-offset";
+import { allocBubbleId, registerBubble, unregisterBubble, avoidOverlaps, computeTailStyles } from "./bubble-registry";
 
 interface SpeechBubbleProps {
   text?: string;
@@ -53,6 +54,7 @@ export function SpeechBubble({
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [tailStyle, setTailStyle] = useState<React.CSSProperties>({});
   const [tailInnerStyle, setTailInnerStyle] = useState<React.CSSProperties>({});
+  const myId = useRef(allocBubbleId());
   const [bubblePos, setBubblePos] = useState<{ left: string; top: string }>({
     left: "24px",
     top: "30%",
@@ -219,50 +221,36 @@ export function SpeechBubble({
       const bx = baseX + savedCharHOffset.current.x * charH;
       const by = baseY + savedCharHOffset.current.y * charH;
 
-      lastCalcPos.current = { x: bx, y: by };
+      // Avoid overlapping other bubbles
+      const { x: finalBx, y: finalBy } = avoidOverlaps(myId.current, bx, by, bw, bh);
+      registerBubble(myId.current, { x: finalBx, y: finalBy, w: bw, h: bh });
+      lastCalcPos.current = { x: finalBx, y: finalBy };
 
       // Don't override position while dragging
       if (!dragging.current) {
         setBubblePos({
-          left: `${bx}px`,
-          top: `${by}px`,
+          left: `${finalBx}px`,
+          top: `${finalBy}px`,
         });
       }
       setPositioned(true);
 
-      // Tail points toward the speaker from the bubble
+      // Angled tail toward speaker
       const updatedRect = bubbleRef.current.getBoundingClientRect();
       const bubbleCenterX = updatedRect.left + updatedRect.width / 2;
-
-      // Tail comes from bottom of bubble, pointing toward speaker
       const dx = speakerX - bubbleCenterX;
       const tailLeftPx = Math.max(20, Math.min(updatedRect.width - 40, updatedRect.width / 2 + dx * 0.5));
-
-      setTailStyle({
-        position: "absolute",
-        bottom: -18,
-        left: tailLeftPx,
-        width: 0,
-        height: 0,
-        borderLeft: "12px solid transparent",
-        borderRight: "12px solid transparent",
-        borderTop: "18px solid #222",
-      });
-      setTailInnerStyle({
-        position: "absolute",
-        bottom: -13,
-        left: tailLeftPx + 2,
-        width: 0,
-        height: 0,
-        borderLeft: "10px solid transparent",
-        borderRight: "10px solid transparent",
-        borderTop: "15px solid #fff",
-      });
+      const { outer, inner } = computeTailStyles(tailLeftPx, dx, updatedRect.width);
+      setTailStyle(outer);
+      setTailInnerStyle(inner);
 
       raf = requestAnimationFrame(update);
     };
     raf = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      unregisterBubble(myId.current);
+    };
   }, [inModal, speakerScreenPos, visible]);
 
   if (!visible) return null;

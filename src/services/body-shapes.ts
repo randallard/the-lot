@@ -3,12 +3,25 @@
  * Stores per-part geometry args and positional layout params.
  */
 
+import {
+  type CharacterEyes,
+  PLAYER_EYE_DEFAULTS,
+  NPC_EYE_DEFAULTS,
+  migrateEyes,
+  complementaryColor,
+} from "./eye-shapes";
+import { getNpcById } from "../config/npcs";
+
+export type { CharacterEyes };
+
 const STORAGE_KEY = "townage-body-shapes";
 
 export interface HeadShape {
   radius: number;
   widthSegments: number;
   heightSegments: number;
+  /** Euler rotation in degrees [x, y, z] — useful for aligning low-poly segment faces */
+  rotation: [number, number, number];
 }
 
 export interface BodyShape {
@@ -33,15 +46,16 @@ export interface ForearmShape {
  */
 export interface HandPose {
   radius: number;
-  /** Y scale — 1.0 = sphere, 0.1 = very flat disc */
-  flattenY: number;
+  /** Z scale — 1.0 = sphere, 0.1 = very thin disc (flat of hand faces forward, parallel to body) */
+  flattenZ: number;
   widthSegments: number;
   heightSegments: number;
-  /** Euler rotation in degrees [x, y, z].
+  /** Euler rotation in degrees [x, y, z] — pivot is at the palm base (top of hand).
+   *  x = flapper fwd/back, y = wrist-to-fingertip twist, z = lateral flapper.
    *  Right hand uses these directly.
    *  Left hand mirrors: [x, -y, -z] for natural symmetry. */
   rotation: [number, number, number];
-  /** Gap between wrist (forearm bottom) and hand top surface. Negative = overlap */
+  /** Gap between wrist (forearm bottom) and palm base. Negative = overlap */
   handForearmGap: number;
 }
 
@@ -67,6 +81,8 @@ export interface CharacterBodyShape {
   forearm: ForearmShape;
   hand: HandShape;
   layout: BodyLayout;
+  eyes: CharacterEyes;
+  bodyColor: string;
 }
 
 /** Y of body capsule center within character group (local space) */
@@ -74,24 +90,24 @@ export const PLAYER_BODY_CENTER_Y = 0;
 export const NPC_BODY_CENTER_Y = 0.5;
 
 const PLAYER_HAND_OPEN: HandPose = {
-  radius: 0.12, flattenY: 0.15, widthSegments: 10, heightSegments: 8,
+  radius: 0.12, flattenZ: 0.15, widthSegments: 10, heightSegments: 8,
   rotation: [0, 0, 0], handForearmGap: 0.04,
 };
 const PLAYER_HAND_CLOSED: HandPose = {
-  radius: 0.10, flattenY: 0.28, widthSegments: 8, heightSegments: 6,
+  radius: 0.10, flattenZ: 0.28, widthSegments: 8, heightSegments: 6,
   rotation: [0, 0, 35], handForearmGap: 0.04,
 };
 const NPC_HAND_OPEN: HandPose = {
-  radius: 0.11, flattenY: 0.15, widthSegments: 10, heightSegments: 8,
+  radius: 0.11, flattenZ: 0.15, widthSegments: 10, heightSegments: 8,
   rotation: [0, 0, 0], handForearmGap: 0.01,
 };
 const NPC_HAND_CLOSED: HandPose = {
-  radius: 0.09, flattenY: 0.28, widthSegments: 8, heightSegments: 6,
+  radius: 0.09, flattenZ: 0.28, widthSegments: 8, heightSegments: 6,
   rotation: [0, 0, 35], handForearmGap: 0.01,
 };
 
 export const PLAYER_DEFAULTS: CharacterBodyShape = {
-  head: { radius: 0.3, widthSegments: 12, heightSegments: 12 },
+  head: { radius: 0.3, widthSegments: 12, heightSegments: 12, rotation: [0, 0, 0] },
   body: { radius: 0.3, height: 0.8, capSegments: 8, radialSegments: 16 },
   forearm: { topRadius: 0.065, bottomRadius: 0.05, height: 0.28, radialSegments: 10 },
   hand: { open: PLAYER_HAND_OPEN, closed: PLAYER_HAND_CLOSED },
@@ -100,10 +116,12 @@ export const PLAYER_DEFAULTS: CharacterBodyShape = {
     upperArmSpacing: 0.47,
     headBodyGap: -0.20,
   },
+  eyes: PLAYER_EYE_DEFAULTS,
+  bodyColor: "#444444",
 };
 
 export const NPC_DEFAULTS: CharacterBodyShape = {
-  head: { radius: 0.3, widthSegments: 12, heightSegments: 12 },
+  head: { radius: 0.3, widthSegments: 12, heightSegments: 12, rotation: [0, 0, 0] },
   body: { radius: 0.3, height: 0.3, capSegments: 8, radialSegments: 16 },
   forearm: { topRadius: 0.058, bottomRadius: 0.045, height: 0.24, radialSegments: 10 },
   hand: { open: NPC_HAND_OPEN, closed: NPC_HAND_CLOSED },
@@ -112,6 +130,8 @@ export const NPC_DEFAULTS: CharacterBodyShape = {
     upperArmSpacing: 0.33,
     headBodyGap: -0.20,
   },
+  eyes: NPC_EYE_DEFAULTS,
+  bodyColor: "#5a5a6e",
 };
 
 export const SHAPE_BOUNDS = {
@@ -119,6 +139,7 @@ export const SHAPE_BOUNDS = {
     radius:         { min: 0.10, max: 0.60, step: 0.01 },
     widthSegments:  { min: 3,    max: 32,   step: 1 },
     heightSegments: { min: 3,    max: 24,   step: 1 },
+    rotation:       { min: -180, max: 180,  step: 1 },
   },
   body: {
     radius:         { min: 0.10, max: 0.60, step: 0.01 },
@@ -134,7 +155,7 @@ export const SHAPE_BOUNDS = {
   },
   hand: {
     radius:         { min: 0.04, max: 0.25, step: 0.01 },
-    flattenY:       { min: 0.05, max: 1.00, step: 0.01 },
+    flattenZ:       { min: 0.05, max: 1.00, step: 0.01 },
     widthSegments:  { min: 4,    max: 24,   step: 1 },
     heightSegments: { min: 3,    max: 16,   step: 1 },
     rotation:       { min: -180, max: 180,  step: 1 },
@@ -149,8 +170,17 @@ export const SHAPE_BOUNDS = {
 
 export interface ComputedPositions {
   headY: number;
+  /** Top of body = shoulder joint height */
+  shoulderY: number;
+  /** Top of forearm = elbow joint height */
+  elbowY: number;
+  /** Length of the invisible upper arm (shoulder → elbow) */
+  upperArmLength: number;
+  /** Forearm cylinder center Y (for legacy flat-mesh world characters) */
   forearmCenterY: number;
+  /** Hand mesh center Y (for legacy flat-mesh world characters) */
   handCenterY: number;
+  /** Horizontal distance from body center to arm */
   forearmX: number;
 }
 
@@ -167,15 +197,21 @@ export function computePositions(
   const activePose = hand[pose];
 
   const bodyTop = bodyCenterY + body.height / 2 + body.radius;
+  const shoulderY = bodyTop;
   const elbowY = bodyTop - layout.upperArmSpacing;
+  const upperArmLength = layout.upperArmSpacing;
   const forearmCenterY = elbowY - forearm.height / 2;
   const forearmWristY = forearmCenterY - forearm.height / 2;
-  const handHalfHeight = activePose.radius * activePose.flattenY;
+  // Y is unscaled (flat is in Z); hand center is one full radius below the palm base
+  const handHalfHeight = activePose.radius;
   const handCenterY = forearmWristY - activePose.handForearmGap - handHalfHeight;
   const headCenterY = bodyTop + layout.headBodyGap + head.radius;
 
   return {
     headY: headCenterY,
+    shoulderY,
+    elbowY,
+    upperArmLength,
     forearmCenterY,
     handCenterY,
     forearmX: layout.forearmXOffset,
@@ -234,7 +270,7 @@ function migrate(raw: unknown, id: string): CharacterBodyShape {
     // Legacy: migrate flat fields into open pose
     const legacyOpen: HandPose = {
       radius:         (rawHand?.radius as number)         ?? defaults.hand.open.radius,
-      flattenY:       (rawHand?.flattenY as number)       ?? defaults.hand.open.flattenY,
+      flattenZ:       (rawHand?.flattenZ as number) ?? (rawHand?.flattenY as number) ?? defaults.hand.open.flattenZ,
       widthSegments:  (rawHand?.widthSegments as number)  ?? defaults.hand.open.widthSegments,
       heightSegments: (rawHand?.heightSegments as number) ?? defaults.hand.open.heightSegments,
       rotation:       [0, 0, 0],
@@ -242,9 +278,20 @@ function migrate(raw: unknown, id: string): CharacterBodyShape {
     };
     hand = { open: legacyOpen, closed: JSON.parse(JSON.stringify(defaults.hand.closed)) };
   } else {
+    const openRaw  = rawHand.open   as Record<string, unknown>;
+    const closedRaw = (rawHand.closed as Record<string, unknown> | undefined) ?? {};
     hand = {
-      open:   { ...defaults.hand.open,   ...(rawHand.open   as Partial<HandPose>) },
-      closed: { ...defaults.hand.closed, ...(rawHand.closed as Partial<HandPose> ?? {}) },
+      open: {
+        ...defaults.hand.open,
+        ...(openRaw as Partial<HandPose>),
+        // Migrate flattenY → flattenZ
+        flattenZ: (openRaw.flattenZ as number | undefined) ?? (openRaw.flattenY as number | undefined) ?? defaults.hand.open.flattenZ,
+      },
+      closed: {
+        ...defaults.hand.closed,
+        ...(closedRaw as Partial<HandPose>),
+        flattenZ: (closedRaw.flattenZ as number | undefined) ?? (closedRaw.flattenY as number | undefined) ?? defaults.hand.closed.flattenZ,
+      },
     };
     // Ensure rotation array exists in both poses
     if (!hand.open.rotation)   hand.open.rotation   = [0, 0, 0];
@@ -264,12 +311,32 @@ function migrate(raw: unknown, id: string): CharacterBodyShape {
     mergedLayout.upperArmSpacing = defaults.layout.upperArmSpacing;
   }
 
+  // Body color: saved value → NPC config color → default
+  // "#5a5a6e" is the old generic NPC_DEFAULTS.bodyColor that got written for all NPCs
+  // before per-NPC config colors were respected — treat it as "not set" so we upgrade.
+  const OLD_GENERIC_NPC_COLOR = "#5a5a6e";
+  const savedColor = typeof r.bodyColor === "string" ? r.bodyColor : null;
+  const npcConfigColor = getNpcById(id)?.appearance.bodyColor;
+  const bodyColor = (savedColor && savedColor !== OLD_GENERIC_NPC_COLOR)
+    ? savedColor
+    : (npcConfigColor ?? defaults.bodyColor);
+
+  // Default iris: player = black, ryan = blue, others = RGB complement of body color
+  const isPlayer = id === "player";
+  const defaultIrisColor = isPlayer
+    ? "#000000"
+    : id === "ryan"
+      ? "#4a90d9"
+      : complementaryColor(bodyColor);
+
   return {
-    head:    { ...defaults.head,    ...(r.head    as Partial<HeadShape>    ?? {}) },
+    head:    { ...defaults.head, ...(r.head as Partial<HeadShape> ?? {}) },
     body:    { ...defaults.body,    ...(r.body    as Partial<BodyShape>    ?? {}) },
     forearm: { ...defaults.forearm, ...(r.forearm as Partial<ForearmShape> ?? {}) },
     hand,
     layout:  mergedLayout,
+    eyes: migrateEyes(r.eyes, isPlayer, defaultIrisColor),
+    bodyColor,
   };
 }
 

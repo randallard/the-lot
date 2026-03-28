@@ -1,8 +1,9 @@
 import type { CharacterBodyShape, HandPose } from "../services/body-shapes";
 import { SHAPE_BOUNDS } from "../services/body-shapes";
+import { EyeEditor } from "./EyeEditor";
 
-export type Section = "head" | "body" | "forearm" | "hand" | "layout";
-export const ALL_SECTIONS: Section[] = ["head", "body", "forearm", "hand", "layout"];
+export type Section = "head" | "body" | "forearm" | "hand" | "layout" | "eyes";
+export const ALL_SECTIONS: Section[] = ["head", "body", "forearm", "hand", "layout", "eyes"];
 
 const PANEL: React.CSSProperties = {
   background: "#12121e",
@@ -134,6 +135,16 @@ function patchHandPose(
   };
 }
 
+function patchHeadRotation(
+  shape: CharacterBodyShape,
+  axis: 0 | 1 | 2,
+  value: number,
+): CharacterBodyShape {
+  const rot = [...shape.head.rotation] as [number, number, number];
+  rot[axis] = value;
+  return { ...shape, head: { ...shape.head, rotation: rot } };
+}
+
 function patchHandRotation(
   shape: CharacterBodyShape,
   pose: "open" | "closed",
@@ -169,7 +180,7 @@ function HandPoseSliders({
     <>
       <p style={POSE_LABEL}>{poseLabel}</p>
       <SliderRow label="radius"       value={handPose.radius}          {...B.radius}          onChange={v => onChange(patchHandPose(shape, pose, "radius", v))} />
-      <SliderRow label="flatness"     value={handPose.flattenY}        {...B.flattenY}        onChange={v => onChange(patchHandPose(shape, pose, "flattenY", v))} />
+      <SliderRow label="flatness"     value={handPose.flattenZ}        {...B.flattenZ}        onChange={v => onChange(patchHandPose(shape, pose, "flattenZ", v))} />
       <SliderRow label="wrist gap"    value={handPose.handForearmGap}  {...B.handForearmGap}  onChange={v => onChange(patchHandPose(shape, pose, "handForearmGap", v))} />
       <SliderRow label="width segs"   value={handPose.widthSegments}   {...B.widthSegments}   onChange={v => onChange(patchHandPose(shape, pose, "widthSegments", v))} />
       <SliderRow label="height segs"  value={handPose.heightSegments}  {...B.heightSegments}  onChange={v => onChange(patchHandPose(shape, pose, "heightSegments", v))} />
@@ -187,6 +198,26 @@ export function BodyEditor({ shape, onChange, openSections, onToggleSection }: B
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
 
+      {/* Character color — always visible at top */}
+      <div style={{
+        background: "#12121e",
+        border: "1px solid #1e1e30",
+        borderRadius: 10,
+        padding: "8px 12px",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+      }}>
+        <span style={{ color: "#aaa", fontSize: 11, flex: 1 }}>character color</span>
+        <input
+          type="color"
+          value={shape.bodyColor}
+          onChange={e => onChange({ ...shape, bodyColor: e.target.value })}
+          style={{ width: 36, height: 24, cursor: "pointer", background: "none", border: "1px solid #2a2a40", borderRadius: 4 }}
+        />
+        <span style={{ color: "#9b8abf", fontSize: 11, minWidth: 52, fontFamily: "monospace" }}>{shape.bodyColor}</span>
+      </div>
+
       {/* Head */}
       <div style={PANEL}>
         <SectionHeader label="Head" open={openSections.head} onToggle={() => onToggleSection("head")} />
@@ -195,6 +226,10 @@ export function BodyEditor({ shape, onChange, openSections, onToggleSection }: B
             <SliderRow label="radius"       value={shape.head.radius}         {...B.head.radius}         onChange={v => onChange(patchSection(shape, "head", "radius", v))} />
             <SliderRow label="width segs"   value={shape.head.widthSegments}  {...B.head.widthSegments}  onChange={v => onChange(patchSection(shape, "head", "widthSegments", v))} />
             <SliderRow label="height segs"  value={shape.head.heightSegments} {...B.head.heightSegments} onChange={v => onChange(patchSection(shape, "head", "heightSegments", v))} />
+            <p style={SUB_LABEL}>rotation (°)</p>
+            <SliderRow label="x (tilt fwd)"  value={shape.head.rotation[0]} {...B.head.rotation} onChange={v => onChange(patchHeadRotation(shape, 0, v))} />
+            <SliderRow label="y (spin)"      value={shape.head.rotation[1]} {...B.head.rotation} onChange={v => onChange(patchHeadRotation(shape, 1, v))} />
+            <SliderRow label="z (tilt side)" value={shape.head.rotation[2]} {...B.head.rotation} onChange={v => onChange(patchHeadRotation(shape, 2, v))} />
           </>
         )}
       </div>
@@ -258,6 +293,17 @@ export function BodyEditor({ shape, onChange, openSections, onToggleSection }: B
             <SliderRow label="upper arm space"  value={shape.layout.upperArmSpacing} {...B.layout.upperArmSpacing} onChange={v => onChange(patchSection(shape, "layout", "upperArmSpacing", v))} />
             <SliderRow label="head↔body gap"    value={shape.layout.headBodyGap}     {...B.layout.headBodyGap}     onChange={v => onChange(patchSection(shape, "layout", "headBodyGap", v))} />
           </>
+        )}
+      </div>
+
+      {/* Eyes */}
+      <div style={PANEL}>
+        <SectionHeader label="Eyes" open={openSections.eyes} onToggle={() => onToggleSection("eyes")} />
+        {openSections.eyes && (
+          <EyeEditor
+            eyes={shape.eyes}
+            onChange={eyes => onChange({ ...shape, eyes })}
+          />
         )}
       </div>
 

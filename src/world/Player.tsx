@@ -8,7 +8,9 @@ import {
   PLAYER_BODY_CENTER_Y,
   computePositions,
   handRotations,
+  deg2rad,
 } from "../services/body-shapes";
+import { Eyes } from "./Eyes";
 
 const SPEED = 5;
 const RUSH_ARRIVE_DISTANCE = 2;
@@ -86,7 +88,7 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
   const { head, body, forearm, hand } = shape;
   const pos = computePositions(shape, PLAYER_BODY_CENTER_Y);
   const rot = handRotations(hand.open);
-  const COLOR = "#444444";
+  const COLOR = shape.bodyColor;
 
   return (
     <group
@@ -101,10 +103,11 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
       </mesh>
 
       {/* Head */}
-      <mesh position={[0, pos.headY, 0]} castShadow>
+      <mesh position={[0, pos.headY, 0]} rotation={[deg2rad(head.rotation[0]), deg2rad(head.rotation[1]), deg2rad(head.rotation[2])]} castShadow>
         <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
         <meshStandardMaterial ref={headMatRef} color={COLOR} transparent />
       </mesh>
+      <Eyes eyes={shape.eyes} headY={pos.headY} headRadius={head.radius} />
 
       {/* Left forearm */}
       <mesh position={[-pos.forearmX, pos.forearmCenterY, 0]} castShadow>
@@ -113,7 +116,7 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
       </mesh>
 
       {/* Left hand — Y and Z mirrored for natural symmetry */}
-      <mesh position={[-pos.forearmX, pos.handCenterY, 0]} scale={[1, hand.open.flattenY, 1]} rotation={rot.left} castShadow>
+      <mesh position={[-pos.forearmX, pos.handCenterY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.left} castShadow>
         <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
         <meshStandardMaterial ref={el => { armMatsRef.current[1] = el; }} color={COLOR} transparent />
       </mesh>
@@ -125,7 +128,7 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
       </mesh>
 
       {/* Right hand */}
-      <mesh position={[pos.forearmX, pos.handCenterY, 0]} scale={[1, hand.open.flattenY, 1]} rotation={rot.right} castShadow>
+      <mesh position={[pos.forearmX, pos.handCenterY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.right} castShadow>
         <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
         <meshStandardMaterial ref={el => { armMatsRef.current[3] = el; }} color={COLOR} transparent />
       </mesh>

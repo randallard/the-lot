@@ -8,7 +8,9 @@ import {
   NPC_BODY_CENTER_Y,
   computePositions,
   handRotations,
+  deg2rad,
 } from "../services/body-shapes";
+import { Eyes } from "./Eyes";
 
 // NPC behavior: idle → walking-to-camp → sitting → sipping → getting-uke → playing-uke
 export type NpcBehavior =
@@ -197,7 +199,7 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
   const showCoffee = behavior === "sitting" || behavior === "sipping";
   const showUke = behavior === "playing-uke" && !walkTarget.current;
 
-  const npcColor = "#5a5a6e";
+  const npcColor = shape.bodyColor;
   const { head, body, forearm, hand } = shape;
   const pos = computePositions(shape, NPC_BODY_CENTER_Y);
   const rot = handRotations(hand.open);
@@ -212,10 +214,11 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
         </mesh>
 
         {/* Head */}
-        <mesh position={[0, pos.headY, 0]} castShadow>
+        <mesh position={[0, pos.headY, 0]} rotation={[deg2rad(head.rotation[0]), deg2rad(head.rotation[1]), deg2rad(head.rotation[2])]} castShadow>
           <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
           <meshStandardMaterial color={npcColor} />
         </mesh>
+        <Eyes eyes={shape.eyes} headY={pos.headY} headRadius={head.radius} />
 
         {/* Left forearm */}
         <mesh position={[-pos.forearmX, pos.forearmCenterY, 0]} castShadow>
@@ -224,7 +227,7 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
         </mesh>
 
         {/* Left hand */}
-        <mesh position={[-pos.forearmX, pos.handCenterY, 0]} scale={[1, hand.open.flattenY, 1]} rotation={rot.left} castShadow>
+        <mesh position={[-pos.forearmX, pos.handCenterY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.left} castShadow>
           <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
           <meshStandardMaterial color={npcColor} />
         </mesh>
@@ -236,7 +239,7 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
         </mesh>
 
         {/* Right hand */}
-        <mesh position={[pos.forearmX, pos.handCenterY, 0]} scale={[1, hand.open.flattenY, 1]} rotation={rot.right} castShadow>
+        <mesh position={[pos.forearmX, pos.handCenterY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.right} castShadow>
           <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
           <meshStandardMaterial color={npcColor} />
         </mesh>

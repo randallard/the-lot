@@ -8,11 +8,8 @@ import {
 import { getNpcById } from "../config/npcs";
 import { CharacterPreview } from "./CharacterPreview";
 import { BodyEditor, type Section, ALL_SECTIONS } from "./BodyEditor";
+import { ArmActionBuilderModal } from "./ArmActionBuilderModal";
 
-function getSubjectColor(id: string): string {
-  if (id === "player") return "#444444";
-  return getNpcById(id)?.appearance.bodyColor ?? "#5a5a6e";
-}
 
 function useIsWide() {
   const [wide, setWide] = useState(() => window.innerWidth >= 720);
@@ -31,10 +28,10 @@ interface BodyEditorModalProps {
 }
 
 const EMPTY_SECTIONS: Record<Section, boolean> = {
-  head: false, body: false, forearm: false, hand: false, layout: false,
+  head: false, body: false, forearm: false, hand: false, layout: false, eyes: false,
 };
 const ALL_OPEN: Record<Section, boolean> = {
-  head: true, body: true, forearm: true, hand: true, layout: true,
+  head: true, body: true, forearm: true, hand: true, layout: true, eyes: true,
 };
 
 const BTN: React.CSSProperties = {
@@ -51,11 +48,12 @@ const BTN: React.CSSProperties = {
 export function BodyEditorModal({ subjectId, onClose, onShapeChange }: BodyEditorModalProps) {
   const [shape, setShape] = useState<CharacterBodyShape>(() => getBodyShape(subjectId));
   const [openSections, setOpenSections] = useState<Record<Section, boolean>>({
-    head: true, body: false, forearm: false, hand: false, layout: false,
+    head: true, body: false, forearm: false, hand: false, layout: false, eyes: false,
   });
   const [previewPose, setPreviewPose] = useState<"open" | "closed">("open");
+  const [showActions, setShowActions] = useState(false);
   const isWide = useIsWide();
-  const color = getSubjectColor(subjectId);
+  const color = shape.bodyColor;
   const npc = subjectId !== "player" ? getNpcById(subjectId) : null;
   const label = npc ? `${npc.emoji} ${npc.displayName}` : "you";
 
@@ -85,6 +83,7 @@ export function BodyEditorModal({ subjectId, onClose, onShapeChange }: BodyEdito
   const openCount = ALL_SECTIONS.filter(s => openSections[s]).length;
 
   return (
+    <>
     <div
       style={{
         position: "fixed",
@@ -117,6 +116,12 @@ export function BodyEditorModal({ subjectId, onClose, onShapeChange }: BodyEdito
           appearance
         </span>
         <span style={{ color: "#666", fontSize: 12, marginRight: 6 }}>{label}</span>
+        <button
+          style={{ ...BTN, borderColor: "#2a2a40", color: "#888" }}
+          onClick={() => setShowActions(true)}
+        >
+          actions
+        </button>
         <button style={BTN} onClick={() => setOpenSections(EMPTY_SECTIONS)}>
           close all
         </button>
@@ -198,5 +203,14 @@ export function BodyEditorModal({ subjectId, onClose, onShapeChange }: BodyEdito
         </div>
       </div>
     </div>
+
+    {showActions && (
+      <ArmActionBuilderModal
+        subjectId={subjectId}
+        shape={shape}
+        onClose={() => setShowActions(false)}
+      />
+    )}
+    </>
   );
 }

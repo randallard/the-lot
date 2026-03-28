@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ScreenPos } from "../world/useScreenPosition";
 import { loadBubbleOffset, saveBubbleOffset } from "./bubble-offset";
+import { allocBubbleId, registerBubble, unregisterBubble, avoidOverlaps, computeTailStyles } from "./bubble-registry";
 
 interface NpcChatBubbleProps {
   playerScreenPos: React.RefObject<ScreenPos>;
@@ -32,6 +33,7 @@ export function NpcChatBubble({
   const [positioned, setPositioned] = useState(false);
   const [tailStyle, setTailStyle] = useState<React.CSSProperties>({});
   const [tailInnerStyle, setTailInnerStyle] = useState<React.CSSProperties>({});
+  const myId = useRef(allocBubbleId());
 
   // Drag state
   const dragOffset = useRef<{ x: number; y: number } | null>(null);
@@ -151,46 +153,34 @@ export function NpcChatBubble({
       const baseY = Math.max(20, py - charH * 0.3 - bh - gap);
       const bx = baseX + savedCharHOffset.current.x * charH;
       const by = baseY + savedCharHOffset.current.y * charH;
-      lastCalcPos.current = { x: bx, y: by };
+      // Avoid overlapping other bubbles
+      const { x: finalBx, y: finalBy } = avoidOverlaps(myId.current, bx, by, bw, bh);
+      registerBubble(myId.current, { x: finalBx, y: finalBy, w: bw, h: bh });
+      lastCalcPos.current = { x: finalBx, y: finalBy };
       lastSpeaker.current = { x: px, y: py, charH };
       if (!dragging.current) {
-        setPos({ left: `${bx}px`, top: `${by}px` });
+        setPos({ left: `${finalBx}px`, top: `${finalBy}px` });
       }
       setPositioned(true);
 
-      // Tail points toward the player from the bubble bottom
+      // Angled tail toward player
       if (bubbleRef.current) {
         const rect = bubbleRef.current.getBoundingClientRect();
         const bubbleCenterX = rect.left + rect.width / 2;
         const dx = px - bubbleCenterX;
         const tailLeftPx = Math.max(20, Math.min(rect.width - 40, rect.width / 2 + dx * 0.5));
-
-        setTailStyle({
-          position: "absolute",
-          bottom: -18,
-          left: tailLeftPx,
-          width: 0,
-          height: 0,
-          borderLeft: "12px solid transparent",
-          borderRight: "12px solid transparent",
-          borderTop: "18px solid #222",
-        });
-        setTailInnerStyle({
-          position: "absolute",
-          bottom: -13,
-          left: tailLeftPx + 2,
-          width: 0,
-          height: 0,
-          borderLeft: "10px solid transparent",
-          borderRight: "10px solid transparent",
-          borderTop: "15px solid #fff",
-        });
+        const { outer, inner } = computeTailStyles(tailLeftPx, dx, rect.width);
+        setTailStyle(outer);
+        setTailInnerStyle(inner);
       }
 
       raf = requestAnimationFrame(update);
     };
     raf = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      unregisterBubble(myId.current);
+    };
   }, [playerScreenPos]);
 
   // 0 = text input, 1 = play game
