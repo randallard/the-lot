@@ -11,6 +11,7 @@ import {
 import { Eyes } from "../world/Eyes";
 import type { ArmPose, ArmAction } from "../services/arm-actions";
 import { ZERO_POSE } from "../services/arm-actions";
+import { type Emote, type ResolvedPose, NEUTRAL_POSE, sampleEmote } from "../services/emotes";
 
 const PREVIEW_BODY_Y = 0.5;
 
@@ -108,7 +109,7 @@ function ArmGroup({ shoulderPos, mirror, shape, color, handPose, armPose }: ArmG
 }
 
 // ---------------------------------------------------------------------------
-// Animation playback
+// Arm-action playback (kept for ArmActionBuilderModal)
 
 interface AnimDriverProps {
   action: ArmAction;
@@ -152,11 +153,7 @@ function AnimDriver({ action, isPlaying, onPoseChange }: AnimDriverProps) {
 }
 
 function lerpV3(a: [number, number, number], b: [number, number, number], t: number): [number, number, number] {
-  return [
-    a[0] + (b[0] - a[0]) * t,
-    a[1] + (b[1] - a[1]) * t,
-    a[2] + (b[2] - a[2]) * t,
-  ];
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 }
 
 function lerpPose(a: ArmPose, b: ArmPose, t: number): ArmPose {
@@ -168,18 +165,56 @@ function lerpPose(a: ArmPose, b: ArmPose, t: number): ArmPose {
 }
 
 // ---------------------------------------------------------------------------
+// Emote playback driver
+
+interface EmoteDriverProps {
+  emote: Emote;
+  isPlaying: boolean;
+  onPoseChange: (pose: ResolvedPose) => void;
+}
+
+function EmoteDriver({ emote, isPlaying, onPoseChange }: EmoteDriverProps) {
+  const timeRef = useRef(0);
+
+  useFrame((_, delta) => {
+    if (!isPlaying) return;
+    const total = emote.duration;
+    if (total <= 0) return;
+    timeRef.current = emote.loop
+      ? (timeRef.current + delta) % total
+      : Math.min(timeRef.current + delta, total);
+    onPoseChange(sampleEmote(emote, timeRef.current));
+  });
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Static body (head + torso only — arms handled separately)
 
-function BodyMesh({ shape, color, handPose }: { shape: CharacterBodyShape; color: string; handPose: "open" | "closed" }) {
+interface BodyMeshProps {
+  shape: CharacterBodyShape;
+  color: string;
+  handPose: "open" | "closed";
+  headDelta?: [number, number, number];
+  bodyDeltaY?: number;
+}
+
+function BodyMesh({ shape, color, handPose, headDelta, bodyDeltaY = 0 }: BodyMeshProps) {
   const { head, body } = shape;
   const pos = computePositions(shape, PREVIEW_BODY_Y, handPose);
+  const hr: [number, number, number] = [
+    deg2rad(head.rotation[0] + (headDelta?.[0] ?? 0)),
+    deg2rad(head.rotation[1] + (headDelta?.[1] ?? 0)),
+    deg2rad(head.rotation[2] + (headDelta?.[2] ?? 0)),
+  ];
   return (
     <>
-      <mesh position={[0, PREVIEW_BODY_Y, 0]}>
+      <mesh position={[0, PREVIEW_BODY_Y + bodyDeltaY, 0]}>
         <capsuleGeometry args={[body.radius, body.height, body.capSegments, body.radialSegments]} />
         <meshStandardMaterial color={color} />
       </mesh>
-      <mesh position={[0, pos.headY, 0]} rotation={[deg2rad(head.rotation[0]), deg2rad(head.rotation[1]), deg2rad(head.rotation[2])]}>
+      <mesh position={[0, pos.headY + bodyDeltaY, 0]} rotation={hr}>
         <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
         <meshStandardMaterial color={color} />
       </mesh>
@@ -198,12 +233,26 @@ interface SceneProps {
   animationPreview?: ArmAction;
   isPlaying?: boolean;
   onLivepose?: (p: ArmPose) => void;
+  // Emote
+  emotePreview?: Emote;
+  isEmotePlaying?: boolean;
+  onLiveEmotePose?: (p: ResolvedPose) => void;
+  resolvedPose?: ResolvedPose;
 }
 
-function Scene({ shape, color, handPose, armPose, animationPreview, isPlaying, onLivepose }: SceneProps) {
+function Scene({
+  shape, color, handPose, armPose,
+  animationPreview, isPlaying, onLivepose,
+  emotePreview, isEmotePlaying, onLiveEmotePose, resolvedPose,
+}: SceneProps) {
+  const rp = resolvedPose ?? NEUTRAL_POSE;
   const pos = computePositions(shape, PREVIEW_BODY_Y, handPose);
-  const sY = pos.shoulderY;
+  const sY = pos.shoulderY + rp.bodyDeltaY;
   const sX = pos.forearmX;
+
+  // Arm poses: emote drives right/left independently; arm-action drives both the same
+  const rightPose = resolvedPose ? resolvedPose.rightArm : armPose;
+  const leftPose  = resolvedPose ? resolvedPose.leftArm  : armPose;
 
   return (
     <>
@@ -211,15 +260,24 @@ function Scene({ shape, color, handPose, armPose, animationPreview, isPlaying, o
       <ambientLight intensity={0.9} />
       <directionalLight position={[2, 4, 3]} intensity={1.3} />
       <directionalLight position={[-2, 1, -2]} intensity={0.3} color="#8888cc" />
-      <BodyMesh shape={shape} color={color} handPose={handPose} />
-      {/* Right arm */}
-      <ArmGroup shoulderPos={[sX, sY, 0]}  mirror={false} shape={shape} color={color} handPose={handPose} armPose={armPose} />
-      {/* Left arm */}
-      <ArmGroup shoulderPos={[-sX, sY, 0]} mirror={true}  shape={shape} color={color} handPose={handPose} armPose={armPose} />
-      {/* Eyes */}
-      <Eyes eyes={shape.eyes} headY={pos.headY} headRadius={shape.head.radius} />
+      <BodyMesh
+        shape={shape} color={color} handPose={handPose}
+        bodyDeltaY={rp.bodyDeltaY}
+        headDelta={rp.headDeltaRotation}
+      />
+      <ArmGroup shoulderPos={[sX, sY, 0]}  mirror={false} shape={shape} color={color} handPose={handPose} armPose={rightPose} />
+      <ArmGroup shoulderPos={[-sX, sY, 0]} mirror={true}  shape={shape} color={color} handPose={handPose} armPose={leftPose} />
+      <Eyes
+        eyes={shape.eyes}
+        headY={pos.headY + rp.bodyDeltaY}
+        headRadius={shape.head.radius}
+        expressionOverride={Object.keys(rp.eyeOverride).length > 0 ? rp.eyeOverride : undefined}
+      />
       {animationPreview && isPlaying && onLivepose && (
         <AnimDriver action={animationPreview} isPlaying={isPlaying} onPoseChange={onLivepose} />
+      )}
+      {emotePreview && isEmotePlaying && onLiveEmotePose && (
+        <EmoteDriver emote={emotePreview} isPlaying={isEmotePlaying} onPoseChange={onLiveEmotePose} />
       )}
     </>
   );
@@ -234,11 +292,17 @@ export interface CharacterPreviewProps {
   handPose?: "open" | "closed";
   /** "arms" focuses the camera on the arm area and disables auto-rotate */
   focusMode?: "full" | "arms";
-  /** Overrides arm pose for keyframe preview */
+  /** Overrides arm pose for keyframe preview (arm-action editor) */
   armPoseOverride?: ArmPose;
   animationPreview?: ArmAction;
   isPlaying?: boolean;
   onLivePose?: (p: ArmPose) => void;
+  /** Emote preview — drives all tracks */
+  emotePreview?: Emote;
+  isEmotePlaying?: boolean;
+  onLiveEmotePose?: (p: ResolvedPose) => void;
+  /** Static resolved pose override (e.g. selected keyframe in emote editor) */
+  resolvedPoseOverride?: ResolvedPose;
 }
 
 export function CharacterPreview({
@@ -250,6 +314,10 @@ export function CharacterPreview({
   animationPreview,
   isPlaying = false,
   onLivePose,
+  emotePreview,
+  isEmotePlaying = false,
+  onLiveEmotePose,
+  resolvedPoseOverride,
 }: CharacterPreviewProps) {
   const pos = computePositions(shape, PREVIEW_BODY_Y, handPose);
   const armY = pos.shoulderY - pos.upperArmLength / 2;
@@ -260,6 +328,14 @@ export function CharacterPreview({
 
   const activePose = armPoseOverride ?? ZERO_POSE;
   const [spinning, setSpinning] = useState(true);
+  const [liveEmotePose, setLiveEmotePose] = useState<ResolvedPose | null>(null);
+
+  const resolvedPose = resolvedPoseOverride ?? (isEmotePlaying ? (liveEmotePose ?? undefined) : undefined);
+
+  function handleLiveEmotePose(p: ResolvedPose) {
+    setLiveEmotePose(p);
+    onLiveEmotePose?.(p);
+  }
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
@@ -276,6 +352,10 @@ export function CharacterPreview({
           animationPreview={animationPreview}
           isPlaying={isPlaying}
           onLivepose={onLivePose}
+          emotePreview={emotePreview}
+          isEmotePlaying={isEmotePlaying}
+          onLiveEmotePose={handleLiveEmotePose}
+          resolvedPose={resolvedPose}
         />
         <OrbitControls
           target={target}

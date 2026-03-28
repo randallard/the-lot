@@ -9,6 +9,7 @@ import { getNpcById } from "../config/npcs";
 import { CharacterPreview } from "./CharacterPreview";
 import { BodyEditor, type Section, ALL_SECTIONS } from "./BodyEditor";
 import { ArmActionBuilderModal } from "./ArmActionBuilderModal";
+import { EmoteBuilderModal } from "./EmoteBuilderModal";
 
 
 function useIsWide() {
@@ -51,7 +52,7 @@ export function BodyEditorModal({ subjectId, onClose, onShapeChange }: BodyEdito
     head: true, body: false, forearm: false, hand: false, layout: false, eyes: false,
   });
   const [previewPose, setPreviewPose] = useState<"open" | "closed">("open");
-  const [showActions, setShowActions] = useState(false);
+  const [showActions, setShowActions] = useState<"arms" | "emotes" | null>(null);
   const isWide = useIsWide();
   const color = shape.bodyColor;
   const npc = subjectId !== "player" ? getNpcById(subjectId) : null;
@@ -96,38 +97,37 @@ export function BodyEditorModal({ subjectId, onClose, onShapeChange }: BodyEdito
       }}
     >
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          padding: isWide ? "12px 20px 10px" : "10px 14px 8px",
-          borderBottom: "1px solid #1a1a2e",
-          flexShrink: 0,
-        }}
-      >
-        <button
-          onClick={onClose}
-          style={{ ...BTN, color: "#9b8abf", fontSize: 20, border: "none", padding: "2px 8px 2px 0" }}
-        >
-          ‹
-        </button>
-        <span style={{ color: "#c080e0", fontSize: isWide ? 16 : 14, fontWeight: 700, flex: 1 }}>
-          appearance
-        </span>
-        <span style={{ color: "#666", fontSize: 12, marginRight: 6 }}>{label}</span>
-        <button
-          style={{ ...BTN, borderColor: "#2a2a40", color: "#888" }}
-          onClick={() => setShowActions(true)}
-        >
-          actions
-        </button>
-        <button style={BTN} onClick={() => setOpenSections(EMPTY_SECTIONS)}>
-          close all
-        </button>
-        <button style={{ ...BTN, borderColor: openCount === 5 ? "#6a4c93" : "#2a2a40", color: openCount === 5 ? "#c080e0" : "#888" }} onClick={() => setOpenSections(ALL_OPEN)}>
-          open all
-        </button>
+      <div style={{ flexShrink: 0, borderBottom: "1px solid #1a1a2e" }}>
+        {/* Title row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: isWide ? "12px 20px 6px" : "10px 14px 6px" }}>
+          <button
+            onClick={onClose}
+            style={{ ...BTN, color: "#9b8abf", fontSize: 20, border: "none", padding: "2px 8px 2px 0" }}
+          >
+            ‹
+          </button>
+          <span style={{ color: "#c080e0", fontSize: isWide ? 16 : 14, fontWeight: 700, flex: 1 }}>
+            appearance
+          </span>
+          <span style={{ color: "#666", fontSize: 12 }}>{label}</span>
+          {isWide && (
+            <>
+              <button style={{ ...BTN, borderColor: "#2a2a40", color: "#888" }} onClick={() => setShowActions("arms")}>arm actions</button>
+              <button style={{ ...BTN, borderColor: "#2a2a40", color: "#888" }} onClick={() => setShowActions("emotes")}>emotes</button>
+              <button style={BTN} onClick={() => setOpenSections(EMPTY_SECTIONS)}>close all</button>
+              <button style={{ ...BTN, borderColor: openCount === 5 ? "#6a4c93" : "#2a2a40", color: openCount === 5 ? "#c080e0" : "#888" }} onClick={() => setOpenSections(ALL_OPEN)}>open all</button>
+            </>
+          )}
+        </div>
+        {/* Action row — mobile only */}
+        {!isWide && (
+          <div style={{ display: "flex", gap: 6, padding: "0 14px 8px", flexWrap: "wrap" }}>
+            <button style={{ ...BTN, borderColor: "#2a2a40", color: "#888" }} onClick={() => setShowActions("arms")}>arm actions</button>
+            <button style={{ ...BTN, borderColor: "#2a2a40", color: "#888" }} onClick={() => setShowActions("emotes")}>emotes</button>
+            <button style={BTN} onClick={() => setOpenSections(EMPTY_SECTIONS)}>close all</button>
+            <button style={{ ...BTN, borderColor: openCount === 5 ? "#6a4c93" : "#2a2a40", color: openCount === 5 ? "#c080e0" : "#888" }} onClick={() => setOpenSections(ALL_OPEN)}>open all</button>
+          </div>
+        )}
       </div>
 
       {/* Body */}
@@ -204,11 +204,18 @@ export function BodyEditorModal({ subjectId, onClose, onShapeChange }: BodyEdito
       </div>
     </div>
 
-    {showActions && (
+    {showActions === "arms" && (
       <ArmActionBuilderModal
         subjectId={subjectId}
         shape={shape}
-        onClose={() => setShowActions(false)}
+        onClose={() => setShowActions(null)}
+      />
+    )}
+    {showActions === "emotes" && (
+      <EmoteBuilderModal
+        subjectId={subjectId}
+        shape={shape}
+        onClose={() => setShowActions(null)}
       />
     )}
     </>

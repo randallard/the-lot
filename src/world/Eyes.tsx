@@ -115,12 +115,14 @@ export interface EyesProps {
   headRadius: number;
   /** If set, looks up and applies the matching expression overrides */
   expression?: string;
+  /** Direct override — takes precedence over `expression` (used by the emote system) */
+  expressionOverride?: Partial<EyeShape>;
 }
 
-export function Eyes({ eyes, headY, headRadius, expression }: EyesProps) {
+export function Eyes({ eyes, headY, headRadius, expression, expressionOverride }: EyesProps) {
   const { positioning, asymmetric, right, left, expressions, clipOverlap, rotationMirrored } = eyes;
 
-  const expOverride = expression ? expressions[expression] : undefined;
+  const expOverride = expressionOverride ?? (expression ? expressions[expression] : undefined);
   const rightEye = resolveEye(right, expOverride);
   const leftEye  = asymmetric ? resolveEye(left, expOverride) : rightEye;
 
