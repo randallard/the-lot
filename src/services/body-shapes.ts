@@ -20,8 +20,14 @@ export interface HeadShape {
   radius: number;
   widthSegments: number;
   heightSegments: number;
-  /** Euler rotation in degrees [x, y, z] — useful for aligning low-poly segment faces */
+  /** Euler rotation in degrees [x, y, z] */
   rotation: [number, number, number];
+  /** Position offset from computed placement (world units). 0 = default. */
+  offsetX: number;
+  /** offsetY > 0 = higher, < 0 = lower */
+  offsetY: number;
+  /** offsetZ > 0 = forward (toward camera), < 0 = back */
+  offsetZ: number;
 }
 
 export interface BodyShape {
@@ -29,6 +35,10 @@ export interface BodyShape {
   height: number;
   capSegments: number;
   radialSegments: number;
+  /** Body tilt in degrees. leanX: + = lean back, - = lean forward */
+  leanX: number;
+  /** Body tilt in degrees. leanZ: + = lean right, - = lean left */
+  leanZ: number;
 }
 
 export interface ForearmShape {
@@ -107,8 +117,8 @@ const NPC_HAND_CLOSED: HandPose = {
 };
 
 export const PLAYER_DEFAULTS: CharacterBodyShape = {
-  head: { radius: 0.3, widthSegments: 12, heightSegments: 12, rotation: [0, 0, 0] },
-  body: { radius: 0.3, height: 0.8, capSegments: 8, radialSegments: 16 },
+  head: { radius: 0.3, widthSegments: 12, heightSegments: 12, rotation: [0, 0, 0], offsetX: 0, offsetY: 0, offsetZ: 0 },
+  body: { radius: 0.3, height: 0.8, capSegments: 8, radialSegments: 16, leanX: 0, leanZ: 0 },
   forearm: { topRadius: 0.065, bottomRadius: 0.05, height: 0.28, radialSegments: 10 },
   hand: { open: PLAYER_HAND_OPEN, closed: PLAYER_HAND_CLOSED },
   layout: {
@@ -121,8 +131,8 @@ export const PLAYER_DEFAULTS: CharacterBodyShape = {
 };
 
 export const NPC_DEFAULTS: CharacterBodyShape = {
-  head: { radius: 0.3, widthSegments: 12, heightSegments: 12, rotation: [0, 0, 0] },
-  body: { radius: 0.3, height: 0.3, capSegments: 8, radialSegments: 16 },
+  head: { radius: 0.3, widthSegments: 12, heightSegments: 12, rotation: [0, 0, 0], offsetX: 0, offsetY: 0, offsetZ: 0 },
+  body: { radius: 0.3, height: 0.3, capSegments: 8, radialSegments: 16, leanX: 0, leanZ: 0 },
   forearm: { topRadius: 0.058, bottomRadius: 0.045, height: 0.24, radialSegments: 10 },
   hand: { open: NPC_HAND_OPEN, closed: NPC_HAND_CLOSED },
   layout: {
@@ -140,12 +150,17 @@ export const SHAPE_BOUNDS = {
     widthSegments:  { min: 3,    max: 32,   step: 1 },
     heightSegments: { min: 3,    max: 24,   step: 1 },
     rotation:       { min: -180, max: 180,  step: 1 },
+    offsetX:        { min: -0.5, max: 0.5,  step: 0.01 },
+    offsetY:        { min: -0.5, max: 0.5,  step: 0.01 },
+    offsetZ:        { min: -0.5, max: 0.5,  step: 0.01 },
   },
   body: {
     radius:         { min: 0.10, max: 0.60, step: 0.01 },
     height:         { min: 0.10, max: 2.00, step: 0.01 },
     capSegments:    { min: 2,    max: 16,   step: 1 },
     radialSegments: { min: 4,    max: 32,   step: 1 },
+    leanX:          { min: -45,  max: 45,   step: 1 },
+    leanZ:          { min: -45,  max: 45,   step: 1 },
   },
   forearm: {
     topRadius:      { min: 0.02, max: 0.15, step: 0.005 },
@@ -329,9 +344,23 @@ function migrate(raw: unknown, id: string): CharacterBodyShape {
       ? "#4a90d9"
       : complementaryColor(bodyColor);
 
+  const rawHead = r.head as Partial<HeadShape> | undefined;
+  const rawBody = r.body as Partial<BodyShape> | undefined;
+
   return {
-    head:    { ...defaults.head, ...(r.head as Partial<HeadShape> ?? {}) },
-    body:    { ...defaults.body,    ...(r.body    as Partial<BodyShape>    ?? {}) },
+    head: {
+      ...defaults.head,
+      ...rawHead,
+      offsetX: rawHead?.offsetX ?? 0,
+      offsetY: rawHead?.offsetY ?? 0,
+      offsetZ: rawHead?.offsetZ ?? 0,
+    },
+    body: {
+      ...defaults.body,
+      ...rawBody,
+      leanX: rawBody?.leanX ?? 0,
+      leanZ: rawBody?.leanZ ?? 0,
+    },
     forearm: { ...defaults.forearm, ...(r.forearm as Partial<ForearmShape> ?? {}) },
     hand,
     layout:  mergedLayout,

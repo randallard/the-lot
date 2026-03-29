@@ -230,6 +230,10 @@ export function BodyEditor({ shape, onChange, openSections, onToggleSection }: B
             <SliderRow label="x (tilt fwd)"  value={shape.head.rotation[0]} {...B.head.rotation} onChange={v => onChange(patchHeadRotation(shape, 0, v))} />
             <SliderRow label="y (spin)"      value={shape.head.rotation[1]} {...B.head.rotation} onChange={v => onChange(patchHeadRotation(shape, 1, v))} />
             <SliderRow label="z (tilt side)" value={shape.head.rotation[2]} {...B.head.rotation} onChange={v => onChange(patchHeadRotation(shape, 2, v))} />
+            <p style={SUB_LABEL}>position offset</p>
+            <SliderRow label="fwd/back"      value={shape.head.offsetZ} {...B.head.offsetZ} onChange={v => onChange(patchSection(shape, "head", "offsetZ", v))} />
+            <SliderRow label="up/down"       value={shape.head.offsetY} {...B.head.offsetY} onChange={v => onChange(patchSection(shape, "head", "offsetY", v))} />
+            <SliderRow label="left/right"    value={shape.head.offsetX} {...B.head.offsetX} onChange={v => onChange(patchSection(shape, "head", "offsetX", v))} />
           </>
         )}
       </div>
@@ -243,6 +247,9 @@ export function BodyEditor({ shape, onChange, openSections, onToggleSection }: B
             <SliderRow label="height"       value={shape.body.height}         {...B.body.height}         onChange={v => onChange(patchSection(shape, "body", "height", v))} />
             <SliderRow label="cap segs"     value={shape.body.capSegments}    {...B.body.capSegments}    onChange={v => onChange(patchSection(shape, "body", "capSegments", v))} />
             <SliderRow label="radial segs"  value={shape.body.radialSegments} {...B.body.radialSegments} onChange={v => onChange(patchSection(shape, "body", "radialSegments", v))} />
+            <p style={SUB_LABEL}>lean (°)</p>
+            <SliderRow label="fwd/back"     value={shape.body.leanX}          {...B.body.leanX}          onChange={v => onChange(patchSection(shape, "body", "leanX", v))} />
+            <SliderRow label="side"         value={shape.body.leanZ}          {...B.body.leanZ}          onChange={v => onChange(patchSection(shape, "body", "leanZ", v))} />
           </>
         )}
       </div>

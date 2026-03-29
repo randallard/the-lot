@@ -97,17 +97,17 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
       visible={!hidden}
     >
       {/* Body */}
-      <mesh castShadow>
+      <mesh rotation={[deg2rad(body.leanX), 0, deg2rad(body.leanZ)]} castShadow>
         <capsuleGeometry args={[body.radius, body.height, body.capSegments, body.radialSegments]} />
         <meshStandardMaterial ref={matRef} color={COLOR} transparent />
       </mesh>
 
       {/* Head */}
-      <mesh position={[0, pos.headY, 0]} rotation={[deg2rad(head.rotation[0]), deg2rad(head.rotation[1]), deg2rad(head.rotation[2])]} castShadow>
+      <mesh position={[head.offsetX, pos.headY + head.offsetY, head.offsetZ]} rotation={[deg2rad(head.rotation[0]), deg2rad(head.rotation[1]), deg2rad(head.rotation[2])]} castShadow>
         <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
         <meshStandardMaterial ref={headMatRef} color={COLOR} transparent />
       </mesh>
-      <Eyes eyes={shape.eyes} headY={pos.headY} headRadius={head.radius} />
+      <Eyes eyes={shape.eyes} headY={pos.headY + head.offsetY} headRadius={head.radius} headOffsetX={head.offsetX} headOffsetZ={head.offsetZ} />
 
       {/* Left forearm */}
       <mesh position={[-pos.forearmX, pos.forearmCenterY, 0]} castShadow>

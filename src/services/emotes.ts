@@ -17,6 +17,10 @@ export interface BodyKeyframe {
   time: number;
   deltaY: number;       // vertical offset (+ = up, for jumps)
   deltaRotY: number;    // horizontal spin in degrees
+  leanX: number;        // forward/back tilt delta in degrees
+  leanZ: number;        // side tilt delta in degrees
+  radiusDelta: number;  // expand/contract (e.g. inhale +0.05)
+  heightDelta: number;  // stretch/compress
   easing: Easing;
 }
 
@@ -24,6 +28,10 @@ export interface HeadKeyframe {
   id: string;
   time: number;
   deltaRotation: [number, number, number];  // added on top of shape.head.rotation
+  offsetX: number;      // lateral position delta
+  offsetY: number;      // vertical position delta (+ = higher)
+  offsetZ: number;      // forward/back position delta (+ = forward)
+  radiusDelta: number;  // grow/shrink
   easing: Easing;
 }
 
@@ -103,23 +111,37 @@ export interface ActiveEffect {
 }
 
 export interface ResolvedPose {
-  bodyDeltaY:         number;
-  bodyDeltaRotY:      number;
-  headDeltaRotation:  [number, number, number];
-  rightArm:           ArmPose;
-  leftArm:            ArmPose;
-  eyeOverride:        Partial<EyeShape>;
-  activeEffects:      ActiveEffect[];
+  // Body
+  bodyDeltaY:       number;
+  bodyDeltaRotY:    number;
+  bodyLeanX:        number;
+  bodyLeanZ:        number;
+  bodyRadiusDelta:  number;
+  bodyHeightDelta:  number;
+  // Head
+  headDeltaRotation: [number, number, number];
+  headOffsetX:      number;
+  headOffsetY:      number;
+  headOffsetZ:      number;
+  headRadiusDelta:  number;
+  // Arms / eyes / effects
+  rightArm:         ArmPose;
+  leftArm:          ArmPose;
+  eyeOverride:      Partial<EyeShape>;
+  activeEffects:    ActiveEffect[];
 }
 
 export const NEUTRAL_POSE: ResolvedPose = {
-  bodyDeltaY:        0,
-  bodyDeltaRotY:     0,
+  bodyDeltaY: 0, bodyDeltaRotY: 0,
+  bodyLeanX: 0, bodyLeanZ: 0,
+  bodyRadiusDelta: 0, bodyHeightDelta: 0,
   headDeltaRotation: [0, 0, 0],
-  rightArm:          { ...ZERO_POSE },
-  leftArm:           { ...ZERO_POSE },
-  eyeOverride:       {},
-  activeEffects:     [],
+  headOffsetX: 0, headOffsetY: 0, headOffsetZ: 0,
+  headRadiusDelta: 0,
+  rightArm: { ...ZERO_POSE },
+  leftArm:  { ...ZERO_POSE },
+  eyeOverride: {},
+  activeEffects: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -156,10 +178,10 @@ export function makeEmote(name = "new emote"): Emote {
 }
 
 export function makeBodyKf(time: number): BodyKeyframe {
-  return { id: uuid(), time, deltaY: 0, deltaRotY: 0, easing: "ease-in-out" };
+  return { id: uuid(), time, deltaY: 0, deltaRotY: 0, leanX: 0, leanZ: 0, radiusDelta: 0, heightDelta: 0, easing: "ease-in-out" };
 }
 export function makeHeadKf(time: number): HeadKeyframe {
-  return { id: uuid(), time, deltaRotation: [0, 0, 0], easing: "ease-in-out" };
+  return { id: uuid(), time, deltaRotation: [0, 0, 0], offsetX: 0, offsetY: 0, offsetZ: 0, radiusDelta: 0, easing: "ease-in-out" };
 }
 export function makeArmKf(time: number): ArmKeyframe {
   return { id: uuid(), time, pose: { ...ZERO_POSE }, easing: "ease-in-out" };
@@ -225,7 +247,9 @@ function lerpEyeOverride(
   return result;
 }
 
-// Generic sorted-track sampler
+// Generic sorted-track sampler.
+// Automatically bookends with neutral at t=0 and t=duration so a single
+// keyframe produces: rest → pose → rest.
 function sampleTrack<T>(
   kfs: T[],
   getTime: (k: T) => number,
@@ -233,12 +257,29 @@ function sampleTrack<T>(
   lerp: (a: T, b: T, t: number) => T,
   neutral: () => T,
   time: number,
+  duration: number,
 ): T {
   if (kfs.length === 0) return neutral();
   const sorted = [...kfs].sort((a, b) => getTime(a) - getTime(b));
-  if (time <= getTime(sorted[0])) return { ...sorted[0] };
-  const last = sorted[sorted.length - 1];
-  if (time >= getTime(last)) return { ...last };
+  const firstTime = getTime(sorted[0]);
+  const lastTime  = getTime(sorted[sorted.length - 1]);
+
+  // Before first keyframe: neutral → first
+  if (time <= 0) return neutral();
+  if (time < firstTime) {
+    const raw = firstTime > 0 ? time / firstTime : 1;
+    return lerp(neutral(), sorted[0], applyEasing(raw, getEasing(sorted[0])));
+  }
+
+  // After last keyframe: last → neutral
+  if (time >= duration) return neutral();
+  if (time > lastTime) {
+    const span = duration - lastTime;
+    const raw = span > 0 ? (time - lastTime) / span : 1;
+    return lerp(sorted[sorted.length - 1], neutral(), applyEasing(raw, "ease-in-out"));
+  }
+
+  // Between keyframes
   for (let i = 0; i < sorted.length - 1; i++) {
     const a = sorted[i];
     const b = sorted[i + 1];
@@ -248,39 +289,54 @@ function sampleTrack<T>(
       return lerp(a, b, applyEasing(raw, getEasing(b)));
     }
   }
-  return { ...last };
+  return { ...sorted[sorted.length - 1] };
 }
 
 // ---------------------------------------------------------------------------
 // Per-track samplers
 
-export function sampleBodyTrack(kfs: BodyKeyframe[], time: number): { deltaY: number; deltaRotY: number } {
-  if (kfs.length === 0) return { deltaY: 0, deltaRotY: 0 };
+type BodySample = { deltaY: number; deltaRotY: number; leanX: number; leanZ: number; radiusDelta: number; heightDelta: number };
+const BODY_NEUTRAL = (): BodyKeyframe => ({ id: "", time: 0, deltaY: 0, deltaRotY: 0, leanX: 0, leanZ: 0, radiusDelta: 0, heightDelta: 0, easing: "linear" as Easing });
+
+export function sampleBodyTrack(kfs: BodyKeyframe[], time: number, duration: number): BodySample {
+  const zero: BodySample = { deltaY: 0, deltaRotY: 0, leanX: 0, leanZ: 0, radiusDelta: 0, heightDelta: 0 };
+  if (kfs.length === 0) return zero;
   const result = sampleTrack(
-    kfs,
-    k => k.time,
-    k => k.easing,
-    (a, b, t) => ({ ...b, deltaY: lerpNum(a.deltaY, b.deltaY, t), deltaRotY: lerpNum(a.deltaRotY, b.deltaRotY, t) }),
-    () => ({ id: "", time: 0, deltaY: 0, deltaRotY: 0, easing: "linear" as Easing }),
-    time,
+    kfs, k => k.time, k => k.easing,
+    (a, b, t) => ({ ...b,
+      deltaY:      lerpNum(a.deltaY,      b.deltaY,      t),
+      deltaRotY:   lerpNum(a.deltaRotY,   b.deltaRotY,   t),
+      leanX:       lerpNum(a.leanX,       b.leanX,       t),
+      leanZ:       lerpNum(a.leanZ,       b.leanZ,       t),
+      radiusDelta: lerpNum(a.radiusDelta, b.radiusDelta, t),
+      heightDelta: lerpNum(a.heightDelta, b.heightDelta, t),
+    }),
+    BODY_NEUTRAL, time, duration,
   );
-  return { deltaY: result.deltaY, deltaRotY: result.deltaRotY };
+  return { deltaY: result.deltaY, deltaRotY: result.deltaRotY, leanX: result.leanX, leanZ: result.leanZ, radiusDelta: result.radiusDelta, heightDelta: result.heightDelta };
 }
 
-export function sampleHeadTrack(kfs: HeadKeyframe[], time: number): [number, number, number] {
-  if (kfs.length === 0) return [0, 0, 0];
+type HeadSample = { rotation: [number,number,number]; offsetX: number; offsetY: number; offsetZ: number; radiusDelta: number };
+const HEAD_NEUTRAL = (): HeadKeyframe => ({ id: "", time: 0, deltaRotation: [0,0,0] as [number,number,number], offsetX: 0, offsetY: 0, offsetZ: 0, radiusDelta: 0, easing: "linear" as Easing });
+
+export function sampleHeadTrack(kfs: HeadKeyframe[], time: number, duration: number): HeadSample {
+  const zero: HeadSample = { rotation: [0,0,0], offsetX: 0, offsetY: 0, offsetZ: 0, radiusDelta: 0 };
+  if (kfs.length === 0) return zero;
   const result = sampleTrack(
-    kfs,
-    k => k.time,
-    k => k.easing,
-    (a, b, t) => ({ ...b, deltaRotation: lerpV3(a.deltaRotation, b.deltaRotation, t) }),
-    () => ({ id: "", time: 0, deltaRotation: [0, 0, 0] as [number,number,number], easing: "linear" as Easing }),
-    time,
+    kfs, k => k.time, k => k.easing,
+    (a, b, t) => ({ ...b,
+      deltaRotation: lerpV3(a.deltaRotation, b.deltaRotation, t),
+      offsetX:       lerpNum(a.offsetX,      b.offsetX,      t),
+      offsetY:       lerpNum(a.offsetY,      b.offsetY,      t),
+      offsetZ:       lerpNum(a.offsetZ,      b.offsetZ,      t),
+      radiusDelta:   lerpNum(a.radiusDelta,  b.radiusDelta,  t),
+    }),
+    HEAD_NEUTRAL, time, duration,
   );
-  return result.deltaRotation;
+  return { rotation: result.deltaRotation, offsetX: result.offsetX, offsetY: result.offsetY, offsetZ: result.offsetZ, radiusDelta: result.radiusDelta };
 }
 
-export function sampleArmTrack(kfs: ArmKeyframe[], time: number): ArmPose {
+export function sampleArmTrack(kfs: ArmKeyframe[], time: number, duration: number): ArmPose {
   if (kfs.length === 0) return { ...ZERO_POSE };
   const result = sampleTrack(
     kfs,
@@ -289,11 +345,12 @@ export function sampleArmTrack(kfs: ArmKeyframe[], time: number): ArmPose {
     (a, b, t) => ({ ...b, pose: lerpArmPose(a.pose, b.pose, t) }),
     () => ({ id: "", time: 0, pose: { ...ZERO_POSE }, easing: "linear" as Easing }),
     time,
+    duration,
   );
   return result.pose;
 }
 
-export function sampleEyeTrack(kfs: EyeKeyframe[], time: number): Partial<EyeShape> {
+export function sampleEyeTrack(kfs: EyeKeyframe[], time: number, duration: number): Partial<EyeShape> {
   if (kfs.length === 0) return {};
   const result = sampleTrack(
     kfs,
@@ -302,6 +359,7 @@ export function sampleEyeTrack(kfs: EyeKeyframe[], time: number): Partial<EyeSha
     (a, b, t) => ({ ...b, override: lerpEyeOverride(a.override, b.override, t) }),
     () => ({ id: "", time: 0, override: {}, easing: "linear" as Easing }),
     time,
+    duration,
   );
   return result.override;
 }
@@ -314,27 +372,45 @@ export function sampleEffects(kfs: EffectKeyframe[], time: number): ActiveEffect
 
 export function sampleEmote(emote: Emote, time: number): ResolvedPose {
   const t = emote.tracks;
-  const body = sampleBodyTrack(t.body, time);
+  const d = emote.duration;
+  const body = sampleBodyTrack(t.body, time, d);
+  const head = sampleHeadTrack(t.head, time, d);
   return {
     bodyDeltaY:        body.deltaY,
     bodyDeltaRotY:     body.deltaRotY,
-    headDeltaRotation: sampleHeadTrack(t.head, time),
-    rightArm:          sampleArmTrack(t.rightArm, time),
-    leftArm:           sampleArmTrack(t.leftArm, time),
-    eyeOverride:       sampleEyeTrack(t.eyes, time),
+    bodyLeanX:         body.leanX,
+    bodyLeanZ:         body.leanZ,
+    bodyRadiusDelta:   body.radiusDelta,
+    bodyHeightDelta:   body.heightDelta,
+    headDeltaRotation: head.rotation,
+    headOffsetX:       head.offsetX,
+    headOffsetY:       head.offsetY,
+    headOffsetZ:       head.offsetZ,
+    headRadiusDelta:   head.radiusDelta,
+    rightArm:          sampleArmTrack(t.rightArm, time, d),
+    leftArm:           sampleArmTrack(t.leftArm,  time, d),
+    eyeOverride:       sampleEyeTrack(t.eyes,     time, d),
     activeEffects:     sampleEffects(t.effects, time),
   };
 }
 
 export function lerpResolvedPose(a: ResolvedPose, b: ResolvedPose, t: number): ResolvedPose {
   return {
-    bodyDeltaY:        lerpNum(a.bodyDeltaY,    b.bodyDeltaY,    t),
-    bodyDeltaRotY:     lerpNum(a.bodyDeltaRotY, b.bodyDeltaRotY, t),
+    bodyDeltaY:        lerpNum(a.bodyDeltaY,       b.bodyDeltaY,       t),
+    bodyDeltaRotY:     lerpNum(a.bodyDeltaRotY,    b.bodyDeltaRotY,    t),
+    bodyLeanX:         lerpNum(a.bodyLeanX,        b.bodyLeanX,        t),
+    bodyLeanZ:         lerpNum(a.bodyLeanZ,        b.bodyLeanZ,        t),
+    bodyRadiusDelta:   lerpNum(a.bodyRadiusDelta,  b.bodyRadiusDelta,  t),
+    bodyHeightDelta:   lerpNum(a.bodyHeightDelta,  b.bodyHeightDelta,  t),
     headDeltaRotation: lerpV3(a.headDeltaRotation, b.headDeltaRotation, t),
-    rightArm:          lerpArmPose(a.rightArm, b.rightArm, t),
-    leftArm:           lerpArmPose(a.leftArm,  b.leftArm,  t),
-    eyeOverride:       lerpEyeOverride(a.eyeOverride, b.eyeOverride, t),
-    activeEffects:     b.activeEffects,  // effects snap rather than lerp
+    headOffsetX:       lerpNum(a.headOffsetX,      b.headOffsetX,      t),
+    headOffsetY:       lerpNum(a.headOffsetY,      b.headOffsetY,      t),
+    headOffsetZ:       lerpNum(a.headOffsetZ,      b.headOffsetZ,      t),
+    headRadiusDelta:   lerpNum(a.headRadiusDelta,  b.headRadiusDelta,  t),
+    rightArm:          lerpArmPose(a.rightArm,     b.rightArm,         t),
+    leftArm:           lerpArmPose(a.leftArm,      b.leftArm,          t),
+    eyeOverride:       lerpEyeOverride(a.eyeOverride, b.eyeOverride,   t),
+    activeEffects:     b.activeEffects,
   };
 }
 

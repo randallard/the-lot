@@ -190,31 +190,54 @@ function EmoteDriver({ emote, isPlaying, onPoseChange }: EmoteDriverProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Merge animation ResolvedPose into a shape snapshot for rendering
+
+function mergeAnimation(shape: CharacterBodyShape, rp: ResolvedPose): CharacterBodyShape {
+  return {
+    ...shape,
+    head: {
+      ...shape.head,
+      rotation: [
+        shape.head.rotation[0] + rp.headDeltaRotation[0],
+        shape.head.rotation[1] + rp.headDeltaRotation[1],
+        shape.head.rotation[2] + rp.headDeltaRotation[2],
+      ] as [number, number, number],
+      offsetX: shape.head.offsetX + rp.headOffsetX,
+      offsetY: shape.head.offsetY + rp.headOffsetY,
+      offsetZ: shape.head.offsetZ + rp.headOffsetZ,
+      radius:  shape.head.radius  + rp.headRadiusDelta,
+    },
+    body: {
+      ...shape.body,
+      leanX:  shape.body.leanX  + rp.bodyLeanX,
+      leanZ:  shape.body.leanZ  + rp.bodyLeanZ,
+      radius: shape.body.radius + rp.bodyRadiusDelta,
+      height: shape.body.height + rp.bodyHeightDelta,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Static body (head + torso only — arms handled separately)
 
 interface BodyMeshProps {
-  shape: CharacterBodyShape;
+  shape: CharacterBodyShape;  // already has animation merged in
   color: string;
   handPose: "open" | "closed";
-  headDelta?: [number, number, number];
-  bodyDeltaY?: number;
+  bodyDeltaY?: number;        // additive jump offset (remains separate)
 }
 
-function BodyMesh({ shape, color, handPose, headDelta, bodyDeltaY = 0 }: BodyMeshProps) {
+function BodyMesh({ shape, color, handPose, bodyDeltaY = 0 }: BodyMeshProps) {
   const { head, body } = shape;
   const pos = computePositions(shape, PREVIEW_BODY_Y, handPose);
-  const hr: [number, number, number] = [
-    deg2rad(head.rotation[0] + (headDelta?.[0] ?? 0)),
-    deg2rad(head.rotation[1] + (headDelta?.[1] ?? 0)),
-    deg2rad(head.rotation[2] + (headDelta?.[2] ?? 0)),
-  ];
+  const hr: [number, number, number] = [deg2rad(head.rotation[0]), deg2rad(head.rotation[1]), deg2rad(head.rotation[2])];
   return (
     <>
-      <mesh position={[0, PREVIEW_BODY_Y + bodyDeltaY, 0]}>
+      <mesh position={[0, PREVIEW_BODY_Y + bodyDeltaY, 0]} rotation={[deg2rad(body.leanX), 0, deg2rad(body.leanZ)]}>
         <capsuleGeometry args={[body.radius, body.height, body.capSegments, body.radialSegments]} />
         <meshStandardMaterial color={color} />
       </mesh>
-      <mesh position={[0, pos.headY + bodyDeltaY, 0]} rotation={hr}>
+      <mesh position={[head.offsetX, pos.headY + bodyDeltaY + head.offsetY, head.offsetZ]} rotation={hr}>
         <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
         <meshStandardMaterial color={color} />
       </mesh>
@@ -246,11 +269,11 @@ function Scene({
   emotePreview, isEmotePlaying, onLiveEmotePose, resolvedPose,
 }: SceneProps) {
   const rp = resolvedPose ?? NEUTRAL_POSE;
-  const pos = computePositions(shape, PREVIEW_BODY_Y, handPose);
+  const animShape = mergeAnimation(shape, rp);
+  const pos = computePositions(animShape, PREVIEW_BODY_Y, handPose);
   const sY = pos.shoulderY + rp.bodyDeltaY;
   const sX = pos.forearmX;
 
-  // Arm poses: emote drives right/left independently; arm-action drives both the same
   const rightPose = resolvedPose ? resolvedPose.rightArm : armPose;
   const leftPose  = resolvedPose ? resolvedPose.leftArm  : armPose;
 
@@ -260,17 +283,15 @@ function Scene({
       <ambientLight intensity={0.9} />
       <directionalLight position={[2, 4, 3]} intensity={1.3} />
       <directionalLight position={[-2, 1, -2]} intensity={0.3} color="#8888cc" />
-      <BodyMesh
-        shape={shape} color={color} handPose={handPose}
-        bodyDeltaY={rp.bodyDeltaY}
-        headDelta={rp.headDeltaRotation}
-      />
-      <ArmGroup shoulderPos={[sX, sY, 0]}  mirror={false} shape={shape} color={color} handPose={handPose} armPose={rightPose} />
-      <ArmGroup shoulderPos={[-sX, sY, 0]} mirror={true}  shape={shape} color={color} handPose={handPose} armPose={leftPose} />
+      <BodyMesh shape={animShape} color={color} handPose={handPose} bodyDeltaY={rp.bodyDeltaY} />
+      <ArmGroup shoulderPos={[sX, sY, 0]}  mirror={false} shape={animShape} color={color} handPose={handPose} armPose={rightPose} />
+      <ArmGroup shoulderPos={[-sX, sY, 0]} mirror={true}  shape={animShape} color={color} handPose={handPose} armPose={leftPose} />
       <Eyes
-        eyes={shape.eyes}
-        headY={pos.headY + rp.bodyDeltaY}
-        headRadius={shape.head.radius}
+        eyes={animShape.eyes}
+        headY={pos.headY + rp.bodyDeltaY + animShape.head.offsetY}
+        headRadius={animShape.head.radius}
+        headOffsetX={animShape.head.offsetX}
+        headOffsetZ={animShape.head.offsetZ}
         expressionOverride={Object.keys(rp.eyeOverride).length > 0 ? rp.eyeOverride : undefined}
       />
       {animationPreview && isPlaying && onLivepose && (

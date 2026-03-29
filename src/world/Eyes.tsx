@@ -113,13 +113,16 @@ export interface EyesProps {
   /** Y position of the head sphere center in the character's local group space */
   headY: number;
   headRadius: number;
+  /** Head position offsets — shift eyes with the head when offsetX/Z are set */
+  headOffsetX?: number;
+  headOffsetZ?: number;
   /** If set, looks up and applies the matching expression overrides */
   expression?: string;
   /** Direct override — takes precedence over `expression` (used by the emote system) */
   expressionOverride?: Partial<EyeShape>;
 }
 
-export function Eyes({ eyes, headY, headRadius, expression, expressionOverride }: EyesProps) {
+export function Eyes({ eyes, headY, headRadius, headOffsetX = 0, headOffsetZ = 0, expression, expressionOverride }: EyesProps) {
   const { positioning, asymmetric, right, left, expressions, clipOverlap, rotationMirrored } = eyes;
 
   const expOverride = expressionOverride ?? (expression ? expressions[expression] : undefined);
@@ -128,20 +131,16 @@ export function Eyes({ eyes, headY, headRadius, expression, expressionOverride }
 
   const eyeX      = positioning.separation / 2;
   const eyeLocalY = headRadius * (1 - 2 * positioning.fromTopOfHead);
-  const eyeZ      = eyeZOnSphere(headRadius, eyeX, eyeLocalY);
+  const eyeZ      = eyeZOnSphere(headRadius, eyeX, eyeLocalY) + headOffsetZ;
   const eyeWorldY = headY + eyeLocalY;
 
-  // Clip each white at the midpoint (world x=0). In each eye's local space:
-  //   right eye local origin is at world +eyeX → midpoint is at local x = -eyeX
-  //   left  eye local origin is at world -eyeX → midpoint is at local x = +eyeX
-  // Also clip at y = -height/2 to remove downward arc extensions.
   const rightClipX = clipOverlap ? -eyeX : undefined;
   const leftClipX  = clipOverlap ?  eyeX : undefined;
 
   return (
     <>
-      <SingleEye eye={rightEye} position={[ eyeX, eyeWorldY, eyeZ]} whiteClipX={rightClipX} keepRight={true}  />
-      <SingleEye eye={leftEye}  position={[-eyeX, eyeWorldY, eyeZ]} whiteClipX={leftClipX}  keepRight={false} mirrorRotation={rotationMirrored} />
+      <SingleEye eye={rightEye} position={[ eyeX + headOffsetX, eyeWorldY, eyeZ]} whiteClipX={rightClipX} keepRight={true}  />
+      <SingleEye eye={leftEye}  position={[-eyeX + headOffsetX, eyeWorldY, eyeZ]} whiteClipX={leftClipX}  keepRight={false} mirrorRotation={rotationMirrored} />
     </>
   );
 }

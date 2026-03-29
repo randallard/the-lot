@@ -208,17 +208,17 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
     <>
       <group ref={groupRef} position={position}>
         {/* Body */}
-        <mesh position={[0, NPC_BODY_CENTER_Y, 0]} castShadow>
+        <mesh position={[0, NPC_BODY_CENTER_Y, 0]} rotation={[deg2rad(body.leanX), 0, deg2rad(body.leanZ)]} castShadow>
           <capsuleGeometry args={[body.radius, body.height, body.capSegments, body.radialSegments]} />
           <meshStandardMaterial color={npcColor} />
         </mesh>
 
         {/* Head */}
-        <mesh position={[0, pos.headY, 0]} rotation={[deg2rad(head.rotation[0]), deg2rad(head.rotation[1]), deg2rad(head.rotation[2])]} castShadow>
+        <mesh position={[head.offsetX, pos.headY + head.offsetY, head.offsetZ]} rotation={[deg2rad(head.rotation[0]), deg2rad(head.rotation[1]), deg2rad(head.rotation[2])]} castShadow>
           <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
           <meshStandardMaterial color={npcColor} />
         </mesh>
-        <Eyes eyes={shape.eyes} headY={pos.headY} headRadius={head.radius} />
+        <Eyes eyes={shape.eyes} headY={pos.headY + head.offsetY} headRadius={head.radius} headOffsetX={head.offsetX} headOffsetZ={head.offsetZ} />
 
         {/* Left forearm */}
         <mesh position={[-pos.forearmX, pos.forearmCenterY, 0]} castShadow>

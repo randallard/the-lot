@@ -188,16 +188,16 @@ export class AnimationController {
 function clone(p: ResolvedPose): ResolvedPose {
   return {
     ...p,
-    headDeltaRotation: [...p.headDeltaRotation],
+    headDeltaRotation: [...p.headDeltaRotation] as [number, number, number],
     rightArm: {
-      upperArmRotation: [...p.rightArm.upperArmRotation],
-      forearmRotation:  [...p.rightArm.forearmRotation],
-      handRotation:     [...p.rightArm.handRotation],
+      upperArmRotation: [...p.rightArm.upperArmRotation] as [number,number,number],
+      forearmRotation:  [...p.rightArm.forearmRotation]  as [number,number,number],
+      handRotation:     [...p.rightArm.handRotation]     as [number,number,number],
     },
     leftArm: {
-      upperArmRotation: [...p.leftArm.upperArmRotation],
-      forearmRotation:  [...p.leftArm.forearmRotation],
-      handRotation:     [...p.leftArm.handRotation],
+      upperArmRotation: [...p.leftArm.upperArmRotation] as [number,number,number],
+      forearmRotation:  [...p.leftArm.forearmRotation]  as [number,number,number],
+      handRotation:     [...p.leftArm.handRotation]     as [number,number,number],
     },
     activeEffects: [...p.activeEffects],
   };

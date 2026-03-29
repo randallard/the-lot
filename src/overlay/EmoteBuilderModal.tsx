@@ -84,9 +84,15 @@ function BodyKfCard({ kf, onChange, onDelete, isActive, onSelect }: {
         <button onClick={e => { e.stopPropagation(); onDelete(); }}
           style={{ background: "transparent", border: "none", color: "#553333", fontSize: 14, cursor: "pointer" }}>×</button>
       </div>
-      <SliderRow label="time (s)"   value={kf.time}      min={0} max={20}   step={0.05} onChange={v => onChange({ ...kf, time: v })} />
-      <SliderRow label="jump (ΔY)"  value={kf.deltaY}    min={0} max={3}    step={0.05} onChange={v => onChange({ ...kf, deltaY: v })} />
-      <SliderRow label="spin (°)"   value={kf.deltaRotY} min={-360} max={360} step={1}  onChange={v => onChange({ ...kf, deltaRotY: v })} />
+      <SliderRow label="time (s)"   value={kf.time}      min={0}    max={20}   step={0.05} onChange={v => onChange({ ...kf, time: v })} />
+      <SliderRow label="jump (Δy)"  value={kf.deltaY}    min={-1}   max={3}    step={0.05} onChange={v => onChange({ ...kf, deltaY: v })} />
+      <SliderRow label="spin (°)"   value={kf.deltaRotY} min={-360} max={360}  step={1}    onChange={v => onChange({ ...kf, deltaRotY: v })} />
+      <p style={SUB}>lean (°)</p>
+      <SliderRow label="fwd/back"   value={kf.leanX}     min={-45}  max={45}   step={1}    onChange={v => onChange({ ...kf, leanX: v })} />
+      <SliderRow label="side"       value={kf.leanZ}     min={-45}  max={45}   step={1}    onChange={v => onChange({ ...kf, leanZ: v })} />
+      <p style={SUB}>shape Δ</p>
+      <SliderRow label="radius"     value={kf.radiusDelta}  min={-0.2} max={0.5}  step={0.01} onChange={v => onChange({ ...kf, radiusDelta: v })} />
+      <SliderRow label="height"     value={kf.heightDelta}  min={-0.5} max={1.5}  step={0.01} onChange={v => onChange({ ...kf, heightDelta: v })} />
       <p style={SUB}>easing</p>
       <EasingSelect value={kf.easing} onChange={e => onChange({ ...kf, easing: e })} />
     </div>
@@ -110,10 +116,17 @@ function HeadKfCard({ kf, onChange, onDelete, isActive, onSelect }: {
         <button onClick={e => { e.stopPropagation(); onDelete(); }}
           style={{ background: "transparent", border: "none", color: "#553333", fontSize: 14, cursor: "pointer" }}>×</button>
       </div>
-      <SliderRow label="time (s)"   value={kf.time}               min={0} max={20} step={0.05} onChange={v => onChange({ ...kf, time: v })} />
-      <SliderRow label="Δx (nod)"   value={kf.deltaRotation[0]}   min={-90} max={90} step={1} onChange={v => patch(0, v)} />
-      <SliderRow label="Δy (turn)"  value={kf.deltaRotation[1]}   min={-180} max={180} step={1} onChange={v => patch(1, v)} />
-      <SliderRow label="Δz (tilt)"  value={kf.deltaRotation[2]}   min={-90} max={90} step={1} onChange={v => patch(2, v)} />
+      <SliderRow label="time (s)"    value={kf.time}               min={0}    max={20}  step={0.05} onChange={v => onChange({ ...kf, time: v })} />
+      <p style={SUB}>rotation Δ(°)</p>
+      <SliderRow label="x (nod)"     value={kf.deltaRotation[0]}   min={-90}  max={90}  step={1}    onChange={v => patch(0, v)} />
+      <SliderRow label="y (turn)"    value={kf.deltaRotation[1]}   min={-180} max={180} step={1}    onChange={v => patch(1, v)} />
+      <SliderRow label="z (tilt)"    value={kf.deltaRotation[2]}   min={-90}  max={90}  step={1}    onChange={v => patch(2, v)} />
+      <p style={SUB}>position offset</p>
+      <SliderRow label="fwd/back"    value={kf.offsetZ}             min={-0.5} max={0.5} step={0.01} onChange={v => onChange({ ...kf, offsetZ: v })} />
+      <SliderRow label="up/down"     value={kf.offsetY}             min={-0.5} max={0.5} step={0.01} onChange={v => onChange({ ...kf, offsetY: v })} />
+      <SliderRow label="left/right"  value={kf.offsetX}             min={-0.5} max={0.5} step={0.01} onChange={v => onChange({ ...kf, offsetX: v })} />
+      <p style={SUB}>shape Δ</p>
+      <SliderRow label="radius"      value={kf.radiusDelta}         min={-0.15} max={0.3} step={0.01} onChange={v => onChange({ ...kf, radiusDelta: v })} />
       <p style={SUB}>easing</p>
       <EasingSelect value={kf.easing} onChange={e => onChange({ ...kf, easing: e })} />
     </div>
@@ -351,8 +364,13 @@ function EditorView({ emote: initial, shape, color, onBack, onSave, isWide }: Ed
   const [isPlaying, setIsPlaying] = useState(false);
   const [scrubTime, setScrubTime] = useState(0);
 
-  // Static pose used when not playing (scrub position preview)
-  const scrubPose = !isPlaying ? sampleEmote(emote, scrubTime) : undefined;
+  // When a keyframe is selected, preview at that keyframe's time so edits are immediately visible.
+  // Otherwise fall back to the manual scrub position.
+  const activeKfTime = activeKfId
+    ? (emote.tracks[activeTrack] as Array<{ id: string; time: number }>).find(k => k.id === activeKfId)?.time
+    : undefined;
+  const previewTime = activeKfTime ?? scrubTime;
+  const scrubPose = !isPlaying ? sampleEmote(emote, previewTime) : undefined;
 
   const updateTrack = useCallback(<K extends TrackName>(track: K, kfs: EmoteTracks[K]) => {
     setEmote(e => ({ ...e, tracks: { ...e.tracks, [track]: kfs } }));
@@ -461,8 +479,8 @@ function EditorView({ emote: initial, shape, color, onBack, onSave, isWide }: Ed
             <Timeline
               emote={emote}
               selectedId={activeKfId}
-              scrubTime={scrubTime}
-              onScrub={t => { setScrubTime(t); setIsPlaying(false); }}
+              scrubTime={previewTime}
+              onScrub={t => { setScrubTime(t); setActiveKfId(null); setIsPlaying(false); }}
               onSelect={handleTimelineSelect}
             />
           </div>
