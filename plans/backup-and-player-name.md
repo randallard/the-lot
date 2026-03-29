@@ -12,8 +12,9 @@ All settings, statistics, and customizations need backup/restore. Kings Cooking 
 - `townage-player-id` — UUID for file server keying (new)
 
 **Customization**
-- `townage-body-shapes` — all character geometry + eye shapes + arm colors
-- `townage-arm-actions` — all saved arm animations per character
+- `townage-body-shapes` — per-character geometry, layout, colors, and eye configuration. Includes: body/head size + segments, body lean (leanX/Z), head position offsets (offsetX/Y/Z), head rotation, arm layout, forearm/hand shape + pose, eye shape/iris/arcs/expressions, body color. Schema: `Record<characterId, CharacterBodyShape>`
+- `townage-arm-actions` — per-character saved arm animations (keyframed upper-arm/forearm/hand rotation sequences). Schema: `Record<characterId, ArmAction[]>`
+- `townage-emotes` — per-character full-body keyframed animation sequences. Each emote has multi-track keyframes: body (jump, spin, lean, shape morph), head (rotation, position, radius), right/left arm (pose), eyes (expression override), visual effects. Schema: `Record<characterId, Emote[]>`
 
 **Stats & Progress**
 - `townage-npc-records` — wins/losses/streaks for Spaces game per NPC
@@ -44,18 +45,24 @@ All settings, statistics, and customizations need backup/restore. Kings Cooking 
 
 ```ts
 TownageBackup {
-  version: "1.0.0"
+  version: "1.1.0"
   timestamp: number
   playerName: string
   playerId: string  // UUID
   data: {
-    bodyShapes, armActions,
+    // Customization
+    bodyShapes,      // CharacterBodyShape per character — geometry, offsets, lean, eyes, color
+    armActions,      // ArmAction[] per character — arm animation sequences
+    emotes,          // Emote[] per character — full-body keyframed animations
+    // Stats & progress
     npcRecords, kingsChessRecords, boardRecords,
     friendliness, enthusiasm, introSeen,
     gameState,
     midGameSaves: Record<npcId, MidGameSave>,
+    // Preferences
     chatPrefs, moodResponses,
-    chats  // optional
+    // Optional
+    chats
   }
 }
 ```

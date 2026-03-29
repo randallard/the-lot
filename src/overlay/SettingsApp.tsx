@@ -7,12 +7,13 @@ import {
 import { ChatInfoModal } from "./ChatInfoModal";
 import { EnthusiasmSettings } from "./EnthusiasmSettings";
 import { MoodResponsesModal } from "./MoodResponsesModal";
+import { BackupModal } from "./BackupModal";
 interface SettingsAppProps {
   onClose: () => void;
   onOpenBodyEditor?: () => void;
 }
 
-const SETTINGS_ITEMS = 6; // AI toggle, NPC Vibes, Check-in, Privacy, Clear, Edit Appearance
+const SETTINGS_ITEMS = 7; // AI toggle, NPC Vibes, Check-in, Privacy, Clear, Edit Appearance, Backup
 
 export function SettingsApp({ onClose, onOpenBodyEditor }: SettingsAppProps) {
   const [prefs, setPrefs] = useState(getPreferences);
@@ -20,6 +21,7 @@ export function SettingsApp({ onClose, onOpenBodyEditor }: SettingsAppProps) {
   const [showCleared, setShowCleared] = useState(false);
   const [showEnthusiasm, setShowEnthusiasm] = useState(false);
   const [showMoodResponses, setShowMoodResponses] = useState(false);
+  const [showBackup, setShowBackup] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState(0);
 
   const toggleHaiku = () => {
@@ -41,6 +43,7 @@ export function SettingsApp({ onClose, onOpenBodyEditor }: SettingsAppProps) {
     () => setShowInfo(true),
     handleClear,
     () => onOpenBodyEditor?.(),
+    () => setShowBackup(true),
   ], [onOpenBodyEditor]);
 
   useEffect(() => {
@@ -309,12 +312,38 @@ export function SettingsApp({ onClose, onOpenBodyEditor }: SettingsAppProps) {
         <span style={{ color: "#666", fontSize: 14 }}>→</span>
       </button>
 
+      {/* Backup & Restore */}
+      <button
+        onClick={() => setShowBackup(true)}
+        style={{
+          background: selectedIdx === 6 ? "#2a2a4e" : "#1a1a2e",
+          border: selectedIdx === 6 ? "1px solid #6a4c93" : "1px solid #2a2a3e",
+          borderRadius: 12,
+          padding: "14px 16px",
+          textAlign: "left",
+          cursor: "pointer",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <p style={{ color: "#ccc", fontSize: 14, fontWeight: 600, margin: 0 }}>Backup & Restore</p>
+          <p style={{ color: "#666", fontSize: 11, margin: "2px 0 0" }}>save or restore your data</p>
+        </div>
+        <span style={{ color: "#666", fontSize: 14 }}>→</span>
+      </button>
+
       {showInfo && (
         <ChatInfoModal mode="privacy" onClose={() => setShowInfo(false)} />
       )}
 
       {showMoodResponses && (
         <MoodResponsesModal onClose={() => setShowMoodResponses(false)} />
+      )}
+
+      {showBackup && (
+        <BackupModal onClose={() => setShowBackup(false)} />
       )}
     </div>
   );

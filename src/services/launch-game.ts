@@ -1,6 +1,7 @@
 import LZString from "lz-string";
 import type { NpcConfig } from "../config/npcs";
 import { getActiveSession, saveActiveSession } from "./active-sessions";
+import { getPlayerName } from "./player-name";
 
 export interface LotLaunchData {
   sessionId: string;
@@ -65,6 +66,7 @@ export interface KingsChessLotLaunchData {
   npcDisplayName: string;
   agentType: "scripted_1" | "scripted_2";
   returnUrl: string;
+  playerName?: string;
 }
 
 export function buildKingsChessLaunchUrl(npc: NpcConfig): string {
@@ -77,6 +79,7 @@ export function buildKingsChessLaunchUrl(npc: NpcConfig): string {
     npcDisplayName: npc.displayName,
     agentType: npc.games?.["kings-cooking"]?.agentType ?? "scripted_1",
     returnUrl,
+    playerName: getPlayerName() ?? undefined,
   };
 
   const compressed = LZString.compressToEncodedURIComponent(

@@ -640,7 +640,7 @@ export function EmoteBuilderModal({ subjectId, shape, onClose }: EmoteBuilderMod
 
   const npc = subjectId !== "player" ? getNpcById(subjectId) : null;
   const label = npc ? `${npc.emoji} ${npc.displayName}` : "you";
-  const color = npc ? npc.appearance.bodyColor : "#444444";
+  const color = shape.bodyColor;
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") editing ? setEditing(null) : onClose(); };

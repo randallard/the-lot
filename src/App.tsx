@@ -56,6 +56,7 @@ import { recordBoardResult } from "./services/npc-board-records";
 import { isAsleep, recordMessage } from "./services/npc-sleep";
 import { fetchPendingResults } from "./services/fetch-pending-results";
 import { processAsyncResults } from "./services/async-npc-messages";
+import { hasPlayerName, setPlayerName } from "./services/player-name";
 import type { TrinketTrackerState } from "./world/useTrinketTracker";
 import type { RushMode } from "./world/Player";
 import type { ScreenPos } from "./world/useScreenPosition";
@@ -87,6 +88,7 @@ export default function App() {
   const [showCustomizeMood, setShowCustomizeMood] = useState(false);
   const [chatContinue, setChatContinue] = useState(false);
   const [showSupportForm, setShowSupportForm] = useState(false);
+  const [askingPlayerName, setAskingPlayerName] = useState(false);
   const [_playingGameNpcId, setPlayingGameNpcId] = useState<string | null>(null);
   const [gameAcceptText, setGameAcceptText] = useState<string | null>(null);
   const postGameChat = useRef(false);
@@ -379,6 +381,19 @@ export default function App() {
     setShowNpcIntro(true);
   }, [game.clearOverride]);
 
+  // Opens chat with an NPC; triggers name-capture flow if this is the first Ryan chat
+  const openChatWithNpc = useCallback((npcId: string) => {
+    if (npcId === "ryan" && !hasPlayerName()) {
+      const question = "hey, what should I call you?";
+      addMessage("ryan", { id: genMessageId(), sender: "npc", text: question, timestamp: Date.now() });
+      setAskingPlayerName(true);
+      setChatContinue(true);
+      setChatRespondingNpcId("ryan");
+      setChatResponse({ text: question, isSeen: false });
+    }
+    setChatNpcId(npcId);
+  }, []);
+
   const handleGameNpcClick = useCallback((npcId: string) => {
     // Only allow chat in free-play (tutorial complete, no overlays)
     if (game.state.phaseOverride || !game.state.tutorialComplete) return;
@@ -403,9 +418,9 @@ export default function App() {
       setPendingChatNpcId(npcId);
       setShowOptIn(true);
     } else {
-      setChatNpcId(npcId);
+      openChatWithNpc(npcId);
     }
-  }, [game.state.phaseOverride, game.state.tutorialComplete, chatNpcId, chatRespondingNpcId, moodCheckNpcId]);
+  }, [game.state.phaseOverride, game.state.tutorialComplete, chatNpcId, chatRespondingNpcId, moodCheckNpcId, openChatWithNpc]);
 
   const handleNpcClick = useCallback(() => {
     handleGameNpcClick("ryan");
@@ -466,24 +481,39 @@ export default function App() {
     setPreferences({ useHaiku: true, optInShown: true });
     setShowOptIn(false);
     if (pendingChatNpcId) {
-      setChatNpcId(pendingChatNpcId);
+      openChatWithNpc(pendingChatNpcId);
       setPendingChatNpcId(null);
     }
-  }, [pendingChatNpcId]);
+  }, [pendingChatNpcId, openChatWithNpc]);
 
   const handleOptInDecline = useCallback(() => {
     setPreferences({ useHaiku: false, optInShown: true });
     setShowOptIn(false);
     if (pendingChatNpcId) {
-      setChatNpcId(pendingChatNpcId);
+      openChatWithNpc(pendingChatNpcId);
       setPendingChatNpcId(null);
     }
-  }, [pendingChatNpcId]);
+  }, [pendingChatNpcId, openChatWithNpc]);
 
   const handleChatSend = useCallback(async (message: string) => {
     if (!chatNpcId) return;
     const npc = getNpcById(chatNpcId);
     if (!npc) return;
+
+    // Name capture mode — save player name instead of sending to NPC AI
+    if (askingPlayerName) {
+      const name = message.trim();
+      setPlayerName(name);
+      setAskingPlayerName(false);
+      setChatNpcId(null);
+      setChatContinue(false);
+      addMessage("ryan", { id: genMessageId(), sender: "player", text: name, timestamp: Date.now() });
+      const reply = `nice to meet you, ${name}!`;
+      addMessage("ryan", { id: genMessageId(), sender: "npc", text: reply, timestamp: Date.now() });
+      setChatRespondingNpcId("ryan");
+      setChatResponse({ text: reply, isSeen: false });
+      return;
+    }
 
     // Block if NPC fell asleep (e.g. hit limit mid-conversation)
     if (chatNpcId !== "ryan" && isAsleep(chatNpcId)) {
@@ -570,7 +600,7 @@ export default function App() {
         setChatContinue(true);
       }, 1500);
     }
-  }, [chatNpcId]);
+  }, [chatNpcId, askingPlayerName]);
 
   const dismissChatResponse = useCallback(() => {
     const wasPostGame = postGameChat.current;
@@ -585,6 +615,7 @@ export default function App() {
 
   const handleChatClose = useCallback(() => {
     const wasPostGame = postGameChat.current;
+    setAskingPlayerName(false);
     setChatNpcId(null);
     setChatResponse(null);
     setChatRespondingNpcId(null);
