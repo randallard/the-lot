@@ -11,6 +11,7 @@ import { useTrinketTracker, type TrinketTrackerState } from "./useTrinketTracker
 import type { RushMode } from "./Player";
 import type { ScreenPos } from "./useScreenPosition";
 import type { CharacterBodyShape } from "../services/body-shapes";
+import type { AnimationController } from "../services/animation-controller";
 
 const SPAWN_DELAY = 6000;
 const PART1_POS = new THREE.Vector3(3, 0.08, -7);
@@ -62,9 +63,10 @@ interface WorldProps {
   initialPlayerPos?: { x: number; z: number } | null;
   playerWorldPos?: React.RefObject<{ x: number; z: number } | null>;
   bodyShapes?: Record<string, CharacterBodyShape>;
+  playerAnimController?: React.RefObject<AnimationController>;
 }
 
-export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, showGameNpcs, onMycoClick, onEmberClick, onSproutClick, mycoScreenPos, emberScreenPos, sproutScreenPos, mycoAsleep, emberAsleep, sproutAsleep, findTargetNpcId, npcTalking, partsCollected, initialPlayerPos, playerWorldPos, bodyShapes }: WorldProps) {
+export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, showGameNpcs, onMycoClick, onEmberClick, onSproutClick, mycoScreenPos, emberScreenPos, sproutScreenPos, mycoAsleep, emberAsleep, sproutAsleep, findTargetNpcId, npcTalking, partsCollected, initialPlayerPos, playerWorldPos, bodyShapes, playerAnimController }: WorldProps) {
   const playerPos = useRef(new THREE.Vector3(
     initialPlayerPos?.x ?? 0,
     0.75,
@@ -259,7 +261,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
 
       <CameraRig target={playerPos} offset={cameraOffset} lookAtOffset={cameraLookAtOffset} />
       <Ground />
-      <Player positionRef={playerPos} inputDir={inputDir} rushMode={rushMode} rushTarget={rushTarget} hidden={hidePlayer} bodyShape={bodyShapes?.["player"]} />
+      <Player positionRef={playerPos} inputDir={inputDir} rushMode={rushMode} rushTarget={rushTarget} hidden={hidePlayer} bodyShape={bodyShapes?.["player"]} animController={playerAnimController} />
       {part1Spawned && !part1Collected && (
         <BotParts
           position={[PART1_POS.x, PART1_POS.y, PART1_POS.z]}

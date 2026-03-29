@@ -11,7 +11,7 @@ import {
 import { Eyes } from "../world/Eyes";
 import type { ArmPose, ArmAction } from "../services/arm-actions";
 import { ZERO_POSE } from "../services/arm-actions";
-import { type Emote, type ResolvedPose, NEUTRAL_POSE, sampleEmote } from "../services/emotes";
+import { type Emote, type ResolvedPose, NEUTRAL_POSE, sampleEmote, mergeAnimation } from "../services/emotes";
 
 const PREVIEW_BODY_Y = 0.5;
 
@@ -187,34 +187,6 @@ function EmoteDriver({ emote, isPlaying, onPoseChange }: EmoteDriverProps) {
   });
 
   return null;
-}
-
-// ---------------------------------------------------------------------------
-// Merge animation ResolvedPose into a shape snapshot for rendering
-
-function mergeAnimation(shape: CharacterBodyShape, rp: ResolvedPose): CharacterBodyShape {
-  return {
-    ...shape,
-    head: {
-      ...shape.head,
-      rotation: [
-        shape.head.rotation[0] + rp.headDeltaRotation[0],
-        shape.head.rotation[1] + rp.headDeltaRotation[1],
-        shape.head.rotation[2] + rp.headDeltaRotation[2],
-      ] as [number, number, number],
-      offsetX: shape.head.offsetX + rp.headOffsetX,
-      offsetY: shape.head.offsetY + rp.headOffsetY,
-      offsetZ: shape.head.offsetZ + rp.headOffsetZ,
-      radius:  shape.head.radius  + rp.headRadiusDelta,
-    },
-    body: {
-      ...shape.body,
-      leanX:  shape.body.leanX  + rp.bodyLeanX,
-      leanZ:  shape.body.leanZ  + rp.bodyLeanZ,
-      radius: shape.body.radius + rp.bodyRadiusDelta,
-      height: shape.body.height + rp.bodyHeightDelta,
-    },
-  };
 }
 
 // ---------------------------------------------------------------------------

@@ -57,6 +57,9 @@ import { isAsleep, recordMessage } from "./services/npc-sleep";
 import { fetchPendingResults } from "./services/fetch-pending-results";
 import { processAsyncResults } from "./services/async-npc-messages";
 import { hasPlayerName, setPlayerName } from "./services/player-name";
+import { AnimationController } from "./services/animation-controller";
+import { getEmotes, type Emote } from "./services/emotes";
+import { EmotePanel } from "./overlay/EmotePanel";
 import type { TrinketTrackerState } from "./world/useTrinketTracker";
 import type { RushMode } from "./world/Player";
 import type { ScreenPos } from "./world/useScreenPosition";
@@ -89,6 +92,8 @@ export default function App() {
   const [chatContinue, setChatContinue] = useState(false);
   const [showSupportForm, setShowSupportForm] = useState(false);
   const [askingPlayerName, setAskingPlayerName] = useState(false);
+  const [showEmotePanel, setShowEmotePanel] = useState(false);
+  const playerAnimController = useRef(new AnimationController());
   const [_playingGameNpcId, setPlayingGameNpcId] = useState<string | null>(null);
   const [gameAcceptText, setGameAcceptText] = useState<string | null>(null);
   const postGameChat = useRef(false);
@@ -380,6 +385,11 @@ export default function App() {
     game.clearOverride();
     setShowNpcIntro(true);
   }, [game.clearOverride]);
+
+  const handlePlayEmote = useCallback((emote: Emote) => {
+    playerAnimController.current.interrupt(emote, { resume: false });
+    setShowEmotePanel(false);
+  }, []);
 
   // Opens chat with an NPC; triggers name-capture flow if this is the first Ryan chat
   const openChatWithNpc = useCallback((npcId: string) => {
@@ -859,12 +869,21 @@ export default function App() {
           initialPlayerPos={savedPlayerPos}
           playerWorldPos={playerWorldPos}
           bodyShapes={bodyShapes}
+          playerAnimController={playerAnimController}
         />
       </Canvas>
 
       <VirtualJoystick inputDir={inputDir} />
       <PocketButton onClick={togglePocket} pulse={needsPocketHint} />
       <PocketHint show={needsPocketHint} />
+
+      <EmotePanel
+        emotes={getEmotes("player")}
+        onPlay={handlePlayEmote}
+        open={showEmotePanel}
+        onToggle={() => setShowEmotePanel(v => !v)}
+        onClose={() => setShowEmotePanel(false)}
+      />
 
       {showArrow && (
         <TrinketArrow tracker={trinketTracker} onRush={handleRush} />
