@@ -1,4 +1,5 @@
 import type { ActionKeyframe } from "../services/arm-actions";
+import { SliderRow } from "./SliderRow";
 
 const PANEL: React.CSSProperties = {
   background: "#12121e",
@@ -15,21 +16,6 @@ const ROW: React.CSSProperties = {
   marginBottom: 6,
 };
 
-const SLIDER: React.CSSProperties = {
-  flex: 1,
-  accentColor: "#6a4c93",
-  cursor: "pointer",
-  minWidth: 0,
-};
-
-const VAL: React.CSSProperties = {
-  color: "#9b8abf",
-  fontSize: 11,
-  minWidth: 40,
-  textAlign: "right",
-  fontVariantNumeric: "tabular-nums",
-};
-
 const LBL: React.CSSProperties = {
   color: "#aaa",
   fontSize: 11,
@@ -43,23 +29,6 @@ const SUB: React.CSSProperties = {
   letterSpacing: 1,
   margin: "8px 0 5px",
 };
-
-function SliderRow({
-  label, value, min, max, step, onChange,
-}: {
-  label: string; value: number; min: number; max: number; step: number;
-  onChange: (v: number) => void;
-}) {
-  const display = step < 1 ? value.toFixed(2) : String(Math.round(value));
-  return (
-    <div style={ROW}>
-      <span style={LBL}>{label}</span>
-      <input type="range" min={min} max={max} step={step} value={value}
-        style={SLIDER} onChange={e => onChange(parseFloat(e.target.value))} />
-      <span style={VAL}>{display}</span>
-    </div>
-  );
-}
 
 function patchPose(
   kf: ActionKeyframe,

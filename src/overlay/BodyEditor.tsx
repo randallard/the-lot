@@ -1,6 +1,7 @@
 import type { CharacterBodyShape, HandPose } from "../services/body-shapes";
 import { SHAPE_BOUNDS } from "../services/body-shapes";
 import { EyeEditor } from "./EyeEditor";
+import { SliderRow } from "./SliderRow";
 
 export type Section = "head" | "body" | "forearm" | "hand" | "layout" | "eyes";
 export const ALL_SECTIONS: Section[] = ["head", "body", "forearm", "hand", "layout", "eyes"];
@@ -10,21 +11,6 @@ const PANEL: React.CSSProperties = {
   border: "1px solid #1e1e30",
   borderRadius: 10,
   padding: "6px 12px 10px",
-};
-
-const ROW: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 8,
-  marginBottom: 7,
-};
-
-const SLIDER: React.CSSProperties = {
-  flex: 1,
-  accentColor: "#6a4c93",
-  cursor: "pointer",
-  minWidth: 0,
 };
 
 const SUB_LABEL: React.CSSProperties = {
@@ -44,41 +30,6 @@ const POSE_LABEL: React.CSSProperties = {
   borderTop: "1px solid #1e1e30",
   paddingTop: 8,
 };
-
-function SliderRow({
-  label,
-  value,
-  min,
-  max,
-  step,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (v: number) => void;
-}) {
-  const display = Number.isInteger(step) ? String(Math.round(value)) : value.toFixed(3);
-  return (
-    <div style={ROW}>
-      <span style={{ color: "#aaa", fontSize: 11, minWidth: 82 }}>{label}</span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        style={SLIDER}
-        onChange={e => onChange(parseFloat(e.target.value))}
-      />
-      <span style={{ color: "#9b8abf", fontSize: 11, minWidth: 40, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-        {display}
-      </span>
-    </div>
-  );
-}
 
 function SectionHeader({ label, open, onToggle }: { label: string; open: boolean; onToggle: () => void }) {
   return (

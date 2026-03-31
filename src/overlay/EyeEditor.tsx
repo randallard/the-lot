@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import type { CharacterEyes, EyeShape } from "../services/eye-shapes";
 import { EYE_BOUNDS, SUGGESTED_EXPRESSIONS } from "../services/eye-shapes";
+import { SliderRow } from "./SliderRow";
 
 // ---------------------------------------------------------------------------
 // Shared styles
@@ -11,13 +12,6 @@ const ROW: React.CSSProperties = {
   alignItems: "center",
   gap: 8,
   marginBottom: 6,
-};
-
-const SLIDER: React.CSSProperties = {
-  flex: 1,
-  accentColor: "#6a4c93",
-  cursor: "pointer",
-  minWidth: 0,
 };
 
 const SUB: React.CSSProperties = {
@@ -37,40 +31,6 @@ const BTN: React.CSSProperties = {
   padding: "2px 8px",
   cursor: "pointer",
 };
-
-// ---------------------------------------------------------------------------
-// SliderRow — with optional "overridden" indicator for expression editors
-
-interface SliderRowProps {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  overridden?: boolean;
-  onReset?: () => void;
-  onChange: (v: number) => void;
-}
-
-function SliderRow({ label, value, min, max, step, overridden, onReset, onChange }: SliderRowProps) {
-  const display = step < 0.1 ? value.toFixed(3) : step < 1 ? value.toFixed(2) : String(Math.round(value));
-  return (
-    <div style={ROW}>
-      <span style={{ color: overridden ? "#c080e0" : "#aaa", fontSize: 11, minWidth: 82 }}>{label}</span>
-      <input
-        type="range" min={min} max={max} step={step} value={value}
-        style={{ ...SLIDER, accentColor: overridden ? "#c080e0" : "#6a4c93" }}
-        onChange={e => onChange(parseFloat(e.target.value))}
-      />
-      <span style={{ color: overridden ? "#c080e0" : "#9b8abf", fontSize: 11, minWidth: 36, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-        {display}
-      </span>
-      {onReset && overridden && (
-        <button onClick={onReset} style={{ ...BTN, border: "none", color: "#553377", fontSize: 12, padding: "0 2px" }}>×</button>
-      )}
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Color picker row

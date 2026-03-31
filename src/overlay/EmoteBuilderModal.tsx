@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { SliderRow } from "./SliderRow";
 import type { CharacterBodyShape } from "../services/body-shapes";
 import {
   type Emote, type EmoteTracks, type TrackName,
@@ -36,25 +37,8 @@ const ROW: React.CSSProperties = {
 };
 
 const LBL: React.CSSProperties = { color: "#aaa", fontSize: 11, minWidth: 92 };
-const VAL: React.CSSProperties = { color: "#9b8abf", fontSize: 11, minWidth: 36, textAlign: "right", fontVariantNumeric: "tabular-nums" };
-const SLIDER: React.CSSProperties = { flex: 1, accentColor: "#6a4c93", cursor: "pointer", minWidth: 0 };
 const SUB: React.CSSProperties = { color: "#555", fontSize: 9, textTransform: "uppercase" as const, letterSpacing: 1, margin: "8px 0 4px" };
 const PANEL: React.CSSProperties = { background: "#12121e", border: "1px solid #1e1e30", borderRadius: 10, padding: "8px 12px 10px" };
-
-function SliderRow({ label, value, min, max, step, onChange }: {
-  label: string; value: number; min: number; max: number; step: number;
-  onChange: (v: number) => void;
-}) {
-  const d = step < 1 ? value.toFixed(2) : String(Math.round(value));
-  return (
-    <div style={ROW}>
-      <span style={LBL}>{label}</span>
-      <input type="range" min={min} max={max} step={step} value={value}
-        style={SLIDER} onChange={e => onChange(parseFloat(e.target.value))} />
-      <span style={VAL}>{d}</span>
-    </div>
-  );
-}
 
 function EasingSelect({ value, onChange }: { value: Easing; onChange: (e: Easing) => void }) {
   return (
