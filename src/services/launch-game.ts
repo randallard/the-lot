@@ -93,3 +93,15 @@ export function launchKingsChess(npc: NpcConfig): void {
   const url = buildKingsChessLaunchUrl(npc);
   window.location.assign(url);
 }
+
+export function buildGameHomeUrl(gameKey: "spaces-game" | "kings-cooking"): string {
+  // Include #from-game in returnUrl so townage shows the play-again modal on return
+  const returnUrl = window.location.origin + window.location.pathname + "#from-game";
+  const compressed = LZString.compressToEncodedURIComponent(JSON.stringify({ returnUrl }));
+  const baseUrl = gameKey === "spaces-game" ? GAME_URL : KINGS_COOKING_URL;
+  return `${baseUrl}/#lot-home=${compressed}`;
+}
+
+export function launchGameHome(gameKey: "spaces-game" | "kings-cooking"): void {
+  window.location.assign(buildGameHomeUrl(gameKey));
+}

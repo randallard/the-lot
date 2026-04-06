@@ -100,12 +100,12 @@ export const PLAYER_BODY_CENTER_Y = 0;
 export const NPC_BODY_CENTER_Y = 0.5;
 
 const PLAYER_HAND_OPEN: HandPose = {
-  radius: 0.12, flattenZ: 0.15, widthSegments: 10, heightSegments: 8,
-  rotation: [0, 0, 0], handForearmGap: 0.04,
+  radius: 0.09, flattenZ: 0.15, widthSegments: 10, heightSegments: 8,
+  rotation: [3, -32, -17], handForearmGap: 0.005,
 };
 const PLAYER_HAND_CLOSED: HandPose = {
-  radius: 0.10, flattenZ: 0.28, widthSegments: 8, heightSegments: 6,
-  rotation: [0, 0, 35], handForearmGap: 0.04,
+  radius: 0.07, flattenZ: 1, widthSegments: 12, heightSegments: 8,
+  rotation: [3, 13, -3], handForearmGap: 0.025,
 };
 const NPC_HAND_OPEN: HandPose = {
   radius: 0.11, flattenZ: 0.15, widthSegments: 10, heightSegments: 8,
@@ -117,17 +117,19 @@ const NPC_HAND_CLOSED: HandPose = {
 };
 
 export const PLAYER_DEFAULTS: CharacterBodyShape = {
-  head: { radius: 0.3, widthSegments: 12, heightSegments: 12, rotation: [0, 0, 0], offsetX: 0, offsetY: 0, offsetZ: 0 },
-  body: { radius: 0.3, height: 0.8, capSegments: 8, radialSegments: 16, leanX: 0, leanZ: 0 },
-  forearm: { topRadius: 0.065, bottomRadius: 0.05, height: 0.28, radialSegments: 10 },
+  head: { radius: 0.28, widthSegments: 32, heightSegments: 24, rotation: [-180, -91, -93], offsetX: 0, offsetY: 0, offsetZ: 0 },
+  body: { radius: 0.15, height: 0.52, capSegments: 2, radialSegments: 8, leanX: 0, leanZ: 0 },
+  forearm: { topRadius: 0.065, bottomRadius: 0.035, height: 0.23, radialSegments: 8 },
   hand: { open: PLAYER_HAND_OPEN, closed: PLAYER_HAND_CLOSED },
-  layout: {
-    forearmXOffset: 0.46,
-    upperArmSpacing: 0.47,
-    headBodyGap: -0.20,
+  layout: { forearmXOffset: 0.25, upperArmSpacing: 0.22, headBodyGap: -0.02 },
+  eyes: {
+    ...PLAYER_EYE_DEFAULTS,
+    positioning: { fromTopOfHead: 0.4, separation: 0.16 },
+    clipOverlap: true,
+    right: { width: 0.28, height: 0.18, cornerTL: 0, cornerTR: 0, cornerBL: 0, cornerBR: 0, arcTop: -0.06, arcBottom: -0.06, arcLeft: 0.06, arcRight: 0.06, irisColor: "#554bdd", irisSize: 0.75, irisOffsetY: 0, showWhite: true, rotation: 0 },
+    left:  { width: 0.28, height: 0.18, cornerTL: 0, cornerTR: 0, cornerBL: 0, cornerBR: 0, arcTop: -0.06, arcBottom: -0.06, arcLeft: 0.06, arcRight: 0.06, irisColor: "#554bdd", irisSize: 0.75, irisOffsetY: 0, showWhite: true, rotation: 0 },
   },
-  eyes: PLAYER_EYE_DEFAULTS,
-  bodyColor: "#444444",
+  bodyColor: "#3f808d",
 };
 
 export const NPC_DEFAULTS: CharacterBodyShape = {
@@ -135,13 +137,81 @@ export const NPC_DEFAULTS: CharacterBodyShape = {
   body: { radius: 0.3, height: 0.3, capSegments: 8, radialSegments: 16, leanX: 0, leanZ: 0 },
   forearm: { topRadius: 0.058, bottomRadius: 0.045, height: 0.24, radialSegments: 10 },
   hand: { open: NPC_HAND_OPEN, closed: NPC_HAND_CLOSED },
-  layout: {
-    forearmXOffset: 0.46,
-    upperArmSpacing: 0.33,
-    headBodyGap: -0.20,
-  },
+  layout: { forearmXOffset: 0.46, upperArmSpacing: 0.33, headBodyGap: -0.20 },
   eyes: NPC_EYE_DEFAULTS,
   bodyColor: "#5a5a6e",
+};
+
+export const MYCO_DEFAULTS: CharacterBodyShape = {
+  head: { radius: 0.49, widthSegments: 32, heightSegments: 24, rotation: [-77, 0, -93], offsetX: 0, offsetY: 0, offsetZ: 0 },
+  body: { radius: 0.3, height: 0.3, capSegments: 8, radialSegments: 16, leanX: 0, leanZ: 0 },
+  forearm: { topRadius: 0.058, bottomRadius: 0.045, height: 0.24, radialSegments: 10 },
+  hand: {
+    open:   { radius: 0.11, flattenZ: 0.23, widthSegments: 10, heightSegments: 8, rotation: [0, 0, 0], handForearmGap: 0.01 },
+    closed: { ...NPC_HAND_CLOSED },
+  },
+  layout: { forearmXOffset: 0.46, upperArmSpacing: 0.33, headBodyGap: -0.4 },
+  eyes: {
+    ...NPC_EYE_DEFAULTS,
+    positioning: { fromTopOfHead: 0.36, separation: 0.2 },
+    right: { width: 0.13, height: 0.08, cornerTL: 0.5, cornerTR: 0.5, cornerBL: 0.5, cornerBR: 0.5, arcTop: 0, arcBottom: 0, arcLeft: 0, arcRight: 0, irisColor: "#e4a1df", irisSize: 0.75, irisOffsetY: 0, showWhite: false, rotation: 0 },
+    left:  { width: 0.13, height: 0.08, cornerTL: 0.5, cornerTR: 0.5, cornerBL: 0.5, cornerBR: 0.5, arcTop: 0, arcBottom: 0, arcLeft: 0, arcRight: 0, irisColor: "#e4a1df", irisSize: 0.75, irisOffsetY: 0, showWhite: false, rotation: 0 },
+  },
+  bodyColor: "#1B5E20",
+};
+
+export const EMBER_DEFAULTS: CharacterBodyShape = {
+  head: { radius: 0.44, widthSegments: 3, heightSegments: 3, rotation: [-180, 78, 113], offsetX: 0, offsetY: 0.05, offsetZ: 0.28 },
+  body: { radius: 0.22, height: 1.41, capSegments: 2, radialSegments: 4, leanX: 14, leanZ: 0 },
+  forearm: { topRadius: 0.1, bottomRadius: 0.025, height: 0.52, radialSegments: 3 },
+  hand: {
+    open:   { radius: 0.07, flattenZ: 0.15, widthSegments: 4, heightSegments: 3, rotation: [-23, 45, -14], handForearmGap: 0.015 },
+    closed: { ...NPC_HAND_CLOSED },
+  },
+  layout: { forearmXOffset: 0.36, upperArmSpacing: 0.33, headBodyGap: -0.2 },
+  eyes: {
+    ...NPC_EYE_DEFAULTS,
+    positioning: { fromTopOfHead: 0.36, separation: 0.2 },
+    right: { width: 0.16, height: 0.095, cornerTL: 0.5, cornerTR: 0.5, cornerBL: 0.5, cornerBR: 0.5, arcTop: 0, arcBottom: 0, arcLeft: 0, arcRight: 0, irisColor: "#0fcd00", irisSize: 0.75, irisOffsetY: -0.006, showWhite: false, rotation: 0 },
+    left:  { width: 0.16, height: 0.095, cornerTL: 0.5, cornerTR: 0.5, cornerBL: 0.5, cornerBR: 0.5, arcTop: 0, arcBottom: 0, arcLeft: 0, arcRight: 0, irisColor: "#0fcd00", irisSize: 0.75, irisOffsetY: -0.006, showWhite: false, rotation: 0 },
+  },
+  bodyColor: "#ff7e55",
+};
+
+export const RYAN_DEFAULTS: CharacterBodyShape = {
+  head: { radius: 0.34, widthSegments: 12, heightSegments: 12, rotation: [0, 0, 4], offsetX: 0, offsetY: 0.16, offsetZ: 0 },
+  body: { radius: 0.3, height: 0.3, capSegments: 8, radialSegments: 16, leanX: 0, leanZ: 0 },
+  forearm: { topRadius: 0.058, bottomRadius: 0.045, height: 0.24, radialSegments: 10 },
+  hand: {
+    open:   { radius: 0.11, flattenZ: 0.15, widthSegments: 10, heightSegments: 8, rotation: [0, 0, 0], handForearmGap: 0.01 },
+    closed: { ...NPC_HAND_CLOSED },
+  },
+  layout: { forearmXOffset: 0.46, upperArmSpacing: 0.33, headBodyGap: -0.2 },
+  eyes: {
+    ...NPC_EYE_DEFAULTS,
+    positioning: { fromTopOfHead: 0.36, separation: 0.2 },
+    right: { width: 0.13, height: 0.08, cornerTL: 0.5, cornerTR: 0.5, cornerBL: 0.5, cornerBR: 0.5, arcTop: 0, arcBottom: 0, arcLeft: 0, arcRight: 0, irisColor: "#605b00", irisSize: 0.6, irisOffsetY: 0, showWhite: true, rotation: 0 },
+    left:  { width: 0.13, height: 0.08, cornerTL: 0.5, cornerTR: 0.5, cornerBL: 0.5, cornerBR: 0.5, arcTop: 0, arcBottom: 0, arcLeft: 0, arcRight: 0, irisColor: "#605b00", irisSize: 0.6, irisOffsetY: 0, showWhite: true, rotation: 0 },
+  },
+  bodyColor: "#0300e3",
+};
+
+export const SPROUT_DEFAULTS: CharacterBodyShape = {
+  head: { radius: 0.19, widthSegments: 3, heightSegments: 3, rotation: [0, -1, 0], offsetX: 0, offsetY: 0.24, offsetZ: 0 },
+  body: { radius: 0.1, height: 0.3, capSegments: 2, radialSegments: 4, leanX: 0, leanZ: 0 },
+  forearm: { topRadius: 0.025, bottomRadius: 0.01, height: 0.14, radialSegments: 3 },
+  hand: {
+    open:   { radius: 0.05, flattenZ: 0.15, widthSegments: 10, heightSegments: 8, rotation: [0, 0, 0], handForearmGap: 0.01 },
+    closed: { ...NPC_HAND_CLOSED },
+  },
+  layout: { forearmXOffset: 0.2, upperArmSpacing: 0.1, headBodyGap: -0.2 },
+  eyes: {
+    ...NPC_EYE_DEFAULTS,
+    positioning: { fromTopOfHead: 0.36, separation: 0.2 },
+    right: { width: 0.13, height: 0.08, cornerTL: 0.5, cornerTR: 0.5, cornerBL: 0.5, cornerBR: 0.5, arcTop: 0, arcBottom: 0, arcLeft: 0, arcRight: 0, irisColor: "#3a6ea8", irisSize: 0.75, irisOffsetY: 0, showWhite: false, rotation: 0 },
+    left:  { width: 0.13, height: 0.08, cornerTL: 0.5, cornerTR: 0.5, cornerBL: 0.5, cornerBR: 0.5, arcTop: 0, arcBottom: 0, arcLeft: 0, arcRight: 0, irisColor: "#3a6ea8", irisSize: 0.75, irisOffsetY: 0, showWhite: false, rotation: 0 },
+  },
+  bodyColor: "#15ba00",
 };
 
 export const SHAPE_BOUNDS = {
@@ -271,9 +341,18 @@ function save(shapes: Record<string, CharacterBodyShape>): void {
   } catch {}
 }
 
+function defaultsForId(id: string): CharacterBodyShape {
+  if (id === "player") return PLAYER_DEFAULTS;
+  if (id === "myco")   return MYCO_DEFAULTS;
+  if (id === "ember")  return EMBER_DEFAULTS;
+  if (id === "ryan")   return RYAN_DEFAULTS;
+  if (id === "sprout") return SPROUT_DEFAULTS;
+  return NPC_DEFAULTS;
+}
+
 /** Migrate and fill defaults for any missing fields (handles schema evolution). */
 function migrate(raw: unknown, id: string): CharacterBodyShape {
-  const defaults = id === "player" ? PLAYER_DEFAULTS : NPC_DEFAULTS;
+  const defaults = defaultsForId(id);
   if (!raw || typeof raw !== "object") return JSON.parse(JSON.stringify(defaults));
 
   const r = raw as Record<string, unknown>;
@@ -381,9 +460,7 @@ export function setBodyShape(id: string, shape: CharacterBodyShape): void {
 }
 
 export function resetBodyShape(id: string): CharacterBodyShape {
-  const fresh: CharacterBodyShape = JSON.parse(
-    JSON.stringify(id === "player" ? PLAYER_DEFAULTS : NPC_DEFAULTS),
-  );
+  const fresh: CharacterBodyShape = JSON.parse(JSON.stringify(defaultsForId(id)));
   const all = load() as Record<string, CharacterBodyShape>;
   all[id] = fresh;
   save(all);

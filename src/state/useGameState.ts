@@ -152,6 +152,21 @@ export function useGameState() {
     }));
   }, []);
 
+  // Skip parts collection entirely — jump straight to free-play state
+  // Used when player returns from a game and wants to challenge an NPC directly
+  const skipToFreePlay = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      partsCollected: 2,
+      assembled: true,
+      npcSpoken: true,
+      tutorialComplete: true,
+      npcRelaxing: false,
+      resumePhase: null,
+      phaseOverride: null,
+    }));
+  }, []);
+
   const saveBoard = useCallback((board: Board) => {
     setState((prev) => ({
       ...prev,
@@ -218,6 +233,7 @@ export function useGameState() {
     resumeFromNpc,
     completeTutorial,
     completeIntro,
+    skipToFreePlay,
     saveBoard,
     launchGame,
     bringNpcBack,

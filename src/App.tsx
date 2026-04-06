@@ -14,6 +14,8 @@ import { ChoiceBubble } from "./overlay/ChoiceBubble";
 import { BoardCreator } from "./overlay/BoardCreator";
 import { OpponentsList } from "./overlay/OpponentsList";
 import { GameSelect } from "./overlay/GameSelect";
+import { GamesApp } from "./overlay/GamesApp";
+import { PlayAgainModal } from "./overlay/PlayAgainModal";
 import { FindApp } from "./overlay/FindApp";
 import { RankDetail } from "./overlay/RankDetail";
 import { NpcChatBubble } from "./overlay/NpcChatBubble";
@@ -28,7 +30,7 @@ import { MoodResponsesModal } from "./overlay/MoodResponsesModal";
 import { StartupNotification } from "./overlay/StartupNotification";
 import { useInputDirection } from "./world/useInputDirection";
 import { useGameState } from "./state/useGameState";
-import { getNpcById } from "./config/npcs";
+import { getNpcById, NPC_CONFIGS } from "./config/npcs";
 import { launchGame, launchKingsChess } from "./services/launch-game";
 import { parseResultsFromHash, parseKingsChessResultsFromHash } from "./services/parse-results";
 import { recordKingsChessResult } from "./services/npc-kings-chess-records";
@@ -93,6 +95,7 @@ export default function App() {
   const [showSupportForm, setShowSupportForm] = useState(false);
   const [askingPlayerName, setAskingPlayerName] = useState(false);
   const [showEmotePanel, setShowEmotePanel] = useState(false);
+  const [showPlayAgainModal, setShowPlayAgainModal] = useState(false);
   const playerAnimController = useRef(new AnimationController());
   const [_playingGameNpcId, setPlayingGameNpcId] = useState<string | null>(null);
   const [gameAcceptText, setGameAcceptText] = useState<string | null>(null);
@@ -318,6 +321,10 @@ export default function App() {
       setSelectedNpcId(savedPlayingNpc);
       setPlayingGameNpcId(savedPlayingNpc);
       localStorage.removeItem("townage-playing-npc");
+    } else if (window.location.hash === "#from-game") {
+      // Returned from a game's home screen (via phone games menu or permanent townage tile)
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      setShowPlayAgainModal(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -619,9 +626,9 @@ export default function App() {
     setChatContinue(false);
     if (wasPostGame) {
       postGameChat.current = false;
-      setTimeout(() => game.npcWalkAway(false), 1000);
+      setShowPlayAgainModal(true);
     }
-  }, [game.npcWalkAway]);
+  }, []);
 
   const handleChatClose = useCallback(() => {
     const wasPostGame = postGameChat.current;
@@ -632,8 +639,20 @@ export default function App() {
     setChatContinue(false);
     if (wasPostGame) {
       postGameChat.current = false;
-      setTimeout(() => game.npcWalkAway(false), 1000);
+      setShowPlayAgainModal(true);
     }
+  }, []);
+
+  const handlePlayAgainSelect = useCallback((npcId: string) => {
+    game.skipToFreePlay();
+    setShowPlayAgainModal(false);
+    setSelectedNpcId(npcId);
+    game.setPhaseOverride({ type: "game-invite", npcId });
+  }, [game]);
+
+  const handlePlayAgainClose = useCallback(() => {
+    setShowPlayAgainModal(false);
+    game.npcWalkAway(false);
   }, [game.npcWalkAway]);
 
   const handleFind = useCallback((npcId: string) => {
@@ -819,6 +838,7 @@ export default function App() {
     showOptIn ||
     !!showChatInfo ||
     showSupportForm ||
+    showPlayAgainModal ||
     showNpcIntro ||
     showPhoneHint ||
     !!moodCheckNpcId ||
@@ -1129,9 +1149,19 @@ export default function App() {
           onTownReportClick={() => {
             game.setPhaseOverride({ type: "town-report" });
           }}
+          onGamesClick={() => {
+            game.setPhaseOverride({ type: "games-app" });
+          }}
           onClose={() => game.clearOverride()}
           chatUnreadCount={unreadCount}
         />
+      )}
+
+      {/* Games app */}
+      {phase.type === "games-app" && (
+        <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
+          <GamesApp onBack={() => game.setPhaseOverride({ type: "phone-home" })} />
+        </PhoneOverlay>
       )}
 
       {/* Find app */}
@@ -1254,6 +1284,15 @@ export default function App() {
             </button>
           )}
         </>
+      )}
+
+      {/* Play again modal — shown after post-game commentary, lets player jump to any NPC */}
+      {showPlayAgainModal && (
+        <PlayAgainModal
+          npcs={NPC_CONFIGS.filter((n) => n.games && Object.keys(n.games).length > 0)}
+          onSelectNpc={handlePlayAgainSelect}
+          onClose={handlePlayAgainClose}
+        />
       )}
 
       {/* Chat opt-in modal */}

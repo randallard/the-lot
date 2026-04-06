@@ -30,6 +30,7 @@ export type PhaseOverride =
   | { type: "game-select" } // choosing which game to play
   | { type: "board-creation" } // player building their board
   | { type: "phone-home" } // phone homescreen in free-play
+  | { type: "games-app" } // games menu in phone
   | { type: "find-app" } // find NPC app
   | { type: "chat-app" } // messaging app
   | { type: "settings-app" } // settings app

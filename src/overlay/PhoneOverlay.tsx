@@ -7,6 +7,7 @@ interface PhoneOverlayProps {
   onChatClick?: () => void;
   onSettingsClick?: () => void;
   onTownReportClick?: () => void;
+  onGamesClick?: () => void;
   onClose: () => void;
   chatUnreadCount?: number;
   children?: ReactNode;
@@ -18,6 +19,7 @@ export function PhoneOverlay({
   onChatClick,
   onSettingsClick,
   onTownReportClick,
+  onGamesClick,
   onClose,
   chatUnreadCount = 0,
   children,
@@ -31,6 +33,7 @@ export function PhoneOverlay({
     if (onChatClick) homeActions.push(onChatClick);
     if (onSettingsClick) homeActions.push(onSettingsClick);
     if (onTownReportClick) homeActions.push(onTownReportClick);
+    if (onGamesClick) homeActions.push(onGamesClick);
   }
 
   useEffect(() => {
@@ -129,6 +132,12 @@ export function PhoneOverlay({
                 const emoji = getHappinessEmoji(getTownHappiness());
                 icons.push(
                   <HomeIcon key="town-report" icon={<span style={{ fontSize: 20 }}>{emoji}</span>} label="townage" bg="#2a2a3e" onClick={onTownReportClick} selected={selectedIcon === i} />
+                );
+              }
+              if (onGamesClick) {
+                const i = idx++;
+                icons.push(
+                  <HomeIcon key="games" icon={<span style={{ fontSize: 20 }}>🎮</span>} label="games" bg="#2a2a3e" onClick={onGamesClick} selected={selectedIcon === i} />
                 );
               }
               return icons;
