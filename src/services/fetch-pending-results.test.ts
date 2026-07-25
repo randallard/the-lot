@@ -5,6 +5,22 @@ import { saveActiveSession } from "./active-sessions";
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
+/**
+ * A successful JSON response.
+ *
+ * `fetchPendingResults` guards on the `content-type` header before parsing, so
+ * that an HTML error page from an undeployed endpoint isn't fed to `.json()`.
+ * Mocks must carry headers or that guard throws and every result is swallowed
+ * by the catch.
+ */
+function jsonResponse(body: unknown) {
+  return {
+    ok: true,
+    headers: new Headers({ "content-type": "application/json" }),
+    json: () => Promise.resolve(body),
+  };
+}
+
 describe("fetchPendingResults", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -21,10 +37,7 @@ describe("fetchPendingResults", () => {
     saveActiveSession("myco", "session-1");
     saveActiveSession("ember", "session-2");
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({ results: [] }),
-    });
+    mockFetch.mockResolvedValueOnce(jsonResponse({ results: [] }));
 
     await fetchPendingResults();
 
@@ -47,10 +60,7 @@ describe("fetchPendingResults", () => {
       completedAt: 12345,
     };
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({ results: [mockResult] }),
-    });
+    mockFetch.mockResolvedValueOnce(jsonResponse({ results: [mockResult] }));
     // DELETE call for cleanup
     mockFetch.mockResolvedValueOnce({ ok: true });
 
@@ -61,15 +71,13 @@ describe("fetchPendingResults", () => {
   it("sends DELETE to clean up consumed results", async () => {
     saveActiveSession("myco", "session-1");
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          results: [
-            { sessionId: "session-1", npcId: "myco", rounds: [], completedAt: 0, playerScore: 0, opponentScore: 0, winner: "tie" },
-          ],
-        }),
-    });
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        results: [
+          { sessionId: "session-1", npcId: "myco", rounds: [], completedAt: 0, playerScore: 0, opponentScore: 0, winner: "tie" },
+        ],
+      }),
+    );
     mockFetch.mockResolvedValueOnce({ ok: true });
 
     await fetchPendingResults();
@@ -92,6 +100,22 @@ describe("fetchPendingResults", () => {
     expect(results).toEqual([]);
   });
 
+  it("returns empty array when the endpoint returns HTML rather than JSON", async () => {
+    saveActiveSession("myco", "session-1");
+
+    // An undeployed endpoint serves an HTML error page with a 200. Feeding that
+    // to .json() would throw, so the content-type guard has to catch it first.
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      headers: new Headers({ "content-type": "text/html" }),
+      json: () => Promise.reject(new SyntaxError("Unexpected token '<'")),
+    });
+
+    const results = await fetchPendingResults();
+    expect(results).toEqual([]);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
   it("returns empty array on network error", async () => {
     saveActiveSession("myco", "session-1");
 
@@ -104,10 +128,7 @@ describe("fetchPendingResults", () => {
   it("skips DELETE when API returns no results", async () => {
     saveActiveSession("myco", "session-1");
 
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({ results: [] }),
-    });
+    mockFetch.mockResolvedValueOnce(jsonResponse({ results: [] }));
 
     await fetchPendingResults();
     // Only the GET call, no DELETE

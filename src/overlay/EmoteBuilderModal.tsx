@@ -627,7 +627,7 @@ export function EmoteBuilderModal({ subjectId, shape, onClose }: EmoteBuilderMod
   const color = shape.bodyColor;
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") editing ? setEditing(null) : onClose(); };
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") { if (editing) setEditing(null); else onClose(); } };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [editing, onClose]);

@@ -14,7 +14,8 @@ backup/restore all work and have been played. Code development paused around 202
 and `plans/` moved under `docs/` with history preserved; and **seven ADRs were backfilled**
 for decisions taken between 2026-03-06 and 2026-03-28, each evidenced against the code and
 the commit that introduced it. No `src/` changes were made — deliberately, so the retrofit
-creates no merge surface against M4.
+creates no merge surface against M4. The **CI half landed the same day** and did touch
+`src/` — see [How CI landed](#how-ci-landed).
 
 **Next: M4 — the choreography adapter.** A new `src/dance/` subsystem that drives NPCs from
 the square-one engine. Everything needed to start it cold is in
@@ -22,11 +23,11 @@ the square-one engine. Everything needed to start it cold is in
 milestone M2 (a consumable package with real `exports` and a v0 tag) — check
 `~/Development/square-one/docs/PROGRESS.md` for whether that has landed.
 
-**Also open, and parallelizable — handed to waed-7561 2026-07-25:** the **CI + supply-chain
-half** of the retrofit. There is no `.github/` in this repo at all. It does not block M4, but
-it is **not a copy job**: `pnpm lint` currently fails with 61 errors, and ~26 of those are
-`eslint-plugin-react-hooks` v7 objecting to ADR-0002's deliberate shared-ref pattern. Full
-handover in [What the CI half actually contains](#what-the-ci-half-actually-contains).
+**The CI + supply-chain half is done (2026-07-25).** `.github/workflows/{ci,docs-hygiene,stance-review}.yml`
+and `scripts/docs-hygiene.py` are in, and all eight gates pass. Getting there took more than
+copying: see [How CI landed](#how-ci-landed) for what the handover predicted correctly, what
+it missed, and the two decisions it forced ([ADR-0008](adr/0008-react-hooks-rules-excepted-at-the-ref-boundary.md),
+[ADR-0009](adr/0009-empty-catch-is-the-best-effort-storage-idiom.md)).
 
 ## Architecture
 
@@ -161,89 +162,78 @@ is also what **validates square-one's provisional waypoints** — its Dosado spe
 (which NPC teaches what, unlock ordering) is represented — the planning effort's proposal is
 that it's townage data, keeping square-one pure, and it comes due at M5.
 
-## What the CI half actually contains
+## How CI landed
 
-*This section is the handover for the trailing half of the ADR-0002 retrofit. It should be
-enough to start the work cold. Measured against this repo on 2026-07-25 — the numbers below
-are real, not estimates.*
+*Replaces the handover section that stood here. All eight gates pass locally and in Actions:
+`install --frozen-lockfile`, `lint`, `test`, `build`, `audit --audit-level=high`,
+`audit signatures`, the license allowlist, and `docs-hygiene`.*
 
-Copy from `~/Development/cr-ci-cd-rust-typescript-template`: `.github/workflows/{ci,docs-hygiene,stance-review}.yml`
-and `scripts/docs-hygiene.py`.
+**The handover's measurements were exact** — 61 lint errors, 25 warnings, ~26 of them
+`react-hooks/*`, `docs-hygiene.py` already clean, `ci.yml`'s `detect` job self-skipping the
+Rust half. All verified before acting on them.
 
-**The workflows need no adaptation.** `ci.yml` opens with a `detect` job that sets
-`rust`/`ts` outputs, and every downstream job is gated on it — so in a TypeScript-only repo
-the Rust gates, Kani proofs, and `cargo-deny` all self-skip. Don't edit them to remove the
-Rust half; that's the template working as designed.
+**What it missed, all in the supply-chain job it hadn't run:**
 
-**`docs-hygiene.py` already passes here.** Run against this repo it reports *"docs hygiene
-clean"* with one warning (no stance review recorded yet — expected, `docs/reviews/README.md`
-explains the cadence). This gate can land green immediately.
+- `pnpm audit --audit-level=high` found **27 vulnerabilities (15 high, 1 critical)** — every
+  one a devDependency. `pnpm update` within existing semver ranges cleared 26.
+- The 27th, `brace-expansion` (GHSA-mh99-v99m-4gvg), has a fix that pnpm's own 72-hour
+  `minimumReleaseAge` quarantine won't install yet. Overriding a supply-chain control to
+  patch a dev-only DoS is the wrong trade, so it's an explicit single-GHSA ignore in
+  `pnpm-workspace.yaml` with a removal date of **2026-07-26**, when the patch clears.
+- `pnpm exec license-checker-rseidelsohn` wasn't installed — the template has no
+  `package.json`, so its pnpm path was never exercised. Added as a devDependency.
+- The license allowlist then failed on **`@react-three/rapier`, which publishes with no
+  license field and no LICENSE file**. Since ADR-0001 already recorded it as provisioned but
+  never imported, it was **removed** rather than excepted. Physics returns as a deliberate
+  choice when something needs it.
+- Four more licenses had to be allowed, all permissive toolchain transitives: `CC-BY-4.0`
+  (caniuse-lite — browser data, not code), `(MIT AND CC-BY-3.0)` (spdx-ranges), and `MIT*`
+  (webgl-constants — MIT by its LICENSE file, undeclared in `package.json`). Recorded inline
+  in `ci.yml`.
+- `pnpm/action-setup` needs a version source. Added `"packageManager": "pnpm@11.5.3"`, which
+  also pins CI to the pnpm that produced the lockfile.
+- pnpm 11 no longer reads `pnpm.*` settings from `package.json`; they live in
+  `pnpm-workspace.yaml` now. That's where `allowBuilds: esbuild: true` went — which is also
+  what fixed `pnpm test` locally.
 
-**`ci.yml`'s `ts-gates` job will not.** It runs `pnpm install --frozen-lockfile`, `pnpm lint`,
-`pnpm test`, `pnpm build`, and the first three all have problems today:
+**The 61 lint errors resolved as 35 mechanical + 5 ordinary + 21 architectural.** The
+mechanical ones were fixed. So were the 5 ordinary ones — and one of those was hiding a real
+bug: `SettingsApp`'s `settingsActions` memoized on `[onOpenBodyEditor]` while closing over
+`prefs`, so the keyboard shortcut for "toggle AI responses" fired against stale preferences.
+The remaining 21 are `eslint-plugin-react-hooks` objecting to ADR-0002's shared-ref pattern
+on purpose; they are excepted by path, per [ADR-0008](adr/0008-react-hooks-rules-excepted-at-the-ref-boundary.md).
 
-1. **`pnpm lint` fails: 61 errors, 25 warnings** (`eslint .` exits 1). The breakdown is the
-   important part:
-
-   | Count | Rule | |
-   |---|---|---|
-   | 24 | `no-empty` | mechanical |
-   | 13 | `react-hooks/immutability` | **architectural** |
-   | 6 | `react-hooks/refs` | **architectural** |
-   | 4 | `react-hooks/set-state-in-effect` | **architectural** |
-   | 2 | `react-hooks/purity` | **architectural** |
-   | 1 | `react-hooks/preserve-manual-memoization` | **architectural** |
-   | 11 | `no-unused-expressions`, `no-unused-vars`, `no-explicit-any`, `no-non-null-asserted-optional-chain`, `react-refresh/only-export-components` | mechanical |
-   | 25 | `react-hooks/exhaustive-deps` | warnings, non-blocking |
-
-   The ~26 `react-hooks/*` errors are **not incidental** — they are `eslint-plugin-react-hooks`
-   v7's compiler-aligned rules objecting to the shared-ref pattern this repo adopted on
-   purpose ([ADR-0002](adr/0002-shared-refs-across-the-r3f-dom-boundary.md)). Mutating
-   `out.current!` inside `useFrame` *is* the pattern; the linter calls it modifying a hook
-   argument. So this is a decision, not a cleanup, and it needs an ADR either way:
-   - narrow rule exceptions for the ref-plumbing boundary (keeps ADR-0002, documents the
-     tension), or
-   - change the pattern (supersedes ADR-0002 — expensive, and M4 is not the moment).
-
-   **Do the mechanical 35 first and land CI with the `react-hooks` rules explicitly
-   configured**, so the gate goes green without pretending the question is settled.
-   Note this is live evidence for the repo's open question *"when does the ref-plumbing
-   pattern break?"* — the tooling is already answering it.
-
-2. **`pnpm test` fails: 2 of 162 tests**, both in `src/services/fetch-pending-results.test.ts`,
-   both pre-existing and unrelated to any of this. Worklist item 1 — fix before CI lands, or
-   CI is red on arrival for a reason nobody introduced.
-
-3. **`pnpm install --frozen-lockfile` will likely hit pnpm's build-verification gate** —
-   `ERR_PNPM_IGNORED_BUILDS` on `esbuild`, the same gate that stops `pnpm test` locally. Add
-   `pnpm.onlyBuiltDependencies: ["esbuild"]` to `package.json` so CI and local behave the same.
-   (`"test": "vitest"` is fine unchanged — vitest detects CI and runs once rather than watching.)
-
-`stance-review.yml` needs no code changes; it only opens/bumps an issue monthly and never
-gates, so it can land as-is (`issues: write` permission is already declared in the workflow).
-
-**Done when:** all three workflows are committed, a push to `main` runs them, and the CI run
-is green — with any suppressed lint rule justified in an ADR rather than silently disabled.
-
-**Out of scope:** `src/dance/` (that's M4), and superseding ADR-0002.
+**Deliberately deferred: `eslint-plugin-react-hooks` 7.1.1.** It arrived incidentally in the
+audit-driven update and materially changes the lint surface — `refs` goes 6 → 47 and extends
+to `App.tsx`, plus 6 `set-state-in-effect` and 2 `preserve-manual-memoization` errors needing
+real restructuring in the game-return handler and the assembly-cutscene step machine. The
+plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-testing.
 
 ## Worklist
 
-1. **Fix the two failing `fetch-pending-results` tests** — clean baseline before M4 *and*
-   before CI, which runs them.
+1. ~~Fix the two failing `fetch-pending-results` tests~~ — **done 2026-07-25**.
 2. **M4: `src/dance/`** — frame, driver, blend contract, `<DanceFloor>`. See above.
-3. **CI + supply-chain gates** — the trailing half of the retrofit. No `.github/` exists yet.
-   Parallelizable onto another machine; due before the arc's M6. See
-   [What the CI half actually contains](#what-the-ci-half-actually-contains) — it is not a
-   copy job; `pnpm lint` currently fails 61 errors and ~26 of them are ADR-0002's pattern.
-4. Delete the three untracked empty directories; tighten `BotParts`'s `rushMode` prop type;
+3. **Adopt `eslint-plugin-react-hooks` 7.1.1** (pinned at exact `7.0.1` today, per
+   [ADR-0008](adr/0008-react-hooks-rules-excepted-at-the-ref-boundary.md)). Needs 6
+   `set-state-in-effect` and 2 `preserve-manual-memoization` fixes in the game-return handler,
+   the assembly-cutscene step machine, `World`, and `VirtualJoystick` — all behaviour-critical,
+   so do it with the app running, not blind.
+4. **Drop the `brace-expansion` audit ignore** from `pnpm-workspace.yaml` on/after
+   **2026-07-26**, once the patch clears pnpm's 72h `minimumReleaseAge` quarantine.
+   `pnpm audit --audit-level=high` should then pass without it.
+5. ~~CI + supply-chain gates~~ — **done 2026-07-25**. See [How CI landed](#how-ci-landed).
+6. Delete the three untracked empty directories; tighten `BotParts`'s `rushMode` prop type;
    strip debug logging.
-5. Add a test asserting every `townage-` key is accounted for in `backup.ts`.
-6. Arc chunk 1 (M5): an NPC teaches `arm-turn`, the player performs it, townage records that
+7. Add a test asserting every `townage-` key is accounted for in `backup.ts` — the CI license
+   gate just demonstrated the value of machine-checked inventories.
+8. Work down the 24 `react-hooks/exhaustive-deps` warnings. Non-blocking, but they are the
+   backlog the pinned plugin is deferring, not architecture.
+9. Arc chunk 1 (M5): an NPC teaches `arm-turn`, the player performs it, townage records that
    they know it. Needs the teaching-content ADR.
 
-Deferred with reasons: physics (rapier is installed but unused — adopt it when something
-needs it, not before); the NPC documentation "booklet" plan; the in-phone gettcheese tutorial.
+Deferred with reasons: physics (rapier removed — re-add deliberately when something needs it,
+and resolve its missing license declaration then); the NPC documentation "booklet" plan; the
+in-phone gettcheese tutorial.
 
 ## Open questions
 

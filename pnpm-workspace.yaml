@@ -1,0 +1,21 @@
+# pnpm 11 reads these from here rather than package.json's "pnpm" field.
+
+# esbuild's postinstall must run for vite/vitest to work. Declaring it keeps
+# `pnpm install` from stopping on ERR_PNPM_IGNORED_BUILDS, in CI and locally.
+allowBuilds:
+  esbuild: true
+
+auditConfig:
+  # GHSA-mh99-v99m-4gvg — brace-expansion <=5.0.8, unbounded expansion → OOM.
+  #
+  # Dev-only and unreachable in the shipped bundle: it arrives solely through
+  # eslint's own minimatch, so the exposure is "someone hands the linter a
+  # hostile glob". The fix (5.0.8) exists but was published 2026-07-23, inside
+  # pnpm's 72h minimumReleaseAge quarantine — a supply-chain control worth more
+  # than this DoS is worth avoiding, so we wait it out rather than override it.
+  #
+  # Remove this entry (and the audit will pass on its own) once 5.0.8 clears the
+  # quarantine on 2026-07-26; if eslint has shipped a patched minimatch by then,
+  # nothing further is needed.
+  ignoreGhsas:
+    - GHSA-mh99-v99m-4gvg

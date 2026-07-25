@@ -125,6 +125,16 @@ export function wakeSleep(npcId?: string): void {
 }
 
 // Expose on window for console access
+declare global {
+  interface Window {
+    __debugSleep?: {
+      almostAsleep: typeof almostAsleep;
+      almostAsleepAll: typeof almostAsleepAll;
+      wakeSleep: typeof wakeSleep;
+    };
+  }
+}
+
 if (typeof window !== "undefined") {
-  (window as any).__debugSleep = { almostAsleep, almostAsleepAll, wakeSleep };
+  window.__debugSleep = { almostAsleep, almostAsleepAll, wakeSleep };
 }

@@ -3,8 +3,7 @@ import { SHAPE_BOUNDS } from "../services/body-shapes";
 import { EyeEditor } from "./EyeEditor";
 import { SliderRow } from "./SliderRow";
 
-export type Section = "head" | "body" | "forearm" | "hand" | "layout" | "eyes";
-export const ALL_SECTIONS: Section[] = ["head", "body", "forearm", "hand", "layout", "eyes"];
+import type { Section } from "./body-editor-sections";
 
 const PANEL: React.CSSProperties = {
   background: "#12121e",

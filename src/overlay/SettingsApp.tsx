@@ -24,18 +24,21 @@ export function SettingsApp({ onClose, onOpenBodyEditor }: SettingsAppProps) {
   const [showBackup, setShowBackup] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState(0);
 
-  const toggleHaiku = () => {
+  const toggleHaiku = useCallback(() => {
     const next = { ...prefs, useHaiku: !prefs.useHaiku, optInShown: true };
     setPreferences(next);
     setPrefs(next);
-  };
+  }, [prefs]);
 
-  const handleClear = () => {
+  const handleClear = useCallback(() => {
     clearAllChats();
     setShowCleared(true);
     setTimeout(() => setShowCleared(false), 2000);
-  };
+  }, []);
 
+  // Memoized so the keyboard effect below doesn't re-subscribe every render.
+  // toggleHaiku and handleClear must be memoized too, or this list is rebuilt
+  // each render and the keyboard shortcut fires a closure over stale prefs.
   const settingsActions = useCallback(() => [
     toggleHaiku,
     () => setShowEnthusiasm(true),
@@ -44,7 +47,7 @@ export function SettingsApp({ onClose, onOpenBodyEditor }: SettingsAppProps) {
     handleClear,
     () => onOpenBodyEditor?.(),
     () => setShowBackup(true),
-  ], [onOpenBodyEditor]);
+  ], [toggleHaiku, handleClear, onOpenBodyEditor]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

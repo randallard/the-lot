@@ -37,7 +37,11 @@ export function buildLaunchUrl(npc: NpcConfig): string {
 
   const returnUrl = window.location.origin + window.location.pathname;
 
-  const sg = npc.games?.["spaces-game"]!;
+  const sg = npc.games?.["spaces-game"];
+  if (!sg) {
+    throw new Error(`NPC "${npc.id}" has no spaces-game configuration`);
+  }
+
   const payload: LotLaunchData = {
     sessionId,
     npcId: npc.id,

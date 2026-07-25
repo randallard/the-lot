@@ -68,10 +68,15 @@ function ContactsList({
     return npc.displayName.toLowerCase().includes(q) || npc.id.toLowerCase().includes(q);
   });
 
-  // Reset selection when filter changes
-  useEffect(() => {
+  // Reset selection when the filter changes. Adjusting state during render
+  // (React's documented pattern) rather than in an effect: the reset lands in
+  // the same commit as the new filter, so there is no frame showing a stale
+  // highlight, and no cascading second render.
+  const [prevFilter, setPrevFilter] = useState(filter);
+  if (prevFilter !== filter) {
+    setPrevFilter(filter);
     setSelectedIdx(0);
-  }, [filter]);
+  }
 
   const handleKey = useCallback(
     (e: KeyboardEvent) => {

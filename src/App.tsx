@@ -1018,7 +1018,7 @@ export default function App() {
       {phase.type === "board-creation" && (
         <>
           <PhoneOverlay mode="app" onClose={() => {
-            game.state.tutorialComplete ? game.clearOverride() : game.npcWalkAway(true);
+            if (game.state.tutorialComplete) game.clearOverride(); else game.npcWalkAway(true);
           }}>
             <BoardCreator
               boardSize={2}
@@ -1040,7 +1040,7 @@ export default function App() {
       {/* Opponents list */}
       {phase.type === "opponents-list" && (
         <PhoneOverlay mode="app" onClose={() => {
-          game.state.tutorialComplete ? game.clearOverride() : game.npcWalkAway(true);
+          if (game.state.tutorialComplete) game.clearOverride(); else game.npcWalkAway(true);
         }}>
           <OpponentsList onPlay={handlePlayOpponent} />
         </PhoneOverlay>
@@ -1123,7 +1123,7 @@ export default function App() {
 
       {phase.type === "game-select" && (
         <PhoneOverlay mode="app" onClose={() => {
-          game.state.tutorialComplete ? game.clearOverride() : game.npcWalkAway(true);
+          if (game.state.tutorialComplete) game.clearOverride(); else game.npcWalkAway(true);
         }}>
           <GameSelect
             npcName={getNpcById(selectedNpcId)?.displayName ?? selectedNpcId}

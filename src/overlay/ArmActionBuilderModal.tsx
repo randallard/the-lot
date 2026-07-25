@@ -294,7 +294,7 @@ export function ArmActionBuilderModal({ subjectId, shape, onClose }: ArmActionBu
   const label = npc ? `${npc.emoji} ${npc.displayName}` : "you";
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") { editing ? setEditing(null) : onClose(); } };
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") { if (editing) setEditing(null); else onClose(); } };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [editing, onClose]);

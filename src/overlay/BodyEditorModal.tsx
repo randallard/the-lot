@@ -7,7 +7,8 @@ import {
 } from "../services/body-shapes";
 import { getNpcById } from "../config/npcs";
 import { CharacterPreview } from "./CharacterPreview";
-import { BodyEditor, type Section, ALL_SECTIONS } from "./BodyEditor";
+import { BodyEditor } from "./BodyEditor";
+import { type Section, ALL_SECTIONS } from "./body-editor-sections";
 import { ArmActionBuilderModal } from "./ArmActionBuilderModal";
 import { EmoteBuilderModal } from "./EmoteBuilderModal";
 

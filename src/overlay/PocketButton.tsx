@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 interface PocketButtonProps {
   onClick: () => void;
@@ -6,11 +6,12 @@ interface PocketButtonProps {
 }
 
 export function PocketButton({ onClick, pulse }: PocketButtonProps) {
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
-
-  useEffect(() => {
-    setIsTouchDevice("ontouchstart" in window || navigator.maxTouchPoints > 0);
-  }, []);
+  // Lazy initialiser rather than a mount effect: this is a client-only SPA with
+  // no SSR, so `window` is available on first render and there is nothing to
+  // hydrate against.
+  const [isTouchDevice] = useState(
+    () => "ontouchstart" in window || navigator.maxTouchPoints > 0,
+  );
 
   if (!isTouchDevice) return null;
 

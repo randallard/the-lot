@@ -96,6 +96,8 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0005](0005-games-launch-by-url-hash-handoff.md) | Games are separate deployments, integrated by a compressed URL-hash handoff | Accepted |
 | [0006](0006-npc-dialogue-through-a-serverless-proxy.md) | NPC dialogue goes through a serverless proxy, opt-in, and degrades without it | Accepted |
 | [0007](0007-localstorage-with-a-versioned-backup-file.md) | Browser `localStorage` is the only store; a versioned backup file is the escape hatch | Accepted |
+| [0008](0008-react-hooks-rules-excepted-at-the-ref-boundary.md) | `react-hooks` compiler rules are excepted at the ADR-0002 ref boundary, not worked around | Accepted |
+| [0009](0009-empty-catch-is-the-best-effort-storage-idiom.md) | `no-empty` allows empty catch, because best-effort storage is a deliberate idiom | Accepted |
 
 ## Decisions this repo inherits
 

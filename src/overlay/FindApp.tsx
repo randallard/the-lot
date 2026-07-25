@@ -28,10 +28,14 @@ export function FindApp({ onFind, onClose, onShowRank }: FindAppProps) {
     npc.displayName.toLowerCase().startsWith(query.toLowerCase()),
   );
 
-  // Reset highlight when filter changes
-  useEffect(() => {
+  // Reset the highlight when the query changes. Adjusting state during render
+  // (React's documented pattern) rather than in an effect — see ChatApp for the
+  // same shape.
+  const [prevQuery, setPrevQuery] = useState(query);
+  if (prevQuery !== query) {
+    setPrevQuery(query);
     setHighlightIdx(0);
-  }, [query]);
+  }
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
