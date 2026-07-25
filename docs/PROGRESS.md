@@ -22,9 +22,11 @@ the square-one engine. Everything needed to start it cold is in
 milestone M2 (a consumable package with real `exports` and a v0 tag) — check
 `~/Development/square-one/docs/PROGRESS.md` for whether that has landed.
 
-**Also open, and parallelizable:** the **CI + supply-chain half** of the retrofit. There is
-no `.github/` in this repo at all — no CI, no `docs-hygiene` job, no `stance-review.yml`, no
-dependency review. That can land any time before the arc's M6 and does not block M4.
+**Also open, and parallelizable — handed to waed-7561 2026-07-25:** the **CI + supply-chain
+half** of the retrofit. There is no `.github/` in this repo at all. It does not block M4, but
+it is **not a copy job**: `pnpm lint` currently fails with 61 errors, and ~26 of those are
+`eslint-plugin-react-hooks` v7 objecting to ADR-0002's deliberate shared-ref pattern. Full
+handover in [What the CI half actually contains](#what-the-ci-half-actually-contains).
 
 ## Architecture
 
@@ -159,12 +161,81 @@ is also what **validates square-one's provisional waypoints** — its Dosado spe
 (which NPC teaches what, unlock ordering) is represented — the planning effort's proposal is
 that it's townage data, keeping square-one pure, and it comes due at M5.
 
+## What the CI half actually contains
+
+*This section is the handover for the trailing half of the ADR-0002 retrofit. It should be
+enough to start the work cold. Measured against this repo on 2026-07-25 — the numbers below
+are real, not estimates.*
+
+Copy from `~/Development/cr-ci-cd-rust-typescript-template`: `.github/workflows/{ci,docs-hygiene,stance-review}.yml`
+and `scripts/docs-hygiene.py`.
+
+**The workflows need no adaptation.** `ci.yml` opens with a `detect` job that sets
+`rust`/`ts` outputs, and every downstream job is gated on it — so in a TypeScript-only repo
+the Rust gates, Kani proofs, and `cargo-deny` all self-skip. Don't edit them to remove the
+Rust half; that's the template working as designed.
+
+**`docs-hygiene.py` already passes here.** Run against this repo it reports *"docs hygiene
+clean"* with one warning (no stance review recorded yet — expected, `docs/reviews/README.md`
+explains the cadence). This gate can land green immediately.
+
+**`ci.yml`'s `ts-gates` job will not.** It runs `pnpm install --frozen-lockfile`, `pnpm lint`,
+`pnpm test`, `pnpm build`, and the first three all have problems today:
+
+1. **`pnpm lint` fails: 61 errors, 25 warnings** (`eslint .` exits 1). The breakdown is the
+   important part:
+
+   | Count | Rule | |
+   |---|---|---|
+   | 24 | `no-empty` | mechanical |
+   | 13 | `react-hooks/immutability` | **architectural** |
+   | 6 | `react-hooks/refs` | **architectural** |
+   | 4 | `react-hooks/set-state-in-effect` | **architectural** |
+   | 2 | `react-hooks/purity` | **architectural** |
+   | 1 | `react-hooks/preserve-manual-memoization` | **architectural** |
+   | 11 | `no-unused-expressions`, `no-unused-vars`, `no-explicit-any`, `no-non-null-asserted-optional-chain`, `react-refresh/only-export-components` | mechanical |
+   | 25 | `react-hooks/exhaustive-deps` | warnings, non-blocking |
+
+   The ~26 `react-hooks/*` errors are **not incidental** — they are `eslint-plugin-react-hooks`
+   v7's compiler-aligned rules objecting to the shared-ref pattern this repo adopted on
+   purpose ([ADR-0002](adr/0002-shared-refs-across-the-r3f-dom-boundary.md)). Mutating
+   `out.current!` inside `useFrame` *is* the pattern; the linter calls it modifying a hook
+   argument. So this is a decision, not a cleanup, and it needs an ADR either way:
+   - narrow rule exceptions for the ref-plumbing boundary (keeps ADR-0002, documents the
+     tension), or
+   - change the pattern (supersedes ADR-0002 — expensive, and M4 is not the moment).
+
+   **Do the mechanical 35 first and land CI with the `react-hooks` rules explicitly
+   configured**, so the gate goes green without pretending the question is settled.
+   Note this is live evidence for the repo's open question *"when does the ref-plumbing
+   pattern break?"* — the tooling is already answering it.
+
+2. **`pnpm test` fails: 2 of 162 tests**, both in `src/services/fetch-pending-results.test.ts`,
+   both pre-existing and unrelated to any of this. Worklist item 1 — fix before CI lands, or
+   CI is red on arrival for a reason nobody introduced.
+
+3. **`pnpm install --frozen-lockfile` will likely hit pnpm's build-verification gate** —
+   `ERR_PNPM_IGNORED_BUILDS` on `esbuild`, the same gate that stops `pnpm test` locally. Add
+   `pnpm.onlyBuiltDependencies: ["esbuild"]` to `package.json` so CI and local behave the same.
+   (`"test": "vitest"` is fine unchanged — vitest detects CI and runs once rather than watching.)
+
+`stance-review.yml` needs no code changes; it only opens/bumps an issue monthly and never
+gates, so it can land as-is (`issues: write` permission is already declared in the workflow).
+
+**Done when:** all three workflows are committed, a push to `main` runs them, and the CI run
+is green — with any suppressed lint rule justified in an ADR rather than silently disabled.
+
+**Out of scope:** `src/dance/` (that's M4), and superseding ADR-0002.
+
 ## Worklist
 
-1. **Fix the two failing `fetch-pending-results` tests** — clean baseline before M4.
+1. **Fix the two failing `fetch-pending-results` tests** — clean baseline before M4 *and*
+   before CI, which runs them.
 2. **M4: `src/dance/`** — frame, driver, blend contract, `<DanceFloor>`. See above.
 3. **CI + supply-chain gates** — the trailing half of the retrofit. No `.github/` exists yet.
-   Parallelizable onto another machine; due before the arc's M6.
+   Parallelizable onto another machine; due before the arc's M6. See
+   [What the CI half actually contains](#what-the-ci-half-actually-contains) — it is not a
+   copy job; `pnpm lint` currently fails 61 errors and ~26 of them are ADR-0002's pattern.
 4. Delete the three untracked empty directories; tighten `BotParts`'s `rushMode` prop type;
    strip debug logging.
 5. Add a test asserting every `townage-` key is accounted for in `backup.ts`.
