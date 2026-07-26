@@ -269,3 +269,7 @@ and [`reviews/`](reviews/README.md) for stance reviews._
 - **2026-07-25** — Docs retrofit (planning M3). `docs/` stood up, root `journal/` and `plans/`
   moved in, README replaced, seven ADRs backfilled, this file created. No `src/` changes. See
   [`journal/2026-07-25-docs-retrofit.md`](journal/2026-07-25-docs-retrofit.md).
+- **2026-07-25** — CI half landed (`b8ec634`, `782fc02`). Nine gates green on `main`; 61 lint
+  errors to 0; tests 163/163; 27 audit findings to one dated, self-expiring ignore;
+  `@react-three/rapier` removed. ADR-0008 and ADR-0009 came out of it. See
+  [`journal/2026-07-25-ci-half.md`](journal/2026-07-25-ci-half.md).
