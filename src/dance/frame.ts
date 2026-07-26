@@ -1,0 +1,144 @@
+/**
+ * The unit-square ↔ world transform.
+ *
+ * square-one works in an abstract 2D frame: `x` right, `y` "north", facing in
+ * degrees counterclockwise from `+x`. townage works in three.js world space:
+ * `x` right, `z` toward the camera, `y` up, and character heading expressed as
+ * `rotation.y` where `atan2(dir.x, dir.z)` is the convention every existing mover
+ * uses (`Player.tsx`, `Npc.tsx`).
+ *
+ * Mapping: engine `+y` (north) becomes world `−z` (away from camera), so a square
+ * laid out on the floor reads the same way it does on paper.
+ *
+ * Pure by design — no three.js imports, no refs, no frame loop. This is the part
+ * that can be property-tested, and it is the only place the two coordinate
+ * conventions are allowed to meet.
+ */
+
+/** A point in square-one's abstract frame. */
+export interface EnginePoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** A point on townage's floor. `y` (height) is not ours — dancers stay grounded. */
+export interface WorldPoint {
+  readonly x: number;
+  readonly z: number;
+}
+
+/**
+ * Where a square currently sits on the floor.
+ *
+ * Deliberately a plain value that gets *replaced*, not mutated in place: square-one
+ * re-fits its square frame to actual dancer positions as a square migrates
+ * (ADR-0006 drift), so this transform has to be able to follow rather than pin
+ * dancers to fixed floor coordinates.
+ */
+export interface DanceFrame {
+  /** Floor position of the engine frame's origin. */
+  readonly origin: WorldPoint;
+  /** World units per engine unit. One engine unit is the gap between facing dancers. */
+  readonly scale: number;
+  /** Rotation of the whole square about its origin, in radians. */
+  readonly yaw: number;
+}
+
+export const DEFAULT_SCALE = 2.2;
+
+/**
+ * square-one's lane offset — half the gap between the two lanes dancers pass in,
+ * in engine units. Mirrors `LANE_OFFSET` in the engine's `pass` block.
+ */
+export const ENGINE_LANE_OFFSET = 0.15;
+
+/**
+ * The smallest scale at which two passing dancers don't intersect.
+ *
+ * Passing dancers end up `2 × ENGINE_LANE_OFFSET` apart in engine units, so they
+ * clear each other only while `scale × 0.3 ≥ bodyDiameter`. With the standard 0.3
+ * body radius that is a floor of **2.0**, and the 2.2 default leaves 0.06 world
+ * units of daylight on a Pass Thru — real dancers brush shoulders, so tight is
+ * right, but it is tight *by arithmetic* rather than by luck and shrinking the
+ * floor would push bodies through each other.
+ *
+ * The engine's own collision property tests work in engine units and cannot see
+ * this: it only exists once abstract dancers acquire a radius.
+ */
+export function minScaleFor(bodyRadius: number): number {
+  return (2 * bodyRadius) / (2 * ENGINE_LANE_OFFSET);
+}
+
+export function makeFrame(
+  origin: WorldPoint,
+  scale: number = DEFAULT_SCALE,
+  yaw = 0,
+): DanceFrame {
+  return { origin, scale, yaw };
+}
+
+/** Engine point → floor position. */
+export function toWorld(frame: DanceFrame, p: EnginePoint): WorldPoint {
+  // Engine +y maps to world −z before the square's own yaw is applied.
+  const ex = p.x * frame.scale;
+  const ez = -p.y * frame.scale;
+  const c = Math.cos(frame.yaw);
+  const s = Math.sin(frame.yaw);
+  return {
+    x: frame.origin.x + ex * c - ez * s,
+    z: frame.origin.z + ex * s + ez * c,
+  };
+}
+
+/** Floor position → engine point. The inverse of {@link toWorld}. */
+export function toEngine(frame: DanceFrame, p: WorldPoint): EnginePoint {
+  const dx = p.x - frame.origin.x;
+  const dz = p.z - frame.origin.z;
+  const c = Math.cos(-frame.yaw);
+  const s = Math.sin(-frame.yaw);
+  const ex = dx * c - dz * s;
+  const ez = dx * s + dz * c;
+  return { x: ex / frame.scale, y: -ez / frame.scale };
+}
+
+/**
+ * Engine facing (degrees CCW from `+x`) → three.js `rotation.y`.
+ *
+ * Derivation, since it is easy to get backwards: engine facing θ is the direction
+ * `(cos θ, sin θ)`, which maps to the world direction `(cos θ, −sin θ)` in `(x, z)`.
+ * townage's heading convention is `atan2(dir.x, dir.z)`, and
+ * `atan2(cos θ, −sin θ) === π/2 + θ`. So the whole transform is a quarter turn plus
+ * the engine angle, and the square's own yaw on top.
+ */
+export function facingToRotationY(frame: DanceFrame, facingDeg: number): number {
+  return Math.PI / 2 + (facingDeg * Math.PI) / 180 + frame.yaw;
+}
+
+/** `rotation.y` → engine facing degrees. The inverse of {@link facingToRotationY}. */
+export function rotationYToFacing(frame: DanceFrame, rotationY: number): number {
+  const rad = rotationY - Math.PI / 2 - frame.yaw;
+  const deg = (rad * 180) / Math.PI;
+  return ((deg % 360) + 360) % 360;
+}
+
+/**
+ * Re-fit the frame's origin to where the dancers actually are.
+ *
+ * square-one estimates its square frame from actual positions each tick so that
+ * individual error accumulates as whole-square migration rather than being
+ * corrected toward absolute floor coordinates. This is townage's half of that: the
+ * floor origin follows the centroid instead of staying nailed down.
+ *
+ * Returns the frame unchanged when there is nothing to fit, so a caller can apply
+ * it unconditionally.
+ */
+export function refit(frame: DanceFrame, actual: readonly WorldPoint[]): DanceFrame {
+  if (actual.length === 0) return frame;
+  let sx = 0;
+  let sz = 0;
+  for (const p of actual) {
+    sx += p.x;
+    sz += p.z;
+  }
+  return { ...frame, origin: { x: sx / actual.length, z: sz / actual.length } };
+}

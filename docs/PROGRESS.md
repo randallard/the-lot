@@ -89,6 +89,59 @@ Note: `pnpm test` currently refuses to run behind pnpm's build-verification gate
 (`ERR_PNPM_IGNORED_BUILDS` on `esbuild`). Either run `pnpm approve-builds` once, or invoke
 `./node_modules/.bin/vitest run` directly.
 
+## M4 — what to check in the render
+
+*Built 2026-07-25, **not yet visually verified**. The subsystem is in `src/dance/`;
+`pnpm dev` then `http://localhost:5173/#dance`. Buttons switch call, the slider sets tempo
+(30 bpm makes direction obvious), the checkbox toggles drift re-fitting.*
+
+Gates are green — 177 tests, lint 0 errors, typecheck and build clean — and the driver's
+output has been simulated frame-by-frame headlessly. **None of that validates the geometry.**
+square-one's Dosado spec marks its waypoints "provisional until rendered" and this render is
+the check they are stacked behind, so the list below is the actual deliverable.
+
+In order of how likely each is to be wrong:
+
+1. **Allemande Left's turn direction.** A left arm turn must be **counterclockwise viewed
+   from above**, with each dancer's *left* side toward the pivot. Highest risk item: this
+   column was already wrong once in square-one's spec and corrected on 2026-07-25, and
+   nothing but a render can confirm the correction. If it turns the wrong way, that is a
+   square-one spec fix, not a townage one.
+2. **Dosado facing.** Facing must stay *constant* for the whole call — dancers orbit each
+   other face-forward and never turn. Any rotation means the frame's facing mapping is wrong.
+3. **Right shoulders first** on Dosado and Pass Thru, per the definitions.
+4. **Return to home.** Dosado must end exactly where it started. The simulation says it does,
+   at beat 6.
+5. **Pass Thru clearance** — see the size problem below; expect it to look tight.
+
+Simulated world positions for Dosado at the default scale, for comparison against what the
+screen shows:
+
+```
+beat |      A world      |      B world      | separation
+   0 | ( 0.00,  1.10) | ( 0.00, -1.10) | 2.20
+   2 | (-0.33, -0.66) | ( 0.33,  0.66) | 1.48
+   3 | ( 0.33, -0.66) | (-0.33,  0.66) | 1.48
+   6 | ( 0.00,  1.10) | ( 0.00, -1.10) | 2.20
+```
+
+### Blocking issue found while building it: dancer size vs. lane width
+
+Passing dancers end up `2 × 0.15` engine units apart, so they clear each other only while
+`scale × 0.3 ≥ body diameter`. At the default scale 2.2 and the default 0.3 body radius that
+is 0.66 against 0.60 — six hundredths of a world unit of daylight.
+
+**`SHAPE_BOUNDS` already allows `body.radius` up to 0.60.** Two dancers built at the maximum
+need a 1.2 gap and get 0.66: they intersect. So the body editor can already produce dancers
+who physically cannot pass each other, and the engine cannot see it — square-one works in
+engine units where dancers are points with no radius.
+
+`minScaleFor()` in `frame.ts` derives the floor and is tested, but that is a guard rail, not
+a fix. **The real design work is written up in
+[`~/Development/work/square-dance-planning/briefs/dancer-size-and-accessibility.md`](../../work/square-dance-planning/briefs/dancer-size-and-accessibility.md)**
+— it reaches into the engine seam, and it is where representation and accessibility get
+decided. Do not paper over it by clamping body size.
+
 ## Consuming square-one
 
 `package.json` pins `square-one: github:randallard/square-one#v0.1.0` (planning ADR-0006).

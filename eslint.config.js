@@ -51,8 +51,14 @@ export default defineConfig([
   // promotion condition: docs/adr/0008-react-hooks-rules-excepted-at-the-ref-boundary.md
   {
     // Writers: the whole R3F scene layer, plus the one overlay component that
-    // writes input state back into the scene.
-    files: ['src/world/**/*.{ts,tsx}', 'src/overlay/VirtualJoystick.tsx'],
+    // writes input state back into the scene. `src/dance/**` joins them per
+    // ADR-0011 — the choreography driver writes dancer transforms from useFrame,
+    // which is the same ADR-0002 mechanism in a new directory.
+    files: [
+      'src/world/**/*.{ts,tsx}',
+      'src/dance/**/*.{ts,tsx}',
+      'src/overlay/VirtualJoystick.tsx',
+    ],
     rules: {
       'react-hooks/immutability': 'off',
       'react-hooks/purity': 'off',
