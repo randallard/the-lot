@@ -19,9 +19,10 @@ creates no merge surface against M4. The **CI half landed the same day** and did
 
 **Next: M4 — the choreography adapter.** A new `src/dance/` subsystem that drives NPCs from
 the square-one engine. Everything needed to start it cold is in
-[What M4 actually contains](#what-m4-actually-contains) below. It is blocked on square-one
-milestone M2 (a consumable package with real `exports` and a v0 tag) — check
-`~/Development/square-one/docs/PROGRESS.md` for whether that has landed.
+[What M4 actually contains](#what-m4-actually-contains) below. **No longer blocked:**
+square-one M2 landed 2026-07-25 and `square-one@0.1.0` is installed here as a pinned git
+dependency — `import { applyCall, createPerformance } from "square-one"` resolves at runtime
+and at the type level. See [Consuming square-one](#consuming-square-one).
 
 **The CI + supply-chain half is done (2026-07-25).** `.github/workflows/{ci,docs-hygiene,stance-review}.yml`
 and `scripts/docs-hygiene.py` are in, and all eight gates pass. Getting there took more than
@@ -87,6 +88,27 @@ Worth fixing before M4 so the suite is a clean baseline.
 Note: `pnpm test` currently refuses to run behind pnpm's build-verification gate
 (`ERR_PNPM_IGNORED_BUILDS` on `esbuild`). Either run `pnpm approve-builds` once, or invoke
 `./node_modules/.bin/vitest run` directly.
+
+## Consuming square-one
+
+`package.json` pins `square-one: github:randallard/square-one#v0.1.0` (planning ADR-0006).
+Verified 2026-07-25: `applyCall`, `applyCallToPair`, `createPerformance` and the exported
+types all resolve, and `tsc -b` passes against them.
+
+**The one sharp edge — `allowBuilds` is keyed by commit hash.** square-one gitignores its
+`dist/`, so pnpm must run its `prepare` (a plain `tsc`) after cloning. pnpm's blocked-scripts
+default refuses that until it is allowed, and it will *only* accept the full
+`square-one@https://codeload.github.com/.../<sha>` key — a plain `square-one: true` is
+rejected. **That sha changes on every square-one tag**, so bumping the dependency is a
+two-line edit here, not one.
+
+Do not paper over this by allowing builds broadly; the individual-exception rule is the point.
+If the churn becomes annoying, the fix belongs in square-one — commit its `dist/` so no build
+step is needed, which makes tags drop-in. Flagged to the planning effort as a real cost of
+ADR-0006's git-dependency choice.
+
+Local co-development uses a link override instead of the pin, per ADR-0006. CI always installs
+from the pin.
 
 ## Supply chain
 

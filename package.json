@@ -19,6 +19,7 @@
     "lz-string": "^1.5.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "square-one": "github:randallard/square-one#v0.1.0",
     "three": "^0.183.2"
   },
   "devDependencies": {

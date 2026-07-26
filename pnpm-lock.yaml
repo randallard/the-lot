@@ -26,6 +26,9 @@ importers:
       react-dom:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
+      square-one:
+        specifier: github:randallard/square-one#v0.1.0
+        version: https://codeload.github.com/randallard/square-one/tar.gz/6c816fc936cee4f254634b39888767685ffa164d
       three:
         specifier: ^0.183.2
         version: 0.183.2
@@ -1852,6 +1855,11 @@ packages:
 
   spdx-satisfies@6.0.0:
     resolution: {integrity: sha512-oOWQocnRbFVtBnBITfFgzjhnOklHossTvI+6C1hB2slvp3HgTsfru5wuo8HY2rQpwSm5JuIhNzIuqOfR5IuojQ==}
+
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/6c816fc936cee4f254634b39888767685ffa164d:
+    resolution: {gitHosted: true, integrity: sha512-wXjyph6/jSNIzptkg+0474OK2YijV8yu7TV36VTT03GcvyHWIfdWb1p8fxqouTuLGYtcDF1g3aAeoTMD1H5XFQ==, tarball: https://codeload.github.com/randallard/square-one/tar.gz/6c816fc936cee4f254634b39888767685ffa164d}
+    version: 0.1.0
+    engines: {node: '>=22'}
 
   ssri@13.0.1:
     resolution: {integrity: sha512-QUiRf1+u9wPTL/76GTYlKttDEBWV1ga9ZXW8BG6kfdeyyM8LGPix9gROyg9V2+P0xNyF3X2Go526xKFdMZrHSQ==}
@@ -4019,6 +4027,8 @@ snapshots:
       spdx-compare: 1.0.0
       spdx-expression-parse: 3.0.1
       spdx-ranges: 2.1.1
+
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/6c816fc936cee4f254634b39888767685ffa164d: {}
 
   ssri@13.0.1:
     dependencies:
