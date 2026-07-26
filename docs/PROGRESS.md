@@ -88,6 +88,38 @@ Note: `pnpm test` currently refuses to run behind pnpm's build-verification gate
 (`ERR_PNPM_IGNORED_BUILDS` on `esbuild`). Either run `pnpm approve-builds` once, or invoke
 `./node_modules/.bin/vitest run` directly.
 
+## Supply chain
+
+Settings live in [`pnpm-workspace.yaml`](../pnpm-workspace.yaml) — pnpm 11 reads them there,
+not from `.npmrc`.
+
+- **`minimumReleaseAge: 1440`** (1 day) — [pnpm's documented recommendation and its v11
+  default](https://pnpm.io/settings): "in most cases, malicious releases are discovered and
+  removed from the registry within an hour." Now stated explicitly rather than inherited, so
+  a default change cannot move it silently. Verify with `pnpm config get minimumReleaseAge`.
+- **`overrides: "brace-expansion@5": ">=5.0.8"`** — GHSA-mh99-v99m-4gvg / CVE-2026-14257
+  (High, CVSS 7.5, DoS). OSV gives one range, introduced `0` fixed `5.0.8`.
+  **Scoped to the 5.x line deliberately:** brace-expansion 5.x changed its export shape, so a
+  blanket override throws `expand is not a function` inside `minimatch@3.1.5` on any
+  brace-containing pattern — which this repo's eslint config has (`**/*.{ts,tsx}`). Measured,
+  not guessed: the blanket version takes `pnpm lint` down with exit 2.
+- **One `auditConfig.ignoreGhsas` entry remains**, for the residual `brace-expansion@1.1.16`.
+  The reason is *not* a quarantine wait and *not* a severity judgement: **no patched version
+  is compatible with `minimatch@3`'s API.** Dev-only path; nothing reaches the shipped
+  bundle. `osv-scanner.toml` is deleted — one ignore, in one place, with a true reason.
+
+### What the first attempt got wrong
+
+Worth keeping, because it was confidently documented and still false. The comments asserted a
+72-hour quarantine was blocking the fix. pnpm's actual default is 1440 minutes, the fix
+cleared it on 2026-07-24, and the timed ignores were waiting for a deadline that had already
+passed. The sibling repo `square-one` had the mirror-image bug — an age gate written into
+`.npmrc`, where pnpm never read it, so it had no gate at all while believing it had a 7-day
+one. Both were fixed together; see square-one's ADR-0011.
+
+**The lesson both repos paid for: a supply-chain control you have not verified is not a
+control.** `pnpm config get minimumReleaseAge` is one command.
+
 ## What's stubbed, dead, or unfinished
 
 - **`board-creation` is wired but unreachable.** The phase, its resume point, and its
@@ -176,12 +208,14 @@ Rust half. All verified before acting on them.
 
 - `pnpm audit --audit-level=high` found **27 vulnerabilities (15 high, 1 critical)** — every
   one a devDependency. `pnpm update` within existing semver ranges cleared 26.
-- The 27th, `brace-expansion` (GHSA-mh99-v99m-4gvg), has a fix that pnpm's own 72-hour
-  `minimumReleaseAge` quarantine won't install yet. Overriding a supply-chain control to
-  patch a dev-only DoS is the wrong trade, so it's an explicit single-GHSA ignore in
-  `pnpm-workspace.yaml` **and** `osv-scanner.toml`, both expiring 2026-07-26/27. Two entries
-  because `pnpm audit` and the OSV scan are different tools over different databases —
-  something only the real CI run revealed, since OSV can't be run from the template locally.
+- The 27th, `brace-expansion` (GHSA-mh99-v99m-4gvg), was first handled as a timed ignore in
+  `pnpm-workspace.yaml` **and** `osv-scanner.toml` — two entries because `pnpm audit` and the
+  OSV scan are different tools over different databases, something only the real CI run
+  revealed. **Both were wrong and have been replaced (2026-07-25, later).** The stated reason
+  — waiting out "pnpm's 72-hour `minimumReleaseAge` quarantine" — was wrong twice over: the
+  quarantine is **1440 minutes (1 day)**, pnpm's documented default and recommendation, and
+  the fix cleared it on 2026-07-24. Nothing was ever being waited for. See
+  [Supply chain](#supply-chain) for what replaced it.
 - `pnpm exec license-checker-rseidelsohn` wasn't installed — the template has no
   `package.json`, so its pnpm path was never exercised. Added as a devDependency.
 - The license allowlist then failed on **`@react-three/rapier`, which publishes with no
@@ -220,13 +254,12 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
    `set-state-in-effect` and 2 `preserve-manual-memoization` fixes in the game-return handler,
    the assembly-cutscene step machine, `World`, and `VirtualJoystick` — all behaviour-critical,
    so do it with the app running, not blind.
-4. **Drop the `brace-expansion` ignores** on/after **2026-07-26**, once the patch clears
-   pnpm's 72h `minimumReleaseAge` quarantine. There are **two** — `auditConfig.ignoreGhsas`
-   in `pnpm-workspace.yaml` (read by `pnpm audit`) and `osv-scanner.toml` (read by the OSV
-   gate); they are separate tools with separate databases and neither reads the other's
-   config. Add `overrides: brace-expansion: '>=5.0.8'` to `pnpm-workspace.yaml` and delete
-   both. The osv-scanner entry has an `ignoreUntil` of 2026-07-27, so that gate will start
-   failing on its own if this is forgotten.
+4. ~~Drop the `brace-expansion` ignores on/after 2026-07-26~~ — **done 2026-07-25**, and the
+   premise was wrong. See [Supply chain](#supply-chain): the patch had already cleared the
+   real (1-day) gate, `osv-scanner.toml` is deleted, and a **scoped** override carries the
+   5.x line. One audit ignore remains, for a different and truthful reason — no patched
+   version is compatible with `minimatch@3`'s API. Drop it when the toolchain stops pulling
+   `minimatch@3`.
 5. ~~CI + supply-chain gates~~ — **done 2026-07-25**. See [How CI landed](#how-ci-landed).
 6. Delete the three untracked empty directories; tighten `BotParts`'s `rushMode` prop type;
    strip debug logging.

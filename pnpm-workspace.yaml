@@ -5,17 +5,31 @@
 allowBuilds:
   esbuild: true
 
+# Age-gate new releases at the package manager. 1440 minutes (1 day) is pnpm's
+# own recommendation and its v11 default; stated explicitly rather than inherited
+# so a future default change cannot move it silently, and so the value is visible
+# to anyone reading the repo. Verify with `pnpm config get minimumReleaseAge`.
+minimumReleaseAge: 1440
+
+overrides:
+  # GHSA-mh99-v99m-4gvg / CVE-2026-14257 — brace-expansion, unbounded expansion
+  # exhausts memory (High, CVSS 7.5). OSV gives one range: introduced 0, fixed
+  # 5.0.8 — every version below that is affected, with no per-line patch.
+  #
+  # Scoped to the 5.x line ON PURPOSE. brace-expansion 5.x changed its export shape
+  # (1.x exported the function itself), so forcing 5.0.8 onto minimatch@3.1.5 breaks
+  # it with `expand is not a function` as soon as a pattern contains braces — which
+  # this repo's eslint config does (`**/*.{ts,tsx}`). Verified: a blanket override
+  # takes `pnpm lint` down with exit 2.
+  "brace-expansion@5": ">=5.0.8"
+
 auditConfig:
-  # GHSA-mh99-v99m-4gvg — brace-expansion <=5.0.8, unbounded expansion → OOM.
-  #
-  # Dev-only and unreachable in the shipped bundle: it arrives solely through
-  # eslint's own minimatch, so the exposure is "someone hands the linter a
-  # hostile glob". The fix (5.0.8) exists but was published 2026-07-23, inside
-  # pnpm's 72h minimumReleaseAge quarantine — a supply-chain control worth more
-  # than this DoS is worth avoiding, so we wait it out rather than override it.
-  #
-  # Remove this entry (and the audit will pass on its own) once 5.0.8 clears the
-  # quarantine on 2026-07-26; if eslint has shipped a patched minimatch by then,
-  # nothing further is needed.
   ignoreGhsas:
+    # See the overrides note above. This is NOT the earlier "waiting for the
+    # quarantine" reason, which was wrong on two counts: the fix cleared pnpm's
+    # 1-day gate on 2026-07-24, and the gate was never 72h.
+    #
+    # The real reason is that no patched version is compatible with minimatch@3's
+    # API. Dev-only path (eslint / typescript-eslint / license-checker); nothing
+    # here reaches the shipped bundle. Revisit when the toolchain drops minimatch@3.
     - GHSA-mh99-v99m-4gvg
