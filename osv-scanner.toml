@@ -1,0 +1,23 @@
+# osv-scanner reads this automatically when scanning the repo root.
+#
+# It duplicates the ignore in pnpm-workspace.yaml's auditConfig because the two
+# gates are separate tools reading separate databases: `pnpm audit` honours
+# pnpm's config, osv-scanner honours this one. Same single advisory, so both
+# entries carry the same expiry — and both should be deleted together.
+
+[[IgnoredVulns]]
+id = "GHSA-mh99-v99m-4gvg"
+ignoreUntil = 2026-07-27
+reason = """
+brace-expansion <=5.0.7 — unbounded expansion can exhaust memory.
+
+Dev-only and unreachable from the shipped bundle: it arrives solely through
+eslint's own minimatch, so exploiting it means handing the linter a hostile
+glob. The fix (5.0.8) was published 2026-07-23 and sits inside pnpm's 72-hour
+minimumReleaseAge quarantine — a supply-chain control worth more than this DoS
+is worth avoiding, so we wait it out rather than override it.
+
+On/after 2026-07-26 the patch clears the quarantine. At that point add
+`overrides: brace-expansion: '>=5.0.8'` to pnpm-workspace.yaml and delete both
+this entry and the auditConfig one. Tracked as worklist item 4 in docs/PROGRESS.md.
+"""

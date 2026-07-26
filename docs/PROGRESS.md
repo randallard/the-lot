@@ -179,7 +179,9 @@ Rust half. All verified before acting on them.
 - The 27th, `brace-expansion` (GHSA-mh99-v99m-4gvg), has a fix that pnpm's own 72-hour
   `minimumReleaseAge` quarantine won't install yet. Overriding a supply-chain control to
   patch a dev-only DoS is the wrong trade, so it's an explicit single-GHSA ignore in
-  `pnpm-workspace.yaml` with a removal date of **2026-07-26**, when the patch clears.
+  `pnpm-workspace.yaml` **and** `osv-scanner.toml`, both expiring 2026-07-26/27. Two entries
+  because `pnpm audit` and the OSV scan are different tools over different databases —
+  something only the real CI run revealed, since OSV can't be run from the template locally.
 - `pnpm exec license-checker-rseidelsohn` wasn't installed — the template has no
   `package.json`, so its pnpm path was never exercised. Added as a devDependency.
 - The license allowlist then failed on **`@react-three/rapier`, which publishes with no
@@ -218,9 +220,13 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
    `set-state-in-effect` and 2 `preserve-manual-memoization` fixes in the game-return handler,
    the assembly-cutscene step machine, `World`, and `VirtualJoystick` — all behaviour-critical,
    so do it with the app running, not blind.
-4. **Drop the `brace-expansion` audit ignore** from `pnpm-workspace.yaml` on/after
-   **2026-07-26**, once the patch clears pnpm's 72h `minimumReleaseAge` quarantine.
-   `pnpm audit --audit-level=high` should then pass without it.
+4. **Drop the `brace-expansion` ignores** on/after **2026-07-26**, once the patch clears
+   pnpm's 72h `minimumReleaseAge` quarantine. There are **two** — `auditConfig.ignoreGhsas`
+   in `pnpm-workspace.yaml` (read by `pnpm audit`) and `osv-scanner.toml` (read by the OSV
+   gate); they are separate tools with separate databases and neither reads the other's
+   config. Add `overrides: brace-expansion: '>=5.0.8'` to `pnpm-workspace.yaml` and delete
+   both. The osv-scanner entry has an `ignoreUntil` of 2026-07-27, so that gate will start
+   failing on its own if this is forgotten.
 5. ~~CI + supply-chain gates~~ — **done 2026-07-25**. See [How CI landed](#how-ci-landed).
 6. Delete the three untracked empty directories; tighten `BotParts`'s `rushMode` prop type;
    strip debug logging.
