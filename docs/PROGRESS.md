@@ -1,6 +1,6 @@
 # Progress & Status
 
-_Last updated: 2026-07-25_
+_Last updated: 2026-07-26_
 
 ## Status / next
 
@@ -16,6 +16,40 @@ for decisions taken between 2026-03-06 and 2026-03-28, each evidenced against th
 the commit that introduced it. No `src/` changes were made — deliberately, so the retrofit
 creates no merge surface against M4. The **CI half landed the same day** and did touch
 `src/` — see [How CI landed](#how-ci-landed).
+
+**What just happened (2026-07-26, latest):** the **arm channel** and its **contact
+tracking**, over two rounds of Ryan's render notes. The new pure `src/dance/arm-pose.ts`
+owns both; the driver eases the rig toward what `poseArms` returns and publishes what the
+arms are touching.
+
+- **A forearm grip is two horizontal, antiparallel forearms** along the line between the
+  dancers, at one shared height, side by side, each hand at the other's elbow. Two earlier
+  attempts (aim the forearm at the grip point; stand it up vertically) were both
+  compromises against a constraint that doesn't exist — **these caricatures have no upper
+  arms, necks or legs**, so nothing about arm placement has to satisfy anatomy. What has to
+  be right is contact.
+- **Contact is tracked**, per frame, in world space: every forearm as an `{ elbow, hand }`
+  segment, plus the pivot, the pair's separation, and where each gripping hand is on its
+  partner's forearm (`along`, and `gap` where negative means a hold). Out through
+  `DanceFloor.onArms`; the debug overlay prints **min → max since the grip engaged** and the
+  scene draws markers (black pivot, blue elbows, red hands). Ranges rather than instants
+  because the last defect was pure drift and an instantaneous readout hid it.
+- **The pose is written exactly; only the grip blend is eased.** The driver used to ease the
+  rig *toward* the pose, which lagged — and a lagged local pose is an arm glued to its own
+  dancer instead of to the pivot, so the pair slid and let go twice per breath. Engaging and
+  releasing blend; a held grip is rigid to the last decimal.
+- **Proximity tucks** the forearm on the side a dancer is passing on, far enough in that
+  the hand is inside the torso — a bound that makes it provably enough rather than tuned
+  by eye.
+- **The 29% orbit breathing stays** — Ryan likes it. It was flagged as an engine defect
+  this morning; it's a keep. Don't "fix" it.
+
+Full reasoning, in order: [the horizontal grip and
+tracking](journal/2026-07-26-the-grip-is-horizontal-and-tracked.md) (superseding the vertical
+grip in [the entry before it](journal/2026-07-26-forearm-grips-and-arm-tucks.md)), then
+[the grip was easing, not holding](journal/2026-07-26-the-grip-was-easing-not-holding.md) —
+whose lesson generalises: **if the driver transforms what a pure function returns, the pure
+function's tests do not cover the driver.** 268 tests green.
 
 **Next: M4 — the choreography adapter.** A new `src/dance/` subsystem that drives NPCs from
 the square-one engine. Everything needed to start it cold is in
@@ -79,11 +113,9 @@ Played and working:
 - **Backup and restore** — versioned export/import (`BACKUP_VERSION = "1.1.0"`) with fixed,
   dynamic, and optional key classes (ADR-0007).
 
-**Tests: 160 of 162 pass** (15 files). Two fail in
-`src/services/fetch-pending-results.test.ts` — *"returns results from API response"* and
-*"sends DELETE to clean up consumed results"*. Both are in the async-result pickup path
-(ADR-0005) and were failing before the docs retrofit began; the retrofit touched no `src/`.
-Worth fixing before M4 so the suite is a clean baseline.
+**Tests: 244 pass** (19 files), as of 2026-07-26. The two `fetch-pending-results` failures
+that stood here were fixed on 2026-07-25 (worklist item 1); the rest of the growth is M4's
+`src/dance/` — frame, body clearance, and the arm channel.
 
 Note: `pnpm test` currently refuses to run behind pnpm's build-verification gate
 (`ERR_PNPM_IGNORED_BUILDS` on `esbuild`). Either run `pnpm approve-builds` once, or invoke
@@ -93,12 +125,25 @@ Note: `pnpm test` currently refuses to run behind pnpm's build-verification gate
 
 *Built 2026-07-25, **not yet visually verified**. The subsystem is in `src/dance/`;
 `pnpm dev` then `http://localhost:5173/#dance`. Buttons switch call, the slider sets tempo
-(30 bpm makes direction obvious), the checkbox toggles drift re-fitting.*
+(30 bpm makes direction obvious), the checkbox toggles drift re-fitting, ⏸ freezes dancers
+mid-move with a live `beat n.n / total` readout — pause at a beat from the Dosado table
+below and compare the screen against the simulated positions.*
 
 Gates are green — 177 tests, lint 0 errors, typecheck and build clean — and the driver's
 output has been simulated frame-by-frame headlessly. **None of that validates the geometry.**
 square-one's Dosado spec marks its waypoints "provisional until rendered" and this render is
 the check they are stacked behind, so the list below is the actual deliverable.
+
+**2026-07-26, before re-watching:** the head-facing marker was on the **back** of the head
+(local −z; townage characters face +z — `atan2(dir.x, dir.z)` convention, eyes at
+`+eyeZOnSphere`). Ryan caught it from a paused screenshot. The choreography maths was never
+wrong, but every facing observation made before the fix was mirrored — re-check items 1–3
+with the dot now honestly on the face. The default cast's square is modestly bigger than the
+old 2.2 (~2.60 scale): pair clearance is measured on the 3D rigid silhouette (ADR-0012;
+heads count, height-aware), which caught that Myco's/Ember's heads were silently clipping at
+2.2 — an earlier flat-disc measurement (ADR-0011, superseded same day) had ballooned it to
+~4.44 and read as dancers avoiding each other. See the
+[journal entry](journal/2026-07-26-body-derived-frame-scale.md).
 
 In order of how likely each is to be wrong:
 
@@ -106,41 +151,110 @@ In order of how likely each is to be wrong:
    from above**, with each dancer's *left* side toward the pivot. Highest risk item: this
    column was already wrong once in square-one's spec and corrected on 2026-07-25, and
    nothing but a render can confirm the correction. If it turns the wrong way, that is a
-   square-one spec fix, not a townage one.
-2. **Dosado facing.** Facing must stay *constant* for the whole call — dancers orbit each
+   square-one spec fix, not a townage one. Judge it off the **facing marker** (the dot is on
+   the face since the 2026-07-26 fix), not off the arms: the arm that raises is now the one
+   nearest the pivot *by construction*, so it can no longer disagree with the engine. The
+   old note here — swap the anatomical mapping in `Dancer.tsx` if the right arm raises — no
+   longer applies to the grip.
+2. **The forearm grip itself** (new 2026-07-26, third pass — and the overlay now gives you
+   numbers, so this one need not be judged by eye). Expect both left forearms **horizontal,
+   antiparallel, side by side**, level with each other, holding through the turn and
+   releasing half a beat before the step-out. Read the **contact panel** under the beat
+   clock, which prints **min → max since the grip engaged**: only `separation` should have a
+   spread. For the default cast everything else should be flat — `a hand↔pivot 0.191`,
+   `a along 0.400`, `a gap −0.082`, `b along 0.000`, `b gap −0.000`: Ember's hand exactly at
+   Myco's elbow, Myco's hand 40% up Ember's longer forearm, both gaps ≤ 0 (negative is a
+   hold; a hand wrapping a forearm overlaps it). **Any spread outside `separation` is the
+   defect**, and a positive `gap` is a hand not holding. The scene's markers say it visually:
+   red hands and blue elbows should look nailed to the black pivot dot while the bodies
+   swing past.
+3. **The grip holds steady; the bodies breathe around it.** This is the *model*, confirmed
+   by Ryan, not a compromise: the join is rigid — pinned to the pivot at a fixed radius,
+   only rotating — and **the undrawn upper arm is the compliant link** that takes up the
+   pair's 0.46-unit separation pulse, exactly as a real one would. So the visible gap
+   between a torso and its own forearm opens and closes; the forearms themselves never
+   stretch, squash, or drift off the pivot. Asserted **twice**: on the pose (*"holds steady
+   and only rotates while the bodies breathe around it"*) and on the driver's own frame loop
+   (*"driven frame by frame"*) — because the first version checked only the pose, and the
+   render slid anyway.
+4. **The arms on the passes.** Dosado and Pass Thru: the arm on the side being passed
+   should slide **into the torso** as the pair closes and swing back out after — right arms
+   on the Dosado's forward pass, left arms on the return, which is the call's own
+   right-shoulders-then-left falling out of the geometry rather than being scripted. The
+   outside arm should keep hanging free the whole time.
+4b. **The orbit breathing is a keep.** `arm-turn` emits a waypoint every quarter turn and
+   the stepper interpolates linearly, so the pair walks the **chords** of the orbit:
+   separation oscillates 1.56 → 1.10 → 1.56 world units every two beats, a 29% radius dip.
+   Ryan watched it and likes it, so it stays — do not "fix" it on discovering the
+   arithmetic. (If it ever must go: waypoints every eighth turn take the dip to 7.6%.)
+5. **Dosado facing.** Facing must stay *constant* for the whole call — dancers orbit each
    other face-forward and never turn. Any rotation means the frame's facing mapping is wrong.
-3. **Right shoulders first** on Dosado and Pass Thru, per the definitions.
-4. **Return to home.** Dosado must end exactly where it started. The simulation says it does,
+6. **Right shoulders first** on Dosado and Pass Thru, per the definitions.
+7. **Return to home.** Dosado must end exactly where it started. The simulation says it does,
    at beat 6.
-5. **Pass Thru clearance** — see the size problem below; expect it to look tight.
+8. **Pass Thru clearance** — expect it to look tight at default bodies (0.06 world units of
+   daylight is correct — real dancers brush shoulders). Also flip the new **"bodies" switch**
+   (default / mixed / max): `mixed` and `max` must show a visibly bigger square with everyone
+   still clearing. See the size section below.
 
-Simulated world positions for Dosado at the default scale, for comparison against what the
-screen shows:
+Dosado's waypoints in **engine units** (multiply by the frame's scale for world
+distances — the scale is body-derived now, ~2.60 for the default cast). Every beat
+listed; the 2026-07-26 render watch caught a return-leg defect hiding in a skipped
+beat-5 row, so no more elided rows:
 
 ```
-beat |      A world      |      B world      | separation
-   0 | ( 0.00,  1.10) | ( 0.00, -1.10) | 2.20
-   2 | (-0.33, -0.66) | ( 0.33,  0.66) | 1.48
-   3 | ( 0.33, -0.66) | (-0.33,  0.66) | 1.48
-   6 | ( 0.00,  1.10) | ( 0.00, -1.10) | 2.20
+beat |    A engine    |    B engine    | doing
+   0 | ( 0.00, -0.50) | ( 0.00,  0.50) | start, facing each other
+   1 | (-0.15, -0.10) | ( 0.15,  0.10) | forward, veering into own-left lanes
+   2 | (-0.15,  0.30) | ( 0.15, -0.30) | right shoulders pass
+   3 | ( 0.15,  0.30) | (-0.15, -0.30) | sidestep right, crossing behind
+   4 | ( 0.15,  0.10) | (-0.15, -0.10) | backing straight (half walking pace)
+   5 | ( 0.15, -0.10) | (-0.15,  0.10) | left shoulders pass
+   6 | ( 0.00, -0.50) | ( 0.00,  0.50) | closing diagonal onto home — beat 0→1 mirrored
 ```
 
-### Blocking issue found while building it: dancer size vs. lane width
+Watched 2026-07-26 (first human eyes), fixed in square-one **twice** the same day,
+both spec defects the "provisional until rendered" marker predicted. Round one:
+dancers veered outward after beat 4 (backward pass re-applied its lane veer from a
+displaced start; the spec table had skipped beat 5). Round two: the first fix
+backed straight then side-stepped a hard 90° corner at beat 5 — Ryan called it
+"straight back then correct", and the CALLERLAB definition agrees with him:
+*"walking a smooth circular path … slide slightly to the left to return"* — the
+closing lateral blends into the backing as the beat-0→1 veer mirrored (`pass`'s
+new 3-beat `close` exit; the chain is now three blocks, 2+1+3 = 6). The table
+above is the final geometry. **Re-watch the return leg**, then Dosado is done.
 
-Passing dancers end up `2 × 0.15` engine units apart, so they clear each other only while
-`scale × 0.3 ≥ body diameter`. At the default scale 2.2 and the default 0.3 body radius that
-is 0.66 against 0.60 — six hundredths of a world unit of daylight.
+### Dancer size vs. lane width — immediate defect closed 2026-07-26
 
-**`SHAPE_BOUNDS` already allows `body.radius` up to 0.60.** Two dancers built at the maximum
-need a 1.2 gap and get 0.66: they intersect. So the body editor can already produce dancers
-who physically cannot pass each other, and the engine cannot see it — square-one works in
-engine units where dancers are points with no radius.
+Passing dancers clear each other only while `scale × 0.3 ≥ r₁ + r₂` — clearance is a *pair*
+property. `SHAPE_BOUNDS` allows `body.radius` up to 0.60, so at a fixed scale 2.2 the body
+editor could produce dancers who physically cannot pass each other, and the engine cannot see
+it — square-one works in engine units where dancers are points with no radius.
 
-`minScaleFor()` in `frame.ts` derives the floor and is tested, but that is a guard rail, not
-a fix. **The real design work is written up in
+**Fixed at the transform layer ([ADR-0012](adr/0012-pair-clearance-from-the-3d-silhouette.md),
+journal [2026-07-26](journal/2026-07-26-body-derived-frame-scale.md)):** `DanceFloor` derives
+its frame scale from the occupants' pairwise clearance needs — `rigidParts` +
+`lateralClearance` (height-aware, side-on, heads count, forward overhang doesn't) through
+`scaleForGaps` — never below the default, growing when some pair needs more room.
+Whole-square breathing, done coarsely; no combination the editor can produce clips
+side-to-side. The debug scene grew a "bodies" switch to verify the extremes. (ADR-0011's
+first cut measured a flat disc per dancer; superseded the same day when the render showed
+it ballooning the square.)
+
+**Still open, deliberately:** local breathing (engine-side, hangs on the brief's question 1),
+size-derived step cadence, and hand-contact height for the 0.10–2.00 height range — whose
+seed is now `gripHeight` in `arm-pose.ts`: the **mean of the two dancers' resting elbow
+heights**, which is where a horizontal forearm naturally sits, asserted in
+`arm-pose.test.ts` so step 3 has to replace it deliberately. Its known failure: past some
+height difference the taller dancer should do nearly *all* the accommodating, because an
+adult can drop their arm to a child's height and a child cannot raise theirs to an adult's.
+**A second placeholder sits beside it:** `contactRadius` takes half the *shorter* forearm,
+so a mismatched pair grips at the short-armed dancer's reach — right in spirit, unexamined
+at the extremes. **The
+design work continues in
 [`~/Development/work/square-dance-planning/briefs/dancer-size-and-accessibility.md`](../../work/square-dance-planning/briefs/dancer-size-and-accessibility.md)**
 — it reaches into the engine seam, and it is where representation and accessibility get
-decided. Do not paper over it by clamping body size.
+decided. Do not paper over any of it by clamping body size.
 
 ## Consuming square-one
 
@@ -162,6 +276,13 @@ ADR-0006's git-dependency choice.
 
 Local co-development uses a link override instead of the pin, per ADR-0006. CI always installs
 from the pin.
+
+**⚠ The link is ACTIVE right now (2026-07-26):** `pnpm-workspace.yaml` carries an uncommitted
+`square-one: link:../square-one` override so the day's engine fixes (Dosado return leg,
+`Motion.grips`) render locally. Before committing anything here that depends on them:
+square-one needs a **v0.2.0 tag** (minor — `grips` is new API surface), the pin and the
+`allowBuilds` hash need their two-line bump, and the link override comes out. Do not commit
+the link (the ADR-0006 footgun: green-against-link, red-against-pin).
 
 ## Supply chain
 
@@ -249,8 +370,14 @@ A new `src/dance/` subsystem in townage, consuming square-one:
     collides with both. Resolving that is the first real design decision of M4 — and it
     deserves an ADR.
   - Grip-bearing blocks (square-one's `arm-turn`) carry hand semantics that must drive arm
-    poses, so the driver has to **request poses through `services/arm-actions.ts`** rather
-    than bypass the animation system.
+    poses. This section originally said the driver should **request poses through
+    `services/arm-actions.ts`**; that was **decided the other way** on 2026-07-26.
+    `arm-actions` is the canned-keyframe emote system, and an engaged arm tracks live
+    formation geometry — so `src/dance/arm-pose.ts` owns it, alongside transform and facing.
+    The 2026-07-26 arm work added a second case that settles it: the **proximity tuck** is
+    not in the engine's data *or* a canned pose, it is derived from where the other dancer
+    is this frame, and an emote flinging both arms wide during a shoulder pass would put an
+    arm through another dancer. Both belong in the ADR-0010 contract.
   - `bodyDeltaY` is a *visual* offset only — `positionRef` stays at ground level. The driver
     should follow that convention.
 - **`<DanceFloor>`** — places N dancers, N ∈ {2, 4, 8}. Two-couple-safe: don't hard-code 8.
@@ -381,3 +508,7 @@ and [`reviews/`](reviews/README.md) for stance reviews._
   errors to 0; tests 163/163; 27 audit findings to one dated, self-expiring ignore;
   `@react-three/rapier` removed. ADR-0008 and ADR-0009 came out of it. See
   [`journal/2026-07-25-ci-half.md`](journal/2026-07-25-ci-half.md).
+- **2026-07-26** — Body-derived frame scale (ADR-0011). `scaleForBodies()` closes the brief's
+  immediate defect: the full `SHAPE_BOUNDS` radius range dances without intersecting, the
+  debug scene can prove it, 186/186 tests. See
+  [`journal/2026-07-26-body-derived-frame-scale.md`](journal/2026-07-26-body-derived-frame-scale.md).
