@@ -21,14 +21,27 @@ import {
 /** The rig a driver writes transforms onto. */
 export type DancerRig = React.RefObject<THREE.Group | null>;
 
+/**
+ * The two arm groups, by the dancer's own anatomy. Characters face local `+z`
+ * (townage's `atan2(dir.x, dir.z)` heading convention), so the anatomical left
+ * arm is the group at `+x` — note this is the group the hand *styling* calls
+ * "right", because hand-pose naming is viewer-mirrored (like the eye editor).
+ */
+export interface DancerArmRigs {
+  left: DancerRig;
+  right: DancerRig;
+}
+
 interface DancerProps {
   shape: CharacterBodyShape;
   rig: DancerRig;
   /** Marker colour override — the debug scene tints dancers so paths are readable. */
   color?: string;
+  /** When provided, the driver may pose the arms (grip aiming). */
+  arms?: DancerArmRigs;
 }
 
-export function Dancer({ shape, rig, color }: DancerProps) {
+export function Dancer({ shape, rig, color, arms }: DancerProps) {
   const { head, body, forearm, hand } = shape;
   const pos = computePositions(shape, NPC_BODY_CENTER_Y);
   const rot = handRotations(hand.open);
@@ -49,13 +62,18 @@ export function Dancer({ shape, rig, color }: DancerProps) {
         <meshStandardMaterial color={COLOR} />
       </mesh>
 
-      {/* Faces -z, which is engine +y — see frame.ts for why that is "north". */}
-      <mesh position={[0, pos.headY, -head.radius * 0.95]}>
+      {/* Facing marker on local +z — the axis townage characters face: rotation.y
+          is atan2(dir.x, dir.z) everywhere, which points local +z along the
+          heading, and the cast's eyes sit at +eyeZOnSphere. Anchored to the head
+          center so it stays on caricature heads with offsets. */}
+      <mesh position={[head.offsetX, pos.headY + head.offsetY, head.offsetZ + head.radius * 0.95]}>
         <sphereGeometry args={[head.radius * 0.28, 8, 8]} />
         <meshStandardMaterial color="#1a1a1a" />
       </mesh>
 
-      <group position={[-pos.forearmX, pos.shoulderY, 0]}>
+      {/* Anatomical RIGHT arm (at −x; facing is +z). Styling uses rot.left — the
+          hand-pose names are viewer-mirrored. */}
+      <group ref={arms?.right} position={[-pos.forearmX, pos.shoulderY, 0]}>
         <mesh position={[0, forearmLocalY, 0]} castShadow>
           <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
           <meshStandardMaterial color={COLOR} />
@@ -66,7 +84,8 @@ export function Dancer({ shape, rig, color }: DancerProps) {
         </mesh>
       </group>
 
-      <group position={[pos.forearmX, pos.shoulderY, 0]}>
+      {/* Anatomical LEFT arm (at +x). */}
+      <group ref={arms?.left} position={[pos.forearmX, pos.shoulderY, 0]}>
         <mesh position={[0, forearmLocalY, 0]} castShadow>
           <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
           <meshStandardMaterial color={COLOR} />

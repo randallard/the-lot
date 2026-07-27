@@ -53,20 +53,61 @@ export const DEFAULT_SCALE = 2.2;
 export const ENGINE_LANE_OFFSET = 0.15;
 
 /**
- * The smallest scale at which two passing dancers don't intersect.
- *
- * Passing dancers end up `2 × ENGINE_LANE_OFFSET` apart in engine units, so they
- * clear each other only while `scale × 0.3 ≥ bodyDiameter`. With the standard 0.3
- * body radius that is a floor of **2.0**, and the 2.2 default leaves 0.06 world
- * units of daylight on a Pass Thru — real dancers brush shoulders, so tight is
- * right, but it is tight *by arithmetic* rather than by luck and shrinking the
- * floor would push bodies through each other.
+ * The margin a square keeps over its bare geometric floor:
+ * `DEFAULT_SCALE / minScaleFor(0.3)`. Thin on purpose — real dancers brush
+ * shoulders on a Pass Thru, so tight is right.
+ */
+export const SCALE_MARGIN = 1.1;
+
+/**
+ * The smallest scale at which a pair needing `gap` world units of side-by-side
+ * clearance can pass: passing dancers end up `2 × ENGINE_LANE_OFFSET` apart in
+ * engine units, so the lane must satisfy `scale × 2 × ENGINE_LANE_OFFSET ≥ gap`.
  *
  * The engine's own collision property tests work in engine units and cannot see
- * this: it only exists once abstract dancers acquire a radius.
+ * this: it only exists once abstract dancers acquire bodies. The gap for a real
+ * pair comes from `lateralClearance` over their rigid silhouettes (ADR-0012).
+ */
+export function minScaleForGap(gap: number): number {
+  return gap / (2 * ENGINE_LANE_OFFSET);
+}
+
+/**
+ * The disc special case of {@link minScaleForGap}: two round dancers need the
+ * sum of their radii.
+ */
+export function minScaleForPair(r1: number, r2: number): number {
+  return minScaleForGap(r1 + r2);
+}
+
+/**
+ * The symmetric case of {@link minScaleForPair}. With the standard 0.3 body
+ * radius that is a floor of **2.0**, and the 2.2 default leaves 0.06 world
+ * units of daylight on a Pass Thru — tight *by design* rather than by luck;
+ * shrinking the floor would push bodies through each other.
  */
 export function minScaleFor(bodyRadius: number): number {
-  return (2 * bodyRadius) / (2 * ENGINE_LANE_OFFSET);
+  return minScaleForPair(bodyRadius, bodyRadius);
+}
+
+/**
+ * The scale a square dances at given its pairs' clearance needs: never below
+ * the default spacing, growing when some pair needs more room to pass than the
+ * default gives, with the same margin the default carries.
+ *
+ * `gaps` is the pairwise side-by-side clearances of the occupants
+ * (`lateralClearance` over rigid silhouettes, ADR-0012); an empty list — a lone
+ * dancer has no one to collide with — is the default.
+ *
+ * This is whole-square breathing done coarsely — the neediest pair sets the
+ * spacing for everyone, even in moves that don't involve them. Local breathing
+ * (square-one call model Layer 2, unimplemented) will tighten that later; this
+ * bound is loose for mixed squares but never wrong.
+ */
+export function scaleForGaps(gaps: readonly number[]): number {
+  let widest = 0;
+  for (const g of gaps) widest = Math.max(widest, g);
+  return Math.max(DEFAULT_SCALE, SCALE_MARGIN * minScaleForGap(widest));
 }
 
 export function makeFrame(

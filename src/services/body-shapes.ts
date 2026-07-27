@@ -309,6 +309,80 @@ export function deg2rad(d: number): number {
 }
 
 /**
+ * One rigid part of a character for clearance purposes: a vertical segment
+ * `[y0, y1]` (a sphere is zero-length) with an effective lateral radius.
+ */
+export interface RigidPart {
+  readonly y0: number;
+  readonly y1: number;
+  readonly radius: number;
+}
+
+/**
+ * The rigid parts of a character — the body capsule and the head — as
+ * {@link RigidPart}s for pairwise clearance (ADR-0012).
+ *
+ * Arms and hands are excluded deliberately. They are articulated, real square
+ * dancers brush arms on a pass, and arm contact is the dance's tactile channel —
+ * how arms look in a close pass is pose work, not spacing work.
+ *
+ * "Lateral" means side-to-side. Forward/back overhangs — `head.offsetZ`, a
+ * forward lean — do **not** count: dancers pass each other side-on in lanes, and
+ * a forward-jutting caricature head never narrows the lane gap. Sideways
+ * contributions (`head.offsetX`, `leanZ`) count conservatively.
+ */
+export function rigidParts(
+  shape: CharacterBodyShape,
+  bodyCenterY: number = NPC_BODY_CENTER_Y,
+): readonly RigidPart[] {
+  const { body, head } = shape;
+  const lateralLean = Math.sin(deg2rad(Math.abs(body.leanZ))) * (body.height / 2);
+  const headCenterY = computePositions(shape, bodyCenterY).headY + head.offsetY;
+  return [
+    {
+      y0: bodyCenterY - body.height / 2,
+      y1: bodyCenterY + body.height / 2,
+      radius: body.radius + lateralLean,
+    },
+    {
+      y0: headCenterY,
+      y1: headCenterY,
+      radius: head.radius + Math.abs(head.offsetX),
+    },
+  ];
+}
+
+/** Vertical gap between two parts' segments; 0 when their spans overlap. */
+function segmentGap(a: RigidPart, b: RigidPart): number {
+  return Math.max(0, Math.max(a.y0, b.y0) - Math.min(a.y1, b.y1));
+}
+
+/**
+ * The smallest side-by-side distance at which no rigid part of one character
+ * touches any rigid part of the other.
+ *
+ * 3D-honest rather than a disc sum: parts at different heights need less
+ * lateral room — a child's head passes under an adult's, and a pair only needs
+ * `√((r₁+r₂)² − dy²)` where their heights come within `r₁+r₂`. This is what
+ * keeps mixed squares close enough to touch (ADR-0012).
+ */
+export function lateralClearance(
+  a: readonly RigidPart[],
+  b: readonly RigidPart[],
+): number {
+  let needed = 0;
+  for (const pa of a) {
+    for (const pb of b) {
+      const rsum = pa.radius + pb.radius;
+      const dy = segmentGap(pa, pb);
+      if (dy >= rsum) continue;
+      needed = Math.max(needed, Math.sqrt(rsum * rsum - dy * dy));
+    }
+  }
+  return needed;
+}
+
+/**
  * Euler rotation [x, y, z] in radians for each hand.
  * Left hand mirrors Y and Z for natural symmetry.
  */

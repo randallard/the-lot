@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SCALE,
+  SCALE_MARGIN,
   facingToRotationY,
   minScaleFor,
+  minScaleForGap,
+  minScaleForPair,
   makeFrame,
   refit,
   rotationYToFacing,
+  scaleForGaps,
   toEngine,
   toWorld,
 } from "./frame";
@@ -108,5 +112,44 @@ describe("scale floor for passing dancers", () => {
     // Passing dancers sit 2 x lane offset apart in engine units.
     const gap = 2 * 0.15 * DEFAULT_SCALE;
     expect(gap).toBeGreaterThan(2 * BODY_RADIUS);
+  });
+
+  it("clearance is a pair property: one wide dancer breaks the default scale", () => {
+    // A single SHAPE_BOUNDS-max dancer (0.6) in an otherwise-default square.
+    expect(minScaleForPair(0.3, 0.6)).toBeCloseTo(3, 9);
+    expect(DEFAULT_SCALE).toBeLessThan(minScaleForPair(0.3, 0.6));
+  });
+
+  it("minScaleFor is the symmetric pair case", () => {
+    expect(minScaleFor(0.45)).toBeCloseTo(minScaleForPair(0.45, 0.45), 9);
+  });
+});
+
+describe("clearance-derived square scale", () => {
+  it("pairs that fit the default lane gap dance at the default scale", () => {
+    // Two default bodies need 0.6 — exactly the old body-diameter floor.
+    expect(scaleForGaps([0.6, 0.5, 0.6])).toBe(DEFAULT_SCALE);
+  });
+
+  it("never shrinks below the default — small dancers get room, not a cramped square", () => {
+    expect(scaleForGaps([0.2, 0.2])).toBe(DEFAULT_SCALE);
+  });
+
+  it("grows for the neediest pair present, keeping the default's margin", () => {
+    // A pair needing 1.2 world units (two SHAPE_BOUNDS-max bodies) touches at 4.0.
+    expect(scaleForGaps([0.6, 1.2, 0.7])).toBeCloseTo(SCALE_MARGIN * 4, 9);
+    expect(scaleForGaps([0.6, 1.2, 0.7])).toBeGreaterThan(minScaleForGap(1.2));
+  });
+
+  it("no pairs — a lone dancer or empty floor — is just the default", () => {
+    expect(scaleForGaps([])).toBe(DEFAULT_SCALE);
+  });
+
+  it("minScaleForPair is the disc special case of minScaleForGap", () => {
+    expect(minScaleForPair(0.3, 0.6)).toBeCloseTo(minScaleForGap(0.9), 9);
+  });
+
+  it("the margin constant is exactly what the default scale carries over its floor", () => {
+    expect(SCALE_MARGIN).toBeCloseTo(DEFAULT_SCALE / minScaleFor(0.3), 9);
   });
 });

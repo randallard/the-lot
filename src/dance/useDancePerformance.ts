@@ -38,6 +38,12 @@ export interface DanceRuntime {
   /** The motions the square is performing, keyed the same way the states are. */
   readonly motions: Readonly<Record<string, Motion>>;
   readonly beats: number;
+  /**
+   * Current position on the beat axis — 0 until the first advance, and resets
+   * to 0 when a looping performance restarts. A getter, not a snapshot: read it
+   * from the frame loop.
+   */
+  readonly beat: () => number;
 }
 
 /**
@@ -88,5 +94,7 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
     [bpm, loop, makePerformance],
   );
 
-  return { advance, motions, beats };
+  const beat = useCallback(() => perfRef.current?.beat ?? 0, []);
+
+  return { advance, motions, beats, beat };
 }
