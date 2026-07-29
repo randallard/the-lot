@@ -38,11 +38,15 @@ back up.**
   nothing has installed from the pin — see [Consuming square-one](#consuming-square-one)
   for the exact finishing sequence. The link override is still active and must not be
   committed.
-- **Next action: write ADR-0010.** The emote experiment is **fully watched and verified**
-  (item 3b) — all three emotes behave, the fold reads as *intent* rather than as a glitch,
-  and the body stays straight through a spin. The blocker is gone and the ADR has a channel
-  list the 2026-07-27 sketch did not: body facing and head facing are separate channels
-  with separate owners, and the silhouette deltas are a named `limited` channel.
+- **ADR-0010 is written and accepted (2026-07-28)** —
+  [the emote/choreography channel contract](adr/0010-emote-choreography-channel-contract.md),
+  the last thing M4 owed. Written *after* the render was watched, on purpose.
+- **Next action:** **enforce the `limited` silhouette channels.** ADR-0010 classifies
+  `bodyRadiusDelta`, `bodyHeightDelta`, `bodyLeanZ`, `headRadiusDelta`, `headOffsetX` and
+  `headOffsetY` as limited, and they are still applied **unclipped** — so an emote that
+  puffs a dancer up mid-pass can still clip through their partner. Decided, named, not
+  built. Consolidating the split arbitration (`arm-pose.ts` + `DanceFloor`'s frame loop)
+  into one resolver belongs with it.
 - **Then: finish the square-one release** (below) — it is the only thing left that can make
   a fresh clone behave differently from this working tree.
 - **The player's head is fixed too (2026-07-28).** `Player.tsx` had the same split head as
@@ -539,24 +543,21 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
 2. **M4: `src/dance/`** — frame, driver, `<DanceFloor>`, the arm channel. Built and mostly
    watched. What's left, in order:
    1. **Watch the emote experiment** (M4 list item 3b) — the one thing blocking the ADR.
-   2. **Write ADR-0010**, the emote/choreography blend contract, from what it showed.
-      Three channel kinds, one resolver instead of scattered conditionals, clipping as
-      the conflict rule:
-      - **owned** — position, **body** facing, a gripped arm.
-      - **limited** — any other arm, **and the silhouette deltas**
-        (`bodyRadiusDelta`, `bodyHeightDelta`, `headRadiusDelta`). Promoted from
-        "probably" to definite on 2026-07-28: ADR-0012 sizes the square from the 3D
-        rigid silhouette and measures it **once at mount**, so an emote that puffs a
-        dancer up mid-pass inflates the very quantity the spacing was derived from and
-        can clip straight through their partner. No arm logic catches it — it is not an
-        arm. Same shape of answer as the arms: constrained while close, free when there
-        is room, so a dancer can inhale anywhere except in the gap.
-      - **free** — head facing, lean, bob, eyes, effects.
+   2. ~~**Write ADR-0010**, the emote/choreography blend contract~~ — **done 2026-07-28**,
+      [`0010-emote-choreography-channel-contract.md`](adr/0010-emote-choreography-channel-contract.md).
+      Three channel kinds — **owned** (dropped), **limited** (clipped by trespass),
+      **free** (untouched) — with the full per-channel table in the ADR, which is the
+      authority; don't re-summarise it here, it has already drifted once.
 
-      **Body facing and head facing are separate channels with different owners** — the
-      2026-07-28 finding. The choreography owns the body; the emote owns the head. A
-      contract that says "facing is owned" would forbid a dancer glancing at their
-      partner, which is what the expression layer exists to allow.
+      The two things the writing itself changed, both worth knowing without opening it:
+      - **Body facing and head facing are separate channels with different owners.** The
+        choreography owns the body; the emote owns the head. "Facing is owned" would
+        forbid a dancer glancing at their partner.
+      - **"Lean is free" was wrong.** `rigidParts` counts `sin(|leanZ|) · height/2` as
+        lateral reach, so a *sideways* lean is silhouette and is `limited`. Only the
+        forward/back lean is free. That produced the ADR's actual load-bearing rule: **a
+        channel is `limited` exactly when it feeds `rigidParts`** — derivable rather than
+        a matter of taste, and it settled the silhouette deltas as a side effect.
 
       The player's case is deliberately **out of scope**; see the planning effort's
       [breakdown-is-the-feature](../../work/square-dance-planning/briefs/breakdown-is-the-feature.md).

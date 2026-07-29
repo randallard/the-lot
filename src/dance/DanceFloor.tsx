@@ -5,11 +5,17 @@
  * dancer's engine pose through the {@link DanceFrame}, and writes the result onto
  * the dancer rigs.
  *
- * **The blend contract (ADR-0010).** An engine-driven dancer's transform and facing
- * belong to the choreography. Emotes stay expressive — they contribute arm, head and
- * lean pose through `AnimationController` exactly as before — but they cannot move a
- * dancer or turn them, because a square is a shared coordinate agreement and one
- * dancer's emote spinning them 180° breaks the formation for everyone else.
+ * **The blend contract ([ADR-0010](../../docs/adr/0010-emote-choreography-channel-contract.md)).**
+ * Every channel of a `ResolvedPose` is *owned* by the choreography, *limited* by it, or
+ * *free*. Owned channels drop the emote's contribution outright — position and **body**
+ * facing, and a hand while its grip is engaged — because a square is a shared coordinate
+ * agreement and one dancer's emote spinning them 180° breaks the formation for everyone
+ * else. Limited channels play, clipped by whatever trespasses: every ungripped arm, and
+ * the silhouette deltas the frame scale was measured from. Free channels play untouched —
+ * **head** facing, the bob, forward lean, eyes, effects — because nothing about them can
+ * break a formation. Head facing and body facing are different channels with different
+ * owners; that distinction is the ADR's, and it is what lets a dancer look at their
+ * partner without leaving the set.
  *
  * Not hard-coded to 8: `applyCallToPair` gives a two-dancer square, and the call
  * model is two-couple-safe by construction.
