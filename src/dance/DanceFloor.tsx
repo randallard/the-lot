@@ -34,12 +34,9 @@ import {
   advanceGripBlend,
   armMetrics,
   armPose,
-  armPoses,
   contact,
-  type ArmPoses,
   forearm,
   gripBlend,
-  poseArms,
   trackContact,
   trackForearm,
   vec3,
@@ -62,19 +59,17 @@ import {
 } from "./frame";
 import { useDancePerformance, type DancePerformanceOptions } from "./useDancePerformance";
 import type { AnimationController } from "../services/animation-controller";
-import { NEUTRAL_POSE, mergeAnimation, type ResolvedPose } from "../services/emotes";
+import { NEUTRAL_POSE } from "../services/emotes";
+import { restClearance, silhouetteMetrics } from "./silhouette-limit";
 import {
-  clipSilhouette,
-  restClearance,
-  silhouetteAllowance,
-  silhouetteClip,
-  silhouetteMetrics,
-} from "./silhouette-limit";
+  type ExpressionContext,
+  resolveExpression,
+  resolvedExpression,
+} from "./expression-channels";
 import {
   MYCO_DEFAULTS,
   EMBER_DEFAULTS,
   NPC_BODY_CENTER_Y,
-  computePositions,
   deg2rad,
   lateralClearance,
   rigidParts,
@@ -151,50 +146,30 @@ const SIDES = ["left", "right"] as const;
 
 // Scratch objects for per-frame arm posing — allocated once, never per frame.
 const DOWN = new THREE.Vector3(0, -1, 0);
-const _poses = armPoses();
 const _read = armPose();
 const _self: Placement = { x: 0, z: 0, yaw: 0 };
 const _partner: Placement = { x: 0, z: 0, yaw: 0 };
 const _aim = new THREE.Vector3();
 
-const _proposed = armPoses();
-const _euler = new THREE.Euler();
-const _swing = new THREE.Vector3();
-
-/** The pose with its `limited` channels clipped — written fresh every frame. */
-const _clipped: ResolvedPose = structuredClone(NEUTRAL_POSE);
-
 /**
- * The expression layer's arms, restated as poses the dance layer can reason about.
+ * The resolver's input, mutated per dancer per frame rather than rebuilt.
  *
- * An emote gives an arm a *rotation* about the shoulder; the dance layer works in
- * where the arm ends up. Same rig either way — one group per shoulder — so this is a
- * change of description, not of pose: the group stays at rest and the aim is the
- * emote's own rotation applied to the resting hang.
- *
- * Emote arm names are viewer-mirrored: they were authored against the player rig,
- * where "left" is the group at −x, and −x is a dancer's anatomical *right*.
+ * Seeded with the first default shape purely so the fields are non-null; every one of
+ * them is overwritten before `resolveExpression` reads it.
  */
-function proposeArms(out: ArmPoses, m: ArmMetrics, rp: ResolvedPose): ArmPoses {
-  for (const side of SIDES) {
-    const sign = side === "left" ? 1 : -1;
-    const from = side === "left" ? rp.rightArm : rp.leftArm;
-    const target = out[side];
-    target.x = sign * m.restX;
-    target.y = m.restY;
-    target.z = 0;
-    _euler.set(
-      deg2rad(from.upperArmRotation[0]),
-      deg2rad(from.upperArmRotation[1]),
-      deg2rad(from.upperArmRotation[2]),
-    );
-    _swing.copy(DOWN).applyEuler(_euler);
-    target.aimX = _swing.x;
-    target.aimY = _swing.y;
-    target.aimZ = _swing.z;
-  }
-  return out;
-}
+const _ctx: ExpressionContext = {
+  pose: NEUTRAL_POSE,
+  shape: DEFAULT_SHAPES[0],
+  bodyCenterY: NPC_BODY_CENTER_Y,
+  silhouette: silhouetteMetrics(DEFAULT_SHAPES[0]),
+  partnerSilhouette: silhouetteMetrics(DEFAULT_SHAPES[0]),
+  restNeed: 0,
+  me: armMetrics(DEFAULT_SHAPES[0]),
+  them: armMetrics(DEFAULT_SHAPES[0]),
+  self: _self,
+  partner: _partner,
+  blend: gripBlend(),
+};
 
 function readPlacement(out: Placement, rig: THREE.Group): void {
   out.x = rig.position.x;
@@ -275,6 +250,13 @@ export function DanceFloor({
         return them === undefined ? 0 : restClearance(m, them);
       }),
     [silhouettes],
+  );
+
+  // One resolved expression per dancer, reused every frame. The rigs are written from
+  // these and never from an emote's pose — see `expression-channels.ts`.
+  const resolved = useMemo(
+    () => occupantShapes.map((s) => resolvedExpression(s)),
+    [occupantShapes],
   );
 
   // One pair of arm rigs per dancer, mirroring the body rigs.
@@ -393,72 +375,52 @@ export function DanceFloor({
           readPlacement(_self, rig);
           readPlacement(_partner, partner);
 
-          // The expression layer, if this dancer has one. Its arms are a *proposal*
-          // — `poseArms` folds them in where they trespass and drops them entirely
-          // on a hand the engine has engaged.
-          // `NEUTRAL_POSE` when this dancer has no expression layer, so the code
-          // path is the same either way: a neutral proposal is the resting hang, and
-          // a stopped emote cannot leave a channel stuck where it left it.
-          const rp = controllers?.[i]?.tick(state.clock.elapsedTime) ?? NEUTRAL_POSE;
-          const poses = poseArms(
-            _poses,
-            me,
-            them,
-            _self,
-            _partner,
-            blend,
-            proposeArms(_proposed, me, rp),
-          );
+          // The whole of ADR-0010, in one call. `NEUTRAL_POSE` when this dancer has no
+          // expression layer, so the code path is the same either way: a neutral
+          // proposal is the resting hang, and a stopped emote cannot leave a channel
+          // stuck where it left it.
+          //
+          // Everything below writes rigs from `ex` and never from the emote's own pose.
+          // That is not a convention to keep — `ResolvedExpression` has no field for an
+          // owned channel, so a spin has nowhere to arrive from.
+          const shape = occupantShapes[i];
+          const sil = silhouettes[i];
+          const theirSil = silhouettes[1 - i];
+          const ex = resolved[i];
+          if (!shape || !sil || !theirSil || !ex) return;
+
+          _ctx.pose = controllers?.[i]?.tick(state.clock.elapsedTime) ?? NEUTRAL_POSE;
+          _ctx.shape = shape;
+          _ctx.bodyCenterY = NPC_BODY_CENTER_Y;
+          _ctx.silhouette = sil;
+          _ctx.partnerSilhouette = theirSil;
+          _ctx.restNeed = restNeeds[i] ?? 0;
+          _ctx.me = me;
+          _ctx.them = them;
+          _ctx.self = _self;
+          _ctx.partner = _partner;
+          _ctx.blend = blend;
+          resolveExpression(ex, _ctx);
 
           for (const side of SIDES) {
             const arm = arms[side].current;
             if (!arm) continue;
-            const pose = poses[side];
+            const pose = ex.arms[side];
             arm.position.set(pose.x, pose.y, pose.z);
             _aim.set(pose.aimX, pose.aimY, pose.aimZ);
             arm.quaternion.setFromUnitVectors(DOWN, _aim);
           }
 
-          // The ADR-0010 expression channels, in their three kinds.
-          //
-          // `bodyDeltaRotY` is **owned** and simply never read — a spin emote may not
-          // turn a dancer in a square, and dropping the channel is the whole of that
-          // rule. The **limited** shape channels are clipped first, to this dancer's
-          // share of the live slack, because the square's spacing was measured from the
-          // very silhouette they change. Everything else is **free** and plays as
-          // authored.
           const parts = expressions[key];
-          const shape = occupantShapes[i];
-          const sil = silhouettes[i];
-          const theirSil = silhouettes[1 - i];
-          if (parts && shape && sil && theirSil) {
-            const separation = Math.hypot(_partner.x - _self.x, _partner.z - _self.z);
-            const k = silhouetteClip(
-              sil,
-              rp,
-              theirSil.baseParts,
-              restNeeds[i] ?? 0,
-              silhouetteAllowance(
-                me.bodyRadius,
-                them.bodyRadius,
-                separation,
-                restNeeds[i] ?? 0,
-              ),
-            );
-
-            // Merged through the same pair of helpers the player uses, so a dancer and
-            // a free-roaming character resolve an emote's shape identically.
-            const animShape = mergeAnimation(shape, clipSilhouette(_clipped, rp, k));
-            const animPos = computePositions(animShape, NPC_BODY_CENTER_Y);
-
-            rig.position.y = rp.bodyDeltaY;
+          if (parts) {
+            rig.position.y = ex.bodyDeltaY;
 
             const body = parts.body.current;
             if (body) {
-              body.rotation.x = deg2rad(animShape.body.leanX);
-              body.rotation.z = deg2rad(animShape.body.leanZ);
-              const rs = animShape.body.radius / shape.body.radius;
-              const hs = animShape.body.height / shape.body.height;
+              body.rotation.x = deg2rad(ex.shape.body.leanX);
+              body.rotation.z = deg2rad(ex.shape.body.leanZ);
+              const rs = ex.shape.body.radius / shape.body.radius;
+              const hs = ex.shape.body.height / shape.body.height;
               body.scale.set(rs, hs, rs);
             }
 
@@ -468,16 +430,16 @@ export function DanceFloor({
             const head = parts.head.current;
             if (head) {
               head.position.set(
-                animShape.head.offsetX,
-                animPos.headY + animShape.head.offsetY,
-                animShape.head.offsetZ,
+                ex.shape.head.offsetX,
+                ex.headY + ex.shape.head.offsetY,
+                ex.shape.head.offsetZ,
               );
               head.rotation.set(
-                deg2rad(rp.headDeltaRotation[0]),
-                deg2rad(rp.headDeltaRotation[1]),
-                deg2rad(rp.headDeltaRotation[2]),
+                deg2rad(ex.headRotation[0]),
+                deg2rad(ex.headRotation[1]),
+                deg2rad(ex.headRotation[2]),
               );
-              head.scale.setScalar(animShape.head.radius / shape.head.radius);
+              head.scale.setScalar(ex.shape.head.radius / shape.head.radius);
             }
           }
         });
