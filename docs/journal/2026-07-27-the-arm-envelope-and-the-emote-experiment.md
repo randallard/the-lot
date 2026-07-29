@@ -129,7 +129,7 @@ conditionals, with clipping as the conflict rule.
 ## Two things it will *not* say
 
 **The player's case is out of scope**, and now has its own recorded position: the planning
-effort's [breakdown-is-the-feature](../../../work/square-dance-planning/briefs/breakdown-is-the-feature.md)
+effort's `square-dance-planning/briefs/breakdown-is-the-feature.md`
 brief. The square is not authoritative over the player; a square that falls apart is a
 playable situation, not an error. So ADR-0010 decides which system writes which channel of
 a *dancer*, and says nothing about how much the world insists.

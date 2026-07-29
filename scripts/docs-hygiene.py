@@ -185,7 +185,15 @@ def check_journal(rep: Report) -> None:
 
 
 def check_links(rep: Report) -> None:
-    """Relative links in docs/ and top-level markdown must resolve."""
+    """Relative links in docs/ and top-level markdown must resolve.
+
+    A link that resolves *outside* the repo root is an error even when the file
+    is sitting right there on disk. Sibling checkouts are a property of one
+    developer's machine, not of the repository: `../../work/…` and `../../../the-lot/…`
+    resolved fine locally and broke every CI run, because a fresh clone has no
+    siblings. Checking existence alone makes this class of link pass exactly
+    where it is least useful. Link out of the repo with a URL instead.
+    """
     roots = [DOCS] + ([".claude"] if os.path.isdir(".claude") else [])
     targets: list[str] = [f for f in os.listdir(".") if f.endswith(".md")]
     for root in roots:
@@ -202,11 +210,20 @@ def check_links(rep: Report) -> None:
             resolved = os.path.normpath(
                 os.path.join(os.path.dirname(path), link.split("#")[0])
             )
-            if resolved and not os.path.exists(resolved):
-                # Truncated: on a `pull_request` run this content comes from the
-                # PR author, and echoing it unbounded lets a crafted link flood
-                # the CI log. 120 chars is plenty to identify a real broken link.
-                shown = link if len(link) <= 120 else link[:120] + "…[truncated]"
+            if not resolved:
+                continue
+            # Truncated: on a `pull_request` run this content comes from the
+            # PR author, and echoing it unbounded lets a crafted link flood
+            # the CI log. 120 chars is plenty to identify a real broken link.
+            shown = link if len(link) <= 120 else link[:120] + "…[truncated]"
+            # Checked before existence, so this fails on the developer's machine
+            # too — where the target does exist — and not only in CI.
+            if resolved == ".." or resolved.startswith(".." + os.sep):
+                rep.error(
+                    f"{path}: link escapes the repo -> {shown} "
+                    "(resolves only where sibling checkouts exist; use a URL)"
+                )
+            elif not os.path.exists(resolved):
                 rep.error(f"{path}: broken link -> {shown}")
 
 

@@ -84,7 +84,7 @@ silent.
 This governs **engine-driven dancers only**. The free-play player is deliberately out of
 scope — the square is not authoritative over the player, and a square that falls apart is a
 playable situation rather than an error. See the planning effort's
-[breakdown-is-the-feature](../../../work/square-dance-planning/briefs/breakdown-is-the-feature.md).
+`square-dance-planning/briefs/breakdown-is-the-feature.md`.
 
 ## Alternatives considered
 

@@ -29,6 +29,9 @@ overrides:
   "brace-expansion@5": ">=5.0.8"
 
 auditConfig:
+  # Governs `pnpm audit` only. CI also runs osv-scanner, which reads its own
+  # ignores from osv-scanner.toml — the same posture in a second format. Change
+  # one, change the other.
   ignoreGhsas:
     # See the overrides note above. This is NOT the earlier "waiting for the
     # quarantine" reason, which was wrong on two counts: the fix cleared pnpm's

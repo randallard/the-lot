@@ -8,7 +8,8 @@
 square-one models dancers as points; bodies exist only in townage. The body editor's
 `SHAPE_BOUNDS` allows `body.radius` from 0.10 to 0.60, and Ryan's stated goal is that the
 **whole range is playable** — representation from small child to super large adult, per the
-planning effort's [dancer-size and accessibility brief](../../../work/square-dance-planning/briefs/dancer-size-and-accessibility.md).
+planning effort's dancer-size and accessibility brief
+(`square-dance-planning/briefs/dancer-size-and-accessibility.md`).
 
 At the fixed `DEFAULT_SCALE = 2.2`, passing dancers get a `0.66` world-unit lane gap.
 Clearance is a **pair** property — two dancers clear each other only while

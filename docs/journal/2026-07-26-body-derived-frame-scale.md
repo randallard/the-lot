@@ -1,7 +1,8 @@
 # 2026-07-26 — Body-derived frame scale: the full editor range dances
 
 _Step 1 of the dancer-size plan from the planning effort's
-[dancer-size and accessibility brief](../../../work/square-dance-planning/briefs/dancer-size-and-accessibility.md).
+dancer-size and accessibility brief
+(`square-dance-planning/briefs/dancer-size-and-accessibility.md`).
 Decision recorded as [ADR-0011](../adr/0011-frame-scale-derives-from-occupant-bodies.md),
 superseded the same day by [ADR-0012](../adr/0012-pair-clearance-from-the-3d-silhouette.md).
 Documents `028541e`, with the three entries that follow it._
@@ -112,7 +113,7 @@ opening veer mirrored), Dosado became a three-block chain (2+1+3 = 6), and the
 just-added `slide span: half` was removed the same day it appeared — its only consumer is
 gone, and the definition says the closing lateral is walked, not stepped. 41 square-one
 tests, 194 the-lot tests, all gates green. Full story in
-[square-one journal 9](../../../square-one/docs/journal/2026-07-26-first-render-validation-9.md).
+[square-one journal 9](https://github.com/randallard/square-one/blob/main/docs/journal/2026-07-26-first-render-validation-9.md).
 
 **Styling correction to an earlier claim in this journal:** the "traditional folded-arms
 Dosado styling" mentioned under the footprint find is wrong — CALLERLAB explicitly notes

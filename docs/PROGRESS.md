@@ -1,6 +1,6 @@
 # Progress & Status
 
-_Last updated: 2026-07-28_
+_Last updated: 2026-07-29_
 
 ## Status / next
 
@@ -70,13 +70,26 @@ back up.**
   from the tarball for the first time, link override out, all gates re-run against a real
   install. The working tree is **clean**: nothing is uncommitted and nothing here behaves
   differently from a fresh clone.
+- **CI on GitHub was red, and is fixed (2026-07-29) — not pushed yet.** Two causes, both
+  invisible locally, both now caught locally:
+  - **`osv-scan`** had failed on every run since `fb6f4d2` (2026-07-26) because
+    `osv-scanner.toml` was deleted; `auditConfig` in `pnpm-workspace.yaml` only ever
+    governed `pnpm audit`. Restored, with the reasoning duplicated on purpose and each
+    file pointing at the other. Verified by running the scanner's own container against a
+    clean export — see [Two scanners is not duplication](#two-scanners-is-not-duplication).
+  - **`docs hygiene`** failed on links like `../../work/square-dance-planning/…` that
+    resolve only on a machine with sibling checkouts. `scripts/docs-hygiene.py` now rejects
+    any link escaping the repo root *before* testing existence, so it fails here too and
+    not only in a fresh clone. Eight such links fixed in this repo — the planning effort
+    has no public remote, so those are now unlinked inline code; the two square-one
+    cross-references became GitHub URLs.
+  - **`main` is 11 commits ahead of `origin/main`.** The whole M4 arc has never run in
+    Actions. Pushing is what proves this fix.
 - **Next action: M5.** M4 is done — see the worklist. The two smaller leftovers are an ADR
   extending ADR-0008's react-hooks exception to `src/dance/**` (owed since the M4 handover,
   and `src/dance/` has grown a lot since), and the player's head fix of 2026-07-28, which is
   reasoned and typechecked but **still unwatched** — it needs a saved emote with a head
   track, since the debug emotes only exist at `#dance`.
-- **Then: finish the square-one release** (below) — it is the only thing left that can make
-  a fresh clone behave differently from this working tree.
 - **The player's head is fixed too (2026-07-28).** `Player.tsx` had the same split head as
   `Dancer` did, so an emote's head turn did not turn the *player's* face either. It now has
   the same single `headGroupRef` holding the sphere and the eyes, with position, rotation
@@ -147,7 +160,8 @@ dependency — `import { applyCall, createPerformance } from "square-one"` resol
 and at the type level. See [Consuming square-one](#consuming-square-one).
 
 **The CI + supply-chain half is done (2026-07-25).** `.github/workflows/{ci,docs-hygiene,stance-review}.yml`
-and `scripts/docs-hygiene.py` are in, and all eight gates pass. Getting there took more than
+and `scripts/docs-hygiene.py` are in, and all nine gates pass (the ninth, `osv-scan`, only
+truly since 2026-07-29 — see [How CI landed](#how-ci-landed)). Getting there took more than
 copying: see [How CI landed](#how-ci-landed) for what the handover predicted correctly, what
 it missed, and the two decisions it forced ([ADR-0008](adr/0008-react-hooks-rules-excepted-at-the-ref-boundary.md),
 [ADR-0009](adr/0009-empty-catch-is-the-best-effort-storage-idiom.md)).
@@ -378,7 +392,7 @@ adult can drop their arm to a child's height and a child cannot raise theirs to 
 so a mismatched pair grips at the short-armed dancer's reach — right in spirit, unexamined
 at the extremes. **The
 design work continues in
-[`~/Development/work/square-dance-planning/briefs/dancer-size-and-accessibility.md`](../../work/square-dance-planning/briefs/dancer-size-and-accessibility.md)**
+`~/Development/work/square-dance-planning/briefs/dancer-size-and-accessibility.md`**
 — it reaches into the engine seam, and it is where representation and accessibility get
 decided. Do not paper over any of it by clamping body size.
 
@@ -441,7 +455,16 @@ not from `.npmrc`.
 - **One `auditConfig.ignoreGhsas` entry remains**, for the residual `brace-expansion@1.1.16`.
   The reason is *not* a quarantine wait and *not* a severity judgement: **no patched version
   is compatible with `minimatch@3`'s API.** Dev-only path; nothing reaches the shipped
-  bundle. `osv-scanner.toml` is deleted — one ignore, in one place, with a true reason.
+  bundle.
+- **The same ignore is also in [`osv-scanner.toml`](../osv-scanner.toml), and has to be**
+  (restored 2026-07-29). `auditConfig` governs `pnpm audit` only; the `osv-scan` CI job runs
+  osv-scanner with `fail-on-vuln: true`, and osv-scanner reads its own config. Two scanners,
+  two formats, one posture — each file points at the other. **Correcting this section's
+  earlier claim:** it said `osv-scanner.toml` was deleted so there would be "one ignore, in
+  one place, with a true reason." The reason was true and the consolidation was not
+  available — it deleted the config the OSV job actually reads, and that job went red on
+  every run from `fb6f4d2` (2026-07-26) until 2026-07-29. See
+  [Two scanners is not duplication](#two-scanners-is-not-duplication).
 
 ### What the first attempt got wrong
 
@@ -454,6 +477,37 @@ one. Both were fixed together; see square-one's ADR-0011.
 
 **The lesson both repos paid for: a supply-chain control you have not verified is not a
 control.** `pnpm config get minimumReleaseAge` is one command.
+
+### Two scanners is not duplication
+
+*2026-07-29. The second half of the same lesson, and it cost three days of red CI.*
+
+The 2026-07-25 CI work had already learned the right thing and written it down — "osv-scanner
+reads its own config file, not pnpm's. Two ignores for one advisory, in two tools, over two
+databases" ([journal](journal/2026-07-25-ci-half.md)). Later the same day, fixing the false
+quarantine reasoning, `osv-scanner.toml` was deleted in `fb6f4d2` on the principle that one
+advisory deserves one ignore in one place. That principle is good and did not apply: the two
+files are not two records of one decision, they are configuration for two different programs.
+Only `pnpm audit` reads `auditConfig`.
+
+The cost was invisible because of *where* it failed. `pnpm audit --audit-level=high` kept
+reporting `1 high (1 ignored)` locally, so the local signal said the posture was configured.
+The OSV job is a reusable workflow that can't be exercised from a checkout, so nobody saw it
+disagree. the-lot's `osv-scan` went red on every run after `fb6f4d2`; square-one, which never
+had an `osv-scanner.toml` at all, has failed `osv-scan` on **every run in its history**.
+
+**That "can't be exercised locally" claim was itself wrong, and that's the durable lesson.**
+The reusable workflow can't run locally, but the *scanner* can, and it is what decides the
+job. Reproduced before fixing and verified after, against a clean `git archive` export so
+`node_modules` couldn't change the answer:
+
+```
+docker run --rm -v "$PWD:/src" -w /src ghcr.io/google/osv-scanner:v2.3.8 -r ./
+```
+
+Before: exit 1, the brace-expansion finding. After: `Loaded filter from: /src/osv-scanner.toml`,
+`No issues found`, exit 0. **A gate you believe is unrunnable locally is worth ten minutes of
+trying anyway** — the container the job pulls is usually just a container.
 
 ## What's stubbed, dead, or unfinished
 
@@ -541,6 +595,11 @@ that it's townage data, keeping square-one pure, and it comes due at M5.
 `install --frozen-lockfile`, `lint`, `test`, `build`, `audit --audit-level=high`,
 `audit signatures`, the license allowlist, and `docs-hygiene`.*
 
+*Corrected 2026-07-29: there is a **ninth** gate, `osv-scan`, and it was red from `fb6f4d2`
+until 2026-07-29 while this section said all gates passed. It is counted, runnable locally,
+and green as of the `osv-scanner.toml` restore — see
+[Two scanners is not duplication](#two-scanners-is-not-duplication).*
+
 **The handover's measurements were exact** — 61 lint errors, 25 warnings, ~26 of them
 `react-hooks/*`, `docs-hygiene.py` already clean, `ci.yml`'s `detect` job self-skipping the
 Rust half. All verified before acting on them.
@@ -552,7 +611,9 @@ Rust half. All verified before acting on them.
 - The 27th, `brace-expansion` (GHSA-mh99-v99m-4gvg), was first handled as a timed ignore in
   `pnpm-workspace.yaml` **and** `osv-scanner.toml` — two entries because `pnpm audit` and the
   OSV scan are different tools over different databases, something only the real CI run
-  revealed. **Both were wrong and have been replaced (2026-07-25, later).** The stated reason
+  revealed — and correctly so; the `osv-scanner.toml` half was later deleted on a
+  consolidation that did not hold, and is back. **Both were wrong and have been replaced
+  (2026-07-25, later).** The stated reason
   — waiting out "pnpm's 72-hour `minimumReleaseAge` quarantine" — was wrong twice over: the
   quarantine is **1440 minutes (1 day)**, pnpm's documented default and recommendation, and
   the fix cleared it on 2026-07-24. Nothing was ever being waited for. See
@@ -609,7 +670,7 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
         a matter of taste, and it settled the silhouette deltas as a side effect.
 
       The player's case is deliberately **out of scope**; see the planning effort's
-      [breakdown-is-the-feature](../../work/square-dance-planning/briefs/breakdown-is-the-feature.md).
+      `square-dance-planning/briefs/breakdown-is-the-feature.md`.
    3. ~~**Finish the release**~~ — **done 2026-07-28** (`1976f7f`). Tag pushed, pin
       resolved from the tarball, link dropped, gates re-run against a real install.
    4. **An ADR extending ADR-0008's react-hooks exception to `src/dance/**`** — still owed
@@ -627,10 +688,11 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
    so do it with the app running, not blind.
 4. ~~Drop the `brace-expansion` ignores on/after 2026-07-26~~ — **done 2026-07-25**, and the
    premise was wrong. See [Supply chain](#supply-chain): the patch had already cleared the
-   real (1-day) gate, `osv-scanner.toml` is deleted, and a **scoped** override carries the
-   5.x line. One audit ignore remains, for a different and truthful reason — no patched
-   version is compatible with `minimatch@3`'s API. Drop it when the toolchain stops pulling
-   `minimatch@3`.
+   real (1-day) gate, and a **scoped** override carries the 5.x line. The ignore remains for
+   a different and truthful reason — no patched version is compatible with `minimatch@3`'s
+   API — and lives in **both** `pnpm-workspace.yaml` and `osv-scanner.toml`, one per scanner
+   (the 2026-07-25 deletion of the latter was itself wrong; restored 2026-07-29). Drop both
+   together when the toolchain stops pulling `minimatch@3`.
 5. ~~CI + supply-chain gates~~ — **done 2026-07-25**. See [How CI landed](#how-ci-landed).
 6. Delete the three untracked empty directories; tighten `BotParts`'s `rushMode` prop type;
    strip debug logging.

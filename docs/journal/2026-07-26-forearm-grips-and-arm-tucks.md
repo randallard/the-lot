@@ -71,8 +71,8 @@ cast, simulated over the whole call:
 
 The forearms overlap vertically over Myco's whole length — genuinely side by side — and
 read as the short dancer reaching up and the tall one reaching down. **Still a placeholder
-with a known failure mode**, and still [step 3 of the size
-brief](../../../work/square-dance-planning/briefs/dancer-size-and-accessibility.md): past
+with a known failure mode**, and still step 3 of the size brief
+(`square-dance-planning/briefs/dancer-size-and-accessibility.md`): past
 some height difference the taller dancer should do nearly *all* the reaching, because a
 child cannot raise their arm to an adult's. The unit test asserts the current rule so step
 3 has to change it deliberately.
