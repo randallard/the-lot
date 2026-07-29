@@ -70,8 +70,12 @@ back up.**
   from the tarball for the first time, link override out, all gates re-run against a real
   install. The working tree is **clean**: nothing is uncommitted and nothing here behaves
   differently from a fresh clone.
-- **CI on GitHub was red, and is fixed (2026-07-29) — not pushed yet.** Two causes, both
-  invisible locally, both now caught locally:
+- **CI on GitHub was red, and is now green (2026-07-29).** Pushed as `8d06012` + `a501c5e`;
+  run `30486706020` passes every job, `osv-scan` included — its log reads `Loaded filter
+  from: /github/workspace/osv-scanner.toml` … `No issues found`. **This is also the first
+  time the M4 arc has ever run in Actions**: the push carried 13 commits, and CI tests the
+  resulting tree rather than each commit, so what is verified is today's `main`. Two causes,
+  both invisible locally, both now caught locally:
   - **`osv-scan`** had failed on every run since `fb6f4d2` (2026-07-26) because
     `osv-scanner.toml` was deleted; `auditConfig` in `pnpm-workspace.yaml` only ever
     governed `pnpm audit`. Restored, with the reasoning duplicated on purpose and each
@@ -83,8 +87,10 @@ back up.**
     not only in a fresh clone. Eight such links fixed in this repo — the planning effort
     has no public remote, so those are now unlinked inline code; the two square-one
     cross-references became GitHub URLs.
-  - **`main` is 11 commits ahead of `origin/main`.** The whole M4 arc has never run in
-    Actions. Pushing is what proves this fix.
+  - ~~**`main` is 11 commits ahead of `origin/main`.**~~ **Pushed 2026-07-29.** `main` and
+    `origin/main` agree, and the local container run of osv-scanner matched CI's log line for
+    line (468 packages, one advisory filtered) — which is the evidence that the local check
+    now stands in for the remote one.
 - **Next action: M5.** M4 is done — see the worklist. The two smaller leftovers are an ADR
   extending ADR-0008's react-hooks exception to `src/dance/**` (owed since the M4 handover,
   and `src/dance/` has grown a lot since), and the player's head fix of 2026-07-28, which is
