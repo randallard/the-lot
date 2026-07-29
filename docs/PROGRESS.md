@@ -57,15 +57,18 @@ back up.**
   as a breath, not a stutter. So the hard clamp holds for a second channel — no easing, no
   proximity ramp. **Every channel ADR-0010 names is now classified, implemented, and
   verified on screen.**
-- **Next action: consolidate the arbitration into one resolver** — the last thing ADR-0010
-  names as owed. It is now in three places: `arm-pose.ts` (arms), `silhouette-limit.ts`
-  (shape), and `DanceFloor`'s frame loop (wiring, plus `owned` enforced by simply not
-  reading the channel). That last part is the reason it matters: the ADR's fail-safe rule
-  — *an unclassified channel is owned* — currently holds by accident of omission rather
-  than by construction, so a field added to `ResolvedPose` gets the right default only
-  because nobody wired it up.
-- **Then: finish the square-one release** (below) — still the only thing that can make a
-  fresh clone behave differently from this working tree.
+- **The arbitration is consolidated (2026-07-28)** — `src/dance/expression-channels.ts` is
+  now the one place ADR-0010's contract is *decided*; `arm-pose.ts` and
+  `silhouette-limit.ts` remain the mechanisms. The ADR's fail-safe rule is structural
+  rather than remembered: `CHANNELS` is `Record<keyof ResolvedPose, Channel>`, so a new
+  channel breaks the build until classified, and `ResolvedExpression` has **no field for an
+  owned channel**, so a spin has nowhere to arrive from. Behaviour unchanged — the 285
+  pre-existing tests pass untouched. **M4's ADR work is closed.**
+  - Found while proving that safeguard fires: **the typecheck gate had not been running at
+    all.** See the boxed warning under [Tests](#-typechecking-tsc--b-never-tsc---noemit).
+- **Next action: finish the square-one release** (below) — the only thing left that can make
+  a fresh clone behave differently from this working tree. Needs `git push origin main
+  --follow-tags` in the sibling repo first.
 - **Then: finish the square-one release** (below) — it is the only thing left that can make
   a fresh clone behave differently from this working tree.
 - **The player's head is fixed too (2026-07-28).** `Player.tsx` had the same split head as
@@ -192,10 +195,22 @@ Played and working:
 - **Backup and restore** — versioned export/import (`BACKUP_VERSION = "1.1.0"`) with fixed,
   dynamic, and optional key classes (ADR-0007).
 
-**Tests: 244 pass** (19 files), as of 2026-07-26. The two `fetch-pending-results` failures
+**Tests: 295 pass** (21 files), as of 2026-07-28. The two `fetch-pending-results` failures
 that stood here were fixed on 2026-07-25 (worklist item 1); the rest of the growth is M4's
 `src/dance/` — frame, body clearance, the arm channel, and the ADR-0010 expression
-channels (`silhouette-limit.ts`).
+channels (`expression-channels.ts`, `silhouette-limit.ts`).
+
+### ⚠ Typechecking: `tsc -b`, never `tsc --noEmit`
+
+`tsconfig.json` is **solution-style** — `"files": []` plus references to `tsconfig.app.json`
+and `tsconfig.node.json`. So `tsc --noEmit` against it typechecks **nothing at all** and
+exits 0, which looks exactly like success. `npm run build` (`tsc -b && vite build`) is the
+real gate; `npx tsc -b --force` is the standalone one. Running `vite build` on its own does
+**not** typecheck either — esbuild strips types without reading them.
+
+Found 2026-07-28, after several sessions of reporting "typecheck clean" from the vacuous
+command. Nothing was actually broken — `tsc -b --force` passes on the whole tree — but the
+gate had not been run.
 
 Note: `pnpm test` currently refuses to run behind pnpm's build-verification gate
 (`ERR_PNPM_IGNORED_BUILDS` on `esbuild`). Either run `pnpm approve-builds` once, or invoke
