@@ -41,12 +41,31 @@ back up.**
 - **ADR-0010 is written and accepted (2026-07-28)** —
   [the emote/choreography channel contract](adr/0010-emote-choreography-channel-contract.md),
   the last thing M4 owed. Written *after* the render was watched, on purpose.
-- **Next action:** **enforce the `limited` silhouette channels.** ADR-0010 classifies
-  `bodyRadiusDelta`, `bodyHeightDelta`, `bodyLeanZ`, `headRadiusDelta`, `headOffsetX` and
-  `headOffsetY` as limited, and they are still applied **unclipped** — so an emote that
-  puffs a dancer up mid-pass can still clip through their partner. Decided, named, not
-  built. Consolidating the split arbitration (`arm-pose.ts` + `DanceFloor`'s frame loop)
-  into one resolver belongs with it.
+- **The `limited` silhouette channels are enforced (2026-07-28)** —
+  `src/dance/silhouette-limit.ts`, pure and tested, called once per dancer per frame.
+  A dancer may inflate by their **share of the live slack** (the room between what the
+  pair needs at rest and what they have this frame, split by body radius) — the arm
+  envelope's model, deliberately, because it is the same problem. Zero cost when there is
+  room; shrinking is never limited. 19 new tests, 285 total.
+  - **Correcting the ADR, which cannot be edited:** its Consequences say these channels
+    were "applied unclipped". For *dancers* they were not applied **at all** — `Dancer`
+    built geometry at mount and `DanceFloor` never wrote a scale, so they were silently
+    behaving as `owned`. True only of `bodyLeanZ`, and of the player (out of scope). The
+    decision is unaffected; see
+    [the journal entry](journal/2026-07-28-3-enforcing-the-limited-channels.md).
+  **Watched and verified** (Ryan, 2026-07-28) via the **puff up** emote: the squeeze reads
+  as a breath, not a stutter. So the hard clamp holds for a second channel — no easing, no
+  proximity ramp. **Every channel ADR-0010 names is now classified, implemented, and
+  verified on screen.**
+- **Next action: consolidate the arbitration into one resolver** — the last thing ADR-0010
+  names as owed. It is now in three places: `arm-pose.ts` (arms), `silhouette-limit.ts`
+  (shape), and `DanceFloor`'s frame loop (wiring, plus `owned` enforced by simply not
+  reading the channel). That last part is the reason it matters: the ADR's fail-safe rule
+  — *an unclassified channel is owned* — currently holds by accident of omission rather
+  than by construction, so a field added to `ResolvedPose` gets the right default only
+  because nobody wired it up.
+- **Then: finish the square-one release** (below) — still the only thing that can make a
+  fresh clone behave differently from this working tree.
 - **Then: finish the square-one release** (below) — it is the only thing left that can make
   a fresh clone behave differently from this working tree.
 - **The player's head is fixed too (2026-07-28).** `Player.tsx` had the same split head as
@@ -175,7 +194,8 @@ Played and working:
 
 **Tests: 244 pass** (19 files), as of 2026-07-26. The two `fetch-pending-results` failures
 that stood here were fixed on 2026-07-25 (worklist item 1); the rest of the growth is M4's
-`src/dance/` — frame, body clearance, and the arm channel.
+`src/dance/` — frame, body clearance, the arm channel, and the ADR-0010 expression
+channels (`silhouette-limit.ts`).
 
 Note: `pnpm test` currently refuses to run behind pnpm's build-verification gate
 (`ERR_PNPM_IGNORED_BUILDS` on `esbuild`). Either run `pnpm approve-builds` once, or invoke
@@ -565,10 +585,12 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
       from the pin, verify, commit the three dependency files together.
    4. **An ADR extending ADR-0008's react-hooks exception to `src/dance/**`** — still owed
       from the original M4 handover.
-   5. **The silhouette hole** — now a **named `limited` channel** in item 2 above rather
-      than a loose worry, so it lands in ADR-0010 instead of outliving it. Still unwired
-      in the experiment on purpose; the work here is implementing the constraint once the
-      ADR fixes its shape.
+   5. ~~**The silhouette hole**~~ — **closed 2026-07-28**, `src/dance/silhouette-limit.ts`.
+      Named as a `limited` channel by ADR-0010, then enforced: a dancer may inflate by
+      their share of the live slack, on the arm envelope's model. Watchable at `#dance`
+      via the **puff up** emote. The enforcement found that the channels were not
+      "applied unclipped" as the ADR describes but not applied to dancers at all — see
+      [the journal entry](journal/2026-07-28-3-enforcing-the-limited-channels.md).
 3. **Adopt `eslint-plugin-react-hooks` 7.1.1** (pinned at exact `7.0.1` today, per
    [ADR-0008](adr/0008-react-hooks-rules-excepted-at-the-ref-boundary.md)). Needs 6
    `set-state-in-effect` and 2 `preserve-manual-memoization` fixes in the game-return handler,
