@@ -26,6 +26,7 @@ import {
   trackForearm,
   type ArmMetrics,
   type Forearm,
+  type ArmPoses,
   type Placement,
   type Vec3,
 } from "./arm-pose";
@@ -55,10 +56,32 @@ interface Arm {
   readonly localX: number;
   /** The local aim's vertical component: `−1` hanging, `0` horizontal. */
   readonly aimY: number;
+  /** The local aim's sideways component — how far out an emote has swung it. */
+  readonly aimX: number;
+}
+
+/**
+ * An expression layer swinging both arms wide, as `poseArms` receives it — the
+ * debug scene's "wide arms" emote at its widest, which is the worst case the
+ * envelope has to survive.
+ */
+function wideOpen(m: ArmMetrics): ArmPoses {
+  const out = armPoses();
+  for (const side of SIDES) {
+    const sign = side === "left" ? 1 : -1;
+    out[side].x = sign * m.restX;
+    out[side].y = m.restY;
+    out[side].z = 0;
+    // 85° out to the side: almost horizontal, reaching toward whoever is there.
+    out[side].aimX = sign * Math.sin((85 * Math.PI) / 180);
+    out[side].aimY = -Math.cos((85 * Math.PI) / 180);
+    out[side].aimZ = 0;
+  }
+  return out;
 }
 
 /** One beat's worth of both dancers' arms, in world space. */
-function armsAt(call: CallName, beat: number, yaw = 0.4): Arm[] {
+function armsAt(call: CallName, beat: number, yaw = 0.4, emoting = false): Arm[] {
   const frame = makeFrame({ x: 0, z: 0 }, scaleForGaps([GAP]), yaw);
   const motions = applyCallToPair(call);
   const perf = createPerformance({ motions: { a: motions.a, b: motions.b } });
@@ -80,8 +103,8 @@ function armsAt(call: CallName, beat: number, yaw = 0.4): Arm[] {
       METRICS[1 - dancer],
       placements[dancer],
       placements[1 - dancer],
-      GAP,
       grip?.hand === "left" ? { left: 1, right: 0 } : { left: 0, right: 0 },
+      emoting ? wideOpen(METRICS[dancer]) : undefined,
     );
     for (const side of SIDES) {
       const pose = poses[side];
@@ -93,6 +116,7 @@ function armsAt(call: CallName, beat: number, yaw = 0.4): Arm[] {
         segment: trackForearm(forearm(), METRICS[dancer], pose, placements[dancer]),
         localX: pose.x,
         aimY: pose.aimY,
+        aimX: pose.aimX,
       });
     }
   }
@@ -388,7 +412,7 @@ describe("driven frame by frame", () => {
         const partner = places[1 - i];
         if (!blend || !me || !them || !self || !partner) continue;
         advanceGripBlend(blend, grip?.hand ?? null, ease);
-        const poses = poseArms(armPoses(), me, them, self, partner, GAP, blend);
+        const poses = poseArms(armPoses(), me, them, self, partner, blend);
         // Only the fully-joined frames are the contract; the blend in and out is a
         // transition and is allowed to move.
         joined[i] = blend.left === 1;
@@ -447,6 +471,45 @@ describe("driven frame by frame", () => {
   });
 });
 
+describe("an emote during a call", () => {
+  // The arbitration this channel exists for: expression plays, and cannot put an arm
+  // through another dancer. Both dancers swing both arms wide for the whole call —
+  // far more than any real emote asks for at the worst possible moment.
+  it.each(CALLS)("never lets wide-swung arms cross during %s", (call) => {
+    for (const beat of beatsOf(call)) {
+      const arms = armsAt(call, beat, 0.4, true);
+      for (const a of arms.filter((arm) => arm.dancer === 0)) {
+        for (const b of arms.filter((arm) => arm.dancer === 1)) {
+          if (a.gripping && b.gripping) continue;
+          expect(
+            segmentDistance(a.segment, b.segment),
+            `${call} beat ${beat}: ${a.side} vs partner's ${b.side}`,
+          ).toBeGreaterThanOrEqual(a.metrics.armHalfWidth + b.metrics.armHalfWidth - 1e-9);
+        }
+      }
+    }
+  });
+
+  it("still plays — the arms are folded, not parked", () => {
+    // Away from a pass the emote is untouched; the fold is local to the trespass.
+    const roomy = armsAt("dosado", 0, 0.4, true);
+    for (const arm of roomy) {
+      expect(Math.abs(arm.localX)).toBeCloseTo(arm.metrics.restX, 9);
+      expect(arm.aimY).toBeLessThan(-0.05);
+      expect(Math.abs(arm.aimX)).toBeGreaterThan(0.9);
+    }
+  });
+
+  it("gives a gripped hand to the choreography, emote or not", () => {
+    const mid = armsAt("allemande-left", 4, 0.4, true).filter((a) => a.gripping);
+    expect(mid).toHaveLength(2);
+    for (const arm of mid) {
+      // Horizontal into the grip, not swung wide by the emote.
+      expect(arm.aimY).toBe(0);
+    }
+  });
+});
+
 describe("hands-free calls", () => {
   it.each(["dosado", "pass-thru"] as const)("%s never engages a grip", (call) => {
     for (const beat of beatsOf(call)) {
@@ -460,25 +523,23 @@ describe("hands-free calls", () => {
     }
   });
 
-  it("tucks the passing arm all the way in at the dosado's closest pass", () => {
-    // The defect being fixed. At the tightest beat, one arm on each dancer — the
-    // one on the side they are passing — is fully tucked, and the outside arm is
-    // still hanging free.
+  it("folds the passing arm in at the dosado's closest pass, and only that one", () => {
+    // The defect this channel exists to fix. At the tightest beat exactly one arm on
+    // each dancer — the one on the side they are passing — is folded in, and the
+    // outside arm is still hanging free.
     const tightest = beatsOf("dosado")
       .map((beat) => armsAt("dosado", beat))
       .map((arms) => ({
         arms,
-        tuck: Math.max(...arms.map((a) => a.metrics.restX - Math.abs(a.localX))),
+        fold: Math.max(...arms.map((a) => a.metrics.restX - Math.abs(a.localX))),
       }))
-      .sort((a, b) => b.tuck - a.tuck)[0];
+      .sort((a, b) => b.fold - a.fold)[0];
+    if (!tightest) throw new Error("expected beats");
 
-    const tucked = tightest?.arms.filter(
-      (a) => Math.abs(a.localX) - a.metrics.tuckX < 1e-6,
-    );
-    expect(tucked).toHaveLength(2);
-    expect(new Set(tucked?.map((a) => a.side)).size, "the same side on both dancers").toBe(1);
-    const free = tightest?.arms.filter((a) => !tucked?.includes(a)) ?? [];
-    for (const arm of free) {
+    const folded = tightest.arms.filter((a) => a.metrics.restX - Math.abs(a.localX) > 1e-6);
+    expect(folded).toHaveLength(2);
+    expect(new Set(folded.map((a) => a.side)).size, "the same side on both dancers").toBe(1);
+    for (const arm of tightest.arms.filter((a) => !folded.includes(a))) {
       expect(Math.abs(arm.localX)).toBeCloseTo(arm.metrics.restX, 9);
     }
   });

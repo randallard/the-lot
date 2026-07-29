@@ -38,8 +38,7 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
   const shape = bodyShape ?? PLAYER_DEFAULTS;
   const groupRef       = useRef<THREE.Group>(null);
   const bodyMeshRef    = useRef<THREE.Mesh>(null);
-  const headMeshRef    = useRef<THREE.Mesh>(null);
-  const eyesGroupRef   = useRef<THREE.Group>(null);
+  const headGroupRef   = useRef<THREE.Group>(null);
   const leftArmRef     = useRef<THREE.Group>(null);
   const rightArmRef    = useRef<THREE.Group>(null);
   const matRef         = useRef<THREE.MeshStandardMaterial>(null);
@@ -73,29 +72,22 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
       bodyMeshRef.current.scale.set(rs, hs, rs);
     }
 
-    // Head mesh: position offsets + rotation + radius scale
-    if (headMeshRef.current) {
-      headMeshRef.current.position.set(
+    // Head group — sphere and eyes together. Offsets, rotation and radius scale are
+    // written once, to the pivot they share, so the face cannot come adrift from the
+    // head it belongs to. `pos.headY` is recomputed from `animShape`, so a body the
+    // emote stretched carries the whole head up with it, eyes included.
+    if (headGroupRef.current) {
+      headGroupRef.current.position.set(
         animShape.head.offsetX,
         pos.headY + animShape.head.offsetY,
         animShape.head.offsetZ,
       );
-      headMeshRef.current.rotation.set(
+      headGroupRef.current.rotation.set(
         deg2rad(animShape.head.rotation[0]),
         deg2rad(animShape.head.rotation[1]),
         deg2rad(animShape.head.rotation[2]),
       );
-      const hs = animShape.head.radius / shape.head.radius;
-      headMeshRef.current.scale.set(hs, hs, hs);
-    }
-
-    // Eyes group: translate with head offsets (Eyes uses headY without offset, group provides it)
-    if (eyesGroupRef.current) {
-      eyesGroupRef.current.position.set(
-        animShape.head.offsetX,
-        animShape.head.offsetY,
-        animShape.head.offsetZ,
-      );
+      headGroupRef.current.scale.setScalar(animShape.head.radius / shape.head.radius);
     }
 
     // Arm groups: shoulder pivot + upper-arm rotation from emote pose
@@ -192,20 +184,23 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
         <meshStandardMaterial ref={matRef} color={COLOR} transparent />
       </mesh>
 
-      {/* Head */}
-      <mesh
-        ref={headMeshRef}
+      {/* Head group — the sphere and the eyes, pivoting on the head center so a head
+          turn carries the face with it. A rotated sphere is indistinguishable from an
+          unrotated one: the eyes are the only part of a head that shows which way it
+          is looking, so they have to be children of the thing that turns rather than
+          siblings of it. Everything inside sits at head-local coordinates, which is
+          why `Eyes` gets `headY={0}` — the group supplies the head's height. */}
+      <group
+        ref={headGroupRef}
         position={[head.offsetX, pos.headY + head.offsetY, head.offsetZ]}
         rotation={[deg2rad(head.rotation[0]), deg2rad(head.rotation[1]), deg2rad(head.rotation[2])]}
-        castShadow
       >
-        <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
-        <meshStandardMaterial ref={headMatRef} color={COLOR} transparent />
-      </mesh>
+        <mesh castShadow>
+          <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
+          <meshStandardMaterial ref={headMatRef} color={COLOR} transparent />
+        </mesh>
 
-      {/* Eyes — group handles animated head offsets; Eyes gets base headY with no offset */}
-      <group ref={eyesGroupRef}>
-        <Eyes eyes={shape.eyes} headY={pos.headY} headRadius={head.radius} />
+        <Eyes eyes={shape.eyes} headY={0} headRadius={head.radius} />
       </group>
 
       {/* Left arm — shoulder pivot group */}

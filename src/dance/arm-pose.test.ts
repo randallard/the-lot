@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  TUCK_CLEAR_AT,
-  TUCK_FULL_AT,
+  PERSONAL_SPACE,
   armMetrics,
   armPose,
   contact,
@@ -14,9 +13,9 @@ import {
   poseArms,
   trackContact,
   trackForearm,
-  tuckExposure,
-  tuckNearness,
-  tuckPose,
+  constrainArm,
+  reachAllowance,
+  restPose,
   type ArmMetrics,
   type ArmPose,
   type Placement,
@@ -42,15 +41,6 @@ const CAST: readonly [string, CharacterBodyShape][] = [
 ];
 
 describe("arm metrics", () => {
-  it.each(CAST)("hides %s's whole arm inside the torso when tucked", (_name, shape) => {
-    const m = armMetrics(shape);
-    expect(m.tuckX + m.armHalfWidth).toBeLessThanOrEqual(shape.body.radius + 1e-9);
-  });
-
-  it.each(CAST)("never tucks %s's arm outward", (_name, shape) => {
-    expect(armMetrics(shape).tuckX).toBeLessThanOrEqual(armMetrics(shape).restX);
-  });
-
   it.each(CAST)("puts %s's hand below the shoulder at rest", (_name, shape) => {
     expect(armMetrics(shape).handReach).toBeGreaterThan(0);
   });
@@ -62,17 +52,27 @@ describe("arm metrics", () => {
   });
 });
 
-describe("the tuck clears the lane", () => {
+describe("the envelope clears the lane", () => {
   // The defect this channel exists to fix, stated as arithmetic: at the closest
   // distance the frame lets a pair pass, arms left hanging at shoulder width
-  // overlap, and tucked arms cannot.
+  // overlap, and folded arms cannot.
   const pairs = CAST.flatMap((a, i) => CAST.slice(i + 1).map((b) => [a, b] as const));
 
   it.each(pairs)("keeps %s and %s from crossing arms", ([, aShape], [, bShape]) => {
     const gap = lateralClearance(rigidParts(aShape), rigidParts(bShape));
     const a = armMetrics(aShape);
     const b = armMetrics(bShape);
-    expect(a.tuckX + a.armHalfWidth + b.tuckX + b.armHalfWidth).toBeLessThanOrEqual(gap);
+    // Each dancer folded to their own share of the closest permitted gap: the two
+    // allowances sum to the whole of it, so touching is the worst case.
+    expect(reachAllowance(a, b, gap) + reachAllowance(b, a, gap)).toBeCloseTo(gap, 9);
+  });
+
+  it.each(CAST)("resolves %s's share at the closest pass to their own body", (_n, shape) => {
+    // The old fixed tuck, recovered as a special case rather than replaced.
+    const me = armMetrics(shape);
+    const them = armMetrics(EMBER_DEFAULTS);
+    const closest = me.bodyRadius + them.bodyRadius;
+    expect(reachAllowance(me, them, closest)).toBeCloseTo(me.bodyRadius, 9);
   });
 
   it("is needed — the debug cast's resting arms do cross at that distance", () => {
@@ -81,78 +81,64 @@ describe("the tuck clears the lane", () => {
     const b = armMetrics(EMBER_DEFAULTS);
     expect(a.restX + a.armHalfWidth + b.restX + b.armHalfWidth).toBeGreaterThan(gap);
   });
-});
 
-describe("tuck amount", () => {
-  const clearance = 0.8;
-
-  it("is full at contact and gone by the clear distance", () => {
-    expect(tuckNearness(0, clearance)).toBe(1);
-    expect(tuckNearness(TUCK_FULL_AT * clearance, clearance)).toBeCloseTo(1, 9);
-    expect(tuckNearness(TUCK_CLEAR_AT * clearance, clearance)).toBeCloseTo(0, 9);
-    expect(tuckNearness(10, clearance)).toBe(0);
-  });
-
-  it("eases in monotonically between them", () => {
-    let previous = -1;
-    for (let d = TUCK_CLEAR_AT * clearance; d >= 0; d -= 0.02) {
-      const t = tuckNearness(d, clearance);
-      expect(t).toBeGreaterThanOrEqual(previous);
-      previous = t;
-    }
-  });
-
-  it("scales with the pair — bigger dancers start narrowing further out", () => {
-    expect(tuckNearness(1.2, 0.8)).toBeGreaterThan(tuckNearness(1.2, 0.5));
-  });
-
-  it("is zero when the pair has no clearance to measure against", () => {
-    expect(tuckNearness(0.5, 0)).toBe(0);
+  it("gives a bigger dancer the bigger share", () => {
+    const big = armMetrics(MYCO_DEFAULTS);
+    const small = armMetrics(SPROUT_DEFAULTS);
+    expect(big.bodyRadius).toBeGreaterThan(small.bodyRadius);
+    expect(reachAllowance(big, small, 2)).toBeGreaterThan(reachAllowance(small, big, 2));
   });
 });
 
-describe("which arm is in the way", () => {
-  it("tucks the arm on the side the partner is passing, not the other", () => {
-    // Partner fully to local +x, which is the anatomical left group.
-    expect(tuckExposure(1, 1)).toBe(1);
-    expect(tuckExposure(1, -1)).toBe(0);
-    expect(tuckExposure(-1, -1)).toBe(1);
-    expect(tuckExposure(-1, 1)).toBe(0);
-  });
-
-  it("leaves both arms hanging when the partner is straight ahead", () => {
-    expect(tuckExposure(0, 1)).toBe(0);
-    expect(tuckExposure(0, -1)).toBe(0);
-  });
-});
-
-describe("tuck pose", () => {
+describe("folding an arm in", () => {
   const m = armMetrics(MYCO_DEFAULTS);
+  // Partner abeam on the anatomical-left side.
+  const DIR_X = 1;
+  const DIR_Z = 0;
 
-  it("rests at the shoulder with the forearm hanging", () => {
-    const p = tuckPose(armPose(), m, 1, 0);
-    expect(p).toEqual({ x: m.restX, y: m.restY, z: 0, aimX: 0, aimY: -1, aimZ: 0 });
-    expect(tuckPose(armPose(), m, -1, 0).x).toBe(-m.restX);
+  function folded(pose: ArmPose, allowance: number): ArmPose {
+    return constrainArm(pose, m, allowance, DIR_X, DIR_Z);
+  }
+
+  it("leaves an arm alone when there is room", () => {
+    const p = folded(restPose(armPose(), m, 1), 10);
+    expect(p.x).toBeCloseTo(m.restX, 9);
   });
 
-  it("slides to the tuck at full amount, mirrored per side", () => {
-    expect(tuckPose(armPose(), m, 1, 1).x).toBeCloseTo(m.tuckX, 9);
-    expect(tuckPose(armPose(), m, -1, 1).x).toBeCloseTo(-m.tuckX, 9);
+  it("folds a resting arm to the old tuck when the pair are at their closest", () => {
+    const p = folded(restPose(armPose(), m, 1), m.bodyRadius);
+    // Everything drawn, plus its personal space, inside the dancer's own share.
+    expect(p.x + m.armHalfWidth + PERSONAL_SPACE).toBeCloseTo(m.bodyRadius, 9);
   });
 
-  it("moves inward, never outward, as the amount grows", () => {
-    let previous = m.restX + 1;
-    for (let a = 0; a <= 1; a += 0.1) {
-      const x = tuckPose(armPose(), m, 1, a).x;
-      expect(x).toBeLessThanOrEqual(previous);
-      previous = x;
+  it("leaves the outside arm untouched at the same moment", () => {
+    const p = folded(restPose(armPose(), m, -1), m.bodyRadius);
+    expect(p.x).toBeCloseTo(-m.restX, 9);
+  });
+
+  it("folds an arm swung outward by an emote, by more", () => {
+    // An arm raised toward the partner reaches further, so it has further to fold.
+    const raised = restPose(armPose(), m, 1);
+    raised.aimX = 1;
+    raised.aimY = 0;
+    const p = folded(raised, m.bodyRadius);
+    const resting = folded(restPose(armPose(), m, 1), m.bodyRadius);
+    expect(p.x).toBeLessThan(resting.x);
+    // ...and still ends up inside the allowance, hand included.
+    expect(p.x + m.handReach + m.armHalfWidth + PERSONAL_SPACE).toBeCloseTo(m.bodyRadius, 9);
+  });
+
+  it("never pushes an arm outward", () => {
+    for (const allowance of [0.1, 0.3, 0.5, 1, 3]) {
+      expect(folded(restPose(armPose(), m, 1), allowance).x).toBeLessThanOrEqual(m.restX + 1e-9);
     }
   });
 
-  it("keeps the shoulder height and the neutral plane", () => {
-    const p = tuckPose(armPose(), m, 1, 0.5);
-    expect(p.y).toBe(m.restY);
-    expect(p.z).toBe(0);
+  it("folds along the partner's bearing, not just sideways", () => {
+    const pose = constrainArm(restPose(armPose(), m, 1), m, 0.1, 0, 1);
+    // Partner dead ahead: the fold is in z, and x is left where it was.
+    expect(pose.z).toBeLessThan(0);
+    expect(pose.x).toBeCloseTo(m.restX, 9);
   });
 });
 
@@ -240,8 +226,8 @@ function joinedPair(
   // left group) points at the pivot for both.
   const pa: Placement = { x: 0, z: radius, yaw: -Math.PI / 2 };
   const pb: Placement = { x: 0, z: -radius, yaw: Math.PI / 2 };
-  const posesA = poseArms(armPosesFor(), ma, mb, pa, pb, 0.71, JOINED_LEFT);
-  const posesB = poseArms(armPosesFor(), mb, ma, pb, pa, 0.71, JOINED_LEFT);
+  const posesA = poseArms(armPosesFor(), ma, mb, pa, pb, JOINED_LEFT);
+  const posesB = poseArms(armPosesFor(), mb, ma, pb, pa, JOINED_LEFT);
   return {
     ma,
     mb,
@@ -341,7 +327,7 @@ describe("a forearm grip, in world space", () => {
   it("survives a pair standing in the same spot", () => {
     const m = armMetrics(MYCO_DEFAULTS);
     const here: Placement = { x: 1, z: 2, yaw: 0.3 };
-    const poses = poseArms(armPosesFor(), m, m, here, { ...here }, 0.71, JOINED_LEFT);
+    const poses = poseArms(armPosesFor(), m, m, here, { ...here }, JOINED_LEFT);
     for (const v of [poses.left.x, poses.left.y, poses.left.z, poses.left.aimX]) {
       expect(Number.isFinite(v)).toBe(true);
     }
@@ -353,7 +339,7 @@ describe("tracking a posed arm", () => {
 
   it("puts a resting arm below its own shoulder", () => {
     const self: Placement = { x: 3, z: -2, yaw: 0 };
-    const f = trackForearm(forearm(), m, tuckPose(armPose(), m, 1, 0), self);
+    const f = trackForearm(forearm(), m, restPose(armPose(), m, 1), self);
     expect(f.elbow.x).toBeCloseTo(3 + m.restX, 9);
     expect(f.elbow.y).toBeCloseTo(m.restY - m.elbowReach, 9);
     expect(f.hand.y).toBeCloseTo(m.restY - m.handReach, 9);
@@ -362,7 +348,7 @@ describe("tracking a posed arm", () => {
 
   it("carries the dancer's heading — the arm turns with them", () => {
     const spun: Placement = { x: 0, z: 0, yaw: Math.PI / 2 };
-    const f = trackForearm(forearm(), m, tuckPose(armPose(), m, 1, 0), spun);
+    const f = trackForearm(forearm(), m, restPose(armPose(), m, 1), spun);
     // Local +x becomes world −z at a quarter turn.
     expect(f.elbow.x).toBeCloseTo(0, 9);
     expect(f.elbow.z).toBeCloseTo(-m.restX, 9);

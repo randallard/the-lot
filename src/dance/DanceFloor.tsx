@@ -18,13 +18,19 @@
 import { createRef, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { Dancer, type DancerArmRigs, type DancerRig } from "./Dancer";
+import {
+  Dancer,
+  type DancerArmRigs,
+  type DancerExpressionRigs,
+  type DancerRig,
+} from "./Dancer";
 import {
   advanceGripBlend,
   armMetrics,
   armPose,
   armPoses,
   contact,
+  type ArmPoses,
   forearm,
   gripBlend,
   poseArms,
@@ -49,9 +55,12 @@ import {
   type WorldPoint,
 } from "./frame";
 import { useDancePerformance, type DancePerformanceOptions } from "./useDancePerformance";
+import type { AnimationController } from "../services/animation-controller";
+import { NEUTRAL_POSE, type ResolvedPose } from "../services/emotes";
 import {
   MYCO_DEFAULTS,
   EMBER_DEFAULTS,
+  deg2rad,
   lateralClearance,
   rigidParts,
   type CharacterBodyShape,
@@ -83,6 +92,13 @@ interface DanceFloorProps extends DancePerformanceOptions {
    * everything in it is scratch, reused every frame.** Read it, don't retain it.
    */
   onArms?: (report: ArmReport) => void;
+  /**
+   * An expression layer per occupant, in the same order as `shapes`. A dancer with
+   * one may emote while dancing: head, lean and bob play untouched, arms play folded
+   * in where they would trespass, and a hand the engine has engaged plays nothing at
+   * all. Absent or `null` is a dancer who simply dances.
+   */
+  controllers?: readonly (AnimationController | null)[];
 }
 
 /** One dancer's arms this frame: where they are, and what the hand has hold of. */
@@ -126,6 +142,42 @@ const _self: Placement = { x: 0, z: 0, yaw: 0 };
 const _partner: Placement = { x: 0, z: 0, yaw: 0 };
 const _aim = new THREE.Vector3();
 
+const _proposed = armPoses();
+const _euler = new THREE.Euler();
+const _swing = new THREE.Vector3();
+
+/**
+ * The expression layer's arms, restated as poses the dance layer can reason about.
+ *
+ * An emote gives an arm a *rotation* about the shoulder; the dance layer works in
+ * where the arm ends up. Same rig either way — one group per shoulder — so this is a
+ * change of description, not of pose: the group stays at rest and the aim is the
+ * emote's own rotation applied to the resting hang.
+ *
+ * Emote arm names are viewer-mirrored: they were authored against the player rig,
+ * where "left" is the group at −x, and −x is a dancer's anatomical *right*.
+ */
+function proposeArms(out: ArmPoses, m: ArmMetrics, rp: ResolvedPose): ArmPoses {
+  for (const side of SIDES) {
+    const sign = side === "left" ? 1 : -1;
+    const from = side === "left" ? rp.rightArm : rp.leftArm;
+    const target = out[side];
+    target.x = sign * m.restX;
+    target.y = m.restY;
+    target.z = 0;
+    _euler.set(
+      deg2rad(from.upperArmRotation[0]),
+      deg2rad(from.upperArmRotation[1]),
+      deg2rad(from.upperArmRotation[2]),
+    );
+    _swing.copy(DOWN).applyEuler(_euler);
+    target.aimX = _swing.x;
+    target.aimY = _swing.y;
+    target.aimZ = _swing.z;
+  }
+  return out;
+}
+
 function readPlacement(out: Placement, rig: THREE.Group): void {
   out.x = rig.position.x;
   out.z = rig.position.z;
@@ -156,6 +208,7 @@ export function DanceFloor({
   paused = false,
   onBeat,
   onArms,
+  controllers,
   ...performanceOptions
 }: DanceFloorProps) {
   const runtime = useDancePerformance(performanceOptions);
@@ -182,10 +235,10 @@ export function DanceFloor({
     [occupantShapes],
   );
 
-  // The pairwise clearances, used twice: the square's spacing, and how close is
-  // "close" when deciding whether a forearm is in the way.
+  // The pairwise clearances that set the square's spacing. The arm envelope no
+  // longer reads them: it splits the pair's *live* separation by body radius, which
+  // resolves to the same bound at the closest pass and relaxes as they part.
   const gaps = useMemo(() => clearanceGaps(occupantShapes), [occupantShapes]);
-  const passingDistance = useMemo(() => Math.max(0, ...gaps), [gaps]);
 
   // One pair of arm rigs per dancer, mirroring the body rigs.
   const armRigs = useMemo(() => {
@@ -210,6 +263,13 @@ export function DanceFloor({
     return map;
   }, [keys]);
 
+  // Body and head refs, for the channels an emote owns outright.
+  const expressions = useMemo(() => {
+    const map: Record<string, DancerExpressionRigs> = {};
+    for (const key of keys) map[key] = { body: createRef(), head: createRef() };
+    return map;
+  }, [keys]);
+
   // The only eased quantity in the arm channel: how far each hand is into its grip.
   const blends = useMemo(() => {
     const map: Record<string, GripBlend> = {};
@@ -229,7 +289,7 @@ export function DanceFloor({
 
   const frameRef = useRef<DanceFrame>(makeFrame(origin, scale ?? scaleForGaps(gaps), yaw));
 
-  useFrame((_state, delta) => {
+  useFrame((state, delta) => {
     if (!paused) {
       // Guard against tab-restore producing an enormous delta and teleporting the
       // square across the floor.
@@ -295,14 +355,22 @@ export function DanceFloor({
 
           readPlacement(_self, rig);
           readPlacement(_partner, partner);
+
+          // The expression layer, if this dancer has one. Its arms are a *proposal*
+          // — `poseArms` folds them in where they trespass and drops them entirely
+          // on a hand the engine has engaged.
+          // `NEUTRAL_POSE` when this dancer has no expression layer, so the code
+          // path is the same either way: a neutral proposal is the resting hang, and
+          // a stopped emote cannot leave a channel stuck where it left it.
+          const rp = controllers?.[i]?.tick(state.clock.elapsedTime) ?? NEUTRAL_POSE;
           const poses = poseArms(
             _poses,
             me,
             them,
             _self,
             _partner,
-            passingDistance,
             blend,
+            proposeArms(_proposed, me, rp),
           );
 
           for (const side of SIDES) {
@@ -312,6 +380,29 @@ export function DanceFloor({
             arm.position.set(pose.x, pose.y, pose.z);
             _aim.set(pose.aimX, pose.aimY, pose.aimZ);
             arm.quaternion.setFromUnitVectors(DOWN, _aim);
+          }
+
+          // Expression channels: an emote owns these outright, because none of them
+          // can break a formation. Note what is *not* here — `bodyDeltaRotY`. A spin
+          // emote may not turn a dancer in a square; facing belongs to the
+          // choreography, and dropping the channel is the whole of that rule.
+          const parts = expressions[key];
+          if (parts) {
+            rig.position.y = rp.bodyDeltaY;
+            const body = parts.body.current;
+            if (body) {
+              body.rotation.x = deg2rad(occupantShapes[i]?.body.leanX ?? 0) + deg2rad(rp.bodyLeanX);
+              body.rotation.z = deg2rad(occupantShapes[i]?.body.leanZ ?? 0) + deg2rad(rp.bodyLeanZ);
+            }
+            // The head *group* — sphere and facing marker — so the turn is visible.
+            const head = parts.head.current;
+            if (head) {
+              head.rotation.set(
+                deg2rad(rp.headDeltaRotation[0]),
+                deg2rad(rp.headDeltaRotation[1]),
+                deg2rad(rp.headDeltaRotation[2]),
+              );
+            }
           }
         });
 
@@ -391,6 +482,7 @@ export function DanceFloor({
             shape={occupantShapes[i] ?? DEFAULT_SHAPES[0]}
             color={DEBUG_COLORS[i % DEBUG_COLORS.length]}
             {...(armRigs[key] === undefined ? {} : { arms: armRigs[key] })}
+            {...(expressions[key] === undefined ? {} : { expression: expressions[key] })}
           />
         );
       })}

@@ -18,6 +18,13 @@ import {
   handRotations,
 } from "../services/body-shapes";
 
+/**
+ * Floor on the chest facing marker, in world units. A debug annotation has to stay
+ * legible on the smallest body the editors allow, so below this it stops shrinking
+ * with the torso. For scale: the debug scene's joint markers are 0.035–0.045.
+ */
+const MIN_FACING_MARKER_RADIUS = 0.07;
+
 /** The rig a driver writes transforms onto. */
 export type DancerRig = React.RefObject<THREE.Group | null>;
 
@@ -39,9 +46,27 @@ interface DancerProps {
   color?: string;
   /** When provided, the driver may pose the arms (grip aiming). */
   arms?: DancerArmRigs;
+  /**
+   * Body and head, for the expression channels an emote owns outright — lean, bob,
+   * head turn. The driver writes them; nothing here reads the emote layer directly.
+   */
+  expression?: DancerExpressionRigs;
 }
 
-export function Dancer({ shape, rig, color, arms }: DancerProps) {
+/**
+ * The parts an emote may move without touching the formation.
+ *
+ * `head` is the whole head *group* — the sphere and the facing marker together —
+ * not the sphere alone. A rotated sphere is indistinguishable from an unrotated
+ * one, so a head turn is only visible in the marker, and the two have to turn as
+ * one thing.
+ */
+export interface DancerExpressionRigs {
+  body: React.RefObject<THREE.Mesh | null>;
+  head: React.RefObject<THREE.Group | null>;
+}
+
+export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
   const { head, body, forearm, hand } = shape;
   const pos = computePositions(shape, NPC_BODY_CENTER_Y);
   const rot = handRotations(hand.open);
@@ -49,27 +74,51 @@ export function Dancer({ shape, rig, color, arms }: DancerProps) {
 
   const forearmLocalY = pos.forearmCenterY - pos.shoulderY;
   const handLocalY = pos.handCenterY - pos.shoulderY;
+  const facingMarkerRadius = Math.max(body.radius * 0.16, MIN_FACING_MARKER_RADIUS);
 
   return (
     <group ref={rig}>
-      <mesh rotation={[deg2rad(body.leanX), 0, deg2rad(body.leanZ)]} castShadow>
+      <mesh ref={expression?.body} rotation={[deg2rad(body.leanX), 0, deg2rad(body.leanZ)]} castShadow>
         <capsuleGeometry args={[body.radius, body.height, body.capSegments, body.radialSegments]} />
         <meshStandardMaterial color={COLOR} />
       </mesh>
 
-      <mesh position={[head.offsetX, pos.headY + head.offsetY, head.offsetZ]} castShadow>
-        <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
-        <meshStandardMaterial color={COLOR} />
-      </mesh>
+      {/* Chest facing marker — the *body's* heading, which stopped being the same
+          question as the head's the moment heads could turn. An emote may turn a
+          dancer's head all the way round; it may never turn their body, and with
+          only the head marker there was no way to see the difference. Parented to
+          the rig rather than to the body mesh, so it reports yaw alone and an
+          emote's lean cannot tilt it into looking like a turn.
 
-      {/* Facing marker on local +z — the axis townage characters face: rotation.y
-          is atan2(dir.x, dir.z) everywhere, which points local +z along the
-          heading, and the cast's eyes sit at +eyeZOnSphere. Anchored to the head
-          center so it stays on caricature heads with offsets. */}
-      <mesh position={[head.offsetX, pos.headY + head.offsetY, head.offsetZ + head.radius * 0.95]}>
-        <sphereGeometry args={[head.radius * 0.28, 8, 8]} />
+          Sized with a floor rather than purely off `body.radius`: that is the one
+          dimension the cast varies most (SHAPE_BOUNDS runs 0.1 → 0.6, and the debug
+          scene's size casts exercise both ends), so a proportional marker vanished on
+          exactly the thin bodies it was needed on. Seated at chest height on the
+          cylindrical section, and always left standing proud of the widest point of
+          the torso, so no body shape can swallow it. */}
+      <mesh position={[0, NPC_BODY_CENTER_Y + body.height * 0.25, body.radius + facingMarkerRadius * 0.35]}>
+        <sphereGeometry args={[facingMarkerRadius, 10, 10]} />
         <meshStandardMaterial color="#1a1a1a" />
       </mesh>
+
+      {/* Head group, pivoting on the head center so a head turn sweeps the marker
+          around the sphere instead of spinning a featureless ball. Anchored here
+          rather than on each mesh so it stays right on caricature heads with
+          offsets. */}
+      <group ref={expression?.head} position={[head.offsetX, pos.headY + head.offsetY, head.offsetZ]}>
+        <mesh castShadow>
+          <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
+          <meshStandardMaterial color={COLOR} />
+        </mesh>
+
+        {/* Facing marker on local +z — the axis townage characters face: rotation.y
+            is atan2(dir.x, dir.z) everywhere, which points local +z along the
+            heading, and the cast's eyes sit at +eyeZOnSphere. */}
+        <mesh position={[0, 0, head.radius * 0.95]}>
+          <sphereGeometry args={[head.radius * 0.28, 8, 8]} />
+          <meshStandardMaterial color="#1a1a1a" />
+        </mesh>
+      </group>
 
       {/* Anatomical RIGHT arm (at −x; facing is +z). Styling uses rot.left — the
           hand-pose names are viewer-mirrored. */}

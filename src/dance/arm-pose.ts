@@ -26,10 +26,18 @@
  *   Not two arms aimed at a common point (attempt one: they stuck out sideways at
  *   each other), and not two vertical forearms (attempt two: side by side, but hands
  *   meeting hands instead of hand meeting elbow).
- * - **Tuck.** Nothing in the engine says "pull your arms in", but two dancers
- *   passing shoulder to shoulder at lane spacing are close enough that forearms
- *   hanging at shoulder width overlap. Real dancers narrow; here the near forearm
- *   slides into the torso, which is opaque and cannot cross over.
+ * - **Envelope.** Nothing in the engine says "pull your arms in", but two dancers
+ *   passing shoulder to shoulder at lane spacing are close enough that arms left at
+ *   shoulder width overlap. So every arm that isn't gripping is *limited* rather
+ *   than owned: whatever pose it is in — resting, or mid-emote — it folds in by
+ *   however much it trespasses on the partner's share of the gap, and springs back
+ *   the moment there is room. Per arm, as each one arrives, which is what dancers do;
+ *   nobody parks both arms for a whole pass. Feed it a resting arm and the fold is
+ *   the plain tuck this started as.
+ *
+ * That distinction — **owned** for a gripped hand, **limited** for everything else —
+ * is what lets a dancer keep emoting in a tight square instead of being frozen by
+ * one. It is the load-bearing half of the pending ADR-0010 contract.
  *
  * Pure, and deliberately three.js-free: the driver hands over floor positions and
  * headings and eases its rig toward what comes back, so the geometry can be tested
@@ -106,8 +114,6 @@ export interface ArmMetrics {
   readonly restX: number;
   /** Height of the group's pivot: the shoulder. */
   readonly restY: number;
-  /** `|x|` the group slides to when tucked, far enough in to be hidden. */
-  readonly tuckX: number;
   /** Group origin → elbow, along the aim. The upper arm that isn't drawn. */
   readonly elbowReach: number;
   /** Group origin → hand centre, along the aim. */
@@ -122,6 +128,8 @@ export interface ArmMetrics {
   readonly armHalfWidth: number;
   /** Resting elbow height — where this dancer's forearm sits when horizontal. */
   readonly elbowY: number;
+  /** The torso's own radius — this dancer's share of a tight gap. */
+  readonly bodyRadius: number;
 }
 
 export function armMetrics(
@@ -136,16 +144,6 @@ export function armMetrics(
   return {
     restX: pos.forearmX,
     restY: pos.shoulderY,
-    // Tucked so the arm's *widest* part — usually the hand — sits inside the torso
-    // radius: as far out as it can be and still be covered. That bound is what
-    // makes the tuck provably enough. `lateralClearance` (ADR-0012) is never less
-    // than the two body radii, since every torso spans the same body centre, so
-    // two arms hidden inside their torsos cannot reach each other at any distance
-    // the square is allowed to pass at.
-    //
-    // Never further out than rest, so a narrow-bodied dancer tucks less rather
-    // than swinging their arm outward to reach the body wall.
-    tuckX: Math.min(pos.forearmX, Math.max(0, shape.body.radius - armHalfWidth)),
     elbowReach: pos.upperArmLength,
     handReach,
     forearmSpan: handReach - pos.upperArmLength,
@@ -153,6 +151,7 @@ export function armMetrics(
     handRadius,
     armHalfWidth,
     elbowY: pos.elbowY,
+    bodyRadius: shape.body.radius,
   };
 }
 
@@ -283,12 +282,9 @@ export function blendPose(out: ArmPose, from: ArmPose, to: ArmPose, t: number): 
   return out;
 }
 
-/**
- * Slide the named forearm toward the midline. `amount` 0 is the resting hang,
- * 1 is fully inside the torso.
- */
-export function tuckPose(out: ArmPose, m: ArmMetrics, sign: number, amount: number): ArmPose {
-  out.x = sign * (m.restX + (m.tuckX - m.restX) * amount);
+/** The arm at rest: hanging from its own shoulder. */
+export function restPose(out: ArmPose, m: ArmMetrics, sign: number): ArmPose {
+  out.x = sign * m.restX;
   out.y = m.restY;
   out.z = 0;
   out.aimX = 0;
@@ -297,41 +293,69 @@ export function tuckPose(out: ArmPose, m: ArmMetrics, sign: number, amount: numb
   return out;
 }
 
-/** Fully tucked at or inside this multiple of the pair's passing clearance. */
-export const TUCK_FULL_AT = 1.15;
-/** Resting hang at or beyond this multiple of it. */
-export const TUCK_CLEAR_AT = 2.0;
+/**
+ * Daylight an arm keeps from the space its partner is entitled to, so it starts
+ * folding before it would collide rather than at the moment it would.
+ *
+ * Deliberately the same 0.06 the default frame scale leaves between passing
+ * bodies: tight, because real dancers brush.
+ */
+export const PERSONAL_SPACE = 0.06;
 
 /**
- * How much the pair's closeness alone calls for a tuck, from their centre distance.
+ * How far toward the partner this dancer's arm may reach, measured from their own
+ * centre — their **proportional share of the gap**.
  *
- * Measured in multiples of the pair's own passing clearance (ADR-0012's
- * `lateralClearance`, reused here as a proximity yardstick rather than a spacing
- * rule) so that big dancers start narrowing sooner in absolute terms, which is
- * exactly when they need to. Smoothstepped: the arms ease in and out with the
- * approach instead of snapping at a threshold.
+ * Splitting the separation by body radius rather than in half is what makes the
+ * bound both fair and provable. The two dancers' allowances sum to the whole
+ * separation, so two arms that each honour their own can touch and cannot overlap,
+ * whoever is bigger. And at the closest distance the frame permits — where
+ * `separation` is the pair's `lateralClearance`, itself never less than the two body
+ * radii — a dancer's share resolves to their own body radius, which is exactly the
+ * old fixed tuck. The generalisation subsumes it rather than replacing it.
  */
-export function tuckNearness(distance: number, clearance: number): number {
-  if (clearance <= 0) return 0;
-  const span = (TUCK_CLEAR_AT - TUCK_FULL_AT) * clearance;
-  const t = clamp01((TUCK_CLEAR_AT * clearance - distance) / span);
-  return t * t * (3 - 2 * t);
+export function reachAllowance(me: ArmMetrics, them: ArmMetrics, separation: number): number {
+  const total = me.bodyRadius + them.bodyRadius;
+  if (total <= 0) return separation / 2;
+  return (separation * me.bodyRadius) / total;
 }
 
-/** Past this much of the partner's direction lying to one side, that arm is fully exposed. */
-const EXPOSURE_SATURATION = 0.5;
-
 /**
- * How much *this* arm is the one in the way, from the partner's direction in the
- * dancer's local space.
+ * Fold an arm in until it stops trespassing — **whatever pose it is in**.
  *
- * Only the forearm on the side the partner is passing needs to come in; the outside
- * arm keeps swinging, which is both what dancers do and what keeps the tuck from
- * reading as "the dancer put their arms away". `localX` is the local x of the unit
- * vector toward the partner, `sign` the arm's own side (`+1` = the group at `+x`).
+ * This is the difference between owning an arm and limiting one, and it is the whole
+ * reason an emoting dancer can still emote in a tight square. The engine owns a
+ * *gripped* arm outright, because a hand holding someone has somewhere it must be.
+ * A passing arm is only *limited*: the emote keeps writing it, and this slides the
+ * whole arm group inward by however much its furthest point trespasses. An arm
+ * swinging through a full-body emote therefore folds only while it is in the shared
+ * space and springs back as it swings out — per arm, as each one arrives, which is
+ * what dancers actually do. Nobody parks both arms for a whole pass.
+ *
+ * `dir` is the unit direction toward the partner in this dancer's local space, and
+ * `allowance` comes from {@link reachAllowance}. Zero cost when the arm is nowhere
+ * near: the excess is zero and the pose passes through untouched.
  */
-export function tuckExposure(localX: number, sign: number): number {
-  return clamp01((localX * sign) / EXPOSURE_SATURATION);
+export function constrainArm(
+  pose: ArmPose,
+  m: ArmMetrics,
+  allowance: number,
+  dirX: number,
+  dirZ: number,
+): ArmPose {
+  // How far toward the partner the arm's furthest drawn point reaches. The elbow and
+  // the hand bracket the forearm, so testing both ends bounds the whole segment.
+  const base = pose.x * dirX + pose.z * dirZ;
+  const along = pose.aimX * dirX + pose.aimZ * dirZ;
+  const elbow = base + along * m.elbowReach;
+  const hand = base + along * m.handReach;
+  const reach = Math.max(elbow, hand) + m.armHalfWidth + PERSONAL_SPACE;
+
+  const excess = reach - allowance;
+  if (excess <= 0) return pose;
+  pose.x -= excess * dirX;
+  pose.z -= excess * dirZ;
+  return pose;
 }
 
 /** How far each arm is into its grip: 0 free, 1 fully joined. */
@@ -352,13 +376,18 @@ const _joined = armPose();
  * Both of one dancer's arms for this instant: the whole decision, in the dancer's
  * own local space, **exact** — the driver writes it straight onto the rig.
  *
- * The engine's grip span reaches this through `blend` — how far each hand is into
- * joining or letting go, and the only eased quantity in the channel
- * ({@link advanceGripBlend}). An arm not holding anything answers instead to how
- * close the partner is and which side they are passing on. Everything else is a
- * function of where the dancers are *this* frame, and must not lag behind it.
+ * Three kinds of channel meet here, and the distinction is the contract:
  *
- * `passingDistance` is the pair's clearance from `lateralClearance` (ADR-0012).
+ * - **Owned.** A hand the engine has engaged. `blend` says how far into the grip it
+ *   is ({@link advanceGripBlend}, the channel's only eased quantity), and at 1 the
+ *   grip is written outright — an emote's contribution to that arm is dropped,
+ *   because a hand holding someone has somewhere it must be.
+ * - **Limited.** Every other arm. `proposed` is whatever the expression layer wants
+ *   it doing — a wave, a full-body swing, nothing at all — and it plays, folded in
+ *   only while and only as far as it trespasses on the partner's share of the gap
+ *   ({@link constrainArm}). Pass a rest pose and the fold is the plain arm tuck.
+ * - **Free.** Everything else about a dancer, which this function never touches.
+ *
  * Two dancers only: a grip needs a partner, and resolving *which* partner in a
  * larger set is formation work the engine doesn't expose yet.
  */
@@ -368,11 +397,11 @@ export function poseArms(
   them: ArmMetrics,
   self: Placement,
   partner: Placement,
-  passingDistance: number,
   blend: GripBlend,
+  proposed?: ArmPoses,
 ): ArmPoses {
-  // The partner, in this dancer's local space. Their bearing decides which arm is
-  // in the way; half their offset is the pivot the pair grips over and turns about.
+  // The partner, in this dancer's local space: the direction their share of the gap
+  // lies in, and half their offset is the pivot a grip is held over.
   const dx = partner.x - self.x;
   const dz = partner.z - self.z;
   const separation = Math.hypot(dx, dz);
@@ -380,25 +409,37 @@ export function poseArms(
   const s = Math.sin(self.yaw);
   const localX = dx * c - dz * s;
   const localZ = dx * s + dz * c;
-  const nearness = tuckNearness(separation, passingDistance);
-
-  const bearingX = separation < 1e-6 ? 0 : localX / separation;
+  const allowance = reachAllowance(me, them, separation);
 
   for (const side of ["left", "right"] as const) {
     // `+x` is the anatomical left group — see `DancerArmRigs`.
     const sign = side === "left" ? 1 : -1;
     const joined = blend[side];
-    // The free pose is where this arm belongs when it has nothing to hold. It is
-    // also the far end of the release blend, so it is computed either way.
-    tuckPose(_free, me, sign, nearness * tuckExposure(bearingX, sign));
+
+    // Degenerate only if the pair are standing in the same spot, where any axis
+    // is as good as another; use this arm's own side.
+    const dirX = separation < 1e-6 ? sign : localX / separation;
+    const dirZ = separation < 1e-6 ? 0 : localZ / separation;
+
+    // The free end of the blend: what this arm is doing when it isn't holding on.
+    // Limited, not owned — so it is constrained rather than replaced.
+    const want = proposed?.[side];
+    if (want === undefined) {
+      restPose(_free, me, sign);
+    } else {
+      _free.x = want.x;
+      _free.y = want.y;
+      _free.z = want.z;
+      _free.aimX = want.aimX;
+      _free.aimY = want.aimY;
+      _free.aimZ = want.aimZ;
+    }
+    constrainArm(_free, me, allowance, dirX, dirZ);
+
     if (joined <= 0) {
       blendPose(out[side], _free, _free, 0);
       continue;
     }
-    // Degenerate only if the pair are standing in the same spot, where any axis
-    // is as good as another; use the gripping arm's own side.
-    const dirX = separation < 1e-6 ? sign : localX / separation;
-    const dirZ = separation < 1e-6 ? 0 : localZ / separation;
     gripPose(
       _joined,
       me,

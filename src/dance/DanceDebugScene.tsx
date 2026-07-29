@@ -14,6 +14,9 @@ import { createRef, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 import { DanceFloor, type ArmReport } from "./DanceFloor";
+import { AnimationController } from "../services/animation-controller";
+import { DEBUG_EMOTES } from "./debug-emotes";
+import type { Emote } from "../services/emotes";
 import { DEFAULT_BPM } from "./useDancePerformance";
 import type { CallName } from "square-one";
 import { DEBUG_CALLS } from "./dance-route";
@@ -66,6 +69,51 @@ export function DanceDebugScene({ initialCall }: { initialCall: CallName }) {
   const [drift, setDrift] = useState(false);
   const [sizes, setSizes] = useState<SizeCast>("default");
   const [paused, setPaused] = useState(false);
+  const [joints, setJoints] = useState(false);
+  const [emoting, setEmoting] = useState<string | null>(null);
+  // The contact readout is off by default and sits at the bottom of the panel. It
+  // rewrites every frame and its height changes with the number of tracked rows, so
+  // anything below it moves while you are trying to click it — which is no way to
+  // fire an emote at a chosen moment. It is for judging grip drift; that watch is
+  // done, and it can be turned back on for the next one.
+  const [readout, setReadout] = useState(false);
+
+  // One expression layer per dancer, so an emote can be fired *while* a call runs —
+  // the arbitration this scene exists to watch. Both dancers get the same emote:
+  // the interesting frames are the ones where both are reaching at once.
+  const controllers = useMemo(
+    () => [new AnimationController(), new AnimationController()] as const,
+    [],
+  );
+  // An emote button is a trigger, not a switch. Two things follow from that.
+  //
+  // `interrupt` rather than `play`, because `play` *queues* behind whatever is
+  // already running — press two emotes in a row and the second one appears to do
+  // nothing, then arrives late. A hand-fired debug button means "show me this
+  // now", so the press takes over.
+  //
+  // And the highlight is momentary: it marks the emote that is running and
+  // releases itself when the emote ends. The emotes are one-shot, so their own
+  // duration is when that is.
+  const emoteTimer = useRef<number | null>(null);
+  const fire = useCallback(
+    (emote: Emote) => {
+      if (emoteTimer.current !== null) clearTimeout(emoteTimer.current);
+      for (const c of controllers) c.interrupt(emote, { resume: false });
+      setEmoting(emote.id);
+      emoteTimer.current = window.setTimeout(() => {
+        emoteTimer.current = null;
+        setEmoting(null);
+      }, emote.duration * 1000);
+    },
+    [controllers],
+  );
+  useEffect(
+    () => () => {
+      if (emoteTimer.current !== null) clearTimeout(emoteTimer.current);
+    },
+    [],
+  );
 
   // The beat readout updates every frame; written straight to the DOM so a
   // 60 fps clock doesn't become 60 fps React renders (ADR-0002's idiom).
@@ -85,8 +133,11 @@ export function DanceDebugScene({ initialCall }: { initialCall: CallName }) {
   const spans = useRef(new Map<string, Span>());
 
   // The same thing in the scene: a marker on every tracked joint, so "is the grip
-  // pinned to the pivot" is answerable by looking. Created in a memo rather than by
-  // mutating a ref during render, same as `DanceFloor`'s rigs.
+  // pinned to the pivot" is answerable by looking. Off by default — they are a
+  // debugging aid, not part of the dance — and the refs simply read `null` while
+  // unmounted, so the frame callback needs no notion of whether they are shown.
+  // Created in a memo rather than by mutating a ref during render, same as
+  // `DanceFloor`'s rigs.
   const markers = useMemo(
     () => ({
       pivot: createRef<THREE.Mesh>(),
@@ -175,28 +226,33 @@ export function DanceDebugScene({ initialCall }: { initialCall: CallName }) {
           paused={paused}
           onBeat={onBeat}
           onArms={onArms}
+          controllers={controllers}
           {...(SIZE_CASTS[sizes] === undefined ? {} : { shapes: SIZE_CASTS[sizes] })}
         />
 
-        {/* Grip markers: black = the pivot the pair holds over, blue = each elbow,
+        {/* Joint markers: black = the pivot the pair holds over, blue = each elbow,
             red = each hand. A held grip should look nailed to the black dot while
             the bodies breathe past it. */}
-        <mesh ref={markers.pivot} visible={false}>
-          <sphereGeometry args={[0.045, 12, 12]} />
-          <meshBasicMaterial color="#111111" />
-        </mesh>
-        {markers.elbows.map((ref, i) => (
-          <mesh key={`elbow-${String(i)}`} ref={ref} visible={false}>
-            <sphereGeometry args={[0.035, 10, 10]} />
-            <meshBasicMaterial color="#2255cc" />
-          </mesh>
-        ))}
-        {markers.hands.map((ref, i) => (
-          <mesh key={`hand-${String(i)}`} ref={ref} visible={false}>
-            <sphereGeometry args={[0.035, 10, 10]} />
-            <meshBasicMaterial color="#cc3322" />
-          </mesh>
-        ))}
+        {joints && (
+          <>
+            <mesh ref={markers.pivot} visible={false}>
+              <sphereGeometry args={[0.045, 12, 12]} />
+              <meshBasicMaterial color="#111111" />
+            </mesh>
+            {markers.elbows.map((ref, i) => (
+              <mesh key={`elbow-${String(i)}`} ref={ref} visible={false}>
+                <sphereGeometry args={[0.035, 10, 10]} />
+                <meshBasicMaterial color="#2255cc" />
+              </mesh>
+            ))}
+            {markers.hands.map((ref, i) => (
+              <mesh key={`hand-${String(i)}`} ref={ref} visible={false}>
+                <sphereGeometry args={[0.035, 10, 10]} />
+                <meshBasicMaterial color="#cc3322" />
+              </mesh>
+            ))}
+          </>
+        )}
       </Canvas>
 
       <div
@@ -262,25 +318,35 @@ export function DanceDebugScene({ initialCall }: { initialCall: CallName }) {
             beat 0.0 / –
           </span>
         </div>
-        <pre
-          ref={armLabel}
-          style={{
-            font: "11px/1.45 ui-monospace, monospace",
-            color: "#333",
-            margin: 0,
-            padding: "6px 8px",
-            background: "#f7f7f4",
-            border: "1px solid #e0e0da",
-            borderRadius: 4,
-            whiteSpace: "pre",
-          }}
-        >
-          hands free
-        </pre>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          emote
+          {DEBUG_EMOTES.map((e) => (
+            <button
+              key={e.id}
+              onClick={() => { fire(e); }}
+              style={{
+                padding: "4px 8px",
+                cursor: "pointer",
+                background: emoting === e.id ? "#333" : "#fff",
+                color: emoting === e.id ? "#fff" : "#333",
+                border: "1px solid #999",
+                borderRadius: 4,
+              }}
+            >
+              {e.name}
+            </button>
+          ))}
+        </div>
         <span style={{ color: "#666", fontSize: 11 }}>
-          min → max since the grip engaged. `separation` should breathe; everything
-          else should be flat.
+          One-shot — the button releases when the emote ends. Arms fold where they
+          trespass; a gripped hand ignores the emote entirely; a spin turns the head
+          and sweeps the arms but must not turn a driven dancer's body at all — judge
+          that on the <strong>chest</strong> dot, not the head dot, which the spin owns.
         </span>
+        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input type="checkbox" checked={joints} onChange={(e) => { setJoints(e.target.checked); }} />
+          joint markers (pivot · elbows · hands)
+        </label>
         <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <input type="checkbox" checked={drift} onChange={(e) => { setDrift(e.target.checked); }} />
           follow drift (re-fit frame to centroid)
@@ -305,6 +371,45 @@ export function DanceDebugScene({ initialCall }: { initialCall: CallName }) {
           ))}
         </div>
         <span style={{ color: "#666" }}>red = engine +x · blue = engine +y</span>
+
+        {/* Last in the column on purpose: this is the one element whose height
+            changes every frame, so nothing that has to be clicked sits below it. */}
+        <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            type="checkbox"
+            checked={readout}
+            onChange={(e) => {
+              // Spans stop accumulating while hidden, so a stale map would otherwise
+              // reappear as history from before it was switched off.
+              spans.current.clear();
+              setReadout(e.target.checked);
+            }}
+          />
+          contact readout (grip drift)
+        </label>
+        {readout && (
+          <>
+            <pre
+              ref={armLabel}
+              style={{
+                font: "11px/1.45 ui-monospace, monospace",
+                color: "#333",
+                margin: 0,
+                padding: "6px 8px",
+                background: "#f7f7f4",
+                border: "1px solid #e0e0da",
+                borderRadius: 4,
+                whiteSpace: "pre",
+              }}
+            >
+              hands free
+            </pre>
+            <span style={{ color: "#666", fontSize: 11 }}>
+              min → max since the grip engaged. `separation` should breathe; everything
+              else should be flat.
+            </span>
+          </>
+        )}
       </div>
     </div>
   );
