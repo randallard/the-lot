@@ -8,7 +8,7 @@ allowBuilds:
   # dist/ is gitignored, so pnpm must run its `prepare` (a plain `tsc`) after
   # cloning. Keyed by package name rather than the tarball URL pnpm suggests —
   # that URL embeds the commit hash and would need editing on every square-one tag.
-  square-one@https://codeload.github.com/randallard/square-one/tar.gz/6c816fc936cee4f254634b39888767685ffa164d: true
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/660fe3324b801b86393620f9a97fb687639bc349: true
 
 # Age-gate new releases at the package manager. 1440 minutes (1 day) is pnpm's
 # own recommendation and its v11 default; stated explicitly rather than inherited
