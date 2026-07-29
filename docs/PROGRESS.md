@@ -66,9 +66,15 @@ back up.**
   pre-existing tests pass untouched. **M4's ADR work is closed.**
   - Found while proving that safeguard fires: **the typecheck gate had not been running at
     all.** See the boxed warning under [Tests](#-typechecking-tsc--b-never-tsc---noemit).
-- **Next action: finish the square-one release** (below) — the only thing left that can make
-  a fresh clone behave differently from this working tree. Needs `git push origin main
-  --follow-tags` in the sibling repo first.
+- **The square-one release is finished (2026-07-28, `1976f7f`)** — tag pushed, pin resolved
+  from the tarball for the first time, link override out, all gates re-run against a real
+  install. The working tree is **clean**: nothing is uncommitted and nothing here behaves
+  differently from a fresh clone.
+- **Next action: M5.** M4 is done — see the worklist. The two smaller leftovers are an ADR
+  extending ADR-0008's react-hooks exception to `src/dance/**` (owed since the M4 handover,
+  and `src/dance/` has grown a lot since), and the player's head fix of 2026-07-28, which is
+  reasoned and typechecked but **still unwatched** — it needs a saved emote with a head
+  track, since the debug emotes only exist at `#dance`.
 - **Then: finish the square-one release** (below) — it is the only thing left that can make
   a fresh clone behave differently from this working tree.
 - **The player's head is fixed too (2026-07-28).** `Player.tsx` had the same split head as
@@ -212,9 +218,13 @@ Found 2026-07-28, after several sessions of reporting "typecheck clean" from the
 command. Nothing was actually broken — `tsc -b --force` passes on the whole tree — but the
 gate had not been run.
 
-Note: `pnpm test` currently refuses to run behind pnpm's build-verification gate
-(`ERR_PNPM_IGNORED_BUILDS` on `esbuild`). Either run `pnpm approve-builds` once, or invoke
-`./node_modules/.bin/vitest run` directly.
+**CI was never affected.** `.github/workflows/ci.yml`'s *ts fast gates* job runs
+`pnpm lint`, `pnpm test`, `pnpm build`, and `pnpm build` is `tsc -b && vite build`. The hole
+was in hand-run commands only. The safest local habit is simply to run what CI runs.
+
+Note: `pnpm test` used to refuse to run behind pnpm's build-verification gate
+(`ERR_PNPM_IGNORED_BUILDS` on `esbuild`). It runs fine as of the 2026-07-28 reinstall.
+`CI=true pnpm test` forces a single run rather than watch mode.
 
 ## M4 — what to check in the render
 
@@ -393,21 +403,25 @@ ADR-0006's git-dependency choice.
 Local co-development uses a link override instead of the pin, per ADR-0006. CI always installs
 from the pin.
 
-**⚠ The release is half done, and the link is still ACTIVE (2026-07-27).** State, exactly:
+**✅ The release is finished (2026-07-28, `1976f7f`).** square-one's `v0.2.0` tag is pushed
+(Ryan), the pin resolved for the first time, and the link override is out. Verified against
+the resolved tarball rather than the sibling checkout: `node_modules/square-one` points at
+`.pnpm/square-one@https+++codeload.github.com+…+660fe33`, the remote tag dereferences to that
+same commit, and the `allowBuilds` key did its job — pnpm ran square-one's `prepare`
+(`tsc -p tsconfig.build.json`) on install, which is the whole reason that key exists.
 
-- square-one is **tagged `v0.2.0` locally** (annotated, on commit `660fe33`) and **not
-  pushed** — 3 commits and the tag are still local to that repo.
-- The pin here is already bumped to `#v0.2.0`, and the `allowBuilds` key to
-  `…/tar.gz/660fe3324b801b86393620f9a97fb687639bc349`. **Both are unverified**: pnpm cannot
-  resolve a tag that isn't on the remote, so nothing has installed from them.
-- `pnpm-workspace.yaml` still carries the uncommitted `square-one: link:../square-one`
-  override, which makes the pin inert. **A green build here currently proves nothing about
-  a fresh clone** — that is the ADR-0006 footgun, green-against-link and red-against-pin.
+Gates from that real install: `tsc -b` clean, eslint 0 errors, 295 tests, `vite build` clean,
+audit 1 high ignored. `package.json` and `pnpm-workspace.yaml` are now the repo's real
+dependency state rather than work in progress.
 
-To finish: push square-one (`git push origin main --follow-tags`), remove the link override
-here, `pnpm install`, re-run the gates, then commit `package.json`, `pnpm-workspace.yaml` and
-`pnpm-lock.yaml` together. **Do not commit the link.** Until then, treat `package.json` and
-`pnpm-workspace.yaml` as work in progress rather than as the repo's real dependency state.
+**The sequence, for the next bump.** Tag and **push** square-one first — pnpm cannot resolve
+a tag that isn't on the remote, so a local tag leaves the pin unverifiable. Then bump the pin
+*and* the `allowBuilds` sha (two lines), remove any link override, `pnpm install`, re-run the
+gates, and commit `package.json`, `pnpm-workspace.yaml` and `pnpm-lock.yaml` **together** —
+they only mean anything as a set. **Never commit the link.** While it is in place the pin is
+inert and every green gate here proves nothing about a fresh clone: ADR-0006's footgun,
+green-against-link and red-against-pin. This release sat half-done for a day for exactly that
+reason, and the three files were held back through six commits of M4 work to keep it honest.
 
 ## Supply chain
 
@@ -596,8 +610,8 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
 
       The player's case is deliberately **out of scope**; see the planning effort's
       [breakdown-is-the-feature](../../work/square-dance-planning/briefs/breakdown-is-the-feature.md).
-   3. **Finish the release** — push square-one's local `v0.2.0`, drop the link, install
-      from the pin, verify, commit the three dependency files together.
+   3. ~~**Finish the release**~~ — **done 2026-07-28** (`1976f7f`). Tag pushed, pin
+      resolved from the tarball, link dropped, gates re-run against a real install.
    4. **An ADR extending ADR-0008's react-hooks exception to `src/dance/**`** — still owed
       from the original M4 handover.
    5. ~~**The silhouette hole**~~ — **closed 2026-07-28**, `src/dance/silhouette-limit.ts`.
