@@ -19,6 +19,10 @@
  * - **look around** — head only. The control: it should play untouched at every
  *   moment of every call, including mid-grip, because nothing about a head can
  *   break a formation.
+ * - **puff up** — the `limited` **silhouette** case, and the one that is neither an
+ *   arm nor a facing. It inflates the very shape ADR-0012 measured the square from,
+ *   so it must play in full while the pair is apart and be squeezed back as they
+ *   close — per dancer, by their own share of the live gap.
  *
  * All three are one-shot. They are fired by hand to be watched, so a loop would
  * only mean the button has to be pressed a second time to stop what the first
@@ -128,4 +132,41 @@ function lookAround(): Emote {
   return e;
 }
 
-export const DEBUG_EMOTES: readonly Emote[] = [wideArms(), spin(), lookAround()];
+/**
+ * An inhale big enough to trespass — the `limited` **silhouette** channels.
+ *
+ * Nearly doubles the body radius and swells the head, which on the default cast is far
+ * more than the square's slack can absorb. Deliberately gross: the point is to make the
+ * clip visible, and a subtle puff would be indistinguishable from no puff at all — the
+ * same trap `spin` fell into. Expect it to play in full while the pair is apart and to be
+ * squeezed back as they close, per dancer, by their own share of the gap.
+ */
+function puffUp(): Emote {
+  const e = emote("puff up", 2.4);
+  const body = (time: number, radiusDelta: number, heightDelta: number) => ({
+    id: id(),
+    time,
+    deltaY: 0,
+    deltaRotY: 0,
+    leanX: 0,
+    leanZ: 0,
+    radiusDelta,
+    heightDelta,
+    easing: "ease-in-out" as const,
+  });
+  const head = (time: number, radiusDelta: number) => ({
+    id: id(),
+    time,
+    deltaRotation: [0, 0, 0] as [number, number, number],
+    offsetX: 0,
+    offsetY: 0,
+    offsetZ: 0,
+    radiusDelta,
+    easing: "ease-in-out" as const,
+  });
+  e.tracks.body = [body(0, 0, 0), body(1.2, 0.28, 0.22), body(2.4, 0, 0)];
+  e.tracks.head = [head(0, 0), head(1.2, 0.22), head(2.4, 0)];
+  return e;
+}
+
+export const DEBUG_EMOTES: readonly Emote[] = [wideArms(), spin(), lookAround(), puffUp()];

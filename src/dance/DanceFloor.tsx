@@ -62,10 +62,19 @@ import {
 } from "./frame";
 import { useDancePerformance, type DancePerformanceOptions } from "./useDancePerformance";
 import type { AnimationController } from "../services/animation-controller";
-import { NEUTRAL_POSE, type ResolvedPose } from "../services/emotes";
+import { NEUTRAL_POSE, mergeAnimation, type ResolvedPose } from "../services/emotes";
+import {
+  clipSilhouette,
+  restClearance,
+  silhouetteAllowance,
+  silhouetteClip,
+  silhouetteMetrics,
+} from "./silhouette-limit";
 import {
   MYCO_DEFAULTS,
   EMBER_DEFAULTS,
+  NPC_BODY_CENTER_Y,
+  computePositions,
   deg2rad,
   lateralClearance,
   rigidParts,
@@ -151,6 +160,9 @@ const _aim = new THREE.Vector3();
 const _proposed = armPoses();
 const _euler = new THREE.Euler();
 const _swing = new THREE.Vector3();
+
+/** The pose with its `limited` channels clipped — written fresh every frame. */
+const _clipped: ResolvedPose = structuredClone(NEUTRAL_POSE);
 
 /**
  * The expression layer's arms, restated as poses the dance layer can reason about.
@@ -245,6 +257,25 @@ export function DanceFloor({
   // longer reads them: it splits the pair's *live* separation by body radius, which
   // resolves to the same bound at the closest pass and relaxes as they part.
   const gaps = useMemo(() => clearanceGaps(occupantShapes), [occupantShapes]);
+
+  // Resting silhouettes, for the ADR-0010 `limited` shape channels. Same shape of
+  // model as the arms and for the same reason: the square's spacing was derived from
+  // these, so an emote that changes them has to be held to a share of the live slack.
+  const silhouettes = useMemo(
+    () => occupantShapes.map((s) => silhouetteMetrics(s)),
+    [occupantShapes],
+  );
+
+  // What each pair needs at rest — the ADR-0012 number, resolved once per cast.
+  // Two-dancer squares only, matching the driver loop below.
+  const restNeeds = useMemo(
+    () =>
+      silhouettes.map((m, i) => {
+        const them = silhouettes[1 - i];
+        return them === undefined ? 0 : restClearance(m, them);
+      }),
+    [silhouettes],
+  );
 
   // One pair of arm rigs per dancer, mirroring the body rigs.
   const armRigs = useMemo(() => {
@@ -388,26 +419,65 @@ export function DanceFloor({
             arm.quaternion.setFromUnitVectors(DOWN, _aim);
           }
 
-          // Expression channels: an emote owns these outright, because none of them
-          // can break a formation. Note what is *not* here — `bodyDeltaRotY`. A spin
-          // emote may not turn a dancer in a square; facing belongs to the
-          // choreography, and dropping the channel is the whole of that rule.
+          // The ADR-0010 expression channels, in their three kinds.
+          //
+          // `bodyDeltaRotY` is **owned** and simply never read — a spin emote may not
+          // turn a dancer in a square, and dropping the channel is the whole of that
+          // rule. The **limited** shape channels are clipped first, to this dancer's
+          // share of the live slack, because the square's spacing was measured from the
+          // very silhouette they change. Everything else is **free** and plays as
+          // authored.
           const parts = expressions[key];
-          if (parts) {
+          const shape = occupantShapes[i];
+          const sil = silhouettes[i];
+          const theirSil = silhouettes[1 - i];
+          if (parts && shape && sil && theirSil) {
+            const separation = Math.hypot(_partner.x - _self.x, _partner.z - _self.z);
+            const k = silhouetteClip(
+              sil,
+              rp,
+              theirSil.baseParts,
+              restNeeds[i] ?? 0,
+              silhouetteAllowance(
+                me.bodyRadius,
+                them.bodyRadius,
+                separation,
+                restNeeds[i] ?? 0,
+              ),
+            );
+
+            // Merged through the same pair of helpers the player uses, so a dancer and
+            // a free-roaming character resolve an emote's shape identically.
+            const animShape = mergeAnimation(shape, clipSilhouette(_clipped, rp, k));
+            const animPos = computePositions(animShape, NPC_BODY_CENTER_Y);
+
             rig.position.y = rp.bodyDeltaY;
+
             const body = parts.body.current;
             if (body) {
-              body.rotation.x = deg2rad(occupantShapes[i]?.body.leanX ?? 0) + deg2rad(rp.bodyLeanX);
-              body.rotation.z = deg2rad(occupantShapes[i]?.body.leanZ ?? 0) + deg2rad(rp.bodyLeanZ);
+              body.rotation.x = deg2rad(animShape.body.leanX);
+              body.rotation.z = deg2rad(animShape.body.leanZ);
+              const rs = animShape.body.radius / shape.body.radius;
+              const hs = animShape.body.height / shape.body.height;
+              body.scale.set(rs, hs, rs);
             }
+
             // The head *group* — sphere and facing marker — so the turn is visible.
+            // Its rotation is the emote's delta alone: a dancer deliberately does not
+            // wear `shape.head.rotation`, which is caricature the dance scene drops.
             const head = parts.head.current;
             if (head) {
+              head.position.set(
+                animShape.head.offsetX,
+                animPos.headY + animShape.head.offsetY,
+                animShape.head.offsetZ,
+              );
               head.rotation.set(
                 deg2rad(rp.headDeltaRotation[0]),
                 deg2rad(rp.headDeltaRotation[1]),
                 deg2rad(rp.headDeltaRotation[2]),
               );
+              head.scale.setScalar(animShape.head.radius / shape.head.radius);
             }
           }
         });

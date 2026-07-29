@@ -342,6 +342,8 @@ export function DanceDebugScene({ initialCall }: { initialCall: CallName }) {
           trespass; a gripped hand ignores the emote entirely; a spin turns the head
           and sweeps the arms but must not turn a driven dancer's body at all — judge
           that on the <strong>chest</strong> dot, not the head dot, which the spin owns.
+          Puff up should swell in full while the pair is apart and be squeezed back as
+          they close, each dancer by their own share of the gap.
         </span>
         <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <input type="checkbox" checked={joints} onChange={(e) => { setJoints(e.target.checked); }} />
