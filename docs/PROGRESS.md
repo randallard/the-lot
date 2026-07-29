@@ -1,6 +1,6 @@
 # Progress & Status
 
-_Last updated: 2026-07-26_
+_Last updated: 2026-07-28_
 
 ## Status / next
 
@@ -17,7 +17,63 @@ the commit that introduced it. No `src/` changes were made — deliberately, so 
 creates no merge surface against M4. The **CI half landed the same day** and did touch
 `src/` — see [How CI landed](#how-ci-landed).
 
-**What just happened (2026-07-26, latest):** the **arm channel** and its **contact
+**Where this stands right now (2026-07-28) — read this first if you are picking the repo
+back up.**
+
+- **Committed:** everything through the **arm envelope, the expression layer, and the
+  watch that verified them** — `107479f` (dance + player), on top of `028541e` (arm
+  channel) and `b9b4fe3` (journal). 266 tests, lint 0 errors, typecheck and build clean.
+  See the journal entries for
+  [2026-07-27](journal/2026-07-27-the-arm-envelope-and-the-emote-experiment.md) and
+  [2026-07-28](journal/2026-07-28-the-buttons-were-lying.md).
+- **The debug scene now actually works (2026-07-28).** The first attempt at the watch found
+  three defects in the instrument, none in the arbitration: the emote buttons were looping
+  toggles that queued (so a second press did nothing, forever); `spin` used only the
+  channel `DanceFloor` deliberately drops, so passing and being unwired looked identical;
+  and the head sphere and its facing marker were siblings, so a head turn rotated a
+  featureless ball. All three fixed — one-shot emotes fired with `interrupt`, `spin` now
+  also turns the head and sweeps the arms, and the head is one pivoting group.
+- **Uncommitted and *unverified*:** `package.json` and `pnpm-workspace.yaml` carry the
+  bumped square-one pin. square-one is tagged `v0.2.0` **locally and not pushed**, so
+  nothing has installed from the pin — see [Consuming square-one](#consuming-square-one)
+  for the exact finishing sequence. The link override is still active and must not be
+  committed.
+- **Next action: write ADR-0010.** The emote experiment is **fully watched and verified**
+  (item 3b) — all three emotes behave, the fold reads as *intent* rather than as a glitch,
+  and the body stays straight through a spin. The blocker is gone and the ADR has a channel
+  list the 2026-07-27 sketch did not: body facing and head facing are separate channels
+  with separate owners, and the silhouette deltas are a named `limited` channel.
+- **Then: finish the square-one release** (below) — it is the only thing left that can make
+  a fresh clone behave differently from this working tree.
+- **The player's head is fixed too (2026-07-28).** `Player.tsx` had the same split head as
+  `Dancer` did, so an emote's head turn did not turn the *player's* face either. It now has
+  the same single `headGroupRef` holding the sphere and the eyes, with position, rotation
+  and scale written once to the shared pivot; `Eyes` is unchanged and its other three call
+  sites are untouched. Two latent bugs went with it — the eyes never scaled with
+  `headRadiusDelta`, and never tracked `bodyHeightDelta`, so an emote that inflated or
+  stretched a character would have separated the face from the head.
+  **Not yet watched by eye**, unlike the dance scene: the player's emotes come from
+  `localStorage` and the debug emotes are only reachable at `#dance`.
+
+**What just happened (2026-07-27):** the tuck became an **envelope**, and dancers gained an
+expression layer so the ADR-0010 arbitration could be *watched* rather than argued.
+
+- **`reachAllowance` + `constrainArm`** replace the tuck. Each dancer may reach toward
+  their partner as far as their proportional share of the live gap; any arm pose — resting
+  or mid-emote — folds by however much its furthest point trespasses. The two allowances
+  sum to the separation, so arms can touch and cannot overlap; and at the closest permitted
+  distance a share resolves to exactly the dancer's own body radius, which *is* the old
+  fixed tuck. `tuckPose`, `tuckNearness`, `tuckExposure` and the `tuckX` metric are gone.
+- **A grip is a placement, a fold is a limit** — the distinction Ryan drew, and the
+  load-bearing half of the coming ADR. A gripped hand is owned outright; every other arm
+  keeps playing whatever the emote wants, folded only where it trespasses.
+- **`Dancer` + `DanceFloor` take an expression layer** (`controllers`): arms as a proposal,
+  head/lean/bob applied straight through, and `bodyDeltaRotY` **dropped** — a spin emote
+  may not turn a dancer in a square.
+- **Allemande Left's CCW turn is verified** (Ryan, 2026-07-27) — the watch list's
+  highest-risk item, now render-validated.
+
+**What happened before that (2026-07-26):** the **arm channel** and its **contact
 tracking**, over two rounds of Ryan's render notes. The new pure `src/dance/arm-pose.ts`
 owns both; the driver eases the rig toward what `poseArms` returns and publishes what the
 arms are touching.
@@ -147,15 +203,13 @@ heads count, height-aware), which caught that Myco's/Ember's heads were silently
 
 In order of how likely each is to be wrong:
 
-1. **Allemande Left's turn direction.** A left arm turn must be **counterclockwise viewed
-   from above**, with each dancer's *left* side toward the pivot. Highest risk item: this
-   column was already wrong once in square-one's spec and corrected on 2026-07-25, and
-   nothing but a render can confirm the correction. If it turns the wrong way, that is a
-   square-one spec fix, not a townage one. Judge it off the **facing marker** (the dot is on
-   the face since the 2026-07-26 fix), not off the arms: the arm that raises is now the one
-   nearest the pivot *by construction*, so it can no longer disagree with the engine. The
-   old note here — swap the anatomical mapping in `Dancer.tsx` if the right arm raises — no
-   longer applies to the grip.
+1. ~~**Allemande Left's turn direction.**~~ **VERIFIED 2026-07-27** — Ryan watched it: the
+   turn is counterclockwise viewed from above, each dancer's left side toward the pivot.
+   This was the list's highest-risk item (the column had been wrong once in square-one's spec
+   and corrected on 2026-07-25, with nothing but a render able to confirm the correction), so
+   the correction is now render-validated rather than argued. Judged off the **facing
+   marker**, not the arms — the arm posed is the one nearest the pivot by construction, so it
+   cannot disagree with the engine either way.
 2. **The forearm grip itself** (new 2026-07-26, third pass — and the overlay now gives you
    numbers, so this one need not be judged by eye). Expect both left forearms **horizontal,
    antiparallel, side by side**, level with each other, holding through the turn and
@@ -165,9 +219,9 @@ In order of how likely each is to be wrong:
    `a along 0.400`, `a gap −0.082`, `b along 0.000`, `b gap −0.000`: Ember's hand exactly at
    Myco's elbow, Myco's hand 40% up Ember's longer forearm, both gaps ≤ 0 (negative is a
    hold; a hand wrapping a forearm overlaps it). **Any spread outside `separation` is the
-   defect**, and a positive `gap` is a hand not holding. The scene's markers say it visually:
-   red hands and blue elbows should look nailed to the black pivot dot while the bodies
-   swing past.
+   defect**, and a positive `gap` is a hand not holding. The **joint markers** checkbox says
+   the same thing visually — red hands and blue elbows should look nailed to the black pivot
+   dot while the bodies swing past. Off by default: a debugging aid, not part of the dance.
 3. **The grip holds steady; the bodies breathe around it.** This is the *model*, confirmed
    by Ryan, not a compromise: the join is rigid — pinned to the pivot at a fixed radius,
    only rotating — and **the undrawn upper arm is the compliant link** that takes up the
@@ -177,6 +231,29 @@ In order of how likely each is to be wrong:
    and only rotates while the bodies breathe around it"*) and on the driver's own frame loop
    (*"driven frame by frame"*) — because the first version checked only the pose, and the
    render slid anyway.
+3b. ~~**The emote experiment**~~ — **WATCHED AND FULLY VERIFIED 2026-07-28.** Three
+   buttons — **wide arms**, **spin**, **look around** — fire on both dancers at once,
+   mid-call, through a real `AnimationController`. Each aims at one channel of the
+   pending ADR-0010 contract. What Ryan saw:
+   - ~~**wide arms**~~ → **VERIFIED.** The arms swing freely and draw in during the
+     pass, and — the part no test could answer — **the fold reads as intent, not as a
+     glitch.** So the envelope stays a hard clamp; the proximity easing contemplated as
+     a fallback is **not needed** and should not be built.
+   - ~~**spin**~~ → **VERIFIED**, in two passes. Head turns all the way round and the
+     arms sweep the full circle; **the body stays straight.** The first pass could not
+     answer the body question at all, and the reason is worth keeping: the dancer's only
+     facing indicator was the head marker, and spin now owns the head, so there was
+     nothing left to read body facing off. The **chest facing marker** was added to close
+     that, then resized when it turned out to scale away on thin bodies. `bodyDeltaRotY`
+     is confirmed dropped for a driven dancer — on the screen, not just in the code.
+   - ~~**look around**~~ → **VERIFIED.** Plays untouched, including mid-grip. The
+     control behaves as a control.
+
+   **The head/body facing split is a finding, not just a fix.** Once an emote can turn a
+   head, "which way is this dancer facing" is two questions with two answers, and the
+   debug scene now has a marker for each: head dot = where they are looking (emote-owned),
+   chest dot = where they are facing (choreography-owned). ADR-0010 should name them as
+   separate channels rather than treating "facing" as one thing.
 4. **The arms on the passes.** Dosado and Pass Thru: the arm on the side being passed
    should slide **into the torso** as the pair closes and swing back out after — right arms
    on the Dosado's forward pass, left arms on the return, which is the call's own
@@ -277,12 +354,21 @@ ADR-0006's git-dependency choice.
 Local co-development uses a link override instead of the pin, per ADR-0006. CI always installs
 from the pin.
 
-**⚠ The link is ACTIVE right now (2026-07-26):** `pnpm-workspace.yaml` carries an uncommitted
-`square-one: link:../square-one` override so the day's engine fixes (Dosado return leg,
-`Motion.grips`) render locally. Before committing anything here that depends on them:
-square-one needs a **v0.2.0 tag** (minor — `grips` is new API surface), the pin and the
-`allowBuilds` hash need their two-line bump, and the link override comes out. Do not commit
-the link (the ADR-0006 footgun: green-against-link, red-against-pin).
+**⚠ The release is half done, and the link is still ACTIVE (2026-07-27).** State, exactly:
+
+- square-one is **tagged `v0.2.0` locally** (annotated, on commit `660fe33`) and **not
+  pushed** — 3 commits and the tag are still local to that repo.
+- The pin here is already bumped to `#v0.2.0`, and the `allowBuilds` key to
+  `…/tar.gz/660fe3324b801b86393620f9a97fb687639bc349`. **Both are unverified**: pnpm cannot
+  resolve a tag that isn't on the remote, so nothing has installed from them.
+- `pnpm-workspace.yaml` still carries the uncommitted `square-one: link:../square-one`
+  override, which makes the pin inert. **A green build here currently proves nothing about
+  a fresh clone** — that is the ADR-0006 footgun, green-against-link and red-against-pin.
+
+To finish: push square-one (`git push origin main --follow-tags`), remove the link override
+here, `pnpm install`, re-run the gates, then commit `package.json`, `pnpm-workspace.yaml` and
+`pnpm-lock.yaml` together. **Do not commit the link.** Until then, treat `package.json` and
+`pnpm-workspace.yaml` as work in progress rather than as the repo's real dependency state.
 
 ## Supply chain
 
@@ -450,7 +536,38 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
 ## Worklist
 
 1. ~~Fix the two failing `fetch-pending-results` tests~~ — **done 2026-07-25**.
-2. **M4: `src/dance/`** — frame, driver, blend contract, `<DanceFloor>`. See above.
+2. **M4: `src/dance/`** — frame, driver, `<DanceFloor>`, the arm channel. Built and mostly
+   watched. What's left, in order:
+   1. **Watch the emote experiment** (M4 list item 3b) — the one thing blocking the ADR.
+   2. **Write ADR-0010**, the emote/choreography blend contract, from what it showed.
+      Three channel kinds, one resolver instead of scattered conditionals, clipping as
+      the conflict rule:
+      - **owned** — position, **body** facing, a gripped arm.
+      - **limited** — any other arm, **and the silhouette deltas**
+        (`bodyRadiusDelta`, `bodyHeightDelta`, `headRadiusDelta`). Promoted from
+        "probably" to definite on 2026-07-28: ADR-0012 sizes the square from the 3D
+        rigid silhouette and measures it **once at mount**, so an emote that puffs a
+        dancer up mid-pass inflates the very quantity the spacing was derived from and
+        can clip straight through their partner. No arm logic catches it — it is not an
+        arm. Same shape of answer as the arms: constrained while close, free when there
+        is room, so a dancer can inhale anywhere except in the gap.
+      - **free** — head facing, lean, bob, eyes, effects.
+
+      **Body facing and head facing are separate channels with different owners** — the
+      2026-07-28 finding. The choreography owns the body; the emote owns the head. A
+      contract that says "facing is owned" would forbid a dancer glancing at their
+      partner, which is what the expression layer exists to allow.
+
+      The player's case is deliberately **out of scope**; see the planning effort's
+      [breakdown-is-the-feature](../../work/square-dance-planning/briefs/breakdown-is-the-feature.md).
+   3. **Finish the release** — push square-one's local `v0.2.0`, drop the link, install
+      from the pin, verify, commit the three dependency files together.
+   4. **An ADR extending ADR-0008's react-hooks exception to `src/dance/**`** — still owed
+      from the original M4 handover.
+   5. **The silhouette hole** — now a **named `limited` channel** in item 2 above rather
+      than a loose worry, so it lands in ADR-0010 instead of outliving it. Still unwired
+      in the experiment on purpose; the work here is implementing the constraint once the
+      ADR fixes its shape.
 3. **Adopt `eslint-plugin-react-hooks` 7.1.1** (pinned at exact `7.0.1` today, per
    [ADR-0008](adr/0008-react-hooks-rules-excepted-at-the-ref-boundary.md)). Needs 6
    `set-state-in-effect` and 2 `preserve-manual-memoization` fixes in the game-return handler,
