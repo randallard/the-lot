@@ -543,10 +543,11 @@ Two things that constrain the build:
 `EmotePanel` stays as the browse-everything surface, and its existing digit bindings (1–9, 0)
 become the wheel's keyboard path and expert shortcut — worth extracting rather than copying.
 
-### Built so far: both pure cores, no UI yet (2026-07-29)
+### Built so far: cores, gesture and wheel — not yet wired to anything (2026-07-29)
 
-Following M4's pattern — pure module and tests first, driver second, watch third. **50 new
-tests, 345 total**, lint 0 errors, build clean. Nothing is on screen yet.
+Following M4's pattern — pure module and tests first, driver second, watch third. **88 new
+tests, 383 total**, lint 0 errors (no new warnings), build clean. **Nothing is on screen yet**:
+all four pieces exist and are tested, and nothing opens the wheel.
 
 - **[`src/dance/fist-bump.ts`](../src/dance/fist-bump.ts)** (31 tests). Contact geometry and a
   seconds-based envelope (extend 0.25 / hold 0.35 / withdraw 0.3). No square-one import, no
@@ -567,6 +568,23 @@ tests, 345 total**, lint 0 errors, build clean. Nothing is on screen yet.
 - **[`src/overlay/wheel-geometry.ts`](../src/overlay/wheel-geometry.ts)** (19 tests). Wedge 0
   straight up, clockwise, so digits 1–9/0 map in reading order. Dead zone cancels; selection is
   unbounded outward.
+- **[`src/overlay/useWheelGesture.ts`](../src/overlay/useWheelGesture.ts)** (21 tests). The
+  ADR-0013 piece: Pointer Events with capture on the pressed element, `pointerId` filtering so a
+  second finger is ignored, `pointercancel` resetting, and `contextmenu` suppressed so a
+  right-click drag is possible. Hold defaults to 500 ms (Android's long-press timeout and iOS's
+  `minimumPressDuration`) and is a prop, per ADR-0015's adjustable-hold requirement.
+  - **A short tap deliberately does nothing here**, so an NPC's existing tap-to-chat still
+    works. Only a hold opens the wheel — the wheel coexists with the current tap meaning rather
+    than taking it.
+  - 🔴 **Consequence: the non-dragging path is not wired.** Since tapping the same target is
+    spoken for, ADR-0015's required "tap to open and tap a wedge" needs its own opener.
+    `openSticky()` exists and is tested, and **nothing calls it**. This is the WCAG 2.5.7
+    alternative, so it is a ship blocker rather than a nicety.
+- **[`src/overlay/InteractionWheel.tsx`](../src/overlay/InteractionWheel.tsx)** (17 tests). SVG
+  annulus sectors, active wedge highlighted, digit hints, disabled wedges greyed and out of the
+  tab order. In `drag` mode it is `pointerEvents: none` decoration — the opener owns the
+  gesture, and a wedge that also handled clicks would fire twice. In `sticky` mode each wedge is
+  a real button answering click, Enter and Space.
 
 **ADR-0014 was contradictory, and [ADR-0015](adr/0015-radial-wheel-dead-zone-cancels-selection-unbounded.md)
 supersedes it.** Found by implementing it, within the hour of accepting it: ADR-0014 said cancel
@@ -578,9 +596,18 @@ dead zone (which still satisfies WCAG 2.5.2). Everything else in ADR-0014 carrie
 unchanged. **The ring is now purely visual** — a drag beyond the artwork still selects, and that
 is not a bug to fix.
 
-**Still to build:** the wheel component (Pointer Events per ADR-0013, following `SliderRow.tsx`),
-hold-on-NPC detection, and driving both characters' arms through a bump — the last being the
-real integration, since `Player.tsx` and `Npc.tsx` render arms independently.
+**Still to build, in order:**
+
+1. **Hang the gesture on an NPC** — `Npc.tsx` gets `useWheelGesture`'s handlers and renders
+   `InteractionWheel` at the press point. Needs a decision about what the wheel offers and how
+   `canBump` from `fist-bump.ts` greys out a partner who is too far away.
+2. **A sticky opener**, for the reason above. Ship blocker.
+3. **Drive both characters' arms through a bump.** The real integration: `Player.tsx` and
+   `Npc.tsx` each own their rig and read `AnimationController` independently, so something has
+   to hold the shared bump state and hand each of them a world-space arm pose for its duration.
+   This is the piece with no precedent — `DanceFloor` does it for dancers, but the player has
+   never been on either side of a contact.
+4. **Watch it.** Contact has been wrong by eye three times here with green tests behind it.
 
 🔴 **Still true, just deferred: `externallyDriven` has never run.** It is the seam by which the
 player participates in a square instead of being driven by the engine. square-one implements it
