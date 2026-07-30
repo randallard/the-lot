@@ -1,6 +1,6 @@
 # Progress & Status
 
-_Last updated: 2026-07-29_
+_Last updated: 2026-07-30_
 
 ## Status / next
 
@@ -102,11 +102,34 @@ back up.**
   the fist bump gets initiated.
 - ~~**The player's head fix is unwatched.**~~ **Closed 2026-07-29** — watched, found wrong,
   fixed, and watched again. See the 2026-07-28 entry below for what it was.
-- **Next action: M5.** M4 is done — see the worklist. The two smaller leftovers are an ADR
-  extending ADR-0008's react-hooks exception to `src/dance/**` (owed since the M4 handover,
-  and `src/dance/` has grown a lot since), and the player's head fix of 2026-07-28, which is
-  reasoned and typechecked but **still unwatched** — it needs a saved emote with a head
-  track, since the debug emotes only exist at `#dance`.
+- **The fist bump was watched (2026-07-30), and it turned the work toward an editor.**
+  `FistBumpDriver` is committed and wired to the wheel; Ryan watched it and sent two
+  screenshots. **Far apart and facing away:** the forearms and hands *detach* and float in the
+  gap. **Close together:** the fists do not read as meeting, and read as sitting at different
+  heights. Rather than tune the constants again, the response is to make the move **authored**
+  — [ADR-0016](adr/0016-contact-moves-are-authored-constraints-not-keyframes.md).
+  - **The detachment is not a defect, and this is the reframe that matters.**
+    [`arm-pose.ts`](../src/dance/arm-pose.ts) already says it "does not model reach or
+    attachment," written as a concession to caricatures with no upper arms. Ryan's reading is
+    that it is an *affordance* — these are avatars, and the arc wants a fist lobbed across the
+    floor and dancers trading heads. So the wrong thing about the floating arms is that
+    **nothing authored the detachment**. An unhandled case and a deliberate absurdity look
+    identical on screen and are opposites in the model.
+  - **Two silent defects it exposed, both still open.** `armMetrics` sets
+    `handRadius = shape.hand.open.radius` unconditionally
+    ([`arm-pose.ts:141`](../src/dance/arm-pose.ts)), so a *closed*-fist bump is solved with the
+    open hand's radius and the fists are separated by the wrong amount by construction. And
+    `gripHeight` is the acknowledged placeholder whose failure mode is exactly the very unequal
+    pair in the second screenshot — **measure it in the overlay rather than eyeballing it.**
+- **Next action: build the contact-move editor** (ADR-0016), first cut = make the fist bump
+  authorable. Two roles, stance presets with the availability predicate wired, anchor + hand
+  pose, per-axis resolution rules, the existing extend/hold/withdraw envelope. No phases, no
+  travel. The pure resolver goes in `src/dance/` beside `arm-pose.ts`; the UI in `src/overlay/`
+  beside `EmoteBuilderModal`. **The editor and the runtime must call the same resolver, or the
+  editor lies** — that is the property the design turns on.
+  - Two smaller M4 leftovers still owed: an ADR extending ADR-0008's react-hooks exception to
+    `src/dance/**` (owed since the M4 handover, and `src/dance/` has grown a lot since), and
+    sending `docs-hygiene.py`'s escape guard upstream to the template.
 - **The player's head is fixed too (2026-07-28).** `Player.tsx` had the same split head as
   `Dancer` did, so an emote's head turn did not turn the *player's* face either. It now has
   the same single `headGroupRef` holding the sphere and the eyes, with position, rotation

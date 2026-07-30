@@ -104,6 +104,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0013](0013-pointer-events-with-capture-for-new-pointer-input.md) | New pointer input uses Pointer Events with capture, and branches on `pointerType` | Accepted |
 | [0014](0014-radial-wheel-for-emotes-and-taught-moves.md) | Interactions are chosen from a radial wheel, held-open for novices and flickable for experts | Superseded by ADR-0015 |
 | [0015](0015-radial-wheel-dead-zone-cancels-selection-unbounded.md) | The radial wheel cancels in the dead zone, and selects without an outer bound | Accepted |
+| [0016](0016-contact-moves-are-authored-constraints-not-keyframes.md) | A contact move is authored as constraints on body parts, not as a keyframed pose | Accepted |
 
 ## Decisions this repo inherits
 
