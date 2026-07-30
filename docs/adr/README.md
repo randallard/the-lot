@@ -102,7 +102,8 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0011](0011-frame-scale-derives-from-occupant-bodies.md) | The dance frame's scale derives from the occupants' bodies | Superseded by ADR-0012 |
 | [0012](0012-pair-clearance-from-the-3d-silhouette.md) | Pair clearance comes from the 3D rigid silhouette, not a flat disc | Accepted |
 | [0013](0013-pointer-events-with-capture-for-new-pointer-input.md) | New pointer input uses Pointer Events with capture, and branches on `pointerType` | Accepted |
-| [0014](0014-radial-wheel-for-emotes-and-taught-moves.md) | Interactions are chosen from a radial wheel, held-open for novices and flickable for experts | Accepted |
+| [0014](0014-radial-wheel-for-emotes-and-taught-moves.md) | Interactions are chosen from a radial wheel, held-open for novices and flickable for experts | Superseded by ADR-0015 |
+| [0015](0015-radial-wheel-dead-zone-cancels-selection-unbounded.md) | The radial wheel cancels in the dead zone, and selects without an outer bound | Accepted |
 
 ## Decisions this repo inherits
 

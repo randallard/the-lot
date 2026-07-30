@@ -1,5 +1,5 @@
 # ADR-0014: Interactions are chosen from a radial wheel, held-open for novices and flickable for experts
-- Status: Accepted
+- Status: Superseded by ADR-0015
 - Date: 2026-07-29
 - Deciders: Ryan, Claude
 

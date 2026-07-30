@@ -543,6 +543,45 @@ Two things that constrain the build:
 `EmotePanel` stays as the browse-everything surface, and its existing digit bindings (1–9, 0)
 become the wheel's keyboard path and expert shortcut — worth extracting rather than copying.
 
+### Built so far: both pure cores, no UI yet (2026-07-29)
+
+Following M4's pattern — pure module and tests first, driver second, watch third. **50 new
+tests, 345 total**, lint 0 errors, build clean. Nothing is on screen yet.
+
+- **[`src/dance/fist-bump.ts`](../src/dance/fist-bump.ts)** (31 tests). Contact geometry and a
+  seconds-based envelope (extend 0.25 / hold 0.35 / withdraw 0.3). No square-one import, no
+  beat clock — ADR-0009's "touches no engine" holds literally.
+  - **ADR-0014's cost estimate was wrong, in our favour.** It predicted a new pose function
+    because `gripPose` is the *forearm* grip. But `gripPose` is parameterised by `radius` and
+    `separation` and places everything from the pivot, so a fist bump is the same function with
+    `radius` = the character's own `handRadius` and `separation` = 0. Asymmetric hands then fall
+    out correctly: hand centres end up exactly `a.handRadius + b.handRadius` apart, which is
+    what touching means. Asserted across every pair in the cast.
+  - **The contact point splits the gap by *reach*, not body radius** — deliberately unlike
+    `reachAllowance`. Sharing a lane is a question about torsos; meeting in the middle is a
+    question about arms. The consequence is that the dancer-size brief's rule *falls out*: the
+    longer-armed character covers more of the distance, so a child and an adult meet close to
+    the child. `gripHeight` is still the shared placeholder for height.
+  - The hold is written exactly rather than eased, on the sliding-grip lesson: easing *through*
+    a contact window is how a defect looks right and measures wrong.
+- **[`src/overlay/wheel-geometry.ts`](../src/overlay/wheel-geometry.ts)** (19 tests). Wedge 0
+  straight up, clockwise, so digits 1–9/0 map in reading order. Dead zone cancels; selection is
+  unbounded outward.
+
+**ADR-0014 was contradictory, and [ADR-0015](adr/0015-radial-wheel-dead-zone-cancels-selection-unbounded.md)
+supersedes it.** Found by implementing it, within the hour of accepting it: ADR-0014 said cancel
+"at the centre **or outside the ring**" while also requiring a marking menu's directional flick,
+and **a flick goes outside the ring** — so the expert gesture would always have cancelled, and
+only for the users who had learned the directions. ADR-0015 resolves it in favour of the flick:
+the dead zone cancels, selection is unbounded outward, and aborting means coming *back* to the
+dead zone (which still satisfies WCAG 2.5.2). Everything else in ADR-0014 carried forward
+unchanged. **The ring is now purely visual** — a drag beyond the artwork still selects, and that
+is not a bug to fix.
+
+**Still to build:** the wheel component (Pointer Events per ADR-0013, following `SliderRow.tsx`),
+hold-on-NPC detection, and driving both characters' arms through a bump — the last being the
+real integration, since `Player.tsx` and `Npc.tsx` render arms independently.
+
 🔴 **Still true, just deferred: `externallyDriven` has never run.** It is the seam by which the
 player participates in a square instead of being driven by the engine. square-one implements it
 (`src/stepper.ts`) and property-tests it (`test/properties.test.ts:330`); this repo declares it
