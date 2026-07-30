@@ -443,6 +443,53 @@ inert and every green gate here proves nothing about a fresh clone: ADR-0006's f
 green-against-link and red-against-pin. This release sat half-done for a day for exactly that
 reason, and the three files were held back through six commits of M4 work to keep it honest.
 
+## Teaching content is ours
+
+*Decided 2026-07-29 by the planning effort's **ADR-0008**
+(`square-dance-planning/adr/0008-teaching-content-is-townage-data-engine-stays-pure.md`) —
+cross-repo, so it lives there. Nothing is built yet; this section records the seam so M5 can
+start cold.*
+
+**This repo owns** which NPC teaches what, unlock ordering, difficulty, lesson prose and voice,
+whether a performance counts, and the record that a player knows something. **square-one gains
+no teaching metadata at all** and is never told anything is being taught.
+
+- **Follow the existing pattern, don't invent a second one.** `src/config/game-knowledge.ts` +
+  `src/config/npcs.ts` already do exactly this for King's Cooking and Spaces Game: a canonical
+  subject list, per-subject knowledge as prose in skill tiers, and
+  `getGameKnowledge(npcId, skillLevel)` dispatching on NPC config. Teaching a gesture is the
+  same kind of object. The learned-record side follows `npc-records.ts` /
+  `npc-kings-chess-records.ts` under [ADR-0007](adr/0007-localstorage-with-a-versioned-backup-file.md).
+- **Prerequisite ordering is *derived*, not annotated.** A call's block chain already states
+  what must be known first, so read it out of composition rather than asking square-one for a
+  prerequisite field. Difficulty and tiering are ours, because they are tuning judgments about
+  this game rather than facts about square dance.
+- **A taught thing is a tagged union**, so non-engine gestures have a home:
+  `{ kind: "block", block, params }` for choreography square-one drives, and
+  `{ kind: "gesture", gesture }` for townage-native two-body gestures. One progression orders
+  both, since ordering is ours.
+
+**The fist bump is why the union exists.** It is *not* an emote — `Emote`/`ResolvedPose` in
+`src/services/emotes.ts` is single-character by construction, every field one body's own
+rig-local pose, with no partner reference and no world space — and it is *not* a square-one
+block, having no travel and not being square dance. But `src/dance/arm-pose.ts` already holds
+the machinery it needs: a general two-body contact vocabulary (`gripHeight(a, b)`,
+`contactRadius(a, b)`, `contactSeparation(a, b)`, `reachAllowance(me, them, separation)`,
+`PERSONAL_SPACE`) built for the Allemande grip. Authored two-body contact gestures are the
+piece that does not exist yet, and the fist bump is their first user.
+
+🔴 **Before any of this: `externallyDriven` has never run.** It is the seam by which the player
+participates in a square instead of being driven by the engine. square-one implements it
+(`src/stepper.ts`) and property-tests it (`test/properties.test.ts:330`); this repo declares it
+at [`useDancePerformance.ts:32`](../src/dance/useDancePerformance.ts) and passes it through to
+`createPerformance` — **and no caller has ever supplied it.** All of M4's contact machinery was
+validated dancer↔dancer inside `DanceFloor`, with the player out of scope by
+[ADR-0010](adr/0010-emote-choreography-channel-contract.md). This is the same shape as the
+inert pin above, the `spin` channel that passed its test by doing nothing, and `osv-scan`
+running for three days without ever passing: **an unexercised seam is not a seam.** Exercise it
+and watch it before building teaching content on top — and teach `arm-turn` before the fist
+bump, since arm-turn's machinery is built and render-validated while the fist bump's is not.
+
 ## Supply chain
 
 Settings live in [`pnpm-workspace.yaml`](../pnpm-workspace.yaml) — pnpm 11 reads them there,
@@ -591,9 +638,12 @@ is also what **validates square-one's provisional waypoints** — its Dosado spe
 3. `~/Development/square-one/docs/spec/calls/dosado.md` — the first call to render.
 4. `~/Development/work/square-dance-planning/PROGRESS.md` — the cross-repo milestone table.
 
-**Expect to write ADRs** for: the emote/choreography blend contract, and how teaching content
-(which NPC teaches what, unlock ordering) is represented — the planning effort's proposal is
-that it's townage data, keeping square-one pure, and it comes due at M5.
+**Both ADRs this section expected are now written.** The emote/choreography blend contract
+became [ADR-0010](adr/0010-emote-choreography-channel-contract.md) (2026-07-28). Teaching
+content was decided **2026-07-29** in the planning effort's **ADR-0008**
+(`square-dance-planning/adr/0008-teaching-content-is-townage-data-engine-stays-pure.md`) —
+cross-repo, so it lives there per that effort's ADR-0007. See
+[Teaching content is ours](#teaching-content-is-ours) below for what this repo now owns.
 
 ## How CI landed
 
@@ -707,7 +757,10 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
 8. Work down the 24 `react-hooks/exhaustive-deps` warnings. Non-blocking, but they are the
    backlog the pinned plugin is deferring, not architecture.
 9. Arc chunk 1 (M5): an NPC teaches `arm-turn`, the player performs it, townage records that
-   they know it. Needs the teaching-content ADR.
+   they know it. **Teaching content is decided** (planning ADR-0008 — it's ours; see
+   [Teaching content is ours](#teaching-content-is-ours)). 🔴 **The blocker is
+   `externallyDriven`, not content** — the player seam has never run. Exercise and watch it
+   first; then teach `arm-turn` before the fist bump, whose machinery does not exist yet.
 
 Deferred with reasons: physics (rapier removed — re-add deliberately when something needs it,
 and resolve its missing license declaration then); the NPC documentation "booklet" plan; the
