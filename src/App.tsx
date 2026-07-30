@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 import { World } from "./world/World";
@@ -65,6 +65,7 @@ import { EmotePanel } from "./overlay/EmotePanel";
 import { InteractionWheel } from "./overlay/InteractionWheel";
 import { useWheelGesture } from "./overlay/useWheelGesture";
 import { WheelButton } from "./overlay/WheelButton";
+import type { BumpRequest } from "./dance/FistBumpDriver";
 import type { TrinketTrackerState } from "./world/useTrinketTracker";
 import type { RushMode } from "./world/Player";
 import type { ScreenPos } from "./world/useScreenPosition";
@@ -414,22 +415,41 @@ export default function App() {
   // saved emotes the count is zero and the gesture would decline to open at all —
   // which is indistinguishable from a broken hold, and this repo has already lost a
   // week to a feature that passed by doing nothing. A visible reason beats silence.
-  const wheelItems = useMemo(() => {
-    const emotes = getEmotes("player")
-      .slice(0, 8)
-      .map(e => ({ id: e.id, label: e.name || "untitled" }));
-    return emotes.length > 0
-      ? emotes
-      : [{ id: "__none", label: "no emotes yet", disabled: true }];
-  }, []);
+  //
+  // The fist bump leads, because it is the thing the wheel was built for; emotes fill
+  // the rest up to the eight-wedge ceiling. Deliberately **not** memoised — it is
+  // cheap, and recomputing on the render that opens the wheel is what keeps the list
+  // current without a subscription.
+  const bumpRequest = useRef<BumpRequest>({ startedAt: null });
+  const BUMP_ID = "__bump";
+
+  const wheelItems = [
+    { id: BUMP_ID, label: "fist bump" },
+    ...getEmotes("player").slice(0, 7).map(e => ({ id: e.id, label: e.name || "untitled" })),
+  ];
 
   const handleWheelSelect = useCallback(
     (index: number) => {
-      const picked = getEmotes("player")[index];
+      const item = wheelItemsRef.current[index];
+      if (!item) return;
+      if (item.id === BUMP_ID) {
+        // Ignored by the driver if one is already running — a bump is not re-entrant,
+        // and restarting mid-contact would snap the arm.
+        if (bumpRequest.current.startedAt === null) {
+          bumpRequest.current.startedAt = performance.now();
+        }
+        return;
+      }
+      const picked = getEmotes("player").find(e => e.id === item.id);
       if (picked) handlePlayEmote(picked);
     },
     [handlePlayEmote],
   );
+
+  // The selection fires from a pointer handler, which closes over whatever list was
+  // current when the gesture began; a ref keeps the two in step.
+  const wheelItemsRef = useRef(wheelItems);
+  wheelItemsRef.current = wheelItems;
 
   const wheel = useWheelGesture({ count: wheelItems.length, onSelect: handleWheelSelect });
   const { openSticky } = wheel;
@@ -926,6 +946,7 @@ export default function App() {
           // NPC opens chat behind the wheel on both a selection and a cancel.
           onNpcClick={() => { if (wheel.consumeClick()) return; handleNpcClick(); }}
           npcWheelHandlers={wheel.handlers}
+          bumpRequest={bumpRequest}
           onNpcWalkAway={handleNpcWalkAway}
           onNpcApproach={handleNpcApproach}
           cameraOffset={cameraOffset}

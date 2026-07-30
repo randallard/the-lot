@@ -6,6 +6,8 @@ import { Player } from "./Player";
 import { CameraRig } from "./CameraRig";
 import { BotParts } from "./BotParts";
 import { Npc } from "./Npc";
+import { FistBumpDriver, type BumpRequest } from "../dance/FistBumpDriver";
+import { PLAYER_DEFAULTS, NPC_DEFAULTS } from "../services/body-shapes";
 import { GameNpc } from "./GameNpc";
 import { useTrinketTracker, type TrinketTrackerState } from "./useTrinketTracker";
 import type { RushMode } from "./Player";
@@ -41,6 +43,8 @@ interface WorldProps {
   onNpcClick?: () => void;
   /** `useWheelGesture` handlers for the main NPC's hitbox — a hold opens the wheel. */
   npcWheelHandlers?: React.ComponentProps<typeof Npc>["wheelHandlers"];
+  /** A fist bump the player asked for; the driver clears it when the envelope ends. */
+  bumpRequest?: React.RefObject<BumpRequest>;
   onNpcWalkAway?: () => void;
   onNpcApproach?: () => void;
   cameraOffset?: React.RefObject<THREE.Vector3 | null>;
@@ -68,7 +72,21 @@ interface WorldProps {
   playerAnimController?: React.RefObject<AnimationController>;
 }
 
-export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, npcWheelHandlers, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, showGameNpcs, onMycoClick, onEmberClick, onSproutClick, mycoScreenPos, emberScreenPos, sproutScreenPos, mycoAsleep, emberAsleep, sproutAsleep, findTargetNpcId, npcTalking, partsCollected, initialPlayerPos, playerWorldPos, bodyShapes, playerAnimController }: WorldProps) {
+export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, npcWheelHandlers, bumpRequest, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, showGameNpcs, onMycoClick, onEmberClick, onSproutClick, mycoScreenPos, emberScreenPos, sproutScreenPos, mycoAsleep, emberAsleep, sproutAsleep, findTargetNpcId, npcTalking, partsCollected, initialPlayerPos, playerWorldPos, bodyShapes, playerAnimController }: WorldProps) {
+  // Rigs and arm groups the fist-bump driver writes. Created here rather than in App
+  // because the driver has to live inside the Canvas to get a frame loop.
+  const playerRig = useRef<THREE.Group | null>(null);
+  const npcRig = useRef<THREE.Group | null>(null);
+  const playerArms = useRef({
+    left: { current: null } as React.RefObject<THREE.Group | null>,
+    right: { current: null } as React.RefObject<THREE.Group | null>,
+  }).current;
+  const npcArms = useRef({
+    left: { current: null } as React.RefObject<THREE.Group | null>,
+    right: { current: null } as React.RefObject<THREE.Group | null>,
+  }).current;
+  const drivenArms = useRef({ left: false, right: false });
+
   const playerPos = useRef(new THREE.Vector3(
     initialPlayerPos?.x ?? 0,
     0.75,
@@ -263,7 +281,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
 
       <CameraRig target={playerPos} offset={cameraOffset} lookAtOffset={cameraLookAtOffset} />
       <Ground />
-      <Player positionRef={playerPos} inputDir={inputDir} rushMode={rushMode} rushTarget={rushTarget} hidden={hidePlayer} bodyShape={bodyShapes?.["player"]} animController={playerAnimController} />
+      <Player positionRef={playerPos} inputDir={inputDir} rushMode={rushMode} rushTarget={rushTarget} hidden={hidePlayer} bodyShape={bodyShapes?.["player"]} animController={playerAnimController} rigRef={playerRig} arms={playerArms} drivenArms={drivenArms} />
       {part1Spawned && !part1Collected && (
         <BotParts
           position={[PART1_POS.x, PART1_POS.y, PART1_POS.z]}
@@ -287,11 +305,25 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
           playerPosition={playerPos}
           onClick={onNpcClick}
           wheelHandlers={npcWheelHandlers}
+          rigRef={npcRig}
+          arms={npcArms}
           relaxing={npcRelaxing}
           talking={npcTalking}
           screenPos={npcScreenPos}
           worldPosRef={npcWorldPos}
           bodyShape={bodyShapes?.["ryan"]}
+        />
+      )}
+      {showNpc && bumpRequest && (
+        <FistBumpDriver
+          request={bumpRequest}
+          playerRig={playerRig}
+          npcRig={npcRig}
+          playerArm={playerArms.right}
+          npcArm={npcArms.right}
+          drivenArms={drivenArms}
+          playerShape={bodyShapes?.["player"] ?? PLAYER_DEFAULTS}
+          npcShape={bodyShapes?.["ryan"] ?? NPC_DEFAULTS}
         />
       )}
 

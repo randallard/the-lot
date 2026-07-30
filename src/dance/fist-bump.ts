@@ -252,6 +252,34 @@ export function bumpPose(
   return gripPose(out, m, m.handRadius, 0, c.x, c.z, dirX, dirZ, c.height);
 }
 
+/** A character standing at their own origin — the `self` of a local frame. */
+export const SELF: Placement = { x: 0, z: 0, yaw: 0 };
+
+/**
+ * The partner, expressed in this character's **local** frame.
+ *
+ * The rig write is local: `DanceFloor` sets `arm.position` on a group parented to the
+ * character, so every pose this module produces has to be local too. `poseArms` solves
+ * the same problem the same way — rotate the world offset by `-self.yaw` and treat
+ * self as the origin — and this is that step, pulled out so
+ * {@link resolveContact} can be reused unchanged.
+ *
+ * Everything else here is **frame-agnostic**: feed it world placements and the contact
+ * comes back in world space, feed it `SELF` and this and it comes back rig-local. That
+ * is deliberate, because the world answer is what a debug overlay wants and the local
+ * one is what the rig needs.
+ */
+export function localPartner(out: Placement, self: Placement, partner: Placement): Placement {
+  const dx = partner.x - self.x;
+  const dz = partner.z - self.z;
+  const c = Math.cos(self.yaw);
+  const s = Math.sin(self.yaw);
+  out.x = dx * c - dz * s;
+  out.z = dx * s + dz * c;
+  out.yaw = partner.yaw - self.yaw;
+  return out;
+}
+
 /**
  * The yaw each character needs to face the other.
  *

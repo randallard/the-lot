@@ -32,15 +32,31 @@ interface PlayerProps {
   hidden?: boolean;
   bodyShape?: CharacterBodyShape;
   animController?: React.RefObject<AnimationController>;
+  /**
+   * Shoulder-pivot groups, exposed so a driver can pose them — the fist bump. Same
+   * shape `Dancer` and `Npc` take. When a side is being driven the driver owns it
+   * outright for the duration and the emote's `upperArmRotation` is not written,
+   * which is ADR-0010's owned-channel rule applied outside a square.
+   */
+  arms?: { left: React.RefObject<THREE.Group | null>; right: React.RefObject<THREE.Group | null> };
+  /** Sides a driver is currently posing. Read per frame; usually empty. */
+  drivenArms?: React.RefObject<{ left: boolean; right: boolean }>;
+  /** The whole character group, for a driver that needs this player's yaw as well as position. */
+  rigRef?: React.RefObject<THREE.Group | null>;
 }
 
-export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bodyShape, animController }: PlayerProps) {
+export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bodyShape, animController, arms, drivenArms, rigRef }: PlayerProps) {
   const shape = bodyShape ?? PLAYER_DEFAULTS;
-  const groupRef       = useRef<THREE.Group>(null);
+  const ownGroup       = useRef<THREE.Group>(null);
+  const groupRef       = rigRef ?? ownGroup;
   const bodyMeshRef    = useRef<THREE.Mesh>(null);
   const headGroupRef   = useRef<THREE.Group>(null);
-  const leftArmRef     = useRef<THREE.Group>(null);
-  const rightArmRef    = useRef<THREE.Group>(null);
+  // A driver's refs, when there is one, *are* the arm refs — no merging and no
+  // callback refs, so the group has exactly one owner either way.
+  const ownLeftArm     = useRef<THREE.Group>(null);
+  const ownRightArm    = useRef<THREE.Group>(null);
+  const leftArmRef     = arms?.left ?? ownLeftArm;
+  const rightArmRef    = arms?.right ?? ownRightArm;
   const matRef         = useRef<THREE.MeshStandardMaterial>(null);
   const headMatRef     = useRef<THREE.MeshStandardMaterial>(null);
   const armMatsRef     = useRef<(THREE.MeshStandardMaterial | null)[]>([null, null, null, null]);
@@ -94,7 +110,8 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
     }
 
     // Arm groups: shoulder pivot + upper-arm rotation from emote pose
-    if (leftArmRef.current) {
+    const driven = drivenArms?.current;
+    if (leftArmRef.current && !driven?.left) {
       leftArmRef.current.position.set(-pos.forearmX, pos.shoulderY, 0);
       const la = rp.leftArm;
       leftArmRef.current.rotation.set(
@@ -103,7 +120,7 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
         deg2rad(la.upperArmRotation[2]),
       );
     }
-    if (rightArmRef.current) {
+    if (rightArmRef.current && !driven?.right) {
       rightArmRef.current.position.set(pos.forearmX, pos.shoulderY, 0);
       const ra = rp.rightArm;
       rightArmRef.current.rotation.set(

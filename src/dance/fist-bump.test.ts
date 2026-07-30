@@ -12,6 +12,8 @@ import {
   maxSeparation,
   resolveContact,
   separationOf,
+  localPartner,
+  SELF,
 } from "./fist-bump";
 import { armMetrics, armPose, gripHeight, type ArmMetrics, type Placement } from "./arm-pose";
 import {
@@ -247,6 +249,67 @@ describe("the fists actually touch", () => {
     const c = resolveContact(bumpContact(), a, a, at(0, 0), at(0, 0.5));
     const out = armPose();
     expect(bumpPose(out, a, c, c.dirAX, c.dirAZ)).toBe(out);
+  });
+});
+
+describe("the local frame", () => {
+  // The rig write is local -- arm.position on a group parented to the character -- so
+  // the pose has to be. Same conversion poseArms does, pulled out so resolveContact is
+  // reused rather than duplicated.
+  it("puts a partner dead ahead on +z when the character faces +z", () => {
+    const l = localPartner(at(0, 0), at(2, 3, 0), at(2, 5, 0));
+    expect(l.x).toBeCloseTo(0, 10);
+    expect(l.z).toBeCloseTo(2, 10);
+  });
+
+  it("rotates the offset by the character's own yaw", () => {
+    // Facing +x (yaw = PI/2), a partner at world +z is on the character's right.
+    const l = localPartner(at(0, 0), at(0, 0, Math.PI / 2), at(0, 2, 0));
+    expect(l.x).toBeCloseTo(-2, 10);
+    expect(l.z).toBeCloseTo(0, 10);
+  });
+
+  it("preserves separation, whatever the yaw", () => {
+    for (let yaw = -Math.PI; yaw < Math.PI; yaw += 0.3) {
+      const l = localPartner(at(0, 0), at(1, -2, yaw), at(4, 2, 0));
+      expect(Math.hypot(l.x, l.z)).toBeCloseTo(5, 10);
+    }
+  });
+
+  it("gives the same contact in either frame, just expressed differently", () => {
+    const a = armMetrics(PLAYER_DEFAULTS);
+    const b = armMetrics(RYAN_DEFAULTS);
+    const self = at(3, -1, 0.7);
+    const partner = at(3.4, -0.6, 2.2);
+
+    const world = resolveContact(bumpContact(), a, b, self, partner);
+    const local = resolveContact(bumpContact(), a, b, SELF, localPartner(at(0, 0), self, partner));
+
+    expect(local.separation).toBeCloseTo(world.separation, 10);
+    expect(local.height).toBeCloseTo(world.height, 10);
+    expect(local.reachable).toBe(world.reachable);
+    // The contact sits the same distance from the character in both frames.
+    expect(Math.hypot(local.x, local.z)).toBeCloseTo(
+      Math.hypot(world.x - self.x, world.z - self.z),
+      10,
+    );
+  });
+
+  it("still leaves the fists touching when posed from the local frame", () => {
+    const a = armMetrics(PLAYER_DEFAULTS);
+    const b = armMetrics(MYCO_DEFAULTS);
+    const self = at(-2, 5, 1.1);
+    const partner = at(-1.7, 5.3, -0.4);
+
+    const ca = resolveContact(bumpContact(), a, b, SELF, localPartner(at(0, 0), self, partner));
+    const cb = resolveContact(bumpContact(), b, a, SELF, localPartner(at(0, 0), partner, self));
+    const ha = handOf(bumpPose(armPose(), a, ca, ca.dirAX, ca.dirAZ), a);
+    const hb = handOf(bumpPose(armPose(), b, cb, cb.dirAX, cb.dirAZ), b);
+
+    // Each hand is its own radius from its own contact point, in its own frame.
+    expect(Math.hypot(ha.x - ca.x, ha.z - ca.z)).toBeCloseTo(a.handRadius, 10);
+    expect(Math.hypot(hb.x - cb.x, hb.z - cb.z)).toBeCloseTo(b.handRadius, 10);
+    expect(ha.y).toBeCloseTo(hb.y, 10);
   });
 });
 
