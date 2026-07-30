@@ -41,24 +41,26 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
-  armMetrics,
   armPose,
-  blendPose,
-  restPose,
   type ArmMetrics,
   type ArmPose,
   type Placement,
 } from "./arm-pose";
+import { bumpContact, envelopeWith, type BumpEnvelope } from "./fist-bump";
 import {
-  SELF,
-  TOTAL_SECONDS,
-  bumpContact,
-  bumpPose,
-  envelopeAt,
-  localPartner,
-  resolveContact,
-  type BumpEnvelope,
-} from "./fist-bump";
+  OPEN_TO_EVERYTHING,
+  availability,
+  fistBumpMove,
+  metricsFor,
+  resolveRole,
+  totalSeconds,
+  type Availability,
+  type ComfortPreferences,
+  type ContactMove,
+  type RigHandedness,
+  type RoleResolution,
+  type RoleScratch,
+} from "./contact-move";
 import { NPC_BODY_CENTER_Y, PLAYER_BODY_CENTER_Y, type CharacterBodyShape } from "../services/body-shapes";
 
 /** A bump the player has asked for. Cleared by the driver when it finishes. */
@@ -75,11 +77,58 @@ export interface FistBumpDriverProps {
   npcArm: React.RefObject<THREE.Group | null>;
   /** Set while the driver owns the player's arm, so `Player` leaves it alone. */
   drivenArms: React.RefObject<{ left: boolean; right: boolean }>;
+  /**
+   * Which key of `drivenArms` corresponds to the arm this driver is writing.
+   *
+   * Supplied rather than derived, because `Player`/`Npc` name their `+x` group `"right"`
+   * while `+x` is anatomically the *left* arm — see {@link RigHandedness}. The caller
+   * hands over the matching group and the matching key together, so the driver never has
+   * to reason about the naming.
+   */
+  drivenKey?: "left" | "right";
   playerShape: CharacterBodyShape;
   npcShape: CharacterBodyShape;
+  /**
+   * The move to play. Defaults to the built-in fist bump.
+   *
+   * The player is role **A** and the NPC role **B**, which is the only casting decision
+   * this driver makes; everything else about the gesture is authored.
+   */
+  move?: ContactMove;
+  /**
+   * Written every frame with whether this move is currently on offer, for the wheel.
+   *
+   * Published across the ref boundary (ADR-0002) because the predicate needs **yaw**, and
+   * yaw lives on the rigs inside the `<Canvas>` — the DOM side has the player's `x`/`z`
+   * and nothing else. Kept up to date while idle too, so the answer is already correct on
+   * the render that opens the wheel.
+   */
+  availabilityRef?: React.RefObject<Availability>;
+  /** This player's stance on what may be done with them. */
+  playerComfort?: ComfortPreferences;
+  /** The NPC's. */
+  npcComfort?: ComfortPreferences;
+  /**
+   * Fired on each transition into and out of a running bump.
+   *
+   * Exists so the two characters can *draw* the hand the move is solved on. Called only
+   * when it changes, never per frame — it drives React state.
+   */
+  onActiveChange?: (active: boolean) => void;
   /** Fired once when a bump completes, for whatever wants to record it. */
   onDone?: () => void;
 }
+
+const DEFAULT_MOVE = fistBumpMove();
+
+/**
+ * A character at yaw 0 faces `+z`, so its anatomical **right** arm is at `-x`.
+ *
+ * True of every rig here. `Player`/`Npc` merely *call* their `+x` group "right" — see
+ * {@link RigHandedness} — which is why `World` hands this driver the group those
+ * components name `left`, together with the matching `drivenKey`.
+ */
+const PLAYER_NPC_RIG: RigHandedness = "left-positive";
 
 /** The rig's resting aim: straight down, which is what `restPose` returns. */
 const DOWN = new THREE.Vector3(0, -1, 0);
@@ -106,22 +155,29 @@ export function FistBumpDriver({
   drivenArms,
   playerShape,
   npcShape,
+  move = DEFAULT_MOVE,
+  availabilityRef,
+  drivenKey = "right",
+  playerComfort = OPEN_TO_EVERYTHING,
+  npcComfort = OPEN_TO_EVERYTHING,
+  onActiveChange,
   onDone,
 }: FistBumpDriverProps) {
   // Frame-loop scratch, allocated once. The dance code's convention, and the reason
   // this can run every frame without churning the heap.
   const scratch = useRef({
     env: { t: 0, touching: false, done: false } as BumpEnvelope,
-    contact: bumpContact(),
     self: { x: 0, z: 0, yaw: 0 } as Placement,
     other: { x: 0, z: 0, yaw: 0 } as Placement,
-    local: { x: 0, z: 0, yaw: 0 } as Placement,
-    pose: armPose(),
-    rest: armPose(),
+    role: { local: { x: 0, z: 0, yaw: 0 }, rest: armPose() } as RoleScratch,
+    out: { pose: armPose(), side: "right", contact: bumpContact() } as RoleResolution,
     aim: new THREE.Vector3(),
     metrics: null as { player: ArmMetrics; npc: ArmMetrics } | null,
     shapes: null as { player: CharacterBodyShape; npc: CharacterBodyShape } | null,
+    origins: { player: NaN, npc: NaN },
+    constraintId: "",
     owning: false,
+    announced: false,
   });
 
   useFrame(() => {
@@ -134,6 +190,57 @@ export function FistBumpDriver({
     const nArm = npcArm.current;
 
     if (!req || !driven) return;
+    if (!pRig || !nRig || !pArm || !nArm) return;
+
+    // One constraint today. The schema is a list because a star is four contacts at one
+    // point and a wave is a chain, but nothing authored needs more than one yet, and a
+    // driver that pretended otherwise would be untested speculation.
+    const constraint = move.constraints[0];
+    if (!constraint) return;
+
+    // Metrics are derived from body shapes, which the editor can change mid-session, and
+    // from the *authored* hand shape, which the editor can also change — so they are
+    // cached against all of it rather than computed once at mount.
+    //
+    // Each rig declares its **world Y**, because `gripHeight` answers in world space and
+    // these two rigs do not share a frame (`Player`'s group sits at `BASE_Y`, `Npc`'s at
+    // 0). Read off the live rig rather than assumed, so a jumping player still bumps
+    // level. `metricsFor` carries the authored hand through, which is what makes a fist
+    // bump measure as a fist.
+    const pOriginY = pRig.position.y;
+    const nOriginY = nRig.position.y;
+    if (
+      !s.shapes ||
+      s.shapes.player !== playerShape ||
+      s.shapes.npc !== npcShape ||
+      s.origins.player !== pOriginY ||
+      s.origins.npc !== nOriginY ||
+      s.constraintId !== constraint.id
+    ) {
+      s.shapes = { player: playerShape, npc: npcShape };
+      s.origins = { player: pOriginY, npc: nOriginY };
+      s.constraintId = constraint.id;
+      s.metrics = {
+        player: metricsFor(constraint, "A", playerShape, PLAYER_BODY_CENTER_Y, pOriginY),
+        npc: metricsFor(constraint, "B", npcShape, NPC_BODY_CENTER_Y, nOriginY),
+      };
+    }
+    const m = s.metrics;
+    if (!m) return;
+
+    readPlacement(s.self, pRig);
+    readPlacement(s.other, nRig);
+
+    // Published whether or not a bump is running, so the wheel's answer is already
+    // current on the render that opens it. This is what greys the wedge out instead of
+    // letting the move stretch — the unwired `canBump` the M5 handover flagged, and the
+    // thing that makes the far-apart screenshot unreachable.
+    if (availabilityRef?.current) {
+      availability(
+        move, m.player, m.npc, s.self, s.other, playerComfort, npcComfort,
+        availabilityRef.current,
+      );
+    }
 
     // Nothing running: release the arm exactly once, then stay out of the way.
     if (req.startedAt === null) {
@@ -142,62 +249,52 @@ export function FistBumpDriver({
         driven.right = false;
         s.owning = false;
       }
+      if (s.announced) {
+        s.announced = false;
+        onActiveChange?.(false);
+      }
       return;
     }
 
-    if (!pRig || !nRig || !pArm || !nArm) return;
-
-    // Metrics are derived from body shapes, which the editor can change mid-session,
-    // so they are cached against the shapes rather than computed once at mount.
-    if (!s.shapes || s.shapes.player !== playerShape || s.shapes.npc !== npcShape) {
-      s.shapes = { player: playerShape, npc: npcShape };
-      s.metrics = {
-        player: armMetrics(playerShape, PLAYER_BODY_CENTER_Y),
-        npc: armMetrics(npcShape, NPC_BODY_CENTER_Y),
-      };
-    }
-    const m = s.metrics;
-    if (!m) return;
-
     const elapsed = (performance.now() - req.startedAt) / 1000;
-    envelopeAt(elapsed, s.env);
+    envelopeWith(elapsed, move.envelope.extend, move.envelope.hold, move.envelope.withdraw, s.env);
 
-    if (s.env.done || elapsed > TOTAL_SECONDS) {
+    if (s.env.done || elapsed > totalSeconds(move.envelope)) {
       req.startedAt = null;
       driven.left = false;
       driven.right = false;
       s.owning = false;
+      if (s.announced) {
+        s.announced = false;
+        onActiveChange?.(false);
+      }
       onDone?.();
       return;
     }
 
-    // Claim the right arm for the duration. Claimed every frame rather than once, so a
-    // shape change or a remount cannot leave `Player` writing a side the driver is
-    // also writing.
-    driven.right = true;
+    // Player is role A, NPC is role B. `resolveRole` localises the partner and resolves
+    // the contact from `SELF`, so each answer comes back in that character's own rig
+    // space — which is what the arm group wants.
+    const a = resolveRole(
+      s.out, s.role, move, constraint, "A", m.player, m.npc, s.self, s.other, s.env.t,
+      PLAYER_NPC_RIG,
+    );
+    // Claim the authored side for the duration. Claimed every frame rather than once, so
+    // a shape change or a remount cannot leave `Player` writing a side the driver is also
+    // writing.
+    driven[drivenKey] = true;
     s.owning = true;
+    if (!s.announced) {
+      s.announced = true;
+      onActiveChange?.(true);
+    }
+    applyPose(pArm, a.pose, s.aim);
 
-    readPlacement(s.self, pRig);
-    readPlacement(s.other, nRig);
-
-    // Player's side, in the player's own frame.
-    // `resolveContact` is frame-agnostic: `SELF` plus the localised partner gives a
-    // rig-local answer, which is what the arm group wants.
-    const cp = s.contact;
-    localPartner(s.local, s.self, s.other);
-    resolveContact(cp, m.player, m.npc, SELF, s.local);
-    restPose(s.rest, m.player, 1);
-    bumpPose(s.pose, m.player, cp, cp.dirAX, cp.dirAZ);
-    blendPose(s.pose, s.rest, s.pose, s.env.t);
-    applyPose(pArm, s.pose, s.aim);
-
-    // NPC's side, in the NPC's own frame.
-    localPartner(s.local, s.other, s.self);
-    resolveContact(cp, m.npc, m.player, SELF, s.local);
-    restPose(s.rest, m.npc, 1);
-    bumpPose(s.pose, m.npc, cp, cp.dirAX, cp.dirAZ);
-    blendPose(s.pose, s.rest, s.pose, s.env.t);
-    applyPose(nArm, s.pose, s.aim);
+    const b = resolveRole(
+      s.out, s.role, move, constraint, "B", m.npc, m.player, s.other, s.self, s.env.t,
+      PLAYER_NPC_RIG,
+    );
+    applyPose(nArm, b.pose, s.aim);
   });
 
   return null;

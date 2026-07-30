@@ -62,7 +62,8 @@ import { hasPlayerName, setPlayerName } from "./services/player-name";
 import { AnimationController } from "./services/animation-controller";
 import { getEmotes, type Emote } from "./services/emotes";
 import { EmotePanel } from "./overlay/EmotePanel";
-import { InteractionWheel } from "./overlay/InteractionWheel";
+import { InteractionWheel, type WheelItem } from "./overlay/InteractionWheel";
+import { availabilityLabel, type Availability } from "./dance/contact-move";
 import { useWheelGesture } from "./overlay/useWheelGesture";
 import { WheelButton } from "./overlay/WheelButton";
 import type { BumpRequest } from "./dance/FistBumpDriver";
@@ -423,15 +424,33 @@ export default function App() {
   const bumpRequest = useRef<BumpRequest>({ startedAt: null });
   const BUMP_ID = "__bump";
 
-  const wheelItems = [
-    { id: BUMP_ID, label: "fist bump" },
+  // Written every frame by `FistBumpDriver`, which is the only place with the yaw the
+  // stance predicate needs. Read here rather than subscribed to: the list is already
+  // recomputed on the render that opens the wheel, so the ref is current by then.
+  const bumpAvailability = useRef<Availability>({
+    available: false,
+    reason: null,
+    separation: 0,
+  });
+
+  // An unavailable bump keeps its wedge and says why, rather than vanishing. A wedge that
+  // disappears when you turn around is indistinguishable from one that never existed, and
+  // "too far away" is the difference between a rule and a bug — which is the whole point
+  // of authoring the stance instead of letting the arms stretch.
+  const bumpReason = availabilityLabel(bumpAvailability.current.reason);
+  const wheelItems: WheelItem[] = [
+    {
+      id: BUMP_ID,
+      label: bumpReason ? `fist bump — ${bumpReason}` : "fist bump",
+      disabled: !bumpAvailability.current.available,
+    },
     ...getEmotes("player").slice(0, 7).map(e => ({ id: e.id, label: e.name || "untitled" })),
   ];
 
   const handleWheelSelect = useCallback(
     (index: number) => {
       const item = wheelItemsRef.current[index];
-      if (!item) return;
+      if (!item || item.disabled) return;
       if (item.id === BUMP_ID) {
         // Ignored by the driver if one is already running — a bump is not re-entrant,
         // and restarting mid-contact would snap the arm.
@@ -947,6 +966,7 @@ export default function App() {
           onNpcClick={() => { if (wheel.consumeClick()) return; handleNpcClick(); }}
           npcWheelHandlers={wheel.handlers}
           bumpRequest={bumpRequest}
+          bumpAvailability={bumpAvailability}
           onNpcWalkAway={handleNpcWalkAway}
           onNpcApproach={handleNpcApproach}
           cameraOffset={cameraOffset}

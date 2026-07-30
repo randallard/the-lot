@@ -15,7 +15,14 @@ import {
   localPartner,
   SELF,
 } from "./fist-bump";
-import { armMetrics, armPose, gripHeight, type ArmMetrics, type Placement } from "./arm-pose";
+import {
+  armMetrics,
+  armPose,
+  gripHeight,
+  localHeight,
+  type ArmMetrics,
+  type Placement,
+} from "./arm-pose";
 import {
   EMBER_DEFAULTS,
   MYCO_DEFAULTS,
@@ -310,6 +317,151 @@ describe("the local frame", () => {
     expect(Math.hypot(ha.x - ca.x, ha.z - ca.z)).toBeCloseTo(a.handRadius, 10);
     expect(Math.hypot(hb.x - cb.x, hb.z - cb.z)).toBeCloseTo(b.handRadius, 10);
     expect(ha.y).toBeCloseTo(hb.y, 10);
+  });
+});
+
+describe("rig frames — the fists have to meet in the world, not each in its own rig", () => {
+  // `Player`'s group sits at `BASE_Y` 0.75 with `PLAYER_BODY_CENTER_Y` 0; `Npc`'s sits at
+  // 0 with `NPC_BODY_CENTER_Y` 0.5. Before `ArmMetrics` carried `rigOriginY`, `gripHeight`
+  // averaged two rig-*local* elbows and both characters wrote that number as a local Y —
+  // so the fists ended up exactly one rig offset apart vertically, the player's up at the
+  // NPC's head. Every existing assertion above passes either way, because they all build
+  // their pair with the default `rigOriginY` of 0, which is the only pairing `DanceFloor`
+  // has. That is what made this survive a green suite and a watch.
+  const PLAYER_RIG_Y = 0.75;
+  const NPC_RIG_Y = 0;
+
+  const player = armMetrics(PLAYER_DEFAULTS, 0, PLAYER_RIG_Y, "closed");
+  const npc = armMetrics(RYAN_DEFAULTS, 0.5, NPC_RIG_Y, "closed");
+
+  /** Both sides posed, each in its own local frame, the way the driver does it. */
+  function poseBoth() {
+    const [pa, pb] = facingPair(player, npc);
+    const ca = resolveContact(bumpContact(), player, npc, SELF, localPartner(at(0, 0), pa, pb));
+    const cb = resolveContact(bumpContact(), npc, player, SELF, localPartner(at(0, 0), pb, pa));
+    return {
+      player: bumpPose(armPose(), player, ca, ca.dirAX, ca.dirAZ),
+      npc: bumpPose(armPose(), npc, cb, cb.dirAX, cb.dirAZ),
+    };
+  }
+
+  it("puts both fists at the same height in world space", () => {
+    const p = poseBoth();
+    const playerWorldY = player.rigOriginY + p.player.y;
+    const npcWorldY = npc.rigOriginY + p.npc.y;
+    expect(playerWorldY).toBeCloseTo(npcWorldY, 10);
+  });
+
+  it("writes different local heights to do it — the offset is the rig difference", () => {
+    // The assertion that would have failed before the fix, where both were identical.
+    const p = poseBoth();
+    expect(p.npc.y - p.player.y).toBeCloseTo(PLAYER_RIG_Y - NPC_RIG_Y, 10);
+  });
+
+  it("gripHeight answers in world space", () => {
+    const grounded = armMetrics(PLAYER_DEFAULTS, 0, 0, "closed");
+    expect(gripHeight(player, npc) - gripHeight(grounded, npc)).toBeCloseTo(PLAYER_RIG_Y / 2, 10);
+  });
+
+  it("localHeight round-trips", () => {
+    expect(player.rigOriginY + localHeight(player, 1.4)).toBeCloseTo(1.4, 10);
+  });
+
+  it("leaves dancers alone — two rigs at 0 are unchanged", () => {
+    const a = armMetrics(MYCO_DEFAULTS);
+    const b = armMetrics(EMBER_DEFAULTS);
+    expect(a.rigOriginY).toBe(0);
+    expect(gripHeight(a, b)).toBe((a.elbowY + b.elbowY) / 2);
+    expect(localHeight(a, gripHeight(a, b))).toBe(gripHeight(a, b));
+  });
+});
+
+describe("a fist bump is bumped with fists", () => {
+  // `armMetrics` measured `handRadius` off `shape.hand.open.radius` unconditionally, so a
+  // closed-fist bump was solved with the open hand's size and the fists were separated by
+  // the wrong amount by construction. Both radius *and* reach depend on the hand shape —
+  // `handForearmGap` differs too — so this is not a cosmetic selector.
+  it("sizes the hand from the named pose", () => {
+    const closed = armMetrics(PLAYER_DEFAULTS, 0, 0, "closed");
+    const open = armMetrics(PLAYER_DEFAULTS, 0, 0, "open");
+    expect(closed.handRadius).toBe(PLAYER_DEFAULTS.hand.closed.radius);
+    expect(open.handRadius).toBe(PLAYER_DEFAULTS.hand.open.radius);
+    expect(closed.handRadius).not.toBe(open.handRadius);
+  });
+
+  // Reach is measured to the hand's *centre*, so it moves with `handForearmGap + radius`.
+  // Asserted as that invariant rather than as "closed differs from open", because on
+  // PLAYER_DEFAULTS the two happen to coincide exactly (0.005 + 0.09 = 0.025 + 0.07) — a
+  // property of one authored body, and a test written against it would have passed with
+  // the pose not threaded through at all.
+  it.each(CAST)("reaches to the named hand's centre — %s", (_name, shape) => {
+    const closed = armMetrics(shape, 0, 0, "closed");
+    const open = armMetrics(shape, 0, 0, "open");
+    const span = (h: typeof shape.hand.open) => h.handForearmGap + h.radius;
+    expect(open.handReach - closed.handReach).toBeCloseTo(
+      span(shape.hand.open) - span(shape.hand.closed),
+      10,
+    );
+  });
+
+  it("is not a vacuous invariant — some bodies really do reach further open", () => {
+    const differs = CAST.filter(([, shape]) => {
+      const closed = armMetrics(shape, 0, 0, "closed");
+      const open = armMetrics(shape, 0, 0, "open");
+      return Math.abs(open.handReach - closed.handReach) > 1e-6;
+    });
+    expect(differs.length).toBeGreaterThan(0);
+  });
+
+  it("defaults to open, so every existing caller is unchanged", () => {
+    const d = armMetrics(MYCO_DEFAULTS);
+    expect(d.handPose).toBe("open");
+    expect(d.handRadius).toBe(MYCO_DEFAULTS.hand.open.radius);
+  });
+
+  it("lands two fists exactly their own radii apart", () => {
+    const a = armMetrics(PLAYER_DEFAULTS, 0, 0, "closed");
+    const b = armMetrics(RYAN_DEFAULTS, 0.5, 0, "closed");
+    const [pa, pb] = facingPair(a, b);
+    const c = resolveContact(bumpContact(), a, b, pa, pb);
+    const ha = handOf(bumpPose(armPose(), a, c, c.dirAX, c.dirAZ), a);
+    const hb = handOf(bumpPose(armPose(), b, c, c.dirBX, c.dirBZ), b);
+    expect(Math.hypot(ha.x - hb.x, ha.z - hb.z)).toBeCloseTo(a.handRadius + b.handRadius, 10);
+  });
+});
+
+describe("the arm is not inside out", () => {
+  // Every other assertion in this file measures the **hand**, and the hand was right even
+  // when the arm was mirrored about the contact point — `gripPose` reads `dir` as pointing
+  // toward the partner and was being handed the direction toward self, which threw the
+  // arm's origin past the contact point onto the partner's side with the aim reversed.
+  // On screen: a shoulder standing at the partner's feet and a forearm pointing back
+  // across the gap. Measure the **origin and the aim**, not just where the hand ends up.
+  const a = armMetrics(PLAYER_DEFAULTS, 0, 0.75, "closed");
+  const b = armMetrics(RYAN_DEFAULTS, 0.5, 0, "closed");
+
+  /** `a` at the origin looking up +z, `b` in front of it. */
+  function poseA(frac: number) {
+    const [pa, pb] = facingPair(a, b, frac);
+    const c = resolveContact(bumpContact(), a, b, SELF, localPartner(at(0, 0), pa, pb));
+    return { pose: bumpPose(armPose(), a, c, c.dirAX, c.dirAZ), contact: c };
+  }
+
+  it.each([0.5, 0.75, 1])("aims toward the partner, not back at itself (%s of reach)", (frac) => {
+    const { pose } = poseA(frac);
+    // The partner is at +z, so a forward-reaching arm aims +z.
+    expect(pose.aimZ).toBeGreaterThan(0);
+  });
+
+  it.each([0.5, 0.75, 1])("keeps its origin on its own side of the contact (%s of reach)", (frac) => {
+    const { pose, contact } = poseA(frac);
+    expect(pose.z).toBeLessThan(contact.z);
+  });
+
+  it("still lands the hand exactly where it always did", () => {
+    const { pose, contact } = poseA(0.75);
+    const hand = handOf(pose, a);
+    expect(Math.hypot(hand.x - contact.x, hand.z - contact.z)).toBeCloseTo(a.handRadius, 10);
   });
 });
 

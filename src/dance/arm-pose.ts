@@ -108,8 +108,27 @@ export interface Placement {
  */
 export type GripHand = "left" | "right" | "none" | null;
 
+/** Which of a body's two authored hand shapes an arm is wearing. */
+export type HandPoseName = "open" | "closed";
+
 /** What the pose maths needs to know about one dancer's arm. */
 export interface ArmMetrics {
+  /**
+   * World Y of the character group these arm-local coordinates are measured in.
+   *
+   * **Every other height in this interface is local to that group**, so two characters
+   * whose groups sit at different world heights cannot share a raw height number. They
+   * did, and it was a real defect: `Player`'s group sits at `BASE_Y` 0.75 with
+   * `PLAYER_BODY_CENTER_Y` 0, while `Npc`'s sits at 0 with `NPC_BODY_CENTER_Y` 0.5, so a
+   * fist bump put the two fists exactly 0.75 apart vertically — the player's hand up at
+   * the NPC's head. It stayed invisible because every dancer inside `DanceFloor` has a
+   * rig at 0, which is the only pairing the grip had ever been watched on.
+   *
+   * Dancers keep `0` and nothing about their geometry changes.
+   */
+  readonly rigOriginY: number;
+  /** Which hand shape these metrics were measured on — `handRadius` and `handReach` both depend on it. */
+  readonly handPose: HandPoseName;
   /** `|x|` of the arm group at rest — the shoulder's offset from the midline. */
   readonly restX: number;
   /** Height of the group's pivot: the shoulder. */
@@ -135,13 +154,17 @@ export interface ArmMetrics {
 export function armMetrics(
   shape: CharacterBodyShape,
   bodyCenterY: number = NPC_BODY_CENTER_Y,
+  rigOriginY: number = 0,
+  handPose: HandPoseName = "open",
 ): ArmMetrics {
-  const pos = computePositions(shape, bodyCenterY);
+  const pos = computePositions(shape, bodyCenterY, handPose);
   const forearmHalfWidth = Math.max(shape.forearm.topRadius, shape.forearm.bottomRadius);
-  const handRadius = shape.hand.open.radius;
+  const handRadius = shape.hand[handPose].radius;
   const armHalfWidth = Math.max(forearmHalfWidth, handRadius);
   const handReach = pos.shoulderY - pos.handCenterY;
   return {
+    rigOriginY,
+    handPose,
     restX: pos.forearmX,
     restY: pos.shoulderY,
     elbowReach: pos.upperArmLength,
@@ -156,21 +179,41 @@ export function armMetrics(
 }
 
 /**
- * The height a pair's joined forearms lie at: the mean of their resting elbows.
+ * The height a pair's joined forearms lie at: the mean of their resting elbows,
+ * **in world space**.
  *
  * A horizontal forearm sits at elbow height, so this is where each dancer's own arm
  * would naturally be — and it has to be **one shared number**, or the hands aren't
  * on anything. The mean splits the difference: the shorter dancer's arm rides above
  * their own elbow, the taller one's below.
  *
+ * **World, not local, and that distinction is load-bearing.** `elbowY` is measured in
+ * each character's own group, so averaging two raw `elbowY`s produces a number that is
+ * in neither frame. Every caller writing this onto a rig must localise it with
+ * {@link localHeight}. Dancers all have `rigOriginY` 0, so nothing about the grip's
+ * geometry changes — but the player and an NPC differ by 0.75, which is what put a fist
+ * bump's two fists at visibly different heights. See {@link ArmMetrics.rigOriginY}.
+ *
  * Still a placeholder with a known failure mode, and still step 3 of the
  * dancer-size brief: past a big enough height difference the real rule is that the
  * *taller* dancer does nearly all the accommodating, because an adult can drop their
  * arm to a child's height and the child cannot raise theirs to the adult's. Mixed
- * casts are meant to make that visible rather than hide it.
+ * casts are meant to make that visible rather than hide it. That is a separate problem
+ * from the frame bug and is **not** fixed by it.
  */
 export function gripHeight(a: ArmMetrics, b: ArmMetrics): number {
-  return (a.elbowY + b.elbowY) / 2;
+  return (a.rigOriginY + a.elbowY + b.rigOriginY + b.elbowY) / 2;
+}
+
+/**
+ * A world height, in `m`'s own rig-local frame — what a pose written onto that
+ * character's arm group needs.
+ *
+ * The inverse is `m.rigOriginY + localY`. Trivial arithmetic, named because the bug it
+ * exists to prevent is exactly the kind that looks right and measures wrong.
+ */
+export function localHeight(m: ArmMetrics, worldY: number): number {
+  return worldY - m.rigOriginY;
 }
 
 /**
@@ -449,7 +492,10 @@ export function poseArms(
       localZ / 2,
       dirX,
       dirZ,
-      gripHeight(me, them),
+      // `gripPose` writes a rig-local pose, so the shared world height has to come back
+      // into this dancer's frame. A no-op between two dancers (both rigs at 0) and not
+      // between a player and an NPC.
+      localHeight(me, gripHeight(me, them)),
     );
     blendPose(out[side], _free, _joined, joined);
   }

@@ -1,0 +1,480 @@
+import { describe, expect, it } from "vitest";
+import {
+  FACING_TOLERANCE,
+  OPEN_TO_EVERYTHING,
+  availability,
+  angleBetween,
+  fistBumpMove,
+  handFor,
+  horizontalFraction,
+  makeAnchor,
+  makeConstraint,
+  makeContactMove,
+  metricsFor,
+  resolveConstraint,
+  resolveRole,
+  restSign,
+  stancePlacements,
+  sideFor,
+  stanceHolds,
+  totalSeconds,
+  verticalHeight,
+  type ComfortPreferences,
+  type RoleResolution,
+  type RoleScratch,
+} from "./contact-move";
+import {
+  armMetrics,
+  armPose,
+  gripHeight,
+  type ArmMetrics,
+  type Placement,
+} from "./arm-pose";
+import {
+  bumpContact,
+  bumpPose,
+  contactFraction,
+  envelopeWith,
+  localPartner,
+  maxSeparation,
+  resolveContact,
+  SELF,
+} from "./fist-bump";
+import {
+  MYCO_DEFAULTS,
+  PLAYER_DEFAULTS,
+  RYAN_DEFAULTS,
+  SPROUT_DEFAULTS,
+} from "../services/body-shapes";
+
+// The two rigs that actually pair up in the world, at their real world heights.
+const PLAYER_RIG_Y = 0.75;
+const NPC_RIG_Y = 0;
+
+function at(x: number, z: number, yaw = 0): Placement {
+  return { x, z, yaw };
+}
+
+function scratch(): RoleScratch {
+  return { local: at(0, 0), rest: armPose() };
+}
+
+function resolution(): RoleResolution {
+  return { pose: armPose(), side: "right", contact: bumpContact() };
+}
+
+/** Stand two characters facing each other, `frac` of the way to their reach limit. */
+function facingPair(a: ArmMetrics, b: ArmMetrics, frac = 0.8) {
+  const sep = maxSeparation(a, b) * frac;
+  // A looks along +z toward B; B looks back along -z.
+  return [at(0, 0, 0), at(0, sep, Math.PI)] as const;
+}
+
+describe("the fist bump, authored", () => {
+  const move = fistBumpMove();
+  const c = move.constraints[0];
+
+  it("wears closed hands on both sides", () => {
+    expect(handFor(c, "A")).toBe("closed");
+    expect(handFor(c, "B")).toBe("closed");
+  });
+
+  it("puts both right hands out — the handshake convention, not a mirror", () => {
+    expect(sideFor(move, c, "A")).toBe("right");
+    expect(sideFor(move, c, "B")).toBe("right");
+  });
+
+  it("declines rather than stretching", () => {
+    expect(move.outOfRange).toBe("decline");
+  });
+
+  it("returns the arm rather than transferring it", () => {
+    expect(move.exit).toBe("return");
+  });
+
+  it("carries classification tags, even though nothing reads them yet", () => {
+    expect(move.tags.length).toBeGreaterThan(0);
+  });
+
+  it("keeps the hand-authored envelope", () => {
+    expect(totalSeconds(move.envelope)).toBeCloseTo(0.9, 10);
+  });
+});
+
+describe("the authored move and the hardcoded gesture agree", () => {
+  // The property ADR-0016 turns on: the editor previews through the same resolver the
+  // runtime plays through, so they cannot disagree. Asserted against `fist-bump.ts`'s own
+  // path — resolveContact + bumpPose with reach-fraction and mean-elbow — which is what
+  // the driver did before it was authored.
+  const move = fistBumpMove();
+  const c = move.constraints[0];
+  const player = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
+  const npc = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
+
+  it("produces the same pose the hardcoded bump did", () => {
+    const [pa, pb] = facingPair(player, npc);
+
+    const authored = resolveRole(
+      resolution(), scratch(), move, c, "A", player, npc, pa, pb, 1, "right-positive",
+    );
+
+    const expected = armPose();
+    const cc = resolveContact(bumpContact(), player, npc, SELF, localPartner(at(0, 0), pa, pb));
+    bumpPose(expected, player, cc, cc.dirAX, cc.dirAZ);
+
+    expect(authored.pose.x).toBeCloseTo(expected.x, 12);
+    expect(authored.pose.y).toBeCloseTo(expected.y, 12);
+    expect(authored.pose.z).toBeCloseTo(expected.z, 12);
+    expect(authored.pose.aimX).toBeCloseTo(expected.aimX, 12);
+    expect(authored.pose.aimZ).toBeCloseTo(expected.aimZ, 12);
+  });
+
+  it("lands both fists at the same world height", () => {
+    const [pa, pb] = facingPair(player, npc);
+    const a = resolveRole(
+      resolution(), scratch(), move, c, "A", player, npc, pa, pb, 1, "right-positive");
+    const b = resolveRole(
+      resolution(), scratch(), move, c, "B", npc, player, pb, pa, 1, "right-positive");
+    expect(player.rigOriginY + a.pose.y).toBeCloseTo(npc.rigOriginY + b.pose.y, 10);
+  });
+
+  it("sizes the fists as fists", () => {
+    expect(player.handRadius).toBe(PLAYER_DEFAULTS.hand.closed.radius);
+    expect(npc.handRadius).toBe(RYAN_DEFAULTS.hand.closed.radius);
+  });
+
+  it("is at rest when the envelope is at 0", () => {
+    const [pa, pb] = facingPair(player, npc);
+    const r = resolveRole(
+      resolution(), scratch(), move, c, "A", player, npc, pa, pb, 0, "right-positive");
+    expect(r.pose.aimY).toBeCloseTo(-1, 10);
+  });
+});
+
+describe("rig handedness — which shoulder the arm goes back to", () => {
+  // Geometry, not convention: a character at yaw 0 faces +z, and facing +z with +y up the
+  // right hand is at -x (right = forward x up = z x y = -x). So `"left-positive"` is the
+  // truth for every rig here, and `Dancer.tsx` places `arms.right` at `-forearmX`
+  // accordingly.
+  //
+  // `Player.tsx` and `Npc.tsx` *name* their +x group "right", which is the character's
+  // left arm — the same inversion `Eyes.tsx` has. That naming is baked into every authored
+  // emote, so it is left alone and callers map around it instead.
+  //
+  // Getting the sign wrong is invisible in a contact assertion — the hands still meet at
+  // exactly the right point — and shows up only as the wrong arm doing the move.
+  const move = fistBumpMove();
+  const c = move.constraints[0];
+  const player = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
+  const npc = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
+
+  it("maps sides to signs opposite ways round", () => {
+    expect(restSign("right-positive", "right")).toBe(1);
+    expect(restSign("right-positive", "left")).toBe(-1);
+    expect(restSign("left-positive", "right")).toBe(-1);
+    expect(restSign("left-positive", "left")).toBe(1);
+  });
+
+  it("rests the anatomical right arm on -x, which is what every rig here means", () => {
+    const [pa, pb] = facingPair(player, npc);
+    const r = resolveRole(
+      resolution(), scratch(), move, c, "A", player, npc, pa, pb, 0, "left-positive");
+    expect(r.side).toBe("right");
+    expect(r.pose.x).toBeCloseTo(-player.restX, 10);
+  });
+
+  it("mirrors it for a rig that really did put the right arm on +x", () => {
+    const [pa, pb] = facingPair(player, npc);
+    const r = resolveRole(
+      resolution(), scratch(), move, c, "A", player, npc, pa, pb, 0, "right-positive");
+    expect(r.pose.x).toBeCloseTo(player.restX, 10);
+  });
+
+  it("does not move the contact point — which is why this hides", () => {
+    const [pa, pb] = facingPair(player, npc);
+    const right = resolveRole(
+      resolution(), scratch(), move, c, "A", player, npc, pa, pb, 1, "right-positive");
+    const rx = right.pose.x;
+    const left = resolveRole(
+      resolution(), scratch(), move, c, "A", player, npc, pa, pb, 1, "left-positive");
+    expect(left.pose.x).toBeCloseTo(rx, 12);
+  });
+});
+
+describe("horizontal rules", () => {
+  const big = armMetrics(RYAN_DEFAULTS);
+  const small = armMetrics(SPROUT_DEFAULTS);
+
+  it("reach-fraction makes the longer arm cover more of the gap", () => {
+    const f = horizontalFraction("reach-fraction", big, small);
+    expect(f).toBe(contactFraction(big, small));
+    // `f` is the share measured from `big`, so a bigger reach means meeting further away.
+    expect(f).toBeGreaterThan(0.5);
+  });
+
+  it("midpoint ignores the bodies", () => {
+    expect(horizontalFraction("midpoint", big, small)).toBe(0.5);
+  });
+
+  it("at-a and at-b are the ends", () => {
+    expect(horizontalFraction("at-a", big, small)).toBe(0);
+    expect(horizontalFraction("at-b", big, small)).toBe(1);
+  });
+
+  it("meets at the midpoint on the floor when told to", () => {
+    const c = makeConstraint({ horizontal: "midpoint" });
+    const out = resolveConstraint(bumpContact(), c, big, small, at(0, 0), at(0, 2));
+    expect(out.z).toBeCloseTo(1, 10);
+  });
+});
+
+describe("vertical rules resolve in world space", () => {
+  const player = armMetrics(PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
+  const npc = armMetrics(RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
+
+  it("mean-elbow is gripHeight", () => {
+    expect(verticalHeight("mean-elbow", player, npc, 0)).toBe(gripHeight(player, npc));
+  });
+
+  it("mean-shoulder sits above mean-elbow", () => {
+    // A forearm hangs from the shoulder, so shoulders are the higher pair of joints.
+    expect(verticalHeight("mean-shoulder", player, npc, 0)).toBeGreaterThan(
+      verticalHeight("mean-elbow", player, npc, 0),
+    );
+  });
+
+  it("mean-shoulder averages both rigs' world shoulders", () => {
+    const expected =
+      (player.rigOriginY + player.restY + npc.rigOriginY + npc.restY) / 2;
+    expect(verticalHeight("mean-shoulder", player, npc, 0)).toBeCloseTo(expected, 12);
+  });
+
+  it("absolute is taken literally", () => {
+    expect(verticalHeight("absolute", player, npc, 1.37)).toBe(1.37);
+  });
+
+  it("every rule accounts for the rig offset", () => {
+    const grounded = armMetrics(PLAYER_DEFAULTS, 0, 0);
+    for (const rule of ["mean-elbow", "mean-shoulder"] as const) {
+      const raised = verticalHeight(rule, player, npc, 0);
+      const flat = verticalHeight(rule, grounded, npc, 0);
+      expect(raised - flat).toBeCloseTo(PLAYER_RIG_Y / 2, 10);
+    }
+  });
+});
+
+describe("handedness", () => {
+  const c = makeConstraint({
+    anchors: [
+      makeAnchor("A", { side: "right" }),
+      makeAnchor("B", { side: "left" }),
+    ] as const,
+  });
+
+  it("same-hand puts both on the constraint's side", () => {
+    const m = makeContactMove("m", { handedness: "same-hand", constraints: [c] });
+    expect(sideFor(m, c, "A")).toBe("right");
+    expect(sideFor(m, c, "B")).toBe("right");
+  });
+
+  it("opposite-hand flips B", () => {
+    const m = makeContactMove("m", { handedness: "opposite-hand", constraints: [c] });
+    expect(sideFor(m, c, "A")).toBe("right");
+    expect(sideFor(m, c, "B")).toBe("left");
+  });
+
+  it("independent lets each anchor speak for itself", () => {
+    const m = makeContactMove("m", { handedness: "independent", constraints: [c] });
+    expect(sideFor(m, c, "A")).toBe("right");
+    expect(sideFor(m, c, "B")).toBe("left");
+  });
+});
+
+describe("stance is the availability predicate", () => {
+  const a = armMetrics(PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
+  const b = armMetrics(RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
+  const reach = maxSeparation(a, b);
+
+  it("holds when they are close and facing", () => {
+    const [pa, pb] = facingPair(a, b);
+    expect(stanceHolds("facing-within-reach", a, b, pa, pb)).toBeNull();
+  });
+
+  it("fails out of reach", () => {
+    expect(
+      stanceHolds("facing-within-reach", a, b, at(0, 0, 0), at(0, reach * 2, Math.PI)),
+    ).toBe("out-of-reach");
+  });
+
+  it("fails when one of them is facing away — both have to be looking", () => {
+    // The first screenshot: close enough, pointed the wrong way.
+    const sep = reach * 0.5;
+    expect(stanceHolds("facing-within-reach", a, b, at(0, 0, Math.PI), at(0, sep, Math.PI)))
+      .toBe("not-facing");
+    expect(stanceHolds("facing-within-reach", a, b, at(0, 0, 0), at(0, sep, 0)))
+      .toBe("not-facing");
+  });
+
+  it("tolerates being a little off", () => {
+    const sep = reach * 0.5;
+    const nudge = FACING_TOLERANCE * 0.5;
+    expect(stanceHolds("facing-within-reach", a, b, at(0, 0, nudge), at(0, sep, Math.PI)))
+      .toBeNull();
+  });
+
+  it("side-by-side wants matching headings, not opposed ones", () => {
+    const sep = reach * 0.5;
+    expect(stanceHolds("side-by-side-within-reach", a, b, at(0, 0, 0), at(sep, 0, 0)))
+      .toBeNull();
+    expect(stanceHolds("side-by-side-within-reach", a, b, at(0, 0, 0), at(sep, 0, Math.PI)))
+      .toBe("not-side-by-side");
+  });
+
+  it("angleBetween wraps", () => {
+    expect(angleBetween(0.1, -0.1)).toBeCloseTo(0.2, 10);
+    expect(angleBetween(0.1, Math.PI * 2 - 0.1)).toBeCloseTo(0.2, 10);
+  });
+});
+
+describe("staging a stance satisfies the stance", () => {
+  // The editor stages a pair with `stancePlacements` and the game asks `stanceHolds`
+  // whether to offer the move. If those two ever disagree, the editor previews a move
+  // that will never be offered — so they are asserted against each other rather than
+  // separately, which is the same reason both live in this module.
+  const move = fistBumpMove();
+  const c = move.constraints[0];
+  const a = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
+  const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
+
+  it("stages a facing pair the predicate accepts", () => {
+    const sep = maxSeparation(a, b) * 0.75;
+    const p = stancePlacements(move, sep);
+    expect(stanceHolds("facing-within-reach", a, b, p.a, p.b)).toBeNull();
+    expect(availability(move, a, b, p.a, p.b).available).toBe(true);
+  });
+
+  it("stages a side-by-side pair the predicate accepts", () => {
+    const hip = makeContactMove("hip bump", {
+      ...move,
+      stance: "side-by-side-within-reach",
+    });
+    const sep = maxSeparation(a, b) * 0.75;
+    const p = stancePlacements(hip, sep);
+    expect(stanceHolds("side-by-side-within-reach", a, b, p.a, p.b)).toBeNull();
+  });
+
+  it("stages them the requested distance apart, centred on the origin", () => {
+    const p = stancePlacements(move, 2);
+    expect(Math.hypot(p.b.x - p.a.x, p.b.z - p.a.z)).toBeCloseTo(2, 10);
+    expect(p.a.x + p.b.x).toBeCloseTo(0, 10);
+    expect(p.a.z + p.b.z).toBeCloseTo(0, 10);
+  });
+});
+
+describe("availability is geometry and consent", () => {
+  const move = fistBumpMove();
+  const c = move.constraints[0];
+  const a = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
+  const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
+  const reach = maxSeparation(a, b);
+  const near = facingPair(a, b, 0.5);
+  const far = [at(0, 0, 0), at(0, reach * 3, Math.PI)] as const;
+
+  it("offers the bump when they are close and facing", () => {
+    const r = availability(move, a, b, near[0], near[1]);
+    expect(r.available).toBe(true);
+    expect(r.reason).toBeNull();
+  });
+
+  it("withholds it when out of reach, because this move declines", () => {
+    const r = availability(move, a, b, far[0], far[1]);
+    expect(r.available).toBe(false);
+    expect(r.reason).toBe("out-of-reach");
+    expect(r.separation).toBeCloseTo(reach * 3, 10);
+  });
+
+  it("offers a move that would rather stretch", () => {
+    // Reach is a rule the move chooses, not a gate the model imposes — the lobbed fist
+    // and the paddle live on this branch.
+    const stretchy = makeContactMove("lob", { ...move, outOfRange: "reach", tags: [] });
+    expect(availability(stretchy, a, b, far[0], far[1]).available).toBe(true);
+  });
+
+  it("withholds it from someone who has muted its tags", () => {
+    const prefs: ComfortPreferences = { mutedTags: ["contact"], allowsTransfer: true };
+    expect(availability(move, a, b, near[0], near[1], prefs).reason).toBe("muted-by-a");
+    expect(availability(move, a, b, near[0], near[1], OPEN_TO_EVERYTHING, prefs).reason)
+      .toBe("muted-by-b");
+  });
+
+  it("is open to everything by default", () => {
+    expect(availability(move, a, b, near[0], near[1]).available).toBe(true);
+  });
+
+  it("needs both to consent before a part changes hands", () => {
+    const lob = makeContactMove("lob", { ...move, exit: "transfer" });
+    const no: ComfortPreferences = { mutedTags: [], allowsTransfer: false };
+    expect(availability(lob, a, b, near[0], near[1]).available).toBe(true);
+    expect(availability(lob, a, b, near[0], near[1], no).reason).toBe("transfer-not-consented");
+    expect(availability(lob, a, b, near[0], near[1], OPEN_TO_EVERYTHING, no).reason)
+      .toBe("transfer-not-consented");
+  });
+
+  it("checks consent before geometry — a muted move is never offered, near or far", () => {
+    const prefs: ComfortPreferences = { mutedTags: ["greeting"], allowsTransfer: true };
+    expect(availability(move, a, b, far[0], far[1], prefs).reason).toBe("muted-by-a");
+  });
+});
+
+describe("authored envelopes", () => {
+  it("respects durations other than the fist bump's", () => {
+    const e = { extend: 1, hold: 2, withdraw: 1 };
+    expect(envelopeWith(0.5, e.extend, e.hold, e.withdraw).t).toBeCloseTo(0.5, 1);
+    expect(envelopeWith(2, e.extend, e.hold, e.withdraw).touching).toBe(true);
+    expect(envelopeWith(4.1, e.extend, e.hold, e.withdraw).done).toBe(true);
+  });
+
+  it("writes the hold exactly, at any duration", () => {
+    for (let s = 1; s < 3; s += 0.05) {
+      expect(envelopeWith(s, 1, 2, 1).t).toBe(1);
+    }
+  });
+
+  it("survives a zero-length phase — the editor's sliders reach 0", () => {
+    expect(envelopeWith(0.1, 0, 1, 0.5).t).toBe(1);
+    expect(envelopeWith(1.2, 0, 1, 0).done).toBe(true);
+    expect(Number.isNaN(envelopeWith(0.5, 0, 0, 0).t)).toBe(false);
+  });
+});
+
+describe("construction", () => {
+  it("defaults a new move to something authorable", () => {
+    const m = makeContactMove("new");
+    expect(m.constraints).toHaveLength(1);
+    expect(m.stance).toBe("facing-within-reach");
+    expect(m.exit).toBe("return");
+    expect(totalSeconds(m.envelope)).toBeGreaterThan(0);
+  });
+
+  it("gives every move and constraint a distinct id", () => {
+    const ids = new Set([makeContactMove().id, makeContactMove().id, makeContactMove().id]);
+    expect(ids.size).toBe(3);
+  });
+
+  it("defaults anchors to rigid and attached — detachment is opt-in", () => {
+    expect(makeAnchor("A").attach).toBe("rigid");
+  });
+
+  it("measures metrics on the authored hand", () => {
+    const c = makeConstraint({
+      anchors: [
+        makeAnchor("A", { hand: "closed" }),
+        makeAnchor("B", { hand: "open" }),
+      ] as const,
+    });
+    expect(metricsFor(c, "A", MYCO_DEFAULTS, 0.5, 0).handRadius)
+      .toBe(MYCO_DEFAULTS.hand.closed.radius);
+    expect(metricsFor(c, "B", MYCO_DEFAULTS, 0.5, 0).handRadius)
+      .toBe(MYCO_DEFAULTS.hand.open.radius);
+  });
+});

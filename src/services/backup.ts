@@ -8,6 +8,7 @@ const FIXED_KEYS = [
   "townage-body-shapes",
   "townage-arm-actions",
   "townage-emotes",
+  "townage-contact-moves",
   "townage-npc-records",
   "townage-npc-kings-chess-records",
   "townage-npc-board-records",

@@ -24,6 +24,11 @@ export type NpcBehavior =
 
 interface NpcProps {
   position: [number, number, number];
+  /**
+   * Which authored hand shape to draw — see `Player`'s note. A fist bump is solved on the
+   * closed hand's radius, so it has to be drawn on it too.
+   */
+  handPose?: "open" | "closed";
   playerPosition: React.RefObject<THREE.Vector3 | null>;
   onClick?: () => void;
   relaxing: boolean;
@@ -56,7 +61,7 @@ const WALK_SPEED = 1.5;
 const SIP_INTERVAL = 4000;
 const UKE_DELAY = 12000;
 
-export function Npc({ position, playerPosition, onClick, relaxing, talking, screenPos, worldPosRef, bodyShape, arms, rigRef, wheelHandlers }: NpcProps) {
+export function Npc({ position, playerPosition, onClick, relaxing, talking, screenPos, worldPosRef, bodyShape, arms, rigRef, wheelHandlers, handPose = "open" }: NpcProps) {
   const shape = bodyShape ?? NPC_DEFAULTS;
   const ownGroup = useRef<THREE.Group>(null);
   const groupRef = rigRef ?? ownGroup;
@@ -222,8 +227,9 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
 
   const npcColor = shape.bodyColor;
   const { head, body, forearm, hand } = shape;
-  const pos = computePositions(shape, NPC_BODY_CENTER_Y);
-  const rot = handRotations(hand.open);
+  const pos = computePositions(shape, NPC_BODY_CENTER_Y, handPose);
+  const activeHand = hand[handPose];
+  const rot = handRotations(activeHand);
   // Mesh heights relative to the shoulder the arm group now pivots on.
   const forearmLocalY = pos.forearmCenterY - pos.shoulderY;
   const handLocalY = pos.handCenterY - pos.shoulderY;
@@ -258,8 +264,8 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
             <meshStandardMaterial color={npcColor} />
           </mesh>
-          <mesh position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.left} castShadow>
-            <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
+          <mesh position={[0, handLocalY, 0]} scale={[1, 1, activeHand.flattenZ]} rotation={rot.left} castShadow>
+            <sphereGeometry args={[activeHand.radius, activeHand.widthSegments, activeHand.heightSegments]} />
             <meshStandardMaterial color={npcColor} />
           </mesh>
         </group>
@@ -269,8 +275,8 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
             <meshStandardMaterial color={npcColor} />
           </mesh>
-          <mesh position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.right} castShadow>
-            <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
+          <mesh position={[0, handLocalY, 0]} scale={[1, 1, activeHand.flattenZ]} rotation={rot.right} castShadow>
+            <sphereGeometry args={[activeHand.radius, activeHand.widthSegments, activeHand.heightSegments]} />
             <meshStandardMaterial color={npcColor} />
           </mesh>
         </group>

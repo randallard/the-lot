@@ -25,6 +25,15 @@ const BASE_Y = 0.75;
 export type RushMode = 0 | 1 | 2;
 
 interface PlayerProps {
+  /**
+   * Which authored hand shape to draw.
+   *
+   * The contact maths is measured on this shape (`ArmMetrics.handRadius`), so drawing a
+   * different one puts the mesh where the solver did not: a closed-fist bump solved at
+   * 0.07 and drawn at 0.09 interpenetrates by the difference. Driven by whatever owns the
+   * arm — see `FistBumpDriver` — and `"open"` the rest of the time.
+   */
+  handPose?: "open" | "closed";
   positionRef: React.RefObject<THREE.Vector3 | null>;
   inputDir: React.RefObject<InputDirection>;
   rushMode: React.RefObject<RushMode>;
@@ -45,7 +54,7 @@ interface PlayerProps {
   rigRef?: React.RefObject<THREE.Group | null>;
 }
 
-export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bodyShape, animController, arms, drivenArms, rigRef }: PlayerProps) {
+export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bodyShape, animController, arms, drivenArms, rigRef, handPose = "open" }: PlayerProps) {
   const shape = bodyShape ?? PLAYER_DEFAULTS;
   const ownGroup       = useRef<THREE.Group>(null);
   const groupRef       = rigRef ?? ownGroup;
@@ -72,7 +81,7 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
     const rp        = animController?.current?.tick(state.clock.elapsedTime) ?? NEUTRAL_POSE;
     const isEmoting = animController?.current?.isPlaying() ?? false;
     const animShape = mergeAnimation(shape, rp);
-    const pos       = computePositions(animShape, PLAYER_BODY_CENTER_Y);
+    const pos       = computePositions(animShape, PLAYER_BODY_CENTER_Y, handPose);
 
     // Capture base rotation at emote start
     if (!wasEmoting.current && isEmoting) {
@@ -184,8 +193,9 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
   });
 
   const { head, body, forearm, hand } = shape;
-  const pos  = computePositions(shape, PLAYER_BODY_CENTER_Y);
-  const rot  = handRotations(hand.open);
+  const pos  = computePositions(shape, PLAYER_BODY_CENTER_Y, handPose);
+  const activeHand = hand[handPose];
+  const rot  = handRotations(activeHand);
   const COLOR = shape.bodyColor;
 
   // Arm mesh offsets relative to the shoulder group pivot
@@ -240,8 +250,8 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
           <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
           <meshStandardMaterial ref={el => { armMatsRef.current[0] = el; }} color={COLOR} transparent />
         </mesh>
-        <mesh position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.left} castShadow>
-          <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
+        <mesh position={[0, handLocalY, 0]} scale={[1, 1, activeHand.flattenZ]} rotation={rot.left} castShadow>
+          <sphereGeometry args={[activeHand.radius, activeHand.widthSegments, activeHand.heightSegments]} />
           <meshStandardMaterial ref={el => { armMatsRef.current[1] = el; }} color={COLOR} transparent />
         </mesh>
       </group>
@@ -252,8 +262,8 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
           <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
           <meshStandardMaterial ref={el => { armMatsRef.current[2] = el; }} color={COLOR} transparent />
         </mesh>
-        <mesh position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.right} castShadow>
-          <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
+        <mesh position={[0, handLocalY, 0]} scale={[1, 1, activeHand.flattenZ]} rotation={rot.right} castShadow>
+          <sphereGeometry args={[activeHand.radius, activeHand.widthSegments, activeHand.heightSegments]} />
           <meshStandardMaterial ref={el => { armMatsRef.current[3] = el; }} color={COLOR} transparent />
         </mesh>
       </group>

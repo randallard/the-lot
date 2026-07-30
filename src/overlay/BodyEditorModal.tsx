@@ -11,6 +11,7 @@ import { BodyEditor } from "./BodyEditor";
 import { type Section, ALL_SECTIONS } from "./body-editor-sections";
 import { ArmActionBuilderModal } from "./ArmActionBuilderModal";
 import { EmoteBuilderModal } from "./EmoteBuilderModal";
+import { ContactMoveBuilderModal } from "./ContactMoveBuilderModal";
 
 
 function useIsWide() {
@@ -53,7 +54,7 @@ export function BodyEditorModal({ subjectId, onClose, onShapeChange }: BodyEdito
     head: true, body: false, forearm: false, hand: false, layout: false, eyes: false,
   });
   const [previewPose, setPreviewPose] = useState<"open" | "closed">("open");
-  const [showActions, setShowActions] = useState<"arms" | "emotes" | null>(null);
+  const [showActions, setShowActions] = useState<"arms" | "emotes" | "contact" | null>(null);
   const isWide = useIsWide();
   const color = shape.bodyColor;
   const npc = subjectId !== "player" ? getNpcById(subjectId) : null;
@@ -115,6 +116,7 @@ export function BodyEditorModal({ subjectId, onClose, onShapeChange }: BodyEdito
             <>
               <button style={{ ...BTN, borderColor: "#2a2a40", color: "#888" }} onClick={() => setShowActions("arms")}>arm actions</button>
               <button style={{ ...BTN, borderColor: "#2a2a40", color: "#888" }} onClick={() => setShowActions("emotes")}>emotes</button>
+              <button style={{ ...BTN, borderColor: "#2a2a40", color: "#888" }} onClick={() => setShowActions("contact")}>contact moves</button>
               <button style={BTN} onClick={() => setOpenSections(EMPTY_SECTIONS)}>close all</button>
               <button style={{ ...BTN, borderColor: openCount === 5 ? "#6a4c93" : "#2a2a40", color: openCount === 5 ? "#c080e0" : "#888" }} onClick={() => setOpenSections(ALL_OPEN)}>open all</button>
             </>
@@ -125,6 +127,7 @@ export function BodyEditorModal({ subjectId, onClose, onShapeChange }: BodyEdito
           <div style={{ display: "flex", gap: 6, padding: "0 14px 8px", flexWrap: "wrap" }}>
             <button style={{ ...BTN, borderColor: "#2a2a40", color: "#888" }} onClick={() => setShowActions("arms")}>arm actions</button>
             <button style={{ ...BTN, borderColor: "#2a2a40", color: "#888" }} onClick={() => setShowActions("emotes")}>emotes</button>
+              <button style={{ ...BTN, borderColor: "#2a2a40", color: "#888" }} onClick={() => setShowActions("contact")}>contact moves</button>
             <button style={BTN} onClick={() => setOpenSections(EMPTY_SECTIONS)}>close all</button>
             <button style={{ ...BTN, borderColor: openCount === 5 ? "#6a4c93" : "#2a2a40", color: openCount === 5 ? "#c080e0" : "#888" }} onClick={() => setOpenSections(ALL_OPEN)}>open all</button>
           </div>
@@ -218,6 +221,12 @@ export function BodyEditorModal({ subjectId, onClose, onShapeChange }: BodyEdito
         shape={shape}
         onClose={() => setShowActions(null)}
       />
+    )}
+    {/* Not scoped to `subjectId`: a contact move is authored against roles and cast at
+        play time, so it belongs to no one character. Reachable from here because this is
+        where the other authoring tools are, not because it is this subject's. */}
+    {showActions === "contact" && (
+      <ContactMoveBuilderModal onClose={() => setShowActions(null)} />
     )}
     </>
   );

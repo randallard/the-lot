@@ -115,18 +115,70 @@ back up.**
     floor and dancers trading heads. So the wrong thing about the floating arms is that
     **nothing authored the detachment**. An unhandled case and a deliberate absurdity look
     identical on screen and are opposites in the model.
-  - **Two silent defects it exposed, both still open.** `armMetrics` sets
-    `handRadius = shape.hand.open.radius` unconditionally
-    ([`arm-pose.ts:141`](../src/dance/arm-pose.ts)), so a *closed*-fist bump is solved with the
-    open hand's radius and the fists are separated by the wrong amount by construction. And
-    `gripHeight` is the acknowledged placeholder whose failure mode is exactly the very unequal
-    pair in the second screenshot — **measure it in the overlay rather than eyeballing it.**
-- **Next action: build the contact-move editor** (ADR-0016), first cut = make the fist bump
-  authorable. Two roles, stance presets with the availability predicate wired, anchor + hand
-  pose, per-axis resolution rules, the existing extend/hold/withdraw envelope. No phases, no
-  travel. The pure resolver goes in `src/dance/` beside `arm-pose.ts`; the UI in `src/overlay/`
-  beside `EmoteBuilderModal`. **The editor and the runtime must call the same resolver, or the
-  editor lies** — that is the property the design turns on.
+- **The first cut is built (2026-07-30) and is 🔴 unwatched.** ADR-0016's schema, resolver,
+  editor and predicate all landed — 470 tests (from 421), lint 0 errors, typecheck and build
+  clean. Full narrative in
+  [the second journal entry](journal/2026-07-30-2-the-fists-were-never-in-the-same-frame.md).
+  - **`src/dance/contact-move.ts`** is the schema and the resolver. `resolveRole` is what both
+    the editor and `FistBumpDriver` call — the property ADR-0016 turns on — and a test asserts
+    the authored fist bump produces the same pose the hardcoded one did.
+  - **The wheel wedge greys out with a reason on it** ("too far away", "face them") instead of
+    vanishing. Closes the unwired `canBump` the M5 handover flagged.
+  - **`ContactMoveBuilderModal` + `ContactMovePreview`**, reachable from the body editor's row
+    of tools. Storage in `services/contact-moves.ts`, registered in `backup.ts`, deliberately
+    **not** keyed by character.
+  - 🔴 Gated and unimplemented, by design: `attach: "free"` and `exit: "transfer"` (the lobbed
+    fist, the traded head) resolve as `rigid`/`return`; `"lean"` behaves as `"reach"`; one
+    constraint per move is read though the schema holds a list.
+- **Three defects the build turned up, all now fixed, none of which a green suite had caught.**
+  - 🔴 **The height defect was misdiagnosed this morning, including in ADR-0016's
+    Consequences** — which is accepted and immutable, so the correction is in the journal.
+    It is **not** `gripHeight`'s unequal-pair placeholder. `elbowY` is measured in each
+    character's own group and the two groups sit at different world heights (`Player` at
+    `BASE_Y` 0.75, `Npc` at 0), so `gripHeight` averaged across frames and both sides wrote the
+    result as a *local* Y — putting the fists exactly 0.75 apart **between identical bodies**.
+    `armMetrics` now takes `rigOriginY`, `gripHeight` answers in world, `localHeight` names the
+    conversion. The placeholder is still open and still unfixed.
+  - **`handRadius` was always the open hand**, so a fist bump was solved at the wrong size —
+    and `Npc.tsx`/`Player.tsx` *drew* the open hand too, so it would also have looked wrong
+    after the maths was fixed. Both now carry the authored pose.
+  - **Two opposite arm-side conventions live in this repo**: `Dancer.tsx` puts the right arm at
+    `-forearmX`, `Player.tsx` and `Npc.tsx` at `+forearmX`. Nothing had ever posed both from
+    one code path. `RigHandedness` is now declared by the caller.
+- **It was watched (2026-07-30), and found two more defects — both now fixed.** 477 tests,
+  lint 0 errors, build clean. Narrative in
+  [the third journal entry](journal/2026-07-30-3-the-watch-two-defects-and-a-naming-bug.md).
+  - ✅ **The predicate works.** The wedge greys out and states its reason, both for facing
+    away and for too far apart. The first screenshot is now unreachable.
+  - **The arm was inside out.** `gripPose` reads `dir` as pointing toward the *partner*;
+    `bumpPose` handed it the direction toward *self*, mirroring the arm about the contact
+    point. The shoulder was placed at the partner's feet (origin z +0.75 to +1.02, should be
+    ≈0) with the aim reversed. It passed every test in the file because they all measure the
+    **hand**, which was correct — the hand is the fixed point of that mirror. Fixed by
+    negating both the direction and the radius; new tests measure origin and aim.
+  - **It was driving the left arm.** 🔴 **This corrects the "two opposite conventions"
+    finding in the previous entry** — it is a *naming bug*, not a convention, and the earlier
+    write-up legitimised it. Yaw 0 faces +z, so the anatomical right hand is at −x.
+    `Dancer.tsx` is correct; `Player.tsx`, `Npc.tsx` and `Eyes.tsx` all name their **+x** side
+    "right", which is the character's left. The naming is **left alone on purpose** — it is
+    self-consistent with `CharacterPreview`, so every authored emote's "R arm" already means
+    the +x arm and renaming would mirror existing content. `World` maps around it instead.
+- **Next action: 🔴 a decision, then auto-positioning.**
+  1. **The shoulder still slides back** at bump range — origin z −0.34 / −0.21 / −0.07 at
+     half / ¾ / full reach, where it should be ≈0. `arm-pose` places the arm relative to the
+     **contact point**, not the shoulder, and its "the undrawn upper arm takes up the
+     difference" bet goes *negative* at bump range. Also `maxSeparation` ignores the two hand
+     radii, so "full reach" is short by `handRadius`. **With a rigid arm pinned at a real
+     shoulder the only free parameter is direction**, so either the contact height gives when
+     they stand closer (arms angle up, fists meet higher) or the fists interpenetrate. Taking
+     the first makes the authored vertical rule non-authoritative — an ADR superseding that
+     part of ADR-0016, not a quiet edit. **Ryan's call.**
+  2. **Auto-positioning** (Ryan, 2026-07-30): a move may bring both bodies into position when
+     accepted by both parties. Fits the schema as
+     `approach: "none" | "turn" | "turn-and-step"`, and answers the question `facingYaw` has
+     been parked on since M5. Wants **its own ADR**: it splits the availability predicate
+     ("could they get there" vs "are they there"), and "accepted by both parties" needs an
+     offer/response handshake that does not exist yet.
   - Two smaller M4 leftovers still owed: an ADR extending ADR-0008's react-hooks exception to
     `src/dance/**` (owed since the M4 handover, and `src/dance/` has grown a lot since), and
     sending `docs-hygiene.py`'s escape guard upstream to the template.

@@ -49,6 +49,7 @@ import {
   type Placement,
   gripHeight,
   gripPose,
+  localHeight,
 } from "./arm-pose";
 
 /**
@@ -82,27 +83,46 @@ export interface BumpEnvelope {
  * defect in this repo's arm work managed to look right and measure wrong.
  */
 export function envelopeAt(elapsed: number, out?: BumpEnvelope): BumpEnvelope {
+  return envelopeWith(elapsed, EXTEND_SECONDS, HOLD_SECONDS, WITHDRAW_SECONDS, out);
+}
+
+/**
+ * {@link envelopeAt} with the three durations supplied — an authored move carries its
+ * own timing, and the constants above are the fist bump's particular answer.
+ *
+ * A zero-length phase is skipped cleanly rather than dividing by zero, because the
+ * editor's sliders can reach 0 and a move with no hold is a legitimate thing to author
+ * (a tap rather than a bump).
+ */
+export function envelopeWith(
+  elapsed: number,
+  extend: number,
+  hold: number,
+  withdraw: number,
+  out?: BumpEnvelope,
+): BumpEnvelope {
   const e = out ?? { t: 0, touching: false, done: false };
+  const total = extend + hold + withdraw;
   if (elapsed <= 0) {
     e.t = 0;
     e.touching = false;
     e.done = false;
     return e;
   }
-  if (elapsed < EXTEND_SECONDS) {
-    e.t = smoothstep(elapsed / EXTEND_SECONDS);
+  if (elapsed < extend) {
+    e.t = extend > 0 ? smoothstep(elapsed / extend) : 1;
     e.touching = false;
     e.done = false;
     return e;
   }
-  if (elapsed < EXTEND_SECONDS + HOLD_SECONDS) {
+  if (elapsed < extend + hold) {
     e.t = 1;
     e.touching = true;
     e.done = false;
     return e;
   }
-  if (elapsed < TOTAL_SECONDS) {
-    const k = (elapsed - EXTEND_SECONDS - HOLD_SECONDS) / WITHDRAW_SECONDS;
+  if (elapsed < total) {
+    const k = withdraw > 0 ? (elapsed - extend - hold) / withdraw : 1;
     e.t = smoothstep(1 - k);
     e.touching = false;
     e.done = false;
@@ -163,7 +183,14 @@ export function contactFraction(a: ArmMetrics, b: ArmMetrics): number {
 export interface BumpContact {
   x: number;
   z: number;
-  /** Shared height of both fists. */
+  /**
+   * Shared height of both fists, **always in world space** — even when `x`/`z` were
+   * resolved in a rig-local frame.
+   *
+   * The one quantity here that is not frame-agnostic, because it comes from
+   * {@link gripHeight}, which averages two characters' rig-local elbows and therefore
+   * has to answer in the frame they have in common. {@link bumpPose} localises it.
+   */
   height: number;
   /** Unit direction from the contact point back toward `a`. */
   dirAX: number;
@@ -202,14 +229,36 @@ export function resolveContact(
   pa: Placement,
   pb: Placement,
 ): BumpContact {
+  return resolveContactAt(out, a, b, pa, pb, contactFraction(a, b), gripHeight(a, b));
+}
+
+/**
+ * {@link resolveContact} with the two rules supplied rather than assumed.
+ *
+ * The fist bump's answers — split the gap by reach, meet at the mean resting elbow — are
+ * one choice out of several, and ADR-0016 makes that choice authored data: a palm touch
+ * at shoulder height is the same geometry with a different pair of rules. Extracted so
+ * `contact-move.ts` composes this rather than reimplementing the axis maths, which is
+ * the only copy of it.
+ *
+ * `f` is `a`'s share of the gap, 0 at `a` and 1 at `b`. `height` is world.
+ */
+export function resolveContactAt(
+  out: BumpContact,
+  a: ArmMetrics,
+  b: ArmMetrics,
+  pa: Placement,
+  pb: Placement,
+  f: number,
+  height: number,
+): BumpContact {
   const dx = pb.x - pa.x;
   const dz = pb.z - pa.z;
   const sep = Math.hypot(dx, dz);
-  const f = contactFraction(a, b);
 
   out.separation = sep;
   out.reachable = sep <= maxSeparation(a, b);
-  out.height = gripHeight(a, b);
+  out.height = height;
 
   if (sep <= 1e-9) {
     out.x = pa.x;
@@ -241,6 +290,10 @@ export function resolveContact(
  * radius, aimed along the axis, so the two fists touch rather than interpenetrate or
  * hover. `dir` is the contact point's direction back toward *this* character —
  * `dirA*` for one, `dirB*` for the other.
+ *
+ * `c.height` is world and the pose is rig-local, so it is localised here rather than by
+ * the caller — the two characters in a bump generally have rigs at different world
+ * heights, and doing this at the call site is how it got missed the first time.
  */
 export function bumpPose(
   out: ArmPose,
@@ -249,7 +302,19 @@ export function bumpPose(
   dirX: number,
   dirZ: number,
 ): ArmPose {
-  return gripPose(out, m, m.handRadius, 0, c.x, c.z, dirX, dirZ, c.height);
+  // 🔴 **Both arguments are negated, and that is the whole fix for an inside-out arm.**
+  //
+  // `dir` arrives pointing from the contact point back toward *this* character, but
+  // `gripPose` reads its direction as pointing toward the **partner** — it puts the hand
+  // at `+radius · dir` and the arm's own origin back at `(radius − handReach) · dir`.
+  // Feeding it the self-ward direction mirrored both about the contact point: the hand
+  // still landed correctly (a bump wants its hand `handRadius` back on its own side, which
+  // is what the sign flip happens to produce) while the arm's origin was thrown past the
+  // contact point onto the partner's side with the aim reversed. The shoulder ended up
+  // standing at the partner's feet with the forearm pointing back across the gap.
+  //
+  // It passed every test here because they all measure the **hand**, which was right.
+  return gripPose(out, m, -m.handRadius, 0, c.x, c.z, -dirX, -dirZ, localHeight(m, c.height));
 }
 
 /** A character standing at their own origin — the `self` of a local frame. */
