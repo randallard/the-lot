@@ -408,10 +408,19 @@ export default function App() {
   //
   // Capped at the eight-wedge practical ceiling from ADR-0015: past that, angles get
   // too tight to flick blind, which is the accuracy the wheel exists to buy.
-  const wheelItems = useMemo(
-    () => getEmotes("player").slice(0, 8).map(e => ({ id: e.id, label: e.name || "untitled" })),
-    [],
-  );
+  //
+  // **An empty wheel still opens**, showing one disabled wedge that says why. With no
+  // saved emotes the count is zero and the gesture would decline to open at all —
+  // which is indistinguishable from a broken hold, and this repo has already lost a
+  // week to a feature that passed by doing nothing. A visible reason beats silence.
+  const wheelItems = useMemo(() => {
+    const emotes = getEmotes("player")
+      .slice(0, 8)
+      .map(e => ({ id: e.id, label: e.name || "untitled" }));
+    return emotes.length > 0
+      ? emotes
+      : [{ id: "__none", label: "no emotes yet", disabled: true }];
+  }, []);
 
   const handleWheelSelect = useCallback(
     (index: number) => {
@@ -878,7 +887,20 @@ export default function App() {
       <Canvas
         shadows={{ type: THREE.BasicShadowMap }}
         camera={{ position: [0, 8, 12], fov: 50 }}
-        style={{ width: "100%", height: "100%" }}
+        // The hold that opens the interaction wheel (ADR-0015) happens *here*, on the
+        // canvas, not on the wheel — which does not exist until the hold completes. So
+        // the callout suppression belongs here too: putting it on the wheel let iOS run
+        // its own long-press first, and Safari answered a hold on an NPC with the text
+        // selection loupe and a Copy / Look Up / Translate bar. Scoped to the canvas so
+        // chat and the rest of the DOM stay selectable.
+        style={{
+          width: "100%",
+          height: "100%",
+          touchAction: "none",
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          WebkitTouchCallout: "none",
+        }}
       >
         <World
           onPart1Pickup={handlePart1Pickup}

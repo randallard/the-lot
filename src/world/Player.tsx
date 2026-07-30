@@ -82,10 +82,13 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
         pos.headY + animShape.head.offsetY,
         animShape.head.offsetZ,
       );
+      // The emote's head turn only — see the group's comment in the JSX below.
+      // `animShape.head.rotation` is this summed with `shape.head.rotation`, and that
+      // base is decoration for the bare sphere, not a facing.
       headGroupRef.current.rotation.set(
-        deg2rad(animShape.head.rotation[0]),
-        deg2rad(animShape.head.rotation[1]),
-        deg2rad(animShape.head.rotation[2]),
+        deg2rad(rp.headDeltaRotation[0]),
+        deg2rad(rp.headDeltaRotation[1]),
+        deg2rad(rp.headDeltaRotation[2]),
       );
       headGroupRef.current.scale.setScalar(animShape.head.radius / shape.head.radius);
     }
@@ -189,13 +192,24 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
           unrotated one: the eyes are the only part of a head that shows which way it
           is looking, so they have to be children of the thing that turns rather than
           siblings of it. Everything inside sits at head-local coordinates, which is
-          why `Eyes` gets `headY={0}` — the group supplies the head's height. */}
+          why `Eyes` gets `headY={0}` — the group supplies the head's height.
+
+          **The group carries the emote's head turn only, never `shape.head.rotation`.**
+          Those are two different rotations that used to look like one. The shape field
+          was only ever applied to a bare sphere, where it is invisible except on a
+          low-segment faceted head, so its stored values were tuned as decoration and
+          mean nothing about facing — the player's is `[-180, -91, -93]`. Putting the
+          eyes inside a group carrying it turned that harmless junk into a face rotated
+          91° onto the side of the head. It stays on the mesh it has always been on;
+          `Dancer` has the same split, having never applied it to its group at all. */}
       <group
         ref={headGroupRef}
         position={[head.offsetX, pos.headY + head.offsetY, head.offsetZ]}
-        rotation={[deg2rad(head.rotation[0]), deg2rad(head.rotation[1]), deg2rad(head.rotation[2])]}
       >
-        <mesh castShadow>
+        <mesh
+          castShadow
+          rotation={[deg2rad(head.rotation[0]), deg2rad(head.rotation[1]), deg2rad(head.rotation[2])]}
+        >
           <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
           <meshStandardMaterial ref={headMatRef} color={COLOR} transparent />
         </mesh>
