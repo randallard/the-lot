@@ -616,10 +616,8 @@ week by being unwired. It joins when it can actually run.
   - **A short tap deliberately does nothing here**, so an NPC's existing tap-to-chat still
     works. Only a hold opens the wheel — the wheel coexists with the current tap meaning rather
     than taking it.
-  - 🔴 **Consequence: the non-dragging path is not wired.** Since tapping the same target is
-    spoken for, ADR-0015's required "tap to open and tap a wedge" needs its own opener.
-    `openSticky()` exists and is tested, and **nothing calls it**. This is the WCAG 2.5.7
-    alternative, so it is a ship blocker rather than a nicety.
+  - ~~🔴 **The non-dragging path is not wired.**~~ **Done 2026-07-29** — see `WheelButton`
+    below. Tapping the NPC was spoken for by chat, so the opener is a button instead.
 - **[`src/overlay/InteractionWheel.tsx`](../src/overlay/InteractionWheel.tsx)** (17 tests). SVG
   annulus sectors, active wedge highlighted, digit hints, disabled wedges greyed and out of the
   tab order. In `drag` mode it is `pointerEvents: none` decoration — the opener owns the
@@ -650,17 +648,36 @@ spread onto the NPC's existing hitbox mesh, next to its `onClick`.
   argument applied to rendering, and the reason this did not become a fifth
   `"ontouchstart" in window` check.
 
+- **[`src/overlay/WheelButton.tsx`](../src/overlay/WheelButton.tsx)** (6 tests). ADR-0015's
+  **non-dragging path**, and the accommodation a long press most needs: WCAG **2.5.7** (AA) and
+  **2.5.1** (A) both require a single-pointer alternative to hold-and-flick, and a fixed
+  long-press is the part of this design most hostile to tremor. Third in the button row
+  (pocket 40, emotes 104, this 168), opening the wheel in `sticky` mode — it stays up with no
+  pointer held and a wedge is chosen by tapping it.
+  - **Centred on the viewport, not on the button.** The wheel is ~240 px across, so a corner
+    anchor would put half its wedges off-screen — and the flick that would forgive that is
+    exactly what this path exists to avoid needing.
+  - **Renders on every device, unlike its neighbours.** `PocketButton` and the emote button
+    hide behind `"ontouchstart" in window`, which is fine for a convenience control and wrong
+    for this one: a mouse user who cannot hold a button down needs it as much as a thumb does.
+    A real `<button>`, so Enter and Space work for free.
+  - Key hints now show unless the wheel was opened **by touch**, so the sticky path — the one a
+    keyboard user reaches for — shows the digits.
+
 **Still to build, in order:**
 
-1. **A sticky opener** — ADR-0015's non-dragging path. Ship blocker.
-2. **Drive both characters' arms through a bump.** The real integration: `Player.tsx` and
+1. **Drive both characters' arms through a bump.** The real integration: `Player.tsx` and
    `Npc.tsx` each own their rig and read `AnimationController` independently, so something has
    to hold the shared bump state and hand each of them a world-space arm pose for its duration.
    This is the piece with no precedent — `DanceFloor` does it for dancers, but the player has
    never been on either side of a contact.
-3. **Add the fist-bump wedge**, once step 2 makes it do something. `canBump` from
+2. **Add the fist-bump wedge**, once step 1 makes it do something. `canBump` from
    `fist-bump.ts` greys it out when the player is too far to reach.
-4. **Watch it.** Contact has been wrong by eye three times here with green tests behind it.
+3. **Watch it.** Contact has been wrong by eye three times here with green tests behind it.
+4. **Anchor the sticky wheel to a chosen NPC.** It is viewport-centred today, which is fine
+   while every wedge is a player emote. The moment the wheel carries NPC-specific items — the
+   fist bump — the sticky path needs to know *who*, or it becomes a second-class route to a
+   subset of the wheel, which is precisely what 2.5.7 forbids.
 
 🔴 **Still true, just deferred: `externallyDriven` has never run.** It is the seam by which the
 player participates in a square instead of being driven by the engine. square-one implements it

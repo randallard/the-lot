@@ -64,6 +64,7 @@ import { getEmotes, type Emote } from "./services/emotes";
 import { EmotePanel } from "./overlay/EmotePanel";
 import { InteractionWheel } from "./overlay/InteractionWheel";
 import { useWheelGesture } from "./overlay/useWheelGesture";
+import { WheelButton } from "./overlay/WheelButton";
 import type { TrinketTrackerState } from "./world/useTrinketTracker";
 import type { RushMode } from "./world/Player";
 import type { ScreenPos } from "./world/useScreenPosition";
@@ -431,6 +432,15 @@ export default function App() {
   );
 
   const wheel = useWheelGesture({ count: wheelItems.length, onSelect: handleWheelSelect });
+  const { openSticky } = wheel;
+
+  // The non-dragging path (ADR-0015, WCAG 2.5.7). Centred on the viewport rather than
+  // on the button: the wheel is ~240px across, so anchoring it in the corner would put
+  // half its wedges off-screen — and the flick that would forgive that is exactly what
+  // this path exists to avoid needing.
+  const openWheelSticky = useCallback(() => {
+    openSticky(window.innerWidth / 2, window.innerHeight / 2);
+  }, [openSticky]);
 
   // Opens chat with an NPC; triggers name-capture flow if this is the first Ryan chat
   const openChatWithNpc = useCallback((npcId: string) => {
@@ -945,6 +955,7 @@ export default function App() {
 
       <VirtualJoystick inputDir={inputDir} />
       <PocketButton onClick={togglePocket} pulse={needsPocketHint} />
+      <WheelButton onOpen={openWheelSticky} />
       <PocketHint show={needsPocketHint} />
 
       <EmotePanel
@@ -964,7 +975,7 @@ export default function App() {
           mode={wheel.state.mode}
           onPick={wheel.select}
           onDismiss={wheel.close}
-          showKeyHints={wheel.state.pointerType === "mouse"}
+          showKeyHints={wheel.state.pointerType !== "touch"}
         />
       )}
 
