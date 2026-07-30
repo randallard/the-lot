@@ -29,10 +29,58 @@
  * guaranteed the matching `pointerup`. Moves and releases are then read from that
  * captured element's own handlers, filtered by `pointerId` so a second finger landing
  * mid-gesture is ignored — ADR-0013's one surviving piece of bookkeeping.
+ *
+ * ## Why the event type is structural
+ *
+ * The thing being pressed is an **NPC**, which is a mesh inside the R3F canvas, not a
+ * DOM node. React Three Fiber's `ThreeEvent` carries the native pointer fields —
+ * `pointerId`, `pointerType`, `button`, `clientX/Y` — but puts `setPointerCapture` on
+ * `target` (capturing the three object) where the DOM puts it on `currentTarget`.
+ * Both are real capture and both keep delivering moves after the pointer leaves,
+ * which is all ADR-0013 asks for.
+ *
+ * So {@link WheelPointerEvent} names only the fields used, and {@link capturePointer}
+ * takes whichever of the two offers the method. One hook then serves a DOM button and
+ * a 3D character, which is the same unification argument ADR-0013 makes about mouse
+ * versus touch, one layer up.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { wedgeAt } from "./wheel-geometry";
+
+/**
+ * The pointer fields this hook needs, and nothing more — so a DOM
+ * `React.PointerEvent` and an R3F `ThreeEvent<PointerEvent>` both satisfy it.
+ */
+export interface WheelPointerEvent {
+  pointerId: number;
+  pointerType: string;
+  button: number;
+  clientX: number;
+  clientY: number;
+  currentTarget?: unknown;
+  target?: unknown;
+}
+
+interface Capturable {
+  setPointerCapture?: (id: number) => void;
+}
+
+/**
+ * Capture on whichever handle offers it: `currentTarget` in the DOM, `target` under
+ * R3F. Silently does nothing if neither can — capture is an improvement to event
+ * routing, not a correctness requirement, since every handler already filters by
+ * `pointerId`.
+ */
+function capturePointer(e: WheelPointerEvent): void {
+  for (const handle of [e.currentTarget, e.target]) {
+    const c = handle as Capturable | null | undefined;
+    if (typeof c?.setPointerCapture === "function") {
+      c.setPointerCapture(e.pointerId);
+      return;
+    }
+  }
+}
 
 /**
  * Default hold before the wheel appears, in milliseconds.
@@ -55,9 +103,18 @@ export interface WheelGestureState {
   originY: number;
   /** Wedge under the pointer, or `null` in the dead zone — which means cancel. */
   activeIndex: number | null;
+  /**
+   * What opened it: `"mouse"`, `"touch"`, `"pen"`, or `""` in sticky mode where no
+   * pointer did. Lets the UI decide things like whether keyboard hints are worth
+   * showing **per interaction** rather than from a device-capability boolean, which
+   * is ADR-0013's argument applied to rendering as well as to input.
+   */
+  pointerType: string;
 }
 
-const CLOSED: WheelGestureState = { mode: "closed", originX: 0, originY: 0, activeIndex: null };
+const CLOSED: WheelGestureState = {
+  mode: "closed", originX: 0, originY: 0, activeIndex: null, pointerType: "",
+};
 
 export interface UseWheelGestureOptions {
   /** How many wedges. Selection is meaningless at 0, so the gesture will not open. */
@@ -75,11 +132,11 @@ export interface WheelGesture {
   state: WheelGestureState;
   /** Spread onto the element the wheel opens from. */
   handlers: {
-    onPointerDown: (e: React.PointerEvent) => void;
-    onPointerMove: (e: React.PointerEvent) => void;
-    onPointerUp: (e: React.PointerEvent) => void;
-    onPointerCancel: (e: React.PointerEvent) => void;
-    onContextMenu: (e: React.MouseEvent) => void;
+    onPointerDown: (e: WheelPointerEvent) => void;
+    onPointerMove: (e: WheelPointerEvent) => void;
+    onPointerUp: (e: WheelPointerEvent) => void;
+    onPointerCancel: (e: WheelPointerEvent) => void;
+    onContextMenu: (e: { preventDefault: () => void }) => void;
   };
   /** Open without a pointer driving it — the non-dragging path. */
   openSticky: (x: number, y: number) => void;
@@ -122,14 +179,14 @@ export function useWheelGesture({
     setState(CLOSED);
   }, [clearTimer]);
 
-  const open = useCallback((x: number, y: number) => {
+  const open = useCallback((x: number, y: number, pointerType: string) => {
     opened.current = true;
     origin.current = { x, y };
-    setState({ mode: "drag", originX: x, originY: y, activeIndex: null });
+    setState({ mode: "drag", originX: x, originY: y, activeIndex: null, pointerType });
   }, []);
 
   const onPointerDown = useCallback(
-    (e: React.PointerEvent) => {
+    (e: WheelPointerEvent) => {
       if (disabled || count <= 0) return;
       // One pointer at a time; a second finger mid-gesture is not a second wheel.
       if (pointer.current !== null) return;
@@ -140,23 +197,23 @@ export function useWheelGesture({
 
       pointer.current = e.pointerId;
       origin.current = { x: e.clientX, y: e.clientY };
-      e.currentTarget.setPointerCapture(e.pointerId);
+      capturePointer(e);
 
       if (isRightClick) {
-        open(e.clientX, e.clientY);
+        open(e.clientX, e.clientY, e.pointerType);
         return;
       }
-      const { clientX, clientY } = e;
+      const { clientX, clientY, pointerType } = e;
       timer.current = setTimeout(() => {
         timer.current = null;
-        open(clientX, clientY);
+        open(clientX, clientY, pointerType);
       }, holdMs);
     },
     [count, disabled, holdMs, open],
   );
 
   const onPointerMove = useCallback(
-    (e: React.PointerEvent) => {
+    (e: WheelPointerEvent) => {
       if (e.pointerId !== pointer.current || !opened.current) return;
       const idx = wedgeAt(e.clientX - origin.current.x, e.clientY - origin.current.y, count);
       setState(s => (s.activeIndex === idx ? s : { ...s, activeIndex: idx }));
@@ -165,7 +222,7 @@ export function useWheelGesture({
   );
 
   const onPointerUp = useCallback(
-    (e: React.PointerEvent) => {
+    (e: WheelPointerEvent) => {
       if (e.pointerId !== pointer.current) return;
       const wasOpen = opened.current;
       const idx = wasOpen
@@ -180,7 +237,7 @@ export function useWheelGesture({
   );
 
   const onPointerCancel = useCallback(
-    (e: React.PointerEvent) => {
+    (e: WheelPointerEvent) => {
       if (e.pointerId !== pointer.current) return;
       const wasOpen = opened.current;
       reset();
@@ -191,7 +248,7 @@ export function useWheelGesture({
 
   // Suppress the native menu only. The wheel itself opens from `pointerdown`, which
   // fires first and already knows it was button 2.
-  const onContextMenu = useCallback((e: React.MouseEvent) => {
+  const onContextMenu = useCallback((e: { preventDefault: () => void }) => {
     if (disabled) return;
     e.preventDefault();
   }, [disabled]);
@@ -203,7 +260,7 @@ export function useWheelGesture({
       pointer.current = null;
       opened.current = true;
       origin.current = { x, y };
-      setState({ mode: "sticky", originX: x, originY: y, activeIndex: null });
+      setState({ mode: "sticky", originX: x, originY: y, activeIndex: null, pointerType: "" });
     },
     [clearTimer, count, disabled],
   );

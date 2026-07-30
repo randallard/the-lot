@@ -11,6 +11,7 @@ import {
   deg2rad,
 } from "../services/body-shapes";
 import { Eyes } from "./Eyes";
+import type { WheelPointerEvent } from "../overlay/useWheelGesture";
 
 // NPC behavior: idle → walking-to-camp → sitting → sipping → getting-uke → playing-uke
 export type NpcBehavior =
@@ -30,13 +31,25 @@ interface NpcProps {
   screenPos: React.RefObject<ScreenPos>;
   worldPosRef?: React.RefObject<THREE.Vector3 | null>;
   bodyShape?: CharacterBodyShape;
+  /**
+   * `useWheelGesture`'s handlers, spread onto the hitbox so a **hold** opens the
+   * interaction wheel (ADR-0015) while a **tap** still falls through to `onClick`.
+   * The two coexist by construction: the gesture only claims the pointer once its
+   * hold elapses.
+   */
+  wheelHandlers?: {
+    onPointerDown: (e: WheelPointerEvent) => void;
+    onPointerMove: (e: WheelPointerEvent) => void;
+    onPointerUp: (e: WheelPointerEvent) => void;
+    onPointerCancel: (e: WheelPointerEvent) => void;
+  };
 }
 
 const WALK_SPEED = 1.5;
 const SIP_INTERVAL = 4000;
 const UKE_DELAY = 12000;
 
-export function Npc({ position, playerPosition, onClick, relaxing, talking, screenPos, worldPosRef, bodyShape }: NpcProps) {
+export function Npc({ position, playerPosition, onClick, relaxing, talking, screenPos, worldPosRef, bodyShape, wheelHandlers }: NpcProps) {
   const shape = bodyShape ?? NPC_DEFAULTS;
   const groupRef = useRef<THREE.Group>(null);
   const hovered = useRef(false);
@@ -251,6 +264,7 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
             e.stopPropagation();
             onClick?.();
           }}
+          {...wheelHandlers}
           onPointerOver={() => { document.body.style.cursor = "pointer"; hovered.current = true; }}
           onPointerOut={() => { document.body.style.cursor = "default"; hovered.current = false; }}
         >

@@ -142,6 +142,45 @@ describe("opening", () => {
   });
 });
 
+describe("what opened it", () => {
+  // Reported so the UI can decide per interaction -- e.g. keyboard hints are worth
+  // showing to a mouse and not to a thumb -- instead of asking the device.
+  function Typed() {
+    const g = useWheelGesture({ count: 8, onSelect: vi.fn() });
+    return <div data-testid="target" data-ptype={g.state.pointerType} {...g.handlers} />;
+  }
+
+  it("remembers a touch that held", () => {
+    render(<Typed />);
+    pointer("pointerdown", target(), { ...ORIGIN, pointerType: "touch" });
+    hold();
+    expect(screen.getByTestId("target").dataset.ptype).toBe("touch");
+  });
+
+  it("remembers a mouse that right-clicked", () => {
+    render(<Typed />);
+    pointer("pointerdown", target(), { ...ORIGIN, pointerType: "mouse", button: 2 });
+    expect(screen.getByTestId("target").dataset.ptype).toBe("mouse");
+  });
+
+  it("is empty in sticky mode, where no pointer opened it", () => {
+    function Sticky() {
+      const g = useWheelGesture({ count: 8, onSelect: vi.fn() });
+      return (
+        <>
+          <button onClick={() => g.openSticky(10, 10)}>open</button>
+          <span data-testid="ptype">{`[${g.state.pointerType}]`}</span>
+        </>
+      );
+    }
+    render(<Sticky />);
+    act(() => {
+      screen.getByText("open").click();
+    });
+    expect(screen.getByTestId("ptype").textContent).toBe("[]");
+  });
+});
+
 describe("aiming", () => {
   it("tracks the wedge under the pointer", () => {
     render(<Harness onSelect={vi.fn()} />);

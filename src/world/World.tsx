@@ -39,6 +39,8 @@ interface WorldProps {
   showNpc: boolean;
   npcRelaxing: boolean;
   onNpcClick?: () => void;
+  /** `useWheelGesture` handlers for the main NPC's hitbox — a hold opens the wheel. */
+  npcWheelHandlers?: React.ComponentProps<typeof Npc>["wheelHandlers"];
   onNpcWalkAway?: () => void;
   onNpcApproach?: () => void;
   cameraOffset?: React.RefObject<THREE.Vector3 | null>;
@@ -66,7 +68,7 @@ interface WorldProps {
   playerAnimController?: React.RefObject<AnimationController>;
 }
 
-export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, showGameNpcs, onMycoClick, onEmberClick, onSproutClick, mycoScreenPos, emberScreenPos, sproutScreenPos, mycoAsleep, emberAsleep, sproutAsleep, findTargetNpcId, npcTalking, partsCollected, initialPlayerPos, playerWorldPos, bodyShapes, playerAnimController }: WorldProps) {
+export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDir, rushMode, rushTarget, trinketTracker, showNpc, npcRelaxing, onNpcClick, npcWheelHandlers, onNpcWalkAway, onNpcApproach, cameraOffset, cameraLookAtOffset, hidePlayer, npcScreenPos, playerScreenPos, showGameNpcs, onMycoClick, onEmberClick, onSproutClick, mycoScreenPos, emberScreenPos, sproutScreenPos, mycoAsleep, emberAsleep, sproutAsleep, findTargetNpcId, npcTalking, partsCollected, initialPlayerPos, playerWorldPos, bodyShapes, playerAnimController }: WorldProps) {
   const playerPos = useRef(new THREE.Vector3(
     initialPlayerPos?.x ?? 0,
     0.75,
@@ -284,6 +286,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
           position={npcPos.current}
           playerPosition={playerPos}
           onClick={onNpcClick}
+          wheelHandlers={npcWheelHandlers}
           relaxing={npcRelaxing}
           talking={npcTalking}
           screenPos={npcScreenPos}

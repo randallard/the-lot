@@ -543,11 +543,18 @@ Two things that constrain the build:
 `EmotePanel` stays as the browse-everything surface, and its existing digit bindings (1–9, 0)
 become the wheel's keyboard path and expert shortcut — worth extracting rather than copying.
 
-### Built so far: cores, gesture and wheel — not yet wired to anything (2026-07-29)
+### Built so far: the wheel is live on the main NPC (2026-07-29)
 
-Following M4's pattern — pure module and tests first, driver second, watch third. **88 new
-tests, 383 total**, lint 0 errors (no new warnings), build clean. **Nothing is on screen yet**:
-all four pieces exist and are tested, and nothing opens the wheel.
+Following M4's pattern — pure module and tests first, driver second, watch third. **91 new
+tests, 386 total**, lint 0 errors (no new warnings), build clean.
+
+**Watchable now:** `pnpm dev`, walk up to Ryan-the-NPC, and **hold** on him (or right-click).
+The wheel opens at the press point with the player's own emotes; drag to a wedge and release to
+play it, or release in the centre to cancel. A short **tap** still opens chat, untouched.
+
+**Not in the wheel yet: the fist bump.** Deliberately — it has no driver, and a wedge that
+selects and does nothing is exactly the `spin` channel's failure, which passed its test for a
+week by being unwired. It joins when it can actually run.
 
 - **[`src/dance/fist-bump.ts`](../src/dance/fist-bump.ts)** (31 tests). Contact geometry and a
   seconds-based envelope (extend 0.25 / hold 0.35 / withdraw 0.3). No square-one import, no
@@ -596,17 +603,30 @@ dead zone (which still satisfies WCAG 2.5.2). Everything else in ADR-0014 carrie
 unchanged. **The ring is now purely visual** — a drag beyond the artwork still selects, and that
 is not a bug to fix.
 
+**How it is wired.** `App` owns one `useWheelGesture` (only one wheel can be open at a time) and
+renders `InteractionWheel` in the DOM overlay; the handlers are threaded `App → World → Npc` and
+spread onto the NPC's existing hitbox mesh, next to its `onClick`.
+
+- **The event type is structural for this reason.** The thing pressed is a **mesh**, so R3F's
+  `ThreeEvent` arrives rather than a DOM event — same pointer fields, but capture lives on
+  `target` instead of `currentTarget`. `WheelPointerEvent` names only what is used and
+  `capturePointer` takes whichever handle offers the method, so one hook serves a DOM button and
+  a 3D character.
+- **`showKeyHints` asks the gesture, not the device.** The wheel records the `pointerType` that
+  opened it, so hints show for a right-click and not for a thumb — ADR-0013's per-interaction
+  argument applied to rendering, and the reason this did not become a fifth
+  `"ontouchstart" in window` check.
+
 **Still to build, in order:**
 
-1. **Hang the gesture on an NPC** — `Npc.tsx` gets `useWheelGesture`'s handlers and renders
-   `InteractionWheel` at the press point. Needs a decision about what the wheel offers and how
-   `canBump` from `fist-bump.ts` greys out a partner who is too far away.
-2. **A sticky opener**, for the reason above. Ship blocker.
-3. **Drive both characters' arms through a bump.** The real integration: `Player.tsx` and
+1. **A sticky opener** — ADR-0015's non-dragging path. Ship blocker.
+2. **Drive both characters' arms through a bump.** The real integration: `Player.tsx` and
    `Npc.tsx` each own their rig and read `AnimationController` independently, so something has
    to hold the shared bump state and hand each of them a world-space arm pose for its duration.
    This is the piece with no precedent — `DanceFloor` does it for dancers, but the player has
    never been on either side of a contact.
+3. **Add the fist-bump wedge**, once step 2 makes it do something. `canBump` from
+   `fist-bump.ts` greys it out when the player is too far to reach.
 4. **Watch it.** Contact has been wrong by eye three times here with green tests behind it.
 
 🔴 **Still true, just deferred: `externallyDriven` has never run.** It is the seam by which the

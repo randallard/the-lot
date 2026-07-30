@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from "react";
+import React, { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import * as THREE from "three";
 import { World } from "./world/World";
@@ -62,6 +62,8 @@ import { hasPlayerName, setPlayerName } from "./services/player-name";
 import { AnimationController } from "./services/animation-controller";
 import { getEmotes, type Emote } from "./services/emotes";
 import { EmotePanel } from "./overlay/EmotePanel";
+import { InteractionWheel } from "./overlay/InteractionWheel";
+import { useWheelGesture } from "./overlay/useWheelGesture";
 import type { TrinketTrackerState } from "./world/useTrinketTracker";
 import type { RushMode } from "./world/Player";
 import type { ScreenPos } from "./world/useScreenPosition";
@@ -397,6 +399,29 @@ export default function App() {
     playerAnimController.current.interrupt(emote, { resume: false });
     setShowEmotePanel(false);
   }, []);
+
+  // --- Interaction wheel (ADR-0015) -------------------------------------------
+  // Held pointer on an NPC opens a wheel of what the player can do with them.
+  // Today that is the player's own emotes; the fist bump joins them once it has a
+  // driver, deliberately not before — a wedge that selects and does nothing is the
+  // `spin` channel's failure, which passed its test for a week by being unwired.
+  //
+  // Capped at the eight-wedge practical ceiling from ADR-0015: past that, angles get
+  // too tight to flick blind, which is the accuracy the wheel exists to buy.
+  const wheelItems = useMemo(
+    () => getEmotes("player").slice(0, 8).map(e => ({ id: e.id, label: e.name || "untitled" })),
+    [],
+  );
+
+  const handleWheelSelect = useCallback(
+    (index: number) => {
+      const picked = getEmotes("player")[index];
+      if (picked) handlePlayEmote(picked);
+    },
+    [handlePlayEmote],
+  );
+
+  const wheel = useWheelGesture({ count: wheelItems.length, onSelect: handleWheelSelect });
 
   // Opens chat with an NPC; triggers name-capture flow if this is the first Ryan chat
   const openChatWithNpc = useCallback((npcId: string) => {
@@ -866,6 +891,7 @@ export default function App() {
           showNpc={game.state.assembled && phase.type !== "assembly-cutscene" && phase.type !== "assembly-reveal"}
           npcRelaxing={game.state.npcRelaxing}
           onNpcClick={handleNpcClick}
+          npcWheelHandlers={wheel.handlers}
           onNpcWalkAway={handleNpcWalkAway}
           onNpcApproach={handleNpcApproach}
           cameraOffset={cameraOffset}
@@ -904,6 +930,19 @@ export default function App() {
         onToggle={() => setShowEmotePanel(v => !v)}
         onClose={() => setShowEmotePanel(false)}
       />
+
+      {wheel.state.mode !== "closed" && (
+        <InteractionWheel
+          items={wheelItems}
+          originX={wheel.state.originX}
+          originY={wheel.state.originY}
+          activeIndex={wheel.state.activeIndex}
+          mode={wheel.state.mode}
+          onPick={wheel.select}
+          onDismiss={wheel.close}
+          showKeyHints={wheel.state.pointerType === "mouse"}
+        />
+      )}
 
       {showArrow && (
         <TrinketArrow tracker={trinketTracker} onRush={handleRush} />
