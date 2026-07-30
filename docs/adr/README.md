@@ -101,6 +101,8 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0010](0010-emote-choreography-channel-contract.md) | Emote and choreography share a dancer by channel, classified owned / limited / free | Accepted |
 | [0011](0011-frame-scale-derives-from-occupant-bodies.md) | The dance frame's scale derives from the occupants' bodies | Superseded by ADR-0012 |
 | [0012](0012-pair-clearance-from-the-3d-silhouette.md) | Pair clearance comes from the 3D rigid silhouette, not a flat disc | Accepted |
+| [0013](0013-pointer-events-with-capture-for-new-pointer-input.md) | New pointer input uses Pointer Events with capture, and branches on `pointerType` | Accepted |
+| [0014](0014-radial-wheel-for-emotes-and-taught-moves.md) | Interactions are chosen from a radial wheel, held-open for novices and flickable for experts | Accepted |
 
 ## Decisions this repo inherits
 

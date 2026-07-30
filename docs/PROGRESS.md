@@ -91,6 +91,15 @@ back up.**
     `origin/main` agree, and the local container run of osv-scanner matched CI's log line for
     line (468 packages, one advisory filtered) — which is the evidence that the local check
     now stands in for the remote one.
+- **Controls decided (2026-07-29) —
+  [ADR-0014](adr/0014-radial-wheel-for-emotes-and-taught-moves.md) and
+  [ADR-0013](adr/0013-pointer-events-with-capture-for-new-pointer-input.md).** A held pointer on
+  an NPC opens a radial wheel of emotes / greetings / moves, marking-menu style so a flick
+  selects without waiting for it; its items *are* the taught things, so learning something is
+  what puts it there. Input is Pointer Events with capture per `SliderRow.tsx`, branching on
+  `e.pointerType` — which also fixes a latent hybrid-device bug in the
+  `"ontouchstart" in window` pattern. Nothing built yet; it's M5 scope because the wheel is how
+  the fist bump gets initiated.
 - **Next action: M5.** M4 is done — see the worklist. The two smaller leftovers are an ADR
   extending ADR-0008's react-hooks exception to `src/dance/**` (owed since the M4 handover,
   and `src/dance/` has grown a lot since), and the player's head fix of 2026-07-28, which is
@@ -478,17 +487,72 @@ the machinery it needs: a general two-body contact vocabulary (`gripHeight(a, b)
 `PERSONAL_SPACE`) built for the Allemande grip. Authored two-body contact gestures are the
 piece that does not exist yet, and the fist bump is their first user.
 
-🔴 **Before any of this: `externallyDriven` has never run.** It is the seam by which the player
-participates in a square instead of being driven by the engine. square-one implements it
+### M5 order: the fist bump comes first
+
+*Planning **ADR-0009** (Ryan, 2026-07-29) —
+`square-dance-planning/adr/0009-fist-bump-proves-player-contact-before-the-square.md`. It
+corrects a sequencing observation in ADR-0008, whose own decision is unaffected.*
+
+**Lead with a player↔NPC fist bump.** Teaching `arm-turn` first bundles two unknowns into one
+milestone — whether the player can make contact with another character at all, and whether the
+player can occupy a slot in an engine-driven square. The fist bump isolates the first and drops
+the second: no engine, no square, no beat clock. It is the **de-risking step** for the
+player-in-a-square problem rather than a detour from it.
+
+Nearly everything it needs is already here:
+
+- **`src/dance/arm-pose.ts` is driver-agnostic by design** — "the driver hands over floor
+  positions and headings and eases its rig toward what comes back", and its only import is
+  `services/body-shapes`. Two characters with positions and headings satisfy it.
+- **`src/world/World.tsx` already computes player↔NPC distance every frame**, with
+  `NPC_APPROACH_DIST` / `NPC_WALK_AWAY_DIST` and an approached-and-standing-still detector that
+  fires a callback. That is the trigger.
+- **`src/world/Player.tsx` already renders an arbitrary `ArmPose`.**
+- **`services/body-shapes.ts` sizes both**, so reach and clearance across mismatched bodies are
+  computable today.
+
+**The new work is the gesture itself, and don't over-read the reuse:** `gripPose` is the
+*forearm* grip — two horizontal antiparallel forearms, each hand at the other's elbow. A fist
+bump is hand-to-hand and needs its own pose function. Reusable are `ArmMetrics`,
+`contactSeparation`, `reachAllowance` and `PERSONAL_SPACE`. Two contact kinds in one module is
+also the point to review that module's shape; it was written for one.
+
+**Watch it before believing it.** Contact has been wrong by eye three times in this repo while
+tests stayed green — the sliding grip most recently. Reuse the contact panel's min → max
+instrumentation rather than judging by camera angle.
+
+**The radial wheel is M5 scope too**, because it is *how* the player initiates the fist bump —
+[ADR-0014](adr/0014-radial-wheel-for-emotes-and-taught-moves.md). Held pointer on an NPC opens a
+circle of emotes / greetings / moves; release at centre or outside cancels. Marking-menu model
+(Kurtenbach 1993): the wheel is shown after the hold, and a directional flick selects without
+waiting, so novice and expert use one gesture. **Its items are taught things** — planning
+ADR-0008's union — so learning something is what puts it on the wheel, and filtering by "what's
+possible with this NPC right now" keeps the list under the ~8-item practical ceiling without
+submenus.
+
+Two things that constrain the build:
+
+- 🔴 **`VirtualJoystick` occupies the natural gesture area** (`position: fixed; bottom: 40;
+  left: 40`, 120 px, `zIndex: 5`), which is why the wheel opens *on a character* rather than
+  anywhere on screen.
+- **Input follows [ADR-0013](adr/0013-pointer-events-with-capture-for-new-pointer-input.md)** —
+  Pointer Events with `setPointerCapture`, per `SliderRow.tsx`, branching hold duration on
+  `e.pointerType` (~500 ms for touch, immediate for a right-click) rather than on the
+  `"ontouchstart" in window` boolean, which is wrong on hybrid devices.
+
+`EmotePanel` stays as the browse-everything surface, and its existing digit bindings (1–9, 0)
+become the wheel's keyboard path and expert shortcut — worth extracting rather than copying.
+
+🔴 **Still true, just deferred: `externallyDriven` has never run.** It is the seam by which the
+player participates in a square instead of being driven by the engine. square-one implements it
 (`src/stepper.ts`) and property-tests it (`test/properties.test.ts:330`); this repo declares it
 at [`useDancePerformance.ts:32`](../src/dance/useDancePerformance.ts) and passes it through to
 `createPerformance` — **and no caller has ever supplied it.** All of M4's contact machinery was
 validated dancer↔dancer inside `DanceFloor`, with the player out of scope by
 [ADR-0010](adr/0010-emote-choreography-channel-contract.md). This is the same shape as the
 inert pin above, the `spin` channel that passed its test by doing nothing, and `osv-scan`
-running for three days without ever passing: **an unexercised seam is not a seam.** Exercise it
-and watch it before building teaching content on top — and teach `arm-turn` before the fist
-bump, since arm-turn's machinery is built and render-validated while the fist bump's is not.
+running for three days without ever passing: **an unexercised seam is not a seam.** ADR-0009
+defers it; it does not answer it. It stays the gate in front of `arm-turn`.
 
 ## Supply chain
 
@@ -756,11 +820,14 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
    gate just demonstrated the value of machine-checked inventories.
 8. Work down the 24 `react-hooks/exhaustive-deps` warnings. Non-blocking, but they are the
    backlog the pinned plugin is deferring, not architecture.
-9. Arc chunk 1 (M5): an NPC teaches `arm-turn`, the player performs it, townage records that
-   they know it. **Teaching content is decided** (planning ADR-0008 — it's ours; see
-   [Teaching content is ours](#teaching-content-is-ours)). 🔴 **The blocker is
-   `externallyDriven`, not content** — the player seam has never run. Exercise and watch it
-   first; then teach `arm-turn` before the fist bump, whose machinery does not exist yet.
+9. Arc chunk 1 (M5): **the radial wheel + the player↔NPC fist bump first**, then
+   `externallyDriven`, then an NPC teaches `arm-turn`. Teaching content is decided (planning
+   ADR-0008 — it's ours), the order is decided (planning ADR-0009 — the fist bump de-risks
+   player contact without the square), and the controls are decided
+   ([ADR-0014](adr/0014-radial-wheel-for-emotes-and-taught-moves.md) wheel,
+   [ADR-0013](adr/0013-pointer-events-with-capture-for-new-pointer-input.md) input API). The
+   wheel is how the fist bump is initiated, so the two land together. See
+   [M5 order: the fist bump comes first](#m5-order-the-fist-bump-comes-first).
 
 Deferred with reasons: physics (rapier removed — re-add deliberately when something needs it,
 and resolve its missing license declaration then); the NPC documentation "booklet" plan; the
