@@ -100,6 +100,8 @@ back up.**
   `e.pointerType` — which also fixes a latent hybrid-device bug in the
   `"ontouchstart" in window` pattern. Nothing built yet; it's M5 scope because the wheel is how
   the fist bump gets initiated.
+- ~~**The player's head fix is unwatched.**~~ **Closed 2026-07-29** — watched, found wrong,
+  fixed, and watched again. See the 2026-07-28 entry below for what it was.
 - **Next action: M5.** M4 is done — see the worklist. The two smaller leftovers are an ADR
   extending ADR-0008's react-hooks exception to `src/dance/**` (owed since the M4 handover,
   and `src/dance/` has grown a lot since), and the player's head fix of 2026-07-28, which is
@@ -112,8 +114,19 @@ back up.**
   sites are untouched. Two latent bugs went with it — the eyes never scaled with
   `headRadiusDelta`, and never tracked `bodyHeightDelta`, so an emote that inflated or
   stretched a character would have separated the face from the head.
-  **Not yet watched by eye**, unlike the dance scene: the player's emotes come from
-  `localStorage` and the debug emotes are only reachable at `#dance`.
+  **Watched 2026-07-29 — and it was wrong.** The fix put the eyes inside the head group, which
+  is right, but the group also carried `animShape.head.rotation`, and `mergeAnimation` defines
+  that as `shape.head.rotation + headDeltaRotation`. `PLAYER_DEFAULTS`' base is
+  **`[-180, -91, -93]`**, so the player's face sat 91° round the side of their head. That field
+  had only ever been applied to a bare sphere, where it is invisible unless the head is
+  low-segment and faceted, so its stored values were tuned as decoration and mean nothing about
+  facing — moving the eyes into a group carrying it turned harmless junk data into a visible
+  defect. **The group now carries the emote's head turn only; the base stays on the sphere
+  mesh**, which is the split [`Dancer.tsx`](../src/dance/Dancer.tsx) already had. `Npc.tsx` was
+  never affected: its `<Eyes>` is still a sibling of the rotated mesh.
+  - **The lesson, and it is the reason that claim stayed open for a day:** a fix that is
+    reasoned, typechecked and green is still a claim. This one was all three and still put a
+    face on the side of a head.
 
 **What just happened (2026-07-27):** the tuck became an **envelope**, and dancers gained an
 expression layer so the ADR-0010 arbitration could be *watched* rather than argued.
@@ -548,9 +561,29 @@ become the wheel's keyboard path and expert shortcut — worth extracting rather
 Following M4's pattern — pure module and tests first, driver second, watch third. **91 new
 tests, 386 total**, lint 0 errors (no new warnings), build clean.
 
-**Watchable now:** `pnpm dev`, walk up to Ryan-the-NPC, and **hold** on him (or right-click).
-The wheel opens at the press point with the player's own emotes; drag to a wedge and release to
-play it, or release in the centre to cancel. A short **tap** still opens chat, untouched.
+**✅ Watched and working (Ryan, 2026-07-29).** `pnpm dev`, walk up to Ryan-the-NPC, and **hold**
+on him (or right-click). The wheel opens at the press point with the player's own emotes; drag
+to a wedge and release to play it, or release in the centre to cancel. A short **tap** still
+opens chat, untouched.
+
+**The watch found four defects, and no test would have caught any of them.** Worth listing,
+because three were invisible to the suite by construction and the fourth was legible in a
+screenshot before anyone described it:
+
+1. **iOS answered the hold with its own long-press.** Safari put up the selection loupe and a
+   Copy / Look Up / Translate bar instead of the wheel. `-webkit-touch-callout: none` was on the
+   *wheel*, which does not exist until the hold completes — the hold happens on the **canvas**.
+   Moved there, scoped so DOM text stays selectable.
+2. **The hold's click fell through to chat.** A click always follows `pointerdown` +
+   `pointerup` on the same target, so the NPC opened chat behind the wheel on a selection *and*
+   on a cancel. `useWheelGesture` now exposes `consumeClick()`, which `App` checks before
+   delegating to `handleNpcClick`.
+3. **A one-item wheel drew a stray line, not a ring.** With a single wedge the bounds run −π to
+   +π and the endpoints coincide, so the annulus-sector path degenerates. A full circle is now
+   its own path. This would have fixed itself on the second emote — the kind of defect that
+   hides for months.
+4. **Nothing opened at all with no emotes saved**, which is indistinguishable from a broken
+   gesture. An empty wheel now opens with one disabled "no emotes yet" wedge.
 
 **Not in the wheel yet: the fist bump.** Deliberately — it has no driver, and a wedge that
 selects and does nothing is exactly the `spin` channel's failure, which passed its test for a
