@@ -912,7 +912,9 @@ export default function App() {
           trinketTracker={trinketTracker}
           showNpc={game.state.assembled && phase.type !== "assembly-cutscene" && phase.type !== "assembly-reveal"}
           npcRelaxing={game.state.npcRelaxing}
-          onNpcClick={handleNpcClick}
+          // The wheel's hold ends in a click R3F fires anyway; without this guard the
+          // NPC opens chat behind the wheel on both a selection and a cancel.
+          onNpcClick={() => { if (wheel.consumeClick()) return; handleNpcClick(); }}
           npcWheelHandlers={wheel.handlers}
           onNpcWalkAway={handleNpcWalkAway}
           onNpcApproach={handleNpcApproach}

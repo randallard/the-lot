@@ -138,6 +138,18 @@ export interface WheelGesture {
     onPointerCancel: (e: WheelPointerEvent) => void;
     onContextMenu: (e: { preventDefault: () => void }) => void;
   };
+  /**
+   * Whether the click that is about to fire belongs to a wheel gesture, and should
+   * therefore be swallowed. Call it from the target's own `onClick` and return early
+   * when it says yes.
+   *
+   * A click always follows `pointerdown` + `pointerup` on the same target, so a hold
+   * that opened the wheel still produces one — and without this the NPC opens chat
+   * behind the wheel, on both a selection and a cancel. Reading it clears it, and a
+   * fresh `pointerdown` clears it too, so a gesture that ends without a click (a flick
+   * released away from the target) cannot swallow someone else's later.
+   */
+  consumeClick: () => boolean;
   /** Open without a pointer driving it — the non-dragging path. */
   openSticky: (x: number, y: number) => void;
   /** Commit from sticky mode, e.g. a tapped wedge. */
@@ -160,6 +172,9 @@ export function useWheelGesture({
   const origin = useRef({ x: 0, y: 0 });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const opened = useRef(false);
+  // Set when a gesture that opened the wheel ends, so the click R3F fires next can be
+  // told apart from a plain tap. See `consumeClick`.
+  const swallowClick = useRef(false);
 
   const clearTimer = useCallback(() => {
     if (timer.current !== null) {
@@ -195,6 +210,7 @@ export function useWheelGesture({
       const isRightClick = e.pointerType === "mouse" && e.button === 2;
       if (e.pointerType === "mouse" && e.button !== 0 && !isRightClick) return;
 
+      swallowClick.current = false;
       pointer.current = e.pointerId;
       origin.current = { x: e.clientX, y: e.clientY };
       capturePointer(e);
@@ -228,6 +244,7 @@ export function useWheelGesture({
       const idx = wasOpen
         ? wedgeAt(e.clientX - origin.current.x, e.clientY - origin.current.y, count)
         : null;
+      swallowClick.current = wasOpen;
       reset();
       if (!wasOpen) return; // Released before the hold — the element's own click stands.
       if (idx === null) onCancel?.(); // Dead zone: ADR-0015's cancel.
@@ -240,6 +257,7 @@ export function useWheelGesture({
     (e: WheelPointerEvent) => {
       if (e.pointerId !== pointer.current) return;
       const wasOpen = opened.current;
+      swallowClick.current = wasOpen;
       reset();
       if (wasOpen) onCancel?.();
     },
@@ -252,6 +270,12 @@ export function useWheelGesture({
     if (disabled) return;
     e.preventDefault();
   }, [disabled]);
+
+  const consumeClick = useCallback(() => {
+    const swallow = swallowClick.current;
+    swallowClick.current = false;
+    return swallow;
+  }, []);
 
   const openSticky = useCallback(
     (x: number, y: number) => {
@@ -282,6 +306,7 @@ export function useWheelGesture({
   return {
     state,
     handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onContextMenu },
+    consumeClick,
     openSticky,
     select,
     close,

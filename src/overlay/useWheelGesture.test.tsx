@@ -309,6 +309,107 @@ describe("committing", () => {
   });
 });
 
+describe("swallowing the click a hold leaves behind", () => {
+  // The bug Ryan hit on screen: a click always follows pointerdown + pointerup on the
+  // same target, so the NPC opened chat behind the wheel -- on a selection *and* on a
+  // cancel.
+  function Clicky({ onSelect = vi.fn(), onNpcClick = vi.fn() }) {
+    const g = useWheelGesture({ count: 8, onSelect });
+    return (
+      <div
+        data-testid="target"
+        {...g.handlers}
+        onClick={() => {
+          if (g.consumeClick()) return;
+          onNpcClick();
+        }}
+      />
+    );
+  }
+
+  function clickAfter(el: HTMLElement) {
+    act(() => {
+      el.dispatchEvent(new Event("click", { bubbles: true }));
+    });
+  }
+
+  it("swallows the click after a selection", () => {
+    const onNpcClick = vi.fn();
+    render(<Clicky onNpcClick={onNpcClick} />);
+    const el = target();
+    pointer("pointerdown", el, ORIGIN);
+    hold();
+    pointer("pointerup", el, UP);
+    clickAfter(el);
+    expect(onNpcClick).not.toHaveBeenCalled();
+  });
+
+  it("swallows the click after a cancel in the dead zone", () => {
+    const onNpcClick = vi.fn();
+    render(<Clicky onNpcClick={onNpcClick} />);
+    const el = target();
+    pointer("pointerdown", el, ORIGIN);
+    hold();
+    pointer("pointerup", el, ORIGIN);
+    clickAfter(el);
+    expect(onNpcClick).not.toHaveBeenCalled();
+  });
+
+  it("lets a plain tap's click through — chat still works", () => {
+    const onNpcClick = vi.fn();
+    render(<Clicky onNpcClick={onNpcClick} />);
+    const el = target();
+    pointer("pointerdown", el, ORIGIN);
+    hold(100);
+    pointer("pointerup", el, ORIGIN);
+    clickAfter(el);
+    expect(onNpcClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("swallows exactly one click, not the next tap too", () => {
+    const onNpcClick = vi.fn();
+    render(<Clicky onNpcClick={onNpcClick} />);
+    const el = target();
+    pointer("pointerdown", el, ORIGIN);
+    hold();
+    pointer("pointerup", el, UP);
+    clickAfter(el);
+    // Now a normal tap.
+    pointer("pointerdown", el, { ...ORIGIN, pointerId: 2 });
+    hold(100);
+    pointer("pointerup", el, { ...ORIGIN, pointerId: 2 });
+    clickAfter(el);
+    expect(onNpcClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not strand the flag when a flick produces no click", () => {
+    // Released away from the target: no click follows, so the next tap must not be
+    // eaten by a leftover flag.
+    const onNpcClick = vi.fn();
+    render(<Clicky onNpcClick={onNpcClick} />);
+    const el = target();
+    pointer("pointerdown", el, ORIGIN);
+    hold();
+    pointer("pointerup", el, UP); // no click dispatched
+    pointer("pointerdown", el, { ...ORIGIN, pointerId: 3 });
+    hold(100);
+    pointer("pointerup", el, { ...ORIGIN, pointerId: 3 });
+    clickAfter(el);
+    expect(onNpcClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("swallows after a pointercancel too", () => {
+    const onNpcClick = vi.fn();
+    render(<Clicky onNpcClick={onNpcClick} />);
+    const el = target();
+    pointer("pointerdown", el, ORIGIN);
+    hold();
+    pointer("pointercancel", el, UP);
+    clickAfter(el);
+    expect(onNpcClick).not.toHaveBeenCalled();
+  });
+});
+
 describe("the non-dragging path", () => {
   it("opens sticky with no pointer, and commits on an explicit select", () => {
     // WCAG 2.5.7's alternative to hold-and-flick. Nothing wires this yet.

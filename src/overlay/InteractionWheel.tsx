@@ -52,8 +52,28 @@ function pt(angle: number, r: number) {
   return { x: C + Math.sin(angle) * r, y: C - Math.cos(angle) * r };
 }
 
-/** An annulus sector between two clockwise-from-up angles. */
+/**
+ * An annulus sector between two clockwise-from-up angles.
+ *
+ * A single item is a **full ring**, not a sector, and it needs its own path. With one
+ * wedge the bounds run −π to +π, whose endpoints are the same point, so the sector
+ * form degenerates: SVG draws an arc of nothing and the wheel renders as a stray
+ * radial line. Two half-arcs per edge, outer clockwise and inner counter-clockwise so
+ * the nonzero fill rule punches the hole.
+ */
 function wedgePath(start: number, end: number, ri: number, ro: number): string {
+  if (end - start >= Math.PI * 2 - 1e-9) {
+    return [
+      `M ${C + ro} ${C}`,
+      `A ${ro} ${ro} 0 1 1 ${C - ro} ${C}`,
+      `A ${ro} ${ro} 0 1 1 ${C + ro} ${C}`,
+      "Z",
+      `M ${C + ri} ${C}`,
+      `A ${ri} ${ri} 0 1 0 ${C - ri} ${C}`,
+      `A ${ri} ${ri} 0 1 0 ${C + ri} ${C}`,
+      "Z",
+    ].join(" ");
+  }
   const large = end - start > Math.PI ? 1 : 0;
   const os = pt(start, ro);
   const oe = pt(end, ro);

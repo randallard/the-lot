@@ -129,6 +129,39 @@ describe("sticky mode is the non-dragging path", () => {
   });
 });
 
+describe("a single item draws a ring, not a sliver", () => {
+  // With one wedge the bounds run -PI to +PI, whose endpoints coincide, so the
+  // sector path degenerates into a stray radial line. Caught on screen first.
+  const ONE: WheelItem[] = [{ id: "solo", label: "new emote" }];
+
+  it("emits a closed two-subpath ring", () => {
+    const { container } = renderWheel({ items: ONE });
+    const d = container.querySelector("path")!.getAttribute("d")!;
+    // Two subpaths (outer and inner edge), four arcs, no straight join.
+    expect(d.match(/M /g)).toHaveLength(2);
+    expect(d.match(/A /g)).toHaveLength(4);
+    expect(d).not.toContain("L ");
+  });
+
+  it("spans the full width of the ring", () => {
+    const { container } = renderWheel({ items: ONE });
+    const d = container.querySelector("path")!.getAttribute("d")!;
+    const xs = [...d.matchAll(/-?\d+(?:\.\d+)?(?= \d)/g)].map(Number);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(100);
+  });
+
+  it("still labels and still highlights", () => {
+    const { container } = renderWheel({ items: ONE, activeIndex: 0 });
+    expect(screen.getByText("new emote")).toBeInTheDocument();
+    expect(container.querySelector("path")!.getAttribute("stroke")).toBe("#c080e0");
+  });
+
+  it("keeps multi-item wedges as sectors", () => {
+    const { container } = renderWheel();
+    expect(container.querySelector("path")!.getAttribute("d")).toContain("L ");
+  });
+});
+
 describe("the active wedge", () => {
   it("highlights the one under the pointer", () => {
     const { container } = renderWheel({ activeIndex: 1 });
