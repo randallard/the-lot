@@ -1,26 +1,20 @@
-# OSV scanner ignores. Read by `osv-scanner` in CI (the osv-scan job in
-# .github/workflows/ci.yml runs with fail-on-vuln: true).
+# OSV scanner config. Read by `osv-scanner` in CI (the osv-scan job in
+# .github/workflows/ci.yml, which fails on *any* vulnerability — severity is not a
+# threshold there, unlike `pnpm audit --audit-level=high`).
 #
-# This file exists because pnpm-workspace.yaml's `auditConfig.ignoreGhsas`
-# governs `pnpm audit` and nothing else. Two scanners, two config formats, one
-# posture — keep the reasoning here and there in sync. The long-form version,
-# including the export-shape detail, lives in pnpm-workspace.yaml next to the
-# `overrides` entry that this ignore is the counterpart to.
-
-[[IgnoredVulns]]
-id = "GHSA-mh99-v99m-4gvg"
-# CVE-2026-14257 — brace-expansion, unbounded expansion exhausts memory (High,
-# CVSS 7.5). OSV publishes one range: introduced 0, fixed 5.0.8, so every version
-# below 5.0.8 is affected and there is no backported patch for the 1.x/2.x lines.
+# This file exists because pnpm-workspace.yaml's `auditConfig.ignoreGhsas` governs
+# `pnpm audit` and nothing else. Two scanners, two config formats, one posture — keep
+# them in sync. Deleting this file to "keep one ignore in one place" is what took the
+# osv-scan job red from 2026-07-26 to 2026-07-29 without anything reporting it.
 #
-# Not a quarantine wait and not a severity judgement. brace-expansion 5.x changed
-# its export shape (1.x exported the function itself), so forcing 5.0.8 onto
-# minimatch@3.1.5 breaks it with `expand is not a function` as soon as a pattern
-# contains braces — which this repo's eslint config does (`**/*.{ts,tsx}`).
-# Verified: a blanket override takes `pnpm lint` down with exit 2. The
-# `brace-expansion@5` override upgrades what can be upgraded; the residual
-# 1.x/2.x copies reached through minimatch@3 are what this ignores.
+# **There are currently no ignores, and that is the point.** Every advisory this repo
+# has carried is now cleared by a version override in pnpm-workspace.yaml rather than
+# waved through here. The file stays so the knowledge above survives, and so the next
+# ignore has a documented home instead of being invented under pressure.
 #
-# Dev-only path (eslint / typescript-eslint / license-checker); nothing here
-# reaches the shipped bundle.
-reason = "No patched version is compatible with minimatch@3's API; dev-only path, never reaches the shipped bundle. Revisit when the toolchain's minimatch@3 dependency is gone. Full reasoning in pnpm-workspace.yaml."
+# If you add one: say what it is, why no override works, whether it can reach the
+# shipped bundle, and what would make it removable. An ignore whose reason is not
+# checkable is a control that is not a control.
+#
+# Verify locally — this matches CI line for line, and takes ten seconds:
+#   docker run --rm -v "$PWD:/src" -w /src ghcr.io/google/osv-scanner:v2.3.8 -r ./

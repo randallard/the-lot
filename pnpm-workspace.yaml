@@ -17,27 +17,58 @@ allowBuilds:
 minimumReleaseAge: 1440
 
 overrides:
-  # GHSA-mh99-v99m-4gvg / CVE-2026-14257 — brace-expansion, unbounded expansion
-  # exhausts memory (High, CVSS 7.5). OSV gives one range: introduced 0, fixed
-  # 5.0.8 — every version below that is affected, with no per-line patch.
+  # Every entry here is a **bounded** range, and the bound is load-bearing.
   #
-  # Scoped to the 5.x line ON PURPOSE. brace-expansion 5.x changed its export shape
-  # (1.x exported the function itself), so forcing 5.0.8 onto minimatch@3.1.5 breaks
-  # it with `expand is not a function` as soon as a pattern contains braces — which
-  # this repo's eslint config does (`**/*.{ts,tsx}`). Verified: a blanket override
-  # takes `pnpm lint` down with exit 2.
-  "brace-expansion@5": ">=5.0.8"
+  # `">=1.1.18"` on its own does not mean "the 1.x line, patched" — semver compares
+  # across majors, so pnpm happily satisfies it with 5.0.9 and every 1.x consumer gets
+  # the 5.x export shape. brace-expansion 1.x exports the function itself and 5.x does
+  # not, so that resolution takes `pnpm lint` down with `TypeError: expand is not a
+  # function` the moment a config pattern contains braces — which this repo's does
+  # (`**/*.{ts,tsx}`). Measured, twice: once on 2026-07-29 with a blanket override, and
+  # again on 2026-08-15 with an unbounded one. Always pin the upper bound.
+  #
+  # All of these are dev-path only (eslint / typescript-eslint / license-checker / vite);
+  # none reaches the shipped bundle.
+
+  # GHSA-rgw5-rvv9-x895 — brace-expansion DoS via unbounded intermediate arrays,
+  # explicitly a bypass of the CVE-2026-14257 mitigation. Patched per line: 1.1.18 for
+  # the 1.x consumers reached through minimatch@3, 5.0.9 for the rest.
+  #
+  # 🔴 **This is why the repo no longer ignores GHSA-mh99-v99m-4gvg.** That ignore's
+  # stated reason was "no patched version is compatible with minimatch@3's API", which
+  # was true when it was written and stopped being true when the 1.x backport landed.
+  # A patched 1.x means the override reaches everywhere and the ignore reaches nothing —
+  # osv-scanner reports it as an unused ignore, which is how it was noticed.
+  "brace-expansion@1": ">=1.1.18 <2"
+  "brace-expansion@2": ">=2.1.4 <3"
+  "brace-expansion@5": ">=5.0.9 <6"
+
+  # GHSA-5p4m-2wfm-xmqj — js-yaml quadratic CPU in `!!omap` resolution. Via eslint's
+  # `@eslint/eslintrc`.
+  "js-yaml@4": ">=4.3.1 <5"
+
+  # GHSA-mwp4-54f8-5fhr — ip-address decodes leading-zero octets as decimal where
+  # resolvers read them as octal, so an SSRF filter and the resolver disagree. Via
+  # license-checker-rseidelsohn → … → socks-proxy-agent.
+  "ip-address": ">=10.3.1 <11"
+
+  # GHSA-2v37-7h3g-55p8 — nanoid can loop indefinitely with a custom generator. Via
+  # postcss → vite, so build-time only.
+  "nanoid@3": ">=3.3.18 <4"
+
+  # Found by osv-scanner and not by `pnpm audit`, because the audit job's
+  # `--audit-level=high` filters them out while the OSV job fails on any severity.
+  # A live demonstration that the two gates are not redundant.
+  "postcss@8": ">=8.5.23 <9"   # GHSA-fxqj-rqcc-2cmp
+  "undici@6": ">=6.28.0 <7"    # GHSA-8xcm-r25x-g524, -m8rv-5g2x-5cg5, -v3r7-h72x-cjcm
 
 auditConfig:
-  # Governs `pnpm audit` only. CI also runs osv-scanner, which reads its own
-  # ignores from osv-scanner.toml — the same posture in a second format. Change
-  # one, change the other.
-  ignoreGhsas:
-    # See the overrides note above. This is NOT the earlier "waiting for the
-    # quarantine" reason, which was wrong on two counts: the fix cleared pnpm's
-    # 1-day gate on 2026-07-24, and the gate was never 72h.
-    #
-    # The real reason is that no patched version is compatible with minimatch@3's
-    # API. Dev-only path (eslint / typescript-eslint / license-checker); nothing
-    # here reaches the shipped bundle. Revisit when the toolchain drops minimatch@3.
-    - GHSA-mh99-v99m-4gvg
+  # Governs `pnpm audit` only. CI also runs osv-scanner, which reads its own ignores
+  # from osv-scanner.toml — the same posture in a second format. Change one, change
+  # the other.
+  #
+  # **Empty on purpose, as of 2026-08-15.** The one standing ignore
+  # (GHSA-mh99-v99m-4gvg, brace-expansion) is gone: its reason was that no patched
+  # version was compatible with minimatch@3's API, and the 1.1.18 backport made that
+  # false. Both scanners now pass with nothing waved through. See the overrides above.
+  ignoreGhsas: []
