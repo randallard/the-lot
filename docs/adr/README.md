@@ -108,6 +108,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0017](0017-an-arm-is-two-segments-with-a-pinned-shoulder.md) | An arm is two segments — a pinned shoulder, a free elbow, and a compliant link between them | Accepted |
 | [0018](0018-a-contact-move-may-bring-the-pair-into-position.md) | A contact move may bring the pair into position, and being chosen is the consent | Accepted |
 | [0019](0019-a-move-may-turn-a-body-past-facing-so-the-shoulder-leads.md) | A move may turn a body past facing, so the working shoulder leads | Accepted |
+| [0020](0020-the-forearm-aims-along-the-contact-axis.md) | The forearm's aim is authored, and a punch meets at shoulder height | Accepted |
 
 ## Decisions this repo inherits
 
