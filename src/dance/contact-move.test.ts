@@ -21,6 +21,7 @@ import {
   resolveConstraint,
   resolveRole,
   restSign,
+  squareUp,
   stancePlacements,
   sideFor,
   stanceHolds,
@@ -45,6 +46,7 @@ import {
   contactFraction,
   envelopeWith,
   localPartner,
+  facingYaw,
   maxSeparation,
   resolveContact,
   twistOf,
@@ -773,5 +775,76 @@ describe("the approach widens the offer", () => {
       OPEN_TO_EVERYTHING, shy);
     expect(r.available).toBe(false);
     expect(r.reason).toBe("muted-by-b");
+  });
+});
+
+describe("squaring back up after the gesture", () => {
+  // Both halves of what Ryan's watch caught on 2026-08-15: the driver held the twist to
+  // its last frame and dropped it, so the NPC snapped square the moment its own `lookAt`
+  // resumed and the player, having no such behaviour, was simply left turned. The twist is
+  // spent to make the contact possible, so it comes back as the contact ends.
+  const move = fistBumpMove();
+  const c = move.constraints[0];
+  const a = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
+  const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
+  const h = meetAt(a, b);
+  const maxTwist = (DEFAULT_MAX_TWIST_DEGREES * Math.PI) / 180;
+  const reach = maxSeparation(a, b, h, maxTwist, maxTwist);
+
+  /** The staged pair, then the same pair squared up — what the driver eases between. */
+  function stagedAndSettled(sep: number) {
+    const staged = approachTarget(
+      { a: at(0, 0), b: at(0, 0) }, move, a, b,
+      at(0, 0, 0), at(0, sep, Math.PI), h, "left-positive",
+    );
+    const settled = {
+      a: { ...staged.a },
+      b: { ...staged.b },
+    };
+    squareUp(settled, move, staged.a, staged.b);
+    return { staged, settled };
+  }
+
+  it("takes the twist back out, leaving both squarely facing", () => {
+    const { staged, settled } = stagedAndSettled(reach * 0.98);
+    expect(twistOf(staged.a, staged.b)).toBeGreaterThan(0.01);
+    expect(twistOf(settled.a, settled.b)).toBeCloseTo(0, 12);
+    expect(twistOf(settled.b, settled.a)).toBeCloseTo(0, 12);
+  });
+
+  it("leaves them standing where the step put them — you square up, you do not walk back", () => {
+    const { staged, settled } = stagedAndSettled(reach * 0.98);
+    expect(settled.a.x).toBe(staged.a.x);
+    expect(settled.a.z).toBe(staged.a.z);
+    expect(settled.b.x).toBe(staged.b.x);
+    expect(settled.b.z).toBe(staged.b.z);
+  });
+
+  it("is a no-op on a pair who were never twisted", () => {
+    // A close-up bump spends no twist, so there is nothing to unwind and nothing moves.
+    const { staged, settled } = stagedAndSettled(closestComfortable(a, b));
+    expect(settled.a.yaw).toBeCloseTo(staged.a.yaw, 12);
+    expect(settled.b.yaw).toBeCloseTo(staged.b.yaw, 12);
+  });
+
+  it("agrees with what an NPC's own look-at would do, so there is nothing left to snap", () => {
+    // The NPC faces the player every frame it is hovered. If the driver let go anywhere
+    // else, that is the snap — so the place it lets go has to be exactly here.
+    const { settled } = stagedAndSettled(reach * 0.98);
+    expect(settled.b.yaw).toBeCloseTo(facingYaw(settled.b, settled.a), 12);
+  });
+
+  it("gives a side-by-side move its shared heading back", () => {
+    const hip = makeContactMove("hip bump", {
+      ...move, stance: "side-by-side-within-reach", approach: "turn",
+    });
+    const staged = approachTarget(
+      { a: at(0, 0), b: at(0, 0) }, hip, a, b,
+      at(0, 0, 0.3), at(0.6, 0, -0.3), h, "left-positive",
+    );
+    const settled = { a: { ...staged.a }, b: { ...staged.b } };
+    squareUp(settled, hip, staged.a, staged.b);
+    expect(settled.a.yaw).toBeCloseTo(settled.b.yaw, 12);
+    expect(stanceHolds("side-by-side-within-reach", a, b, settled.a, settled.b, h)).toBeNull();
   });
 });

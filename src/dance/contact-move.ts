@@ -415,19 +415,7 @@ export function approachTarget(
   if (approach === "none" || sep < 1e-6) return out;
 
   // Facing first: it costs nothing and both approach modes do it.
-  if (move.stance === "side-by-side-within-reach") {
-    // One shared heading, and the one that turns each of them least: the mean, taken on
-    // the circle rather than as an average of two numbers that may straddle ±π.
-    const mean = Math.atan2(
-      Math.sin(pa.yaw) + Math.sin(pb.yaw),
-      Math.cos(pa.yaw) + Math.cos(pb.yaw),
-    );
-    out.a.yaw = mean;
-    out.b.yaw = mean;
-  } else {
-    out.a.yaw = facingYaw(pa, pb);
-    out.b.yaw = facingYaw(pb, pa);
-  }
+  squareUp(out, move, pa, pb);
 
   if (approach !== "turn-and-step") {
     applyTwist(out, move, a, b, height, rig);
@@ -457,6 +445,37 @@ export function approachTarget(
   // standing at rather than the one they started from.
   applyTwist(out, move, a, b, height, rig);
   return out;
+}
+
+/**
+ * The **un-twisted** headings this move's stance wants, for a pair standing here.
+ *
+ * Shared by the approach, which turns them here before spending any twist on top, and by
+ * the driver's withdraw, which brings them back to it as the hand comes away — squaring
+ * up after a bump is as much a part of the gesture as turning in for it, and a twist that
+ * outlived the contact is the visible half of both defects Ryan caught on 2026-08-15:
+ * the NPC snapping square the moment ownership was released, and the player, who has no
+ * such behaviour of their own, simply staying turned.
+ */
+export function squareUp(
+  out: { a: Placement; b: Placement },
+  move: ContactMove,
+  pa: Placement,
+  pb: Placement,
+): void {
+  if (move.stance === "side-by-side-within-reach") {
+    // One shared heading, and the one that turns each of them least: the mean, taken on
+    // the circle rather than as an average of two numbers that may straddle ±π.
+    const mean = Math.atan2(
+      Math.sin(pa.yaw) + Math.sin(pb.yaw),
+      Math.cos(pa.yaw) + Math.cos(pb.yaw),
+    );
+    out.a.yaw = mean;
+    out.b.yaw = mean;
+    return;
+  }
+  out.a.yaw = facingYaw(pa, pb);
+  out.b.yaw = facingYaw(pb, pa);
 }
 
 /**

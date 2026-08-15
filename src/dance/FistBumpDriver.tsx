@@ -60,6 +60,7 @@ import {
   metricsFor,
   resolveRole,
   restSign,
+  squareUp,
   totalSeconds,
   verticalHeight,
   type Availability,
@@ -179,12 +180,6 @@ function smoothstep(x: number): number {
   return k * k * (3 - 2 * k);
 }
 
-function writePlacement(rig: THREE.Group, p: Placement): void {
-  rig.position.x = p.x;
-  rig.position.z = p.z;
-  rig.rotation.y = p.yaw;
-}
-
 /**
  * Move a rig a fraction of the way from one placement to another.
  *
@@ -286,6 +281,12 @@ export function FistBumpDriver({
       a: Placement; b: Placement;
     },
     to: { a: { x: 0, z: 0, yaw: 0 }, b: { x: 0, z: 0, yaw: 0 } } as {
+      a: Placement; b: Placement;
+    },
+    // Where they end up: the staged positions with the twist taken back out. Squaring up
+    // as the hand comes away is part of the gesture, and a twist that outlives the
+    // contact is what Ryan's watch caught from both ends at once.
+    settle: { a: { x: 0, z: 0, yaw: 0 }, b: { x: 0, z: 0, yaw: 0 } } as {
       a: Placement; b: Placement;
     },
     staged: false,
@@ -391,6 +392,9 @@ export function FistBumpDriver({
         verticalHeight(constraint.vertical, m.player, m.npc, constraint.absoluteHeight),
         PLAYER_NPC_RIG,
       );
+      copyPlacement(s.settle.a, s.to.a);
+      copyPlacement(s.settle.b, s.to.b);
+      squareUp(s.settle, move, s.to.a, s.to.b);
       s.staged = true;
     }
 
@@ -414,18 +418,32 @@ export function FistBumpDriver({
       return;
     }
 
-    // Snapped, not eased, and for the grip's reason: the envelope solves contact against
-    // these placements, so arriving *nearly* at the staged pair means every frame of the
-    // hold is solved against a pose the bodies never quite took.
+    const played = elapsed - approachSeconds;
+    envelopeWith(played, move.envelope.extend, move.envelope.hold, move.envelope.withdraw, s.env);
+
+    // **Squaring back up, across the withdraw.** The twist is spent to make the contact
+    // possible, so it comes back as the contact ends — on the same beat the arm returns,
+    // which is what people do and which costs no extra time in charge of the player.
+    //
+    // Two defects at once, both from the watch: without this the driver held the twist to
+    // its very last frame and dropped it, so the NPC snapped square the moment its own
+    // `lookAt` resumed, and the player — who has no such behaviour — was simply left
+    // turned until they next walked somewhere.
+    //
+    // Through extend and hold this is a flat 0, which writes the staged placement
+    // **exactly** — the grip's rule again: the envelope solves contact against these
+    // placements, so arriving *nearly* at the staged pair means every frame of the hold is
+    // solved against a pose the bodies never quite took.
+    const held = move.envelope.extend + move.envelope.hold;
+    const w = move.envelope.withdraw;
+    const back = played <= held ? 0 : w > 0 ? smoothstep((played - held) / w) : 1;
+
     if (approach !== "none") {
-      writePlacement(pRig, s.to.a);
-      writePlacement(nRig, s.to.b);
+      easePlacement(pRig, s.to.a, s.settle.a, back);
+      easePlacement(nRig, s.to.b, s.settle.b, back);
       readPlacement(s.self, pRig);
       readPlacement(s.other, nRig);
     }
-
-    const played = elapsed - approachSeconds;
-    envelopeWith(played, move.envelope.extend, move.envelope.hold, move.envelope.withdraw, s.env);
 
     if (s.env.done || played > totalSeconds(move.envelope)) {
       req.startedAt = null;
