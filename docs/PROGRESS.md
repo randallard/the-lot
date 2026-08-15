@@ -4,6 +4,48 @@ _Last updated: 2026-08-15_
 
 ## Status / next
 
+**✅ WATCHED AND ACCEPTED (2026-08-15).** Ryan, at the end of the day's five passes: *"ok that
+looks good, and the allemande left looks good."* Everything below this line was built today and
+carried a 🔴 unwatched flag; it no longer does. Read this section first if you are picking the
+repo back up — the rest of it is the day's narrative, newest first.
+
+**What the watch confirmed, item by item:**
+
+- ✅ **The fist bump, end to end.** The approach walks the pair in, the twist turns the working
+  shoulder toward the partner and unwinds as the hand comes away, and the fists meet head on
+  with straight wrists at shoulder height. ADR-0018, 0019 and 0020 are render-validated.
+- ✅ **The dance floor's grip is unchanged, and this is the load-bearing one.** ADR-0017's watch
+  list said a Dosado or an Allemande that looked different would be a rig-split bug rather than
+  a design change — the split was meant to be *the same pixels by construction*. **The Allemande
+  Left looks right**, so the two-group rig, the elbow-naming of `ArmPose`, and every call site
+  that had to be converted are confirmed against the one render that was already validated back
+  on 2026-07-27. That is the strongest single result of the day: a five-file rig change with no
+  visible effect where it was supposed to have none.
+- ✅ **Reach is comfortable now.** It rose three times over the day (0.917 → 1.427 → 1.605) and
+  the last word is that the staging distance reads right. `APPROACH_FRACTION` stays the dial.
+- ✅ **Being moved by a gesture reads acceptably.** The first thing in the game that moves the
+  player without them steering, and it was not raised again after the pass that introduced it.
+
+**What the watch did *not* exercise, stated plainly:**
+
+- 🔴 **`aim: "natural"` — and therefore `reachPose`, `ELBOW_SWING`, and the whole two-bone
+  solve — is shipped and unexercised.** Nothing authored uses it: the built-in bump is
+  `"along-axis"`, and it is the only contact move that exists. It is tested and typechecked,
+  and by this repo's own standing rule *an unexercised seam is not a seam*. ADR-0020 carries the
+  promotion condition; the honest reading today is that its render is unverified, not that it
+  works. The first move that wants a bent arm — a hand on a shoulder, a palm on a back — is
+  what will actually check it.
+- 🔴 **The approach ignores obstacles** and an NPC mid-walk freezes rather than pausing. Neither
+  came up, because neither was set up.
+- 🔴 **`gripHeight`'s unequal-pair rule** is untouched and still open (step 3 of the dancer-size
+  brief). `mean-shoulder` sidestepped it for the bump rather than answering it.
+
+**Next:** the queue behind this is the `externallyDriven` player seam — implemented in
+square-one, declared in `useDancePerformance.ts` and never called, so the player has never been
+in a square — then teaching `arm-turn`. Both predate today.
+
+---
+
 **The fists meet like a punch now (2026-08-15, fifth pass) — 🔴 unwatched.** Ryan: *"in life,
 the forearm lines up like a punch to punch fists with a straight wrist — these are coming in at
 a real angle."*
