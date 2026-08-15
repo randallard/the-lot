@@ -105,6 +105,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0014](0014-radial-wheel-for-emotes-and-taught-moves.md) | Interactions are chosen from a radial wheel, held-open for novices and flickable for experts | Superseded by ADR-0015 |
 | [0015](0015-radial-wheel-dead-zone-cancels-selection-unbounded.md) | The radial wheel cancels in the dead zone, and selects without an outer bound | Accepted |
 | [0016](0016-contact-moves-are-authored-constraints-not-keyframes.md) | A contact move is authored as constraints on body parts, not as a keyframed pose | Accepted |
+| [0017](0017-an-arm-is-two-segments-with-a-pinned-shoulder.md) | An arm is two segments — a pinned shoulder, a free elbow, and a compliant link between them | Accepted |
 
 ## Decisions this repo inherits
 
