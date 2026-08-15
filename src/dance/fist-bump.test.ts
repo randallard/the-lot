@@ -20,6 +20,7 @@ import {
   armPose,
   gripHeight,
   localHeight,
+  upperArmStrain,
   type ArmMetrics,
   type Placement,
 } from "./arm-pose";
@@ -44,9 +45,23 @@ function at(x: number, z: number, yaw = 0): Placement {
   return { x, z, yaw };
 }
 
-/** Where a posed arm's hand centre actually ends up, from the pose alone. */
+/**
+ * The `restPose` sign of the **anatomical right** shoulder, which is the side every
+ * bump here uses (the handshake convention). Facing `+z`, right is at `−x`.
+ *
+ * A pose needs one since ADR-0017: the shoulder is an input now, not a by-product.
+ */
+const RIGHT = -1;
+
+/**
+ * Where a posed arm's hand centre actually ends up, from the pose alone.
+ *
+ * A forearm span from the **elbow**, which is what a pose names. It used to be a whole
+ * `handReach` from the arm group's origin; the difference is the undrawn upper arm, and
+ * the point of the split is that it is no longer part of the drawn segment.
+ */
 function handOf(pose: ReturnType<typeof armPose>, m: ArmMetrics) {
-  const reach = m.handReach;
+  const reach = m.forearmSpan;
   return {
     x: pose.x + pose.aimX * reach,
     y: pose.y + pose.aimY * reach,
@@ -54,9 +69,14 @@ function handOf(pose: ReturnType<typeof armPose>, m: ArmMetrics) {
   };
 }
 
+/** The height these two meet at, under the fist bump's own vertical rule. */
+function meetAt(a: ArmMetrics, b: ArmMetrics) {
+  return gripHeight(a, b);
+}
+
 /** Stand the pair the fraction of their max separation apart, facing each other. */
 function facingPair(a: ArmMetrics, b: ArmMetrics, frac = 0.8) {
-  const sep = maxSeparation(a, b) * frac;
+  const sep = maxSeparation(a, b, meetAt(a, b)) * frac;
   return [at(0, 0), at(0, sep)] as const;
 }
 
@@ -121,15 +141,17 @@ describe("envelope", () => {
 describe("reach", () => {
   it.each(CAST)("%s can bump themselves at a plausible distance", (_n, shape) => {
     const m = armMetrics(shape);
-    expect(maxSeparation(m, m)).toBeGreaterThan(0);
-    expect(canBump(m, m, at(0, 0), at(0, maxSeparation(m, m) * 0.9))).toBe(true);
+    const h = meetAt(m, m);
+    expect(maxSeparation(m, m, h)).toBeGreaterThan(0);
+    expect(canBump(m, m, at(0, 0), at(0, maxSeparation(m, m, h) * 0.9), h)).toBe(true);
   });
 
   it("declines a bump that is out of reach", () => {
     const a = armMetrics(PLAYER_DEFAULTS);
     const b = armMetrics(SPROUT_DEFAULTS);
-    const tooFar = maxSeparation(a, b) * 1.01;
-    expect(canBump(a, b, at(0, 0), at(0, tooFar))).toBe(false);
+    const h = meetAt(a, b);
+    const tooFar = maxSeparation(a, b, h) * 1.01;
+    expect(canBump(a, b, at(0, 0), at(0, tooFar), h)).toBe(false);
     expect(resolveContact(bumpContact(), a, b, at(0, 0), at(0, tooFar)).reachable).toBe(false);
   });
 
@@ -141,7 +163,7 @@ describe("reach", () => {
 describe("where the fists meet", () => {
   it("splits an even pair down the middle", () => {
     const m = armMetrics(MYCO_DEFAULTS);
-    expect(contactFraction(m, m)).toBeCloseTo(0.5, 12);
+    expect(contactFraction(m, m, meetAt(m, m))).toBeCloseTo(0.5, 12);
   });
 
   it("makes the longer arm cover more of the gap", () => {
@@ -152,7 +174,8 @@ describe("where the fists meet", () => {
     const longer = adult.handReach > child.handReach ? adult : child;
     const shorter = longer === adult ? child : adult;
 
-    const [pl, ps] = [at(0, 0), at(0, maxSeparation(longer, shorter) * 0.9)];
+    const reach = maxSeparation(longer, shorter, meetAt(longer, shorter));
+    const [pl, ps] = [at(0, 0), at(0, reach * 0.9)];
     const c = resolveContact(bumpContact(), longer, shorter, pl, ps);
 
     const fromLonger = Math.hypot(c.x - pl.x, c.z - pl.z);
@@ -208,8 +231,8 @@ describe("the fists actually touch", () => {
       const [pa, pb] = facingPair(a, b);
       const c = resolveContact(bumpContact(), a, b, pa, pb);
 
-      const poseA = bumpPose(armPose(), a, c, c.dirAX, c.dirAZ);
-      const poseB = bumpPose(armPose(), b, c, c.dirBX, c.dirBZ);
+      const poseA = bumpPose(armPose(), a, c, c.dirAX, c.dirAZ, RIGHT);
+      const poseB = bumpPose(armPose(), b, c, c.dirBX, c.dirBZ, RIGHT);
       const ha = handOf(poseA, a);
       const hb = handOf(poseB, b);
 
@@ -223,8 +246,8 @@ describe("the fists actually touch", () => {
     const b = armMetrics(SPROUT_DEFAULTS);
     const [pa, pb] = facingPair(a, b);
     const c = resolveContact(bumpContact(), a, b, pa, pb);
-    const ha = handOf(bumpPose(armPose(), a, c, c.dirAX, c.dirAZ), a);
-    const hb = handOf(bumpPose(armPose(), b, c, c.dirBX, c.dirBZ), b);
+    const ha = handOf(bumpPose(armPose(), a, c, c.dirAX, c.dirAZ, RIGHT), a);
+    const hb = handOf(bumpPose(armPose(), b, c, c.dirBX, c.dirBZ, RIGHT), b);
     expect(ha.y).toBeCloseTo(c.height, 10);
     expect(hb.y).toBeCloseTo(c.height, 10);
   });
@@ -233,29 +256,57 @@ describe("the fists actually touch", () => {
     const a = armMetrics(MYCO_DEFAULTS);
     const b = armMetrics(EMBER_DEFAULTS);
     const c = bumpContact();
-    for (let sep = maxSeparation(a, b) * 0.4; sep < maxSeparation(a, b); sep += 0.03) {
+    const full = maxSeparation(a, b, meetAt(a, b));
+    for (let sep = full * 0.4; sep < full; sep += 0.03) {
       resolveContact(c, a, b, at(0, 0), at(0, sep));
-      const ha = handOf(bumpPose(armPose(), a, c, c.dirAX, c.dirAZ), a);
-      const hb = handOf(bumpPose(armPose(), b, c, c.dirBX, c.dirBZ), b);
+      const ha = handOf(bumpPose(armPose(), a, c, c.dirAX, c.dirAZ, RIGHT), a);
+      const hb = handOf(bumpPose(armPose(), b, c, c.dirBX, c.dirBZ, RIGHT), b);
       const gap = Math.hypot(ha.x - hb.x, ha.y - hb.y, ha.z - hb.z);
       expect(gap).toBeCloseTo(a.handRadius + b.handRadius, 10);
     }
   });
 
-  it("aims both arms horizontally", () => {
-    const a = armMetrics(RYAN_DEFAULTS);
+  // 🔴 **This replaces "aims both arms horizontally", which is no longer true and was
+  // never the property that mattered.** A horizontal forearm was what the one-segment
+  // model produced when it forced the arm along the contact axis, and forcing it is what
+  // dragged the shoulder off the body. Under ADR-0017 the forearm tilts by whatever the
+  // elbow needs, and what has to hold instead is that the arm is still *attached*.
+  it.each(CAST)("keeps %s's arm on their shoulder at every reach", (_n, shape) => {
+    const a = armMetrics(shape);
     const b = armMetrics(PLAYER_DEFAULTS);
-    const [pa, pb] = facingPair(a, b);
-    const c = resolveContact(bumpContact(), a, b, pa, pb);
-    expect(bumpPose(armPose(), a, c, c.dirAX, c.dirAZ).aimY).toBe(0);
-    expect(bumpPose(armPose(), b, c, c.dirBX, c.dirBZ).aimY).toBe(0);
+    const full = maxSeparation(a, b, meetAt(a, b));
+    const c = bumpContact();
+    for (let sep = full * 0.3; sep <= full; sep += 0.02) {
+      resolveContact(c, a, b, at(0, 0), at(0, sep));
+      const pose = bumpPose(armPose(), a, c, c.dirAX, c.dirAZ, RIGHT);
+      // The elbow is exactly one upper arm from the shoulder — no stretch, no slide.
+      expect(upperArmStrain(pose, a, RIGHT)).toBeCloseTo(0, 10);
+      const dx = pose.x - RIGHT * a.restX;
+      const dy = pose.y - a.restY;
+      expect(Math.hypot(dx, dy, pose.z)).toBeCloseTo(a.elbowReach, 10);
+    }
+  });
+
+  it("stretches the undrawn upper arm rather than dropping the hand, past reach", () => {
+    // Reach is a rule a move chooses, not a gate the geometry imposes (ADR-0016/0017), so
+    // beyond it the hand still lands where it was authored and the strain says by how
+    // much. This is the reading a lobbed fist will need.
+    const a = armMetrics(PLAYER_DEFAULTS);
+    const b = armMetrics(RYAN_DEFAULTS);
+    const h = meetAt(a, b);
+    const tooFar = maxSeparation(a, b, h) * 1.4;
+    const c = resolveContact(bumpContact(), a, b, at(0, 0), at(0, tooFar));
+    const pose = bumpPose(armPose(), a, c, c.dirAX, c.dirAZ, RIGHT);
+    const hand = handOf(pose, a);
+    expect(Math.hypot(hand.x - c.x, hand.z - c.z)).toBeCloseTo(a.handRadius, 10);
+    expect(upperArmStrain(pose, a, RIGHT)).toBeGreaterThan(0);
   });
 
   it("fills a caller-owned pose", () => {
     const a = armMetrics(MYCO_DEFAULTS);
     const c = resolveContact(bumpContact(), a, a, at(0, 0), at(0, 0.5));
     const out = armPose();
-    expect(bumpPose(out, a, c, c.dirAX, c.dirAZ)).toBe(out);
+    expect(bumpPose(out, a, c, c.dirAX, c.dirAZ, RIGHT)).toBe(out);
   });
 });
 
@@ -310,8 +361,8 @@ describe("the local frame", () => {
 
     const ca = resolveContact(bumpContact(), a, b, SELF, localPartner(at(0, 0), self, partner));
     const cb = resolveContact(bumpContact(), b, a, SELF, localPartner(at(0, 0), partner, self));
-    const ha = handOf(bumpPose(armPose(), a, ca, ca.dirAX, ca.dirAZ), a);
-    const hb = handOf(bumpPose(armPose(), b, cb, cb.dirAX, cb.dirAZ), b);
+    const ha = handOf(bumpPose(armPose(), a, ca, ca.dirAX, ca.dirAZ, RIGHT), a);
+    const hb = handOf(bumpPose(armPose(), b, cb, cb.dirAX, cb.dirAZ, RIGHT), b);
 
     // Each hand is its own radius from its own contact point, in its own frame.
     expect(Math.hypot(ha.x - ca.x, ha.z - ca.z)).toBeCloseTo(a.handRadius, 10);
@@ -340,22 +391,29 @@ describe("rig frames — the fists have to meet in the world, not each in its ow
     const ca = resolveContact(bumpContact(), player, npc, SELF, localPartner(at(0, 0), pa, pb));
     const cb = resolveContact(bumpContact(), npc, player, SELF, localPartner(at(0, 0), pb, pa));
     return {
-      player: bumpPose(armPose(), player, ca, ca.dirAX, ca.dirAZ),
-      npc: bumpPose(armPose(), npc, cb, cb.dirAX, cb.dirAZ),
+      player: bumpPose(armPose(), player, ca, ca.dirAX, ca.dirAZ, RIGHT),
+      npc: bumpPose(armPose(), npc, cb, cb.dirAX, cb.dirAZ, RIGHT),
     };
   }
 
+  // 🔴 **Both of these used to measure the pose's own `y` and now measure the hand's**,
+  // because ADR-0017 changed what a pose's `y` *is*: the elbow, not the arm group's
+  // origin. Two elbows solved from two different shoulders have no reason to share a
+  // height and do not; the **fists** are what have to meet, which is what these were
+  // always trying to say. The rig-frame defect they were written for is unaffected —
+  // swap `localHeight` back out of `bumpPose` and they fail again by 0.75.
   it("puts both fists at the same height in world space", () => {
     const p = poseBoth();
-    const playerWorldY = player.rigOriginY + p.player.y;
-    const npcWorldY = npc.rigOriginY + p.npc.y;
+    const playerWorldY = player.rigOriginY + handOf(p.player, player).y;
+    const npcWorldY = npc.rigOriginY + handOf(p.npc, npc).y;
     expect(playerWorldY).toBeCloseTo(npcWorldY, 10);
   });
 
   it("writes different local heights to do it — the offset is the rig difference", () => {
     // The assertion that would have failed before the fix, where both were identical.
     const p = poseBoth();
-    expect(p.npc.y - p.player.y).toBeCloseTo(PLAYER_RIG_Y - NPC_RIG_Y, 10);
+    const localGap = handOf(p.npc, npc).y - handOf(p.player, player).y;
+    expect(localGap).toBeCloseTo(PLAYER_RIG_Y - NPC_RIG_Y, 10);
   });
 
   it("gripHeight answers in world space", () => {
@@ -424,8 +482,8 @@ describe("a fist bump is bumped with fists", () => {
     const b = armMetrics(RYAN_DEFAULTS, 0.5, 0, "closed");
     const [pa, pb] = facingPair(a, b);
     const c = resolveContact(bumpContact(), a, b, pa, pb);
-    const ha = handOf(bumpPose(armPose(), a, c, c.dirAX, c.dirAZ), a);
-    const hb = handOf(bumpPose(armPose(), b, c, c.dirBX, c.dirBZ), b);
+    const ha = handOf(bumpPose(armPose(), a, c, c.dirAX, c.dirAZ, RIGHT), a);
+    const hb = handOf(bumpPose(armPose(), b, c, c.dirBX, c.dirBZ, RIGHT), b);
     expect(Math.hypot(ha.x - hb.x, ha.z - hb.z)).toBeCloseTo(a.handRadius + b.handRadius, 10);
   });
 });
@@ -444,7 +502,7 @@ describe("the arm is not inside out", () => {
   function poseA(frac: number) {
     const [pa, pb] = facingPair(a, b, frac);
     const c = resolveContact(bumpContact(), a, b, SELF, localPartner(at(0, 0), pa, pb));
-    return { pose: bumpPose(armPose(), a, c, c.dirAX, c.dirAZ), contact: c };
+    return { pose: bumpPose(armPose(), a, c, c.dirAX, c.dirAZ, RIGHT), contact: c };
   }
 
   it.each([0.5, 0.75, 1])("aims toward the partner, not back at itself (%s of reach)", (frac) => {
@@ -453,9 +511,17 @@ describe("the arm is not inside out", () => {
     expect(pose.aimZ).toBeGreaterThan(0);
   });
 
-  it.each([0.5, 0.75, 1])("keeps its origin on its own side of the contact (%s of reach)", (frac) => {
+  it.each([0.5, 0.75, 1])("keeps its elbow on its own side of the contact (%s of reach)", (frac) => {
     const { pose, contact } = poseA(frac);
     expect(pose.z).toBeLessThan(contact.z);
+  });
+
+  // The assertion the old model could not have passed, and the reason it went unnoticed:
+  // the quantity it got wrong — the arm's own origin — was one nothing measured, while
+  // the hand, which everything measured, stayed correct. Measure the join.
+  it.each([0.5, 0.75, 1])("keeps the shoulder on the body (%s of reach)", (frac) => {
+    const { pose } = poseA(frac);
+    expect(upperArmStrain(pose, a, RIGHT)).toBeCloseTo(0, 10);
   });
 
   it("still lands the hand exactly where it always did", () => {

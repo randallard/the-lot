@@ -29,10 +29,17 @@ const MIN_FACING_MARKER_RADIUS = 0.07;
 export type DancerRig = React.RefObject<THREE.Group | null>;
 
 /**
- * The two arm groups, by the dancer's own anatomy. Characters face local `+z`
+ * The two **forearm** groups, by the dancer's own anatomy. Characters face local `+z`
  * (townage's `atan2(dir.x, dir.z)` heading convention), so the anatomical left
  * arm is the group at `+x` — note this is the group the hand *styling* calls
  * "right", because hand-pose naming is viewer-mirrored (like the eye editor).
+ *
+ * **These are the forearms, not the arms, and that is the point** (ADR-0017). Each one
+ * hangs inside a shoulder group that is pinned at the body's own shoulder and is not
+ * exposed here, so there is no ref a driver could use to move a shoulder. The old
+ * single group *was* the shoulder and a driver placed it wherever the pose arithmetic
+ * needed — which put it 0.34 behind the body at bump range with nothing on screen to
+ * say so. Making the shoulder unreachable is what stops that being expressible.
  */
 export interface DancerArmRigs {
   left: DancerRig;
@@ -72,8 +79,13 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
   const rot = handRotations(hand.open);
   const COLOR = color ?? shape.bodyColor;
 
-  const forearmLocalY = pos.forearmCenterY - pos.shoulderY;
-  const handLocalY = pos.handCenterY - pos.shoulderY;
+  // Mesh heights relative to the **elbow**, which is where the forearm group now sits.
+  // The shoulder group holds the elbow at `elbowY − shoulderY` and the meshes hang off
+  // that, so the two offsets compose back to the same rest heights they always had —
+  // the rest pose is unchanged by construction (ADR-0017).
+  const elbowLocalY = pos.elbowY - pos.shoulderY;
+  const forearmLocalY = pos.forearmCenterY - pos.elbowY;
+  const handLocalY = pos.handCenterY - pos.elbowY;
   const facingMarkerRadius = Math.max(body.radius * 0.16, MIN_FACING_MARKER_RADIUS);
 
   return (
@@ -121,28 +133,38 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
       </group>
 
       {/* Anatomical RIGHT arm (at −x; facing is +z). Styling uses rot.left — the
-          hand-pose names are viewer-mirrored. */}
-      <group ref={arms?.right} position={[-pos.forearmX, pos.shoulderY, 0]}>
-        <mesh position={[0, forearmLocalY, 0]} castShadow>
-          <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
-          <meshStandardMaterial color={COLOR} />
-        </mesh>
-        <mesh position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.left}>
-          <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
-          <meshStandardMaterial color={COLOR} />
-        </mesh>
+          hand-pose names are viewer-mirrored.
+
+          Two groups, not one, per ADR-0017: the outer one is the **shoulder** and is
+          pinned to the body with no ref on it, so nothing can move it; the inner one is
+          the **elbow**, and it is the only thing a driver is handed. The undrawn upper
+          arm is the gap between them, and it is now a real, measurable span rather than
+          an assumption baked into a single origin. */}
+      <group position={[-pos.forearmX, pos.shoulderY, 0]}>
+        <group ref={arms?.right} position={[0, elbowLocalY, 0]}>
+          <mesh position={[0, forearmLocalY, 0]} castShadow>
+            <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
+            <meshStandardMaterial color={COLOR} />
+          </mesh>
+          <mesh position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.left}>
+            <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
+            <meshStandardMaterial color={COLOR} />
+          </mesh>
+        </group>
       </group>
 
       {/* Anatomical LEFT arm (at +x). */}
-      <group ref={arms?.left} position={[pos.forearmX, pos.shoulderY, 0]}>
-        <mesh position={[0, forearmLocalY, 0]} castShadow>
-          <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
-          <meshStandardMaterial color={COLOR} />
-        </mesh>
-        <mesh position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.right}>
-          <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
-          <meshStandardMaterial color={COLOR} />
-        </mesh>
+      <group position={[pos.forearmX, pos.shoulderY, 0]}>
+        <group ref={arms?.left} position={[0, elbowLocalY, 0]}>
+          <mesh position={[0, forearmLocalY, 0]} castShadow>
+            <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
+            <meshStandardMaterial color={COLOR} />
+          </mesh>
+          <mesh position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.right}>
+            <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
+            <meshStandardMaterial color={COLOR} />
+          </mesh>
+        </group>
       </group>
     </group>
   );

@@ -15,15 +15,16 @@
  * *between* two bodies is inexpressible in it. That is what ADR-0014's
  * `{ kind: "gesture" }` arm of the taught-thing union exists for.
  *
- * **Almost none of the geometry is new, which was a surprise.** ADR-0014 predicted a
- * fresh pose function on the grounds that {@link gripPose} is the *forearm* grip —
- * hand at the partner's elbow, forearms antiparallel. But `gripPose` is parameterised
- * by `radius` and `separation` and places everything from the pivot, so a fist bump
- * is the same function with **`radius` = the character's own hand radius** and
- * **`separation` = 0**: the fist touches the contact point from its own side, and
- * head-on rather than side by side. Asymmetric hands then fall out correctly — the
- * distance between hand centres is `a.handRadius + b.handRadius`, which is what
- * touching means.
+ * **A bump and a grip are not the same geometry, and finding out why took a watch.**
+ * This started as `gripPose` with `radius` = the character's own hand radius and
+ * `separation` = 0, on the reasoning that both are "place an arm against a point
+ * between the pair". They are not. A grip is pinned to the **pivot** and lets the
+ * shoulder drift, because a hold has to survive the bodies breathing in and out as they
+ * turn; a bump is pinned to the **shoulder** and lets the elbow bend, because the pair
+ * are standing still and the authored contact point is the thing that must hold. Sharing
+ * one function meant the bump inherited the grip's drifting shoulder — measured 0.34
+ * behind the body at half reach, dragging the forearm's near end into the torso. So the
+ * bump now calls {@link reachPose} and ADR-0017 owns the split.
  *
  * **Where the contact point goes is the real decision, and it is an accessibility
  * one.** {@link contactFraction} splits the gap in proportion to **reach**, not to
@@ -48,8 +49,8 @@ import {
   type ArmPose,
   type Placement,
   gripHeight,
-  gripPose,
   localHeight,
+  reachPose,
 } from "./arm-pose";
 
 /**
@@ -147,21 +148,59 @@ export function separationOf(a: Placement, b: Placement): number {
 }
 
 /**
- * The furthest apart two characters can be and still touch fists — both arms
- * horizontal and fully extended.
+ * How far along the floor one character can put a hand **centre**, reaching from a
+ * fixed shoulder to a point on the line between the pair at world height `height`.
  *
- * `handReach` is shoulder-to-hand-centre, so the sum is centre-to-centre once the
- * hands meet. Conservative on purpose: it ignores the lateral shoulder offset, which
- * buys a little more real reach, and a bump that looks strained is worse than one the
- * game declines to offer.
+ * `handReach` is the straight arm, shoulder to hand centre, and the arm has to spend
+ * some of it going **up or down** to the contact height and some of it going
+ * **sideways** across the body's own midline — a bump between two characters facing
+ * each other is each of them reaching inward, which is why a handshake needs the arm
+ * that is on the far side from the hand it meets. What is left over is what travels
+ * across the floor, and Pythagoras takes the two off.
+ *
+ * 🔴 **This is stricter than the number it replaces**, which was `handReach` flat and
+ * called itself conservative while ignoring both terms. The lateral one is not small —
+ * `restX` runs to 0.46 on the wider bodies — so some pairs that used to be offered a
+ * bump will now be told to move closer. That is the honest reading of a rigid arm on a
+ * torso that cannot twist (ADR-0017), and the first thing to watch if bumps start
+ * feeling fussy.
  */
-export function maxSeparation(a: ArmMetrics, b: ArmMetrics): number {
-  return a.handReach + b.handReach;
+export function axialReach(m: ArmMetrics, height: number): number {
+  const rise = m.rigOriginY + m.restY - height;
+  const spare = m.handReach * m.handReach - rise * rise - m.restX * m.restX;
+  return spare > 0 ? Math.sqrt(spare) : 0;
 }
 
-/** Whether these two, standing here, can touch fists at all. */
-export function canBump(a: ArmMetrics, b: ArmMetrics, pa: Placement, pb: Placement): boolean {
-  return separationOf(pa, pb) <= maxSeparation(a, b);
+/**
+ * How far from their own centre a character can put the **contact point** — their whole
+ * share of the separation, hand radius included.
+ */
+export function bumpReach(m: ArmMetrics, height: number): number {
+  return axialReach(m, height) + m.handRadius;
+}
+
+/**
+ * The furthest apart two characters can be and still touch fists at `height` without
+ * stretching anything.
+ *
+ * Each covers their own {@link bumpReach} and the two meet where they run out, so this
+ * and {@link contactFraction} are one decision seen from two sides: at exactly this
+ * separation the fraction puts the contact point where both arms are straight, and
+ * `upperArmStrain` reads zero on both. Any further and it goes positive on both at once.
+ */
+export function maxSeparation(a: ArmMetrics, b: ArmMetrics, height: number): number {
+  return bumpReach(a, height) + bumpReach(b, height);
+}
+
+/** Whether these two, standing here, can touch fists at `height` at all. */
+export function canBump(
+  a: ArmMetrics,
+  b: ArmMetrics,
+  pa: Placement,
+  pb: Placement,
+  height: number,
+): boolean {
+  return separationOf(pa, pb) <= maxSeparation(a, b, height);
 }
 
 /**
@@ -172,11 +211,19 @@ export function canBump(a: ArmMetrics, b: ArmMetrics, pa: Placement, pb: Placeme
  * asked for something it does not have. An even pair meets in the middle; a child and
  * an adult meet close to the child. Degenerate zero-reach input falls back to the
  * midpoint rather than dividing by zero.
+ *
+ * **Measured at the contact height, not in the abstract**, which is the accessibility
+ * rule getting sharper rather than a new one. A tall character reaching down to a
+ * child's elbow height spends most of a long arm on the descent and has less floor
+ * reach left than their `handReach` suggests — so the meeting point moves further
+ * toward them than it used to, which is what "the taller dancer does nearly all the
+ * accommodating" actually looks like when you measure it.
  */
-export function contactFraction(a: ArmMetrics, b: ArmMetrics): number {
-  const total = a.handReach + b.handReach;
+export function contactFraction(a: ArmMetrics, b: ArmMetrics, height: number): number {
+  const ra = bumpReach(a, height);
+  const total = ra + bumpReach(b, height);
   if (total <= 0) return 0.5;
-  return a.handReach / total;
+  return ra / total;
 }
 
 /** Where two fists meet, in world space. */
@@ -229,7 +276,8 @@ export function resolveContact(
   pa: Placement,
   pb: Placement,
 ): BumpContact {
-  return resolveContactAt(out, a, b, pa, pb, contactFraction(a, b), gripHeight(a, b));
+  const height = gripHeight(a, b);
+  return resolveContactAt(out, a, b, pa, pb, contactFraction(a, b, height), height);
 }
 
 /**
@@ -257,7 +305,7 @@ export function resolveContactAt(
   const sep = Math.hypot(dx, dz);
 
   out.separation = sep;
-  out.reachable = sep <= maxSeparation(a, b);
+  out.reachable = sep <= maxSeparation(a, b, height);
   out.height = height;
 
   if (sep <= 1e-9) {
@@ -285,11 +333,18 @@ export function resolveContactAt(
 /**
  * Place one character's bumping arm.
  *
- * Delegates to {@link gripPose} with `radius` = this character's own hand radius and
- * `separation` = 0: the fist sits back from the contact point by exactly its own
- * radius, aimed along the axis, so the two fists touch rather than interpenetrate or
- * hover. `dir` is the contact point's direction back toward *this* character —
- * `dirA*` for one, `dirB*` for the other.
+ * The whole gesture is now one sentence: **the fist goes `handRadius` back from the
+ * contact point on this character's own side, and {@link reachPose} finds an elbow that
+ * gets it there from a shoulder that does not move.** `dir` is the contact point's
+ * direction back toward *this* character — `dirA*` for one, `dirB*` for the other — so
+ * stepping along it by the hand's own radius is what makes the two fists touch rather
+ * than interpenetrate or hover, and asymmetric hands fall out for free: the distance
+ * between hand centres is `a.handRadius + b.handRadius`.
+ *
+ * `sign` picks the shoulder, matching {@link restPose} — new under ADR-0017 and not
+ * optional. The old one-segment version never needed it, because it placed the arm
+ * entirely from the contact point and the shoulder went wherever that left it; that is
+ * exactly the defect this replaces.
  *
  * `c.height` is world and the pose is rig-local, so it is localised here rather than by
  * the caller — the two characters in a bump generally have rigs at different world
@@ -301,20 +356,16 @@ export function bumpPose(
   c: BumpContact,
   dirX: number,
   dirZ: number,
+  sign: number,
 ): ArmPose {
-  // 🔴 **Both arguments are negated, and that is the whole fix for an inside-out arm.**
-  //
-  // `dir` arrives pointing from the contact point back toward *this* character, but
-  // `gripPose` reads its direction as pointing toward the **partner** — it puts the hand
-  // at `+radius · dir` and the arm's own origin back at `(radius − handReach) · dir`.
-  // Feeding it the self-ward direction mirrored both about the contact point: the hand
-  // still landed correctly (a bump wants its hand `handRadius` back on its own side, which
-  // is what the sign flip happens to produce) while the arm's origin was thrown past the
-  // contact point onto the partner's side with the aim reversed. The shoulder ended up
-  // standing at the partner's feet with the forearm pointing back across the gap.
-  //
-  // It passed every test here because they all measure the **hand**, which was right.
-  return gripPose(out, m, -m.handRadius, 0, c.x, c.z, -dirX, -dirZ, localHeight(m, c.height));
+  return reachPose(
+    out,
+    m,
+    sign,
+    c.x + m.handRadius * dirX,
+    localHeight(m, c.height),
+    c.z + m.handRadius * dirZ,
+  );
 }
 
 /** A character standing at their own origin — the `self` of a local frame. */

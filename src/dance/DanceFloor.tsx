@@ -35,6 +35,7 @@ import {
   armMetrics,
   armPose,
   contact,
+  elbowLocal,
   forearm,
   gripBlend,
   trackContact,
@@ -118,6 +119,17 @@ export interface TrackedArms {
   grip: GripHand;
   readonly left: Forearm;
   readonly right: Forearm;
+  /**
+   * How long the undrawn upper arm is this frame, per side — elbow to shoulder, in the
+   * dancer's own rig space, against a natural length of `elbowReach`.
+   *
+   * Reported because ADR-0017 made it a real span rather than an assumption. A grip is
+   * pinned to the pair's pivot and *should* breathe here, since the bodies do and the
+   * hold does not let go; a reach should not. Either way the honest reading is a number
+   * that can be watched drifting, which is this subsystem's standing answer to "is the
+   * geometry real".
+   */
+  readonly upperArm: { left: number; right: number };
   /** Where the gripping hand meets the partner's forearm; meaningless unless
    *  `grip` names a hand and `holding` is true. */
   readonly contact: Contact;
@@ -144,9 +156,19 @@ const DEBUG_COLORS = ["#e2725b", "#5b8ce2"] as const;
 
 const SIDES = ["left", "right"] as const;
 
+/**
+ * The `restX` multiplier for each side's shoulder. `+x` is the anatomical **left** on
+ * every dance rig — `Dancer` places `arms.right` at `−forearmX` — which is the same
+ * convention `poseArms` states and the opposite of what `Player`/`Npc` *call* their
+ * groups. Needed since ADR-0017, because the pose is written into the shoulder's frame
+ * and the shoulder has a side.
+ */
+const SIGN = { left: 1, right: -1 } as const;
+
 // Scratch objects for per-frame arm posing — allocated once, never per frame.
 const DOWN = new THREE.Vector3(0, -1, 0);
 const _read = armPose();
+const _elbow = vec3();
 const _self: Placement = { x: 0, z: 0, yaw: 0 };
 const _partner: Placement = { x: 0, z: 0, yaw: 0 };
 const _aim = new THREE.Vector3();
@@ -275,6 +297,7 @@ export function DanceFloor({
         grip: null,
         left: forearm(),
         right: forearm(),
+        upperArm: { left: 0, right: 0 },
         contact: contact(),
         holding: false,
       };
@@ -406,7 +429,11 @@ export function DanceFloor({
             const arm = arms[side].current;
             if (!arm) continue;
             const pose = ex.arms[side];
-            arm.position.set(pose.x, pose.y, pose.z);
+            // The pose names the elbow in rig space; the group it goes on hangs inside
+            // a shoulder pinned at `(±restX, restY, 0)`. ADR-0017 — and `+x` is the
+            // anatomical **left** shoulder here, which is what `SIGN` carries.
+            elbowLocal(_elbow, pose, me, SIGN[side]);
+            arm.position.set(_elbow.x, _elbow.y, _elbow.z);
             _aim.set(pose.aimX, pose.aimY, pose.aimZ);
             arm.quaternion.setFromUnitVectors(DOWN, _aim);
           }
@@ -456,14 +483,23 @@ export function DanceFloor({
           for (const side of SIDES) {
             const arm = arms[side].current;
             if (!arm) continue;
-            _read.x = arm.position.x;
-            _read.y = arm.position.y;
+            // Back out of the shoulder's frame into the rig's, so what is measured is
+            // still what is on screen. The inverse of `elbowLocal`, and deliberately
+            // spelled out rather than trusting the pose that was written.
+            _read.x = arm.position.x + SIGN[side] * me.restX;
+            _read.y = arm.position.y + me.restY;
             _read.z = arm.position.z;
             _aim.copy(DOWN).applyQuaternion(arm.quaternion);
             _read.aimX = _aim.x;
             _read.aimY = _aim.y;
             _read.aimZ = _aim.z;
             trackForearm(track[side], me, _read, _self);
+            // The undrawn upper arm, straight off the rig: the group's own position
+            // *is* the elbow in the shoulder's frame, so its length is the span. No
+            // world transform needed, and nothing here is taken on trust from the pose.
+            track.upperArm[side] = Math.hypot(
+              arm.position.x, arm.position.y, arm.position.z,
+            );
           }
         });
 

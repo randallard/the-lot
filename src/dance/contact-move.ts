@@ -247,16 +247,26 @@ export function angleBetween(a: number, b: number): number {
   return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 }
 
-/** Whether the pair are standing the way this stance needs. */
+/**
+ * Whether the pair are standing the way this stance needs.
+ *
+ * `height` is the world contact height this move's vertical rule asks for, and reach is
+ * judged **at it** rather than in the abstract: an arm spends part of itself getting up
+ * or down to the contact, so how far apart two characters may stand depends on where
+ * they are being asked to meet (ADR-0017). Passed in rather than derived here, because
+ * the rule that produces it is authored per constraint and this function is deliberately
+ * given the stance alone.
+ */
 export function stanceHolds(
   stance: Stance,
   a: ArmMetrics,
   b: ArmMetrics,
   pa: Placement,
   pb: Placement,
+  height: number,
 ): UnavailableReason | null {
   const separation = Math.hypot(pb.x - pa.x, pb.z - pa.z);
-  if (separation > maxSeparation(a, b)) return "out-of-reach";
+  if (separation > maxSeparation(a, b, height)) return "out-of-reach";
 
   if (stance === "facing-within-reach") {
     // Each has to be looking roughly at the other, which is two checks and not one — a
@@ -303,7 +313,15 @@ export function availability(
     return fail(r, "transfer-not-consented");
   }
 
-  const failed = stanceHolds(move.stance, a, b, pa, pb);
+  // Reach is judged at the height the move's own first constraint asks for. One
+  // constraint is all anything authored uses today (see `resolveRole`), and a move whose
+  // constraints disagreed about height would need a policy this schema has not been
+  // asked for yet.
+  const first = move.constraints[0];
+  const height = first
+    ? verticalHeight(first.vertical, a, b, first.absoluteHeight)
+    : gripHeight(a, b);
+  const failed = stanceHolds(move.stance, a, b, pa, pb, height);
   // A move that would rather stretch than decline is still offered out of reach — reach
   // is a rule the move chooses, not a gate the model imposes.
   if (failed && !(failed === "out-of-reach" && move.outOfRange !== "decline")) {
@@ -357,10 +375,22 @@ export function stancePlacements(
 // ---------------------------------------------------------------------------
 // Resolution
 
-/** `a`'s share of the gap under this rule — 0 at `a`, 1 at `b`. */
-export function horizontalFraction(rule: HorizontalRule, a: ArmMetrics, b: ArmMetrics): number {
+/**
+ * `a`'s share of the gap under this rule — 0 at `a`, 1 at `b`.
+ *
+ * `height` is the contact height the vertical rule already resolved, which
+ * `reach-fraction` needs because reach across the floor depends on how far the arm has
+ * to climb or drop to get there. Resolved vertically first and horizontally second, in
+ * that order, because the dependency only runs one way.
+ */
+export function horizontalFraction(
+  rule: HorizontalRule,
+  a: ArmMetrics,
+  b: ArmMetrics,
+  height: number,
+): number {
   switch (rule) {
-    case "reach-fraction": return contactFraction(a, b);
+    case "reach-fraction": return contactFraction(a, b, height);
     case "midpoint":       return 0.5;
     case "at-a":           return 0;
     case "at-b":           return 1;
@@ -396,11 +426,8 @@ export function resolveConstraint(
   pa: Placement,
   pb: Placement,
 ): BumpContact {
-  return resolveContactAt(
-    out, a, b, pa, pb,
-    horizontalFraction(c.horizontal, a, b),
-    verticalHeight(c.vertical, a, b, c.absoluteHeight),
-  );
+  const height = verticalHeight(c.vertical, a, b, c.absoluteHeight);
+  return resolveContactAt(out, a, b, pa, pb, horizontalFraction(c.horizontal, a, b, height), height);
 }
 
 /**
@@ -525,8 +552,12 @@ export function resolveRole(
   // `self` is always the `a` of the pair here, so `dirA*` points back at it.
   resolveConstraint(out.contact, c, self, other, SELF, scratch.local);
 
-  restPose(scratch.rest, self, restSign(rig, out.side));
-  bumpPose(out.pose, self, out.contact, out.contact.dirAX, out.contact.dirAZ);
+  // The same `sign` feeds both ends of the blend, which is what keeps the arm on one
+  // shoulder for the whole envelope. `bumpPose` needs it under ADR-0017 because the
+  // shoulder is now an input to the pose rather than a by-product of it.
+  const sign = restSign(rig, out.side);
+  restPose(scratch.rest, self, sign);
+  bumpPose(out.pose, self, out.contact, out.contact.dirAX, out.contact.dirAZ, sign);
   blendPose(out.pose, scratch.rest, out.pose, blend);
   return out;
 }

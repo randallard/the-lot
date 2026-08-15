@@ -37,10 +37,15 @@ interface NpcProps {
   worldPosRef?: React.RefObject<THREE.Vector3 | null>;
   bodyShape?: CharacterBodyShape;
   /**
-   * Shoulder-pivot groups, for a driver that needs to pose this NPC's arms — the fist
+   * **Forearm** groups, for a driver that needs to pose this NPC's arms — the fist
    * bump. Same shape `Dancer` takes, and unset for every NPC nobody is posing.
+   *
+   * Named for what they are, per ADR-0017: the shoulder above each one is pinned and
+   * has no ref, so this is a handle on the elbow and everything below it. It was called
+   * `arms` when it *was* the shoulder, and a driver moving it is what put a forearm's
+   * near end inside a torso.
    */
-  arms?: { left: React.RefObject<THREE.Group | null>; right: React.RefObject<THREE.Group | null> };
+  forearms?: { left: React.RefObject<THREE.Group | null>; right: React.RefObject<THREE.Group | null> };
   /** The whole character group, for a driver that needs this NPC's yaw as well as position. */
   rigRef?: React.RefObject<THREE.Group | null>;
   /**
@@ -61,7 +66,7 @@ const WALK_SPEED = 1.5;
 const SIP_INTERVAL = 4000;
 const UKE_DELAY = 12000;
 
-export function Npc({ position, playerPosition, onClick, relaxing, talking, screenPos, worldPosRef, bodyShape, arms, rigRef, wheelHandlers, handPose = "open" }: NpcProps) {
+export function Npc({ position, playerPosition, onClick, relaxing, talking, screenPos, worldPosRef, bodyShape, forearms, rigRef, wheelHandlers, handPose = "open" }: NpcProps) {
   const shape = bodyShape ?? NPC_DEFAULTS;
   const ownGroup = useRef<THREE.Group>(null);
   const groupRef = rigRef ?? ownGroup;
@@ -230,9 +235,12 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
   const pos = computePositions(shape, NPC_BODY_CENTER_Y, handPose);
   const activeHand = hand[handPose];
   const rot = handRotations(activeHand);
-  // Mesh heights relative to the shoulder the arm group now pivots on.
-  const forearmLocalY = pos.forearmCenterY - pos.shoulderY;
-  const handLocalY = pos.handCenterY - pos.shoulderY;
+  // Mesh heights relative to the **elbow** the forearm group sits on, which in turn
+  // hangs at `elbowY − shoulderY` inside the pinned shoulder group. The two offsets
+  // compose back to the rest heights the meshes always had (ADR-0017).
+  const elbowLocalY = pos.elbowY - pos.shoulderY;
+  const forearmLocalY = pos.forearmCenterY - pos.elbowY;
+  const handLocalY = pos.handCenterY - pos.elbowY;
 
   return (
     <>
@@ -250,35 +258,43 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
         </mesh>
         <Eyes eyes={shape.eyes} headY={pos.headY + head.offsetY} headRadius={head.radius} headOffsetX={head.offsetX} headOffsetZ={head.offsetZ} />
 
-        {/* Arms, each a group pivoting at its own shoulder.
+        {/* Arms, each a **pinned shoulder** with a forearm hanging inside it.
 
-            Reparented from four loose meshes 2026-07-29, and **the rest pose is
-            unchanged by construction**: the group sits at the shoulder and the meshes
-            keep their old world heights as `centre − shoulder` offsets, so nothing
-            moves until something rotates the group. NPCs had no arm pivot at all
-            because nothing had ever needed to pose one — the fist bump does, and
-            `Player` and `Dancer` were already built this way. Rest hangs down local
-            −y, which is the frame `arm-pose` and `fist-bump` assume. */}
-        <group ref={arms?.left} position={[-pos.forearmX, pos.shoulderY, 0]}>
-          <mesh position={[0, forearmLocalY, 0]} castShadow>
-            <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
-            <meshStandardMaterial color={npcColor} />
-          </mesh>
-          <mesh position={[0, handLocalY, 0]} scale={[1, 1, activeHand.flattenZ]} rotation={rot.left} castShadow>
-            <sphereGeometry args={[activeHand.radius, activeHand.widthSegments, activeHand.heightSegments]} />
-            <meshStandardMaterial color={npcColor} />
-          </mesh>
+            Reparented from four loose meshes 2026-07-29, split into two groups
+            2026-08-15 (ADR-0017), and **the rest pose is unchanged by construction**
+            both times: the shoulder group sits at the shoulder, the forearm group at
+            the elbow, and the meshes keep their old world heights as offsets that
+            compose. Nothing moves until something poses the inner group.
+
+            The outer group carries no ref on purpose. `forearms` is the only handle a
+            driver gets, so a pose can bend the elbow and cannot move the shoulder — the
+            defect that put the forearm's near end inside the torso at bump range was a
+            driver writing the shoulder's own position. Rest hangs down local −y, which
+            is the frame `arm-pose` and `fist-bump` assume. */}
+        <group position={[-pos.forearmX, pos.shoulderY, 0]}>
+          <group ref={forearms?.left} position={[0, elbowLocalY, 0]}>
+            <mesh position={[0, forearmLocalY, 0]} castShadow>
+              <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
+              <meshStandardMaterial color={npcColor} />
+            </mesh>
+            <mesh position={[0, handLocalY, 0]} scale={[1, 1, activeHand.flattenZ]} rotation={rot.left} castShadow>
+              <sphereGeometry args={[activeHand.radius, activeHand.widthSegments, activeHand.heightSegments]} />
+              <meshStandardMaterial color={npcColor} />
+            </mesh>
+          </group>
         </group>
 
-        <group ref={arms?.right} position={[pos.forearmX, pos.shoulderY, 0]}>
-          <mesh position={[0, forearmLocalY, 0]} castShadow>
-            <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
-            <meshStandardMaterial color={npcColor} />
-          </mesh>
-          <mesh position={[0, handLocalY, 0]} scale={[1, 1, activeHand.flattenZ]} rotation={rot.right} castShadow>
-            <sphereGeometry args={[activeHand.radius, activeHand.widthSegments, activeHand.heightSegments]} />
-            <meshStandardMaterial color={npcColor} />
-          </mesh>
+        <group position={[pos.forearmX, pos.shoulderY, 0]}>
+          <group ref={forearms?.right} position={[0, elbowLocalY, 0]}>
+            <mesh position={[0, forearmLocalY, 0]} castShadow>
+              <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
+              <meshStandardMaterial color={npcColor} />
+            </mesh>
+            <mesh position={[0, handLocalY, 0]} scale={[1, 1, activeHand.flattenZ]} rotation={rot.right} castShadow>
+              <sphereGeometry args={[activeHand.radius, activeHand.widthSegments, activeHand.heightSegments]} />
+              <meshStandardMaterial color={npcColor} />
+            </mesh>
+          </group>
         </group>
 
         {/* Clickable hitbox */}

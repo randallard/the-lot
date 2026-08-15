@@ -42,30 +42,39 @@ interface PlayerProps {
   bodyShape?: CharacterBodyShape;
   animController?: React.RefObject<AnimationController>;
   /**
-   * Shoulder-pivot groups, exposed so a driver can pose them — the fist bump. Same
-   * shape `Dancer` and `Npc` take. When a side is being driven the driver owns it
-   * outright for the duration and the emote's `upperArmRotation` is not written,
-   * which is ADR-0010's owned-channel rule applied outside a square.
+   * **Forearm** groups, exposed so a driver can pose them — the fist bump. Same shape
+   * `Dancer` and `Npc` take. When a side is being driven the driver owns it outright for
+   * the duration and the emote's `upperArmRotation` is not written, which is ADR-0010's
+   * owned-channel rule applied outside a square.
+   *
+   * The shoulder above each one stays this component's own (ADR-0017), which is why the
+   * emote layer is untouched by the split: an emote's `upperArmRotation` is a rotation
+   * *about the shoulder*, so it keeps writing the same group it always did and a driven
+   * forearm hangs inside it.
    */
-  arms?: { left: React.RefObject<THREE.Group | null>; right: React.RefObject<THREE.Group | null> };
+  forearms?: { left: React.RefObject<THREE.Group | null>; right: React.RefObject<THREE.Group | null> };
   /** Sides a driver is currently posing. Read per frame; usually empty. */
   drivenArms?: React.RefObject<{ left: boolean; right: boolean }>;
   /** The whole character group, for a driver that needs this player's yaw as well as position. */
   rigRef?: React.RefObject<THREE.Group | null>;
 }
 
-export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bodyShape, animController, arms, drivenArms, rigRef, handPose = "open" }: PlayerProps) {
+export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bodyShape, animController, forearms, drivenArms, rigRef, handPose = "open" }: PlayerProps) {
   const shape = bodyShape ?? PLAYER_DEFAULTS;
   const ownGroup       = useRef<THREE.Group>(null);
   const groupRef       = rigRef ?? ownGroup;
   const bodyMeshRef    = useRef<THREE.Mesh>(null);
   const headGroupRef   = useRef<THREE.Group>(null);
-  // A driver's refs, when there is one, *are* the arm refs — no merging and no
-  // callback refs, so the group has exactly one owner either way.
-  const ownLeftArm     = useRef<THREE.Group>(null);
-  const ownRightArm    = useRef<THREE.Group>(null);
-  const leftArmRef     = arms?.left ?? ownLeftArm;
-  const rightArmRef    = arms?.right ?? ownRightArm;
+  // The shoulders are this component's own and never a driver's: an emote rotates them
+  // and nothing else may. The **forearms** are what a driver gets, and its refs, when
+  // there is one, *are* the forearm refs — no merging and no callback refs, so each
+  // group has exactly one owner either way.
+  const leftArmRef     = useRef<THREE.Group>(null);
+  const rightArmRef    = useRef<THREE.Group>(null);
+  const ownLeftForearm  = useRef<THREE.Group>(null);
+  const ownRightForearm = useRef<THREE.Group>(null);
+  const leftForearmRef  = forearms?.left ?? ownLeftForearm;
+  const rightForearmRef = forearms?.right ?? ownRightForearm;
   const matRef         = useRef<THREE.MeshStandardMaterial>(null);
   const headMatRef     = useRef<THREE.MeshStandardMaterial>(null);
   const armMatsRef     = useRef<(THREE.MeshStandardMaterial | null)[]>([null, null, null, null]);
@@ -118,25 +127,37 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
       headGroupRef.current.scale.setScalar(animShape.head.radius / shape.head.radius);
     }
 
-    // Arm groups: shoulder pivot + upper-arm rotation from emote pose
+    // Shoulder groups: the emote's upper-arm rotation, about a pivot the JSX pins and
+    // nothing writes. A driven side is skipped entirely — including the reset below —
+    // because the driver owns the whole arm for the duration (ADR-0010), and because
+    // resetting a shoulder under a driven forearm would rotate the forearm's frame out
+    // from under a pose that was solved in rig space (ADR-0017).
     const driven = drivenArms?.current;
+    // From the *animated* shape, not the authored one: an emote that stretches the body
+    // moves the elbow with it, and a rest offset computed off the static shape would
+    // leave the forearm behind.
+    const restElbowY = pos.elbowY - pos.shoulderY;
     if (leftArmRef.current && !driven?.left) {
-      leftArmRef.current.position.set(-pos.forearmX, pos.shoulderY, 0);
       const la = rp.leftArm;
       leftArmRef.current.rotation.set(
         deg2rad(la.upperArmRotation[0]),
         deg2rad(la.upperArmRotation[1]),
         deg2rad(la.upperArmRotation[2]),
       );
+      // The forearm hangs at its rest offset whenever the emote layer has the arm; a
+      // driver that has just let go must not leave the elbow where it put it.
+      leftForearmRef.current?.position.set(0, restElbowY, 0);
+      leftForearmRef.current?.rotation.set(0, 0, 0);
     }
     if (rightArmRef.current && !driven?.right) {
-      rightArmRef.current.position.set(pos.forearmX, pos.shoulderY, 0);
       const ra = rp.rightArm;
       rightArmRef.current.rotation.set(
         deg2rad(ra.upperArmRotation[0]),
         deg2rad(ra.upperArmRotation[1]),
         deg2rad(ra.upperArmRotation[2]),
       );
+      rightForearmRef.current?.position.set(0, restElbowY, 0);
+      rightForearmRef.current?.rotation.set(0, 0, 0);
     }
 
     // --- Rush fade ---
@@ -198,9 +219,11 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
   const rot  = handRotations(activeHand);
   const COLOR = shape.bodyColor;
 
-  // Arm mesh offsets relative to the shoulder group pivot
-  const forearmLocalY = pos.forearmCenterY - pos.shoulderY;
-  const handLocalY    = pos.handCenterY    - pos.shoulderY;
+  // Arm mesh offsets, now relative to the **elbow** group inside the shoulder pivot.
+  // The two hops compose back to the same rest heights (ADR-0017).
+  const elbowLocalY   = pos.elbowY         - pos.shoulderY;
+  const forearmLocalY = pos.forearmCenterY - pos.elbowY;
+  const handLocalY    = pos.handCenterY    - pos.elbowY;
 
   return (
     <group
@@ -244,28 +267,35 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
         <Eyes eyes={shape.eyes} headY={0} headRadius={head.radius} />
       </group>
 
-      {/* Left arm — shoulder pivot group */}
+      {/* Left arm — a pinned shoulder pivot the emote layer rotates, with the forearm
+          hanging inside it at the elbow. The driver is handed the inner group only, so
+          a bump can bend this arm and cannot pull the shoulder off the body
+          (ADR-0017). */}
       <group ref={leftArmRef} position={[-pos.forearmX, pos.shoulderY, 0]}>
-        <mesh position={[0, forearmLocalY, 0]} castShadow>
-          <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
-          <meshStandardMaterial ref={el => { armMatsRef.current[0] = el; }} color={COLOR} transparent />
-        </mesh>
-        <mesh position={[0, handLocalY, 0]} scale={[1, 1, activeHand.flattenZ]} rotation={rot.left} castShadow>
-          <sphereGeometry args={[activeHand.radius, activeHand.widthSegments, activeHand.heightSegments]} />
-          <meshStandardMaterial ref={el => { armMatsRef.current[1] = el; }} color={COLOR} transparent />
-        </mesh>
+        <group ref={leftForearmRef} position={[0, elbowLocalY, 0]}>
+          <mesh position={[0, forearmLocalY, 0]} castShadow>
+            <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
+            <meshStandardMaterial ref={el => { armMatsRef.current[0] = el; }} color={COLOR} transparent />
+          </mesh>
+          <mesh position={[0, handLocalY, 0]} scale={[1, 1, activeHand.flattenZ]} rotation={rot.left} castShadow>
+            <sphereGeometry args={[activeHand.radius, activeHand.widthSegments, activeHand.heightSegments]} />
+            <meshStandardMaterial ref={el => { armMatsRef.current[1] = el; }} color={COLOR} transparent />
+          </mesh>
+        </group>
       </group>
 
-      {/* Right arm — shoulder pivot group */}
+      {/* Right arm — same split. */}
       <group ref={rightArmRef} position={[pos.forearmX, pos.shoulderY, 0]}>
-        <mesh position={[0, forearmLocalY, 0]} castShadow>
-          <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
-          <meshStandardMaterial ref={el => { armMatsRef.current[2] = el; }} color={COLOR} transparent />
-        </mesh>
-        <mesh position={[0, handLocalY, 0]} scale={[1, 1, activeHand.flattenZ]} rotation={rot.right} castShadow>
-          <sphereGeometry args={[activeHand.radius, activeHand.widthSegments, activeHand.heightSegments]} />
-          <meshStandardMaterial ref={el => { armMatsRef.current[3] = el; }} color={COLOR} transparent />
-        </mesh>
+        <group ref={rightForearmRef} position={[0, elbowLocalY, 0]}>
+          <mesh position={[0, forearmLocalY, 0]} castShadow>
+            <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
+            <meshStandardMaterial ref={el => { armMatsRef.current[2] = el; }} color={COLOR} transparent />
+          </mesh>
+          <mesh position={[0, handLocalY, 0]} scale={[1, 1, activeHand.flattenZ]} rotation={rot.right} castShadow>
+            <sphereGeometry args={[activeHand.radius, activeHand.widthSegments, activeHand.heightSegments]} />
+            <meshStandardMaterial ref={el => { armMatsRef.current[3] = el; }} color={COLOR} transparent />
+          </mesh>
+        </group>
       </group>
     </group>
   );

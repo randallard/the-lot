@@ -14,8 +14,13 @@ import {
   trackContact,
   trackForearm,
   constrainArm,
+  elbowLocal,
   reachAllowance,
+  reachPose,
   restPose,
+  upperArmStrain,
+  vec3,
+  ELBOW_SWING,
   type ArmMetrics,
   type ArmPose,
   type Placement,
@@ -25,6 +30,7 @@ import {
   MYCO_DEFAULTS,
   RYAN_DEFAULTS,
   SPROUT_DEFAULTS,
+  computePositions,
   lateralClearance,
   rigidParts,
   type CharacterBodyShape,
@@ -124,8 +130,10 @@ describe("folding an arm in", () => {
     const p = folded(raised, m.bodyRadius);
     const resting = folded(restPose(armPose(), m, 1), m.bodyRadius);
     expect(p.x).toBeLessThan(resting.x);
-    // ...and still ends up inside the allowance, hand included.
-    expect(p.x + m.handReach + m.armHalfWidth + PERSONAL_SPACE).toBeCloseTo(m.bodyRadius, 9);
+    // ...and still ends up inside the allowance, hand included. A `forearmSpan` from the
+    // **elbow**, not a `handReach` from an arm-group origin: since ADR-0017 the pose is
+    // the elbow, and the undrawn upper arm behind it trespasses on nothing.
+    expect(p.x + m.forearmSpan + m.armHalfWidth + PERSONAL_SPACE).toBeCloseTo(m.bodyRadius, 9);
   });
 
   it("never pushes an arm outward", () => {
@@ -363,5 +371,152 @@ describe("tracking a posed arm", () => {
     const miss = trackContact(contact(), { x: -1, y: 0, z: 0 }, 0.1, held, 0.05);
     expect(miss.along).toBe(0);
     expect(miss.gap).toBeCloseTo(1 - 0.15, 9);
+  });
+});
+
+describe("the two-segment arm — a pinned shoulder and a free elbow", () => {
+  // ADR-0017. Everything here is a property the one-segment model could not state,
+  // because it had no shoulder to state it about: the arm's origin was placed by the
+  // arithmetic and went wherever the contact point needed it, measured 0.34 behind the
+  // body at bump range with nothing on screen to say so.
+  const RIGHT = -1;
+
+  /** The shoulder this sign names, in rig-local space. */
+  function shoulder(m: ArmMetrics, sign: number) {
+    return { x: sign * m.restX, y: m.restY, z: 0 };
+  }
+
+  function handOf(pose: ArmPose, m: ArmMetrics) {
+    return {
+      x: pose.x + pose.aimX * m.forearmSpan,
+      y: pose.y + pose.aimY * m.forearmSpan,
+      z: pose.z + pose.aimZ * m.forearmSpan,
+    };
+  }
+
+  it.each(CAST)("%s: a rest pose has an unstrained arm and a straight-down forearm", (_n, shape) => {
+    const m = armMetrics(shape);
+    for (const sign of [1, -1]) {
+      const p = restPose(armPose(), m, sign);
+      // Closed to double-precision noise rather than bit-exact: `restY` and `elbowY`
+      // are both derived from `upperArmSpacing` but by different subtractions, so their
+      // difference lands within an ulp of `elbowReach` and not on it.
+      expect(upperArmStrain(p, m, sign)).toBeCloseTo(0, 12);
+      // The elbow really is one upper arm below the shoulder — `body-shapes` derives
+      // `elbowY` and `upperArmLength` from the same `upperArmSpacing`, and this is the
+      // assertion that keeps the two definitions from drifting apart.
+      expect(m.restY - p.y).toBeCloseTo(m.elbowReach, 12);
+      expect(p.aimY).toBe(-1);
+    }
+  });
+
+  it.each(CAST)("%s: reaches any point inside its own range with the shoulder unmoved", (_n, shape) => {
+    const m = armMetrics(shape);
+    const s = shoulder(m, RIGHT);
+    const range = m.elbowReach + m.forearmSpan;
+    // A spread of targets around the shoulder — in front, across the midline, high and
+    // low — at fractions of full reach that a bump actually uses.
+    for (const frac of [0.4, 0.6, 0.8, 0.99]) {
+      for (const dir of [
+        { x: 0, y: 0, z: 1 },
+        { x: 0.6, y: -0.2, z: 0.8 },
+        { x: -0.7, y: 0.3, z: 0.6 },
+        { x: 0, y: -1, z: 0 },
+      ]) {
+        const len = Math.hypot(dir.x, dir.y, dir.z);
+        const d = (range * frac) / len;
+        const target = { x: s.x + dir.x * d, y: s.y + dir.y * d, z: s.z + dir.z * d };
+        const p = reachPose(armPose(), m, RIGHT, target.x, target.y, target.z);
+
+        const hand = handOf(p, m);
+        expect(hand.x).toBeCloseTo(target.x, 9);
+        expect(hand.y).toBeCloseTo(target.y, 9);
+        expect(hand.z).toBeCloseTo(target.z, 9);
+        expect(upperArmStrain(p, m, RIGHT)).toBeCloseTo(0, 9);
+      }
+    }
+  });
+
+  it("swings the elbow outward and down rather than into the body", () => {
+    // The tie-break `ELBOW_SWING` settles. Reaching straight ahead, the elbow has a
+    // whole circle to sit on and only the outward-and-down part of it looks like an arm.
+    const m = armMetrics(MYCO_DEFAULTS);
+    const s = shoulder(m, RIGHT);
+    const d = (m.elbowReach + m.forearmSpan) * 0.7;
+    const p = reachPose(armPose(), m, RIGHT, s.x, s.y, s.z + d);
+    // Outward for this shoulder is further negative x, and elbows do not ride up.
+    expect(p.x).toBeLessThan(s.x);
+    expect(p.y).toBeLessThan(s.y);
+    expect(ELBOW_SWING).toBeGreaterThan(0);
+  });
+
+  it("mirrors cleanly between the two shoulders", () => {
+    const m = armMetrics(RYAN_DEFAULTS);
+    const d = (m.elbowReach + m.forearmSpan) * 0.7;
+    const left = reachPose(armPose(), m, 1, m.restX, m.restY, d);
+    const right = reachPose(armPose(), m, -1, -m.restX, m.restY, d);
+    expect(left.x).toBeCloseTo(-right.x, 12);
+    expect(left.y).toBeCloseTo(right.y, 12);
+    expect(left.z).toBeCloseTo(right.z, 12);
+  });
+
+  it("honours the hand past full reach, and says how far it stretched", () => {
+    // Reach is a rule a move chooses, not a gate the geometry imposes — the lobbed fist
+    // depends on this branch existing rather than clamping.
+    const m = armMetrics(MYCO_DEFAULTS);
+    const s = shoulder(m, RIGHT);
+    const over = (m.elbowReach + m.forearmSpan) * 1.5;
+    const p = reachPose(armPose(), m, RIGHT, s.x, s.y, s.z + over);
+    const hand = handOf(p, m);
+    expect(hand.z).toBeCloseTo(s.z + over, 9);
+    expect(upperArmStrain(p, m, RIGHT)).toBeCloseTo(over - m.elbowReach - m.forearmSpan, 9);
+  });
+
+  it("folds rather than returning NaN when the hand is closer than the arm can fold", () => {
+    // Inside `|elbowReach − forearmSpan|` the cosine leaves its range. Nothing here may
+    // produce NaN: a pose with a NaN in it writes a silently invisible rig.
+    const m = armMetrics(SPROUT_DEFAULTS);
+    const s = shoulder(m, RIGHT);
+    for (const d of [0, 0.001, Math.abs(m.elbowReach - m.forearmSpan) * 0.5]) {
+      const p = reachPose(armPose(), m, RIGHT, s.x, s.y, s.z + d);
+      for (const v of [p.x, p.y, p.z, p.aimX, p.aimY, p.aimZ]) expect(Number.isFinite(v)).toBe(true);
+      expect(Math.hypot(p.aimX, p.aimY, p.aimZ)).toBeCloseTo(1, 9);
+    }
+  });
+
+  it("fills a caller-owned pose", () => {
+    const m = armMetrics(MYCO_DEFAULTS);
+    const out = armPose();
+    expect(reachPose(out, m, 1, 0, 1, 0.3)).toBe(out);
+  });
+});
+
+describe("the rig's two groups compose back to the rest pose", () => {
+  // The change is meant to be invisible until something poses an arm, and this is the
+  // arithmetic that makes it so: the shoulder group holds the elbow at
+  // `elbowY − shoulderY`, the meshes hang at `centre − elbowY`, and the two hops sum to
+  // the single `centre − shoulderY` offset the rig used to carry. Asserted here rather
+  // than left to the JSX, because a renderer test would not say *why* it held.
+  it.each(CAST)("%s: elbow offset plus mesh offset is the old mesh offset", (_n, shape) => {
+    const pos = computePositions(shape, 0);
+    const elbowLocalY = pos.elbowY - pos.shoulderY;
+    expect(elbowLocalY + (pos.forearmCenterY - pos.elbowY)).toBeCloseTo(
+      pos.forearmCenterY - pos.shoulderY, 12);
+    expect(elbowLocalY + (pos.handCenterY - pos.elbowY)).toBeCloseTo(
+      pos.handCenterY - pos.shoulderY, 12);
+  });
+
+  it.each(CAST)("%s: elbowLocal is the inverse of the shoulder offset", (_n, shape) => {
+    const m = armMetrics(shape);
+    for (const sign of [1, -1]) {
+      const p = restPose(armPose(), m, sign);
+      const e = elbowLocal(vec3(), p, m, sign);
+      expect(e.x + sign * m.restX).toBeCloseTo(p.x, 12);
+      expect(e.y + m.restY).toBeCloseTo(p.y, 12);
+      expect(e.z).toBeCloseTo(p.z, 12);
+      // A resting forearm hangs at exactly the offset the JSX pins it at.
+      expect(e.y).toBeCloseTo(-m.elbowReach, 12);
+      expect(e.x).toBeCloseTo(0, 12);
+    }
   });
 });

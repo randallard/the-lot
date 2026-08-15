@@ -8,8 +8,9 @@
  *
  * That is also why this is not `CharacterPreview`. That component rigs an arm as
  * shoulder/elbow/wrist *joint angles*, which is right for an emote and cannot express a
- * contact pose — `arm-pose` produces a **placement and an aim** for one group, the rig
- * `Player`, `Npc` and `Dancer` all use. Two components, two rigs, on purpose.
+ * contact pose — `arm-pose` produces an **elbow and an aim** inside a pinned shoulder,
+ * the rig `Player`, `Npc` and `Dancer` all use (ADR-0017). Two components, two rigs, on
+ * purpose.
  */
 
 import { useMemo, useRef } from "react";
@@ -22,7 +23,7 @@ import {
   deg2rad,
   handRotations,
 } from "../services/body-shapes";
-import { armPose, type Placement } from "../dance/arm-pose";
+import { armPose, elbowLocal, vec3, type Placement } from "../dance/arm-pose";
 import { bumpContact, envelopeWith, maxSeparation } from "../dance/fist-bump";
 import {
   type ContactMove,
@@ -32,8 +33,10 @@ import {
   handFor,
   metricsFor,
   resolveRole,
+  restSign,
   stancePlacements,
   totalSeconds,
+  verticalHeight,
 } from "../dance/contact-move";
 
 /**
@@ -91,30 +94,34 @@ function Rig({ shape, bodyCenterY, hand, placement, leftRef, rightRef }: RigProp
   const pos = computePositions(shape, bodyCenterY, hand);
   const active = shape.hand[hand];
   const rot = handRotations(active);
-  const forearmLocalY = pos.forearmCenterY - pos.shoulderY;
-  const handLocalY = pos.handCenterY - pos.shoulderY;
+  const elbowLocalY = pos.elbowY - pos.shoulderY;
+  const forearmLocalY = pos.forearmCenterY - pos.elbowY;
+  const handLocalY = pos.handCenterY - pos.elbowY;
   const color = shape.bodyColor;
 
+  // Pinned shoulder, free elbow — the same two-group rig `Npc` and `Dancer` have since
+  // ADR-0017. The preview has to be built the way the game is or it stops being evidence.
   const arm = (side: "left" | "right") => (
     <group
-      ref={side === "left" ? leftRef : rightRef}
       // Anatomical: facing +z, the right hand is at -x.
       position={[side === "left" ? pos.forearmX : -pos.forearmX, pos.shoulderY, 0]}
     >
-      <mesh position={[0, forearmLocalY, 0]}>
-        <cylinderGeometry
-          args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]}
-        />
-        <meshStandardMaterial color={color} />
-      </mesh>
-      <mesh
-        position={[0, handLocalY, 0]}
-        scale={[1, 1, active.flattenZ]}
-        rotation={side === "left" ? rot.right : rot.left}
-      >
-        <sphereGeometry args={[active.radius, active.widthSegments, active.heightSegments]} />
-        <meshStandardMaterial color={color} />
-      </mesh>
+      <group ref={side === "left" ? leftRef : rightRef} position={[0, elbowLocalY, 0]}>
+        <mesh position={[0, forearmLocalY, 0]}>
+          <cylinderGeometry
+            args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]}
+          />
+          <meshStandardMaterial color={color} />
+        </mesh>
+        <mesh
+          position={[0, handLocalY, 0]}
+          scale={[1, 1, active.flattenZ]}
+          rotation={side === "left" ? rot.right : rot.left}
+        >
+          <sphereGeometry args={[active.radius, active.widthSegments, active.heightSegments]} />
+          <meshStandardMaterial color={color} />
+        </mesh>
+      </group>
     </group>
   );
 
@@ -174,6 +181,7 @@ function Driver({ move, cast, placements, aLeft, aRight, bLeft, bRight, scrub }:
     role: { local: { x: 0, z: 0, yaw: 0 }, rest: armPose() } as RoleScratch,
     out: { pose: armPose(), side: "right", contact: bumpContact() } as RoleResolution,
     aim: new THREE.Vector3(),
+    elbow: vec3(),
   });
 
   useFrame((_, delta) => {
@@ -216,7 +224,12 @@ function Driver({ move, cast, placements, aLeft, aRight, bLeft, bRight, scrub }:
           ? (r.side === "left" ? aLeft : aRight).current
           : (r.side === "left" ? bLeft : bRight).current;
       if (!group) return;
-      group.position.set(r.pose.x, r.pose.y, r.pose.z);
+      // The refs are **forearm** groups hanging inside pinned shoulders (ADR-0017), so
+      // the rig-local elbow has to come back into the shoulder's frame first — the same
+      // conversion `FistBumpDriver` and `DanceFloor` do, and the reason it is a named
+      // function rather than three subtractions at three call sites.
+      elbowLocal(scratch.elbow, r.pose, self, restSign(PREVIEW_RIG, r.side));
+      group.position.set(scratch.elbow.x, scratch.elbow.y, scratch.elbow.z);
       scratch.aim.set(r.pose.aimX, r.pose.aimY, r.pose.aimZ);
       group.quaternion.setFromUnitVectors(DOWN, scratch.aim);
     };
@@ -249,7 +262,12 @@ export function ContactMovePreview({ move, cast, scrub }: ContactMovePreviewProp
     const c = move.constraints[0];
     const mA = c ? metricsFor(c, "A", cast.A.shape, cast.A.bodyCenterY, PREVIEW_RIG_Y) : null;
     const mB = c ? metricsFor(c, "B", cast.B.shape, cast.B.bodyCenterY, PREVIEW_RIG_Y) : null;
-    const sep = mA && mB ? maxSeparation(mA, mB) * STANCE_FRACTION : 1.5;
+    // Reach depends on the contact height (ADR-0017), so the preview stages the pair
+    // at a fraction of *this move's* reach rather than a generic one — otherwise a move
+    // authored to meet at shoulder height previews at a distance its own predicate
+    // would refuse.
+    const height = c && mA && mB ? verticalHeight(c.vertical, mA, mB, c.absoluteHeight) : 0;
+    const sep = mA && mB ? maxSeparation(mA, mB, height) * STANCE_FRACTION : 1.5;
     return {
       placements: stancePlacements(move, sep),
       separation: sep,

@@ -189,6 +189,12 @@ export function DanceDebugScene({ initialCall }: { initialCall: CallName }) {
       }
       track(spans.current, `${d.key} along`, d.contact.along);
       track(spans.current, `${d.key} gap`, d.contact.gap);
+      // The undrawn upper arm (ADR-0017). A grip is pinned to the pair's pivot, so this
+      // one *is* expected to breathe with the bodies — that is the compliant link doing
+      // its job, and seeing the range is the point. A reach would hold it steady.
+      if (d.grip === "left" || d.grip === "right") {
+        track(spans.current, `${d.key} upper arm`, d.upperArm[d.grip]);
+      }
     }
     el.textContent = [...spans.current]
       .map(([name, s]) => `${name.padEnd(14)} ${fmt(s.min)} → ${fmt(s.max)}   ±${fmt((s.max - s.min) / 2)}`)

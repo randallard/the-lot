@@ -42,9 +42,12 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
   armPose,
+  elbowLocal,
+  vec3,
   type ArmMetrics,
   type ArmPose,
   type Placement,
+  type Vec3,
 } from "./arm-pose";
 import { bumpContact, envelopeWith, type BumpEnvelope } from "./fist-bump";
 import {
@@ -53,6 +56,7 @@ import {
   fistBumpMove,
   metricsFor,
   resolveRole,
+  restSign,
   totalSeconds,
   type Availability,
   type ComfortPreferences,
@@ -73,8 +77,14 @@ export interface FistBumpDriverProps {
   request: React.RefObject<BumpRequest>;
   playerRig: React.RefObject<THREE.Group | null>;
   npcRig: React.RefObject<THREE.Group | null>;
-  playerArm: React.RefObject<THREE.Group | null>;
-  npcArm: React.RefObject<THREE.Group | null>;
+  /**
+   * The **forearm** groups this driver poses — the elbow and everything below it.
+   *
+   * Not the shoulders: those are pinned by `Player`/`Npc` and have no ref, so a bump can
+   * bend an arm and cannot detach one (ADR-0017).
+   */
+  playerForearm: React.RefObject<THREE.Group | null>;
+  npcForearm: React.RefObject<THREE.Group | null>;
   /** Set while the driver owns the player's arm, so `Player` leaves it alone. */
   drivenArms: React.RefObject<{ left: boolean; right: boolean }>;
   /**
@@ -139,9 +149,25 @@ function readPlacement(out: Placement, rig: THREE.Group): void {
   out.yaw = rig.rotation.y;
 }
 
-/** Write one side's pose onto its group, the way `DanceFloor` does. */
-function applyPose(group: THREE.Group, pose: ArmPose, aim: THREE.Vector3): void {
-  group.position.set(pose.x, pose.y, pose.z);
+/**
+ * Write one side's pose onto its **forearm** group, the way `DanceFloor` does.
+ *
+ * The group hangs inside a shoulder pinned at `(±restX, restY, 0)` and the pose is
+ * rig-local, so the elbow has to come back into the shoulder's frame first —
+ * {@link elbowLocal}, named rather than inlined for the reason that function gives.
+ * `sign` is the same one the pose was solved with; passing a different one would put a
+ * correctly-solved arm on the wrong shoulder.
+ */
+function applyPose(
+  group: THREE.Group,
+  pose: ArmPose,
+  m: ArmMetrics,
+  sign: number,
+  elbow: Vec3,
+  aim: THREE.Vector3,
+): void {
+  elbowLocal(elbow, pose, m, sign);
+  group.position.set(elbow.x, elbow.y, elbow.z);
   aim.set(pose.aimX, pose.aimY, pose.aimZ);
   group.quaternion.setFromUnitVectors(DOWN, aim);
 }
@@ -150,8 +176,8 @@ export function FistBumpDriver({
   request,
   playerRig,
   npcRig,
-  playerArm,
-  npcArm,
+  playerForearm,
+  npcForearm,
   drivenArms,
   playerShape,
   npcShape,
@@ -172,6 +198,7 @@ export function FistBumpDriver({
     role: { local: { x: 0, z: 0, yaw: 0 }, rest: armPose() } as RoleScratch,
     out: { pose: armPose(), side: "right", contact: bumpContact() } as RoleResolution,
     aim: new THREE.Vector3(),
+    elbow: vec3(),
     metrics: null as { player: ArmMetrics; npc: ArmMetrics } | null,
     shapes: null as { player: CharacterBodyShape; npc: CharacterBodyShape } | null,
     origins: { player: NaN, npc: NaN },
@@ -186,8 +213,8 @@ export function FistBumpDriver({
     const driven = drivenArms.current;
     const pRig = playerRig.current;
     const nRig = npcRig.current;
-    const pArm = playerArm.current;
-    const nArm = npcArm.current;
+    const pArm = playerForearm.current;
+    const nArm = npcForearm.current;
 
     if (!req || !driven) return;
     if (!pRig || !nRig || !pArm || !nArm) return;
@@ -288,13 +315,13 @@ export function FistBumpDriver({
       s.announced = true;
       onActiveChange?.(true);
     }
-    applyPose(pArm, a.pose, s.aim);
+    applyPose(pArm, a.pose, m.player, restSign(PLAYER_NPC_RIG, a.side), s.elbow, s.aim);
 
     const b = resolveRole(
       s.out, s.role, move, constraint, "B", m.npc, m.player, s.other, s.self, s.env.t,
       PLAYER_NPC_RIG,
     );
-    applyPose(nArm, b.pose, s.aim);
+    applyPose(nArm, b.pose, m.npc, restSign(PLAYER_NPC_RIG, b.side), s.elbow, s.aim);
   });
 
   return null;

@@ -2,13 +2,20 @@
  * Where a driven dancer's forearms go, and where they make contact.
  *
  * These caricatures have **no upper arms, necks or legs** — just the parts that
- * carry meaning (`services/body-shapes`). So this module does not model reach or
- * attachment: an arm is not obliged to stay plausibly connected to a shoulder, and
- * trying to make it look connected is what made the first two attempts at a grip
- * wrong. What it must get right is **contact**: which hand is on which forearm,
- * where, and how the pair holds together as they turn. Contact is the tactile
- * channel (square-one F2), the thing future calls layer more of, and the only part a
- * dancer would actually feel.
+ * carry meaning (`services/body-shapes`). What this module must get right is
+ * **contact**: which hand is on which forearm, where, and how the pair holds together
+ * as they turn. Contact is the tactile channel (square-one F2), the thing future calls
+ * layer more of, and the only part a dancer would actually feel.
+ *
+ * **The arm is two segments, and only the second one is drawn** (ADR-0017). The
+ * shoulder is a fixed property of the body; the elbow is free; the upper arm between
+ * them is undrawn and compliant. An {@link ArmPose} therefore names the **elbow**, not
+ * an arm-group origin, and the rig pins the shoulder where the body puts it so that no
+ * pose can move it. This module previously said it "does not model reach or
+ * attachment" — it now models attachment and declines to model *reach* only where a
+ * move authors it away. What it still does not do is forbid: a hand may be placed
+ * further than the arm can go, the upper arm stretches to say so, and
+ * {@link upperArmStrain} is how a test or an overlay reads it as a number.
  *
  * **The undrawn upper arm is the compliant link, and that is load-bearing design.**
  * A turning pair's separation is not constant — `arm-turn` walks the chords of its
@@ -63,11 +70,22 @@ export function vec3(): Vec3 {
 }
 
 /**
- * An arm group's placement in its dancer's local space.
+ * A posed forearm in its dancer's local space: **the elbow, and where the forearm
+ * points from it**.
  *
- * `aim` is the unit direction from the group's own origin toward the hand — the
- * direction the rig's arm chain runs. At rest it is straight down; a forearm grip
- * makes it horizontal. The driver turns it into the group's rotation.
+ * `x`/`y`/`z` is the **elbow** — the near end of the only segment anybody draws — and
+ * `aim` is the unit direction from it toward the hand. At rest the elbow hangs at
+ * {@link ArmMetrics.elbowY} and the aim is straight down; a forearm grip lays it
+ * horizontal. The driver writes both onto the rig's forearm group.
+ *
+ * **It used to be the arm group's origin — nominally the shoulder — and that was a
+ * lie the model could not detect** (ADR-0017). Because the elbow was derived as
+ * `origin + elbowReach · aim`, placing a hand anywhere meant sliding the origin to
+ * wherever the arithmetic needed it, and the shoulder went with it: measured at bump
+ * range it stood 0.34 behind the body. Nothing is drawn between shoulder and elbow, so
+ * it looked like nothing, right up until the forearm's near end was inside the torso.
+ * Naming the elbow removes the pretence — the shoulder is now a fixed property of the
+ * body, pinned by the rig, and the undrawn upper arm spans whatever is left.
  */
 export interface ArmPose {
   x: number;
@@ -267,7 +285,11 @@ export function contactSeparation(a: ArmMetrics, b: ArmMetrics): number {
  * Everything is placed from the **pivot**, never from the shoulder, which is what
  * makes the join rigid: `radius` and `separation` are pair constants, so the arm
  * keeps a fixed distance from the pivot and only turns while the bodies breathe in
- * and out around it.
+ * and out around it. That is the one place in this module where the undrawn upper arm
+ * is *deliberately* left to stretch and squash — a hold does not let go because the
+ * bodies moved — and under ADR-0017 it is now visible as {@link upperArmStrain} rather
+ * than hidden in a sliding origin. A bump makes the opposite choice
+ * ({@link reachPose}): the shoulder is where the body is and the elbow bends.
  *
  * The lateral nudge is `up × dir`, half of {@link contactSeparation}: because the
  * partner's `dir` is this one's negated, that resolves to opposite sides of the axis
@@ -284,9 +306,10 @@ export function gripPose(
   dirZ: number,
   height: number,
 ): ArmPose {
-  // From the pivot back along the axis: hand at `radius`, then the forearm, then
-  // the undrawn upper arm to the group's own origin.
-  const back = radius - m.forearmSpan - m.elbowReach;
+  // From the pivot back along the axis: hand at `radius`, then the forearm to the
+  // elbow. The undrawn upper arm carries on from there to the shoulder and is not
+  // this function's business — see ADR-0017.
+  const back = radius - m.forearmSpan;
   const half = separation / 2;
   out.x = pivotX + back * dirX + half * dirZ;
   out.y = height;
@@ -295,6 +318,137 @@ export function gripPose(
   out.aimY = 0;
   out.aimZ = dirZ;
   return out;
+}
+
+/**
+ * How much an elbow prefers to swing **outward** rather than straight down, when the
+ * solve leaves it a choice.
+ *
+ * A two-segment arm with both ends fixed leaves the elbow one degree of freedom: a
+ * circle about the shoulder-to-hand axis. Every point on it is geometrically legal and
+ * only one looks like an arm, so the tie is broken by preference rather than by maths.
+ * Real elbows go out and down — mostly down, a little out — which is what this ratio
+ * says. Tuned by eye against the fist bump; a number to watch, not one derived from
+ * anything.
+ */
+export const ELBOW_SWING = 0.6;
+
+/**
+ * Put the hand at a named point and let the **elbow** find its own way there.
+ *
+ * This is ADR-0017's half of the arm: the shoulder is fixed where the body puts it, the
+ * forearm is rigid, and the elbow is the joint that gives. Two links with both ends
+ * pinned leave the elbow on a circle, so the solve is the textbook one — the elbow sits
+ * where the two spheres intersect — and the remaining freedom around that circle is
+ * settled by {@link ELBOW_SWING}.
+ *
+ * **Contrast with {@link gripPose}, and the contrast is the decision.** A grip pins the
+ * arm to the *pivot between the pair* and lets the shoulder drift, because a hold must
+ * survive the bodies breathing in and out. A reach pins the arm to its *own shoulder*
+ * and lets the elbow bend, because a bump happens between two bodies that are standing
+ * still and the authored contact point is the thing that must be honoured. Both were the
+ * same function until the shoulder was measured 0.34 behind the body at bump range.
+ *
+ * **Out of range, the hand wins.** Past `elbowReach + forearmSpan` the elbow is placed a
+ * forearm back along the line to the hand, so the hand lands exactly where it was asked
+ * to and the undrawn upper arm stretches to cover the rest. That is deliberate: reach is
+ * a rule a move *chooses*, not a gate the geometry imposes, and a lobbed fist is a move
+ * that chooses to go without one. {@link upperArmStrain} is how far it went.
+ *
+ * `hand` is the hand's **centre**, in this dancer's rig-local space; `sign` picks the
+ * shoulder, matching {@link restPose}.
+ */
+export function reachPose(
+  out: ArmPose,
+  m: ArmMetrics,
+  sign: number,
+  handX: number,
+  handY: number,
+  handZ: number,
+): ArmPose {
+  const sx = sign * m.restX;
+  const sy = m.restY;
+  const upper = m.elbowReach;
+  const fore = m.forearmSpan;
+
+  const vx = handX - sx;
+  const vy = handY - sy;
+  const vz = handZ;
+  const d = Math.hypot(vx, vy, vz);
+
+  // The hand is on the shoulder. No axis, no aim — hang the arm and let the strain
+  // reading say the pose is nonsense, rather than inventing a direction.
+  if (d < 1e-9) return restPose(out, m, sign);
+
+  const ux = vx / d;
+  const uy = vy / d;
+  const uz = vz / d;
+
+  if (d >= upper + fore) {
+    out.x = handX - fore * ux;
+    out.y = handY - fore * uy;
+    out.z = handZ - fore * uz;
+    out.aimX = ux;
+    out.aimY = uy;
+    out.aimZ = uz;
+    return out;
+  }
+
+  // Where along the axis the elbow sits, and how far off it. Clamped because a hand
+  // closer than `|upper − fore|` puts the cosine outside its range, and folding the
+  // arm as far as it goes is a better answer there than NaN.
+  const cos = clampUnit((d * d + upper * upper - fore * fore) / (2 * d * upper));
+  const along = upper * cos;
+  const off = upper * Math.sqrt(1 - cos * cos);
+
+  // The swing direction: the preferred one, with its component along the axis removed
+  // so what is left is perpendicular and the elbow stays on its circle.
+  let px = sign * ELBOW_SWING;
+  let py = -1;
+  let pz = 0;
+  const dot = px * ux + py * uy + pz * uz;
+  px -= dot * ux;
+  py -= dot * uy;
+  pz -= dot * uz;
+  let len = Math.hypot(px, py, pz);
+  if (len < 1e-6) {
+    // The preference is parallel to the axis — reaching straight down the swing
+    // direction. Any perpendicular will do; take the outward one.
+    px = 1 - ux * ux;
+    py = -ux * uy;
+    pz = -ux * uz;
+    len = Math.hypot(px, py, pz);
+    if (len < 1e-6) {
+      out.x = sx + along * ux;
+      out.y = sy + along * uy;
+      out.z = along * uz;
+      out.aimX = ux;
+      out.aimY = uy;
+      out.aimZ = uz;
+      return out;
+    }
+  }
+
+  const ex = sx + along * ux + (off * px) / len;
+  const ey = sy + along * uy + (off * py) / len;
+  const ez = along * uz + (off * pz) / len;
+  out.x = ex;
+  out.y = ey;
+  out.z = ez;
+
+  const ax = handX - ex;
+  const ay = handY - ey;
+  const az = handZ - ez;
+  const alen = Math.hypot(ax, ay, az) || 1;
+  out.aimX = ax / alen;
+  out.aimY = ay / alen;
+  out.aimZ = az / alen;
+  return out;
+}
+
+/** Clamps to `[-1, 1]`, so a degenerate triangle folds instead of returning NaN. */
+function clampUnit(v: number): number {
+  return v < -1 ? -1 : v > 1 ? 1 : v;
 }
 
 /**
@@ -325,15 +479,71 @@ export function blendPose(out: ArmPose, from: ArmPose, to: ArmPose, t: number): 
   return out;
 }
 
-/** The arm at rest: hanging from its own shoulder. */
+/**
+ * The arm at rest: hanging straight down from its own shoulder.
+ *
+ * The elbow is directly under the shoulder at {@link ArmMetrics.elbowY}, which is
+ * `restY − elbowReach` by construction — `body-shapes` derives both from the same
+ * `upperArmSpacing`. So a rest pose has the upper arm at exactly its natural length and
+ * {@link upperArmStrain} reads zero, which is the fixed point every other pose is
+ * measured against.
+ */
 export function restPose(out: ArmPose, m: ArmMetrics, sign: number): ArmPose {
   out.x = sign * m.restX;
-  out.y = m.restY;
+  out.y = m.elbowY;
   out.z = 0;
   out.aimX = 0;
   out.aimY = -1;
   out.aimZ = 0;
   return out;
+}
+
+/** Where this arm's shoulder is, in the dancer's local space. `sign` picks the side. */
+export function shoulderOf(out: Vec3, m: ArmMetrics, sign: number): Vec3 {
+  out.x = sign * m.restX;
+  out.y = m.restY;
+  out.z = 0;
+  return out;
+}
+
+/**
+ * The elbow in the **shoulder group's** own frame — what the nested forearm group's
+ * `position` needs.
+ *
+ * A pose is rig-local and the forearm group hangs off a shoulder group pinned at
+ * `(±restX, restY, 0)`, so the write site has to subtract one from the other. Named
+ * rather than inlined for the same reason {@link localHeight} is: the two frame
+ * conversions in this subsystem have each already produced a defect that looked right
+ * and measured wrong, and an unnamed subtraction at a call site is where the last one
+ * hid.
+ */
+export function elbowLocal(out: Vec3, pose: ArmPose, m: ArmMetrics, sign: number): Vec3 {
+  out.x = pose.x - sign * m.restX;
+  out.y = pose.y - m.restY;
+  out.z = pose.z;
+  return out;
+}
+
+/**
+ * How far this pose stretches the undrawn upper arm past its natural length, in world
+ * units. Zero when the arm is plausible; positive when the hand has been sent somewhere
+ * the body cannot reach.
+ *
+ * **Instrumentation, not a clamp.** ADR-0017 keeps reach an authored rule rather than a
+ * validity gate — a lobbed fist is a *deliberate* detachment, and a model that forbade
+ * it would make a deliberate absurdity indistinguishable from an unhandled case. So
+ * nothing here refuses; this is the number an overlay prints and a test asserts, which
+ * is this subsystem's standing answer to "is the geometry real" (instrument for drift,
+ * not values).
+ *
+ * Negative slack is reported as `0`: an elbow closer to the shoulder than rest is a bent
+ * arm, which is ordinary, not strain.
+ */
+export function upperArmStrain(pose: ArmPose, m: ArmMetrics, sign: number): number {
+  const dx = pose.x - sign * m.restX;
+  const dy = pose.y - m.restY;
+  const excess = Math.hypot(dx, dy, pose.z) - m.elbowReach;
+  return excess > 0 ? excess : 0;
 }
 
 /**
@@ -387,11 +597,11 @@ export function constrainArm(
   dirZ: number,
 ): ArmPose {
   // How far toward the partner the arm's furthest drawn point reaches. The elbow and
-  // the hand bracket the forearm, so testing both ends bounds the whole segment.
-  const base = pose.x * dirX + pose.z * dirZ;
+  // the hand bracket the forearm, so testing both ends bounds the whole segment — and
+  // the pose *is* the elbow now (ADR-0017), so the near end needs no projection.
+  const elbow = pose.x * dirX + pose.z * dirZ;
   const along = pose.aimX * dirX + pose.aimZ * dirZ;
-  const elbow = base + along * m.elbowReach;
-  const hand = base + along * m.handReach;
+  const hand = elbow + along * m.forearmSpan;
   const reach = Math.max(elbow, hand) + m.armHalfWidth + PERSONAL_SPACE;
 
   const excess = reach - allowance;
@@ -553,8 +763,8 @@ export function trackForearm(
     target.y = pose.y + pose.aimY * along;
     target.z = self.z - lx * s + lz * c;
   };
-  place(out.elbow, m.elbowReach);
-  place(out.hand, m.handReach);
+  place(out.elbow, 0);
+  place(out.hand, m.forearmSpan);
   return out;
 }
 

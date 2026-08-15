@@ -98,11 +98,13 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
   // because the driver has to live inside the Canvas to get a frame loop.
   const playerRig = useRef<THREE.Group | null>(null);
   const npcRig = useRef<THREE.Group | null>(null);
-  const playerArms = useRef({
+  // Forearms, not arms: the shoulders stay pinned inside `Player`/`Npc` with no ref on
+  // them, so a driver can bend an elbow and cannot move a shoulder (ADR-0017).
+  const playerForearms = useRef({
     left: { current: null } as React.RefObject<THREE.Group | null>,
     right: { current: null } as React.RefObject<THREE.Group | null>,
   }).current;
-  const npcArms = useRef({
+  const npcForearms = useRef({
     left: { current: null } as React.RefObject<THREE.Group | null>,
     right: { current: null } as React.RefObject<THREE.Group | null>,
   }).current;
@@ -302,7 +304,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
 
       <CameraRig target={playerPos} offset={cameraOffset} lookAtOffset={cameraLookAtOffset} />
       <Ground />
-      <Player positionRef={playerPos} inputDir={inputDir} rushMode={rushMode} rushTarget={rushTarget} hidden={hidePlayer} bodyShape={bodyShapes?.["player"]} animController={playerAnimController} rigRef={playerRig} arms={playerArms} drivenArms={drivenArms} handPose={bumping ? bumpHands.player : "open"} />
+      <Player positionRef={playerPos} inputDir={inputDir} rushMode={rushMode} rushTarget={rushTarget} hidden={hidePlayer} bodyShape={bodyShapes?.["player"]} animController={playerAnimController} rigRef={playerRig} forearms={playerForearms} drivenArms={drivenArms} handPose={bumping ? bumpHands.player : "open"} />
       {part1Spawned && !part1Collected && (
         <BotParts
           position={[PART1_POS.x, PART1_POS.y, PART1_POS.z]}
@@ -327,7 +329,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
           onClick={onNpcClick}
           wheelHandlers={npcWheelHandlers}
           rigRef={npcRig}
-          arms={npcArms}
+          forearms={npcForearms}
           relaxing={npcRelaxing}
           talking={npcTalking}
           screenPos={npcScreenPos}
@@ -336,7 +338,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
           handPose={bumping ? bumpHands.npc : "open"}
         />
       )}
-      {/* `playerArm`/`npcArm` below are the anatomically **right** arms, which
+      {/* `playerForearm`/`npcForearm` below are the anatomically **right** arms, which
           `Player`/`Npc` happen to call `left`: a character at yaw 0 faces +z, so its
           right hand is at -x, and those two components name their +x group "right".
           That inversion is baked into every authored emote, so it stays — the bump just
@@ -346,8 +348,8 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
           request={bumpRequest}
           playerRig={playerRig}
           npcRig={npcRig}
-          playerArm={playerArms.left}
-          npcArm={npcArms.left}
+          playerForearm={playerForearms.left}
+          npcForearm={npcForearms.left}
           drivenKey="left"
           drivenArms={drivenArms}
           playerShape={bodyShapes?.["player"] ?? PLAYER_DEFAULTS}

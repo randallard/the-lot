@@ -27,6 +27,7 @@ import {
   armMetrics,
   armPose,
   gripHeight,
+  upperArmStrain,
   type ArmMetrics,
   type Placement,
 } from "./arm-pose";
@@ -63,11 +64,25 @@ function resolution(): RoleResolution {
   return { pose: armPose(), side: "right", contact: bumpContact() };
 }
 
+/** The height the built-in fist bump meets at — its `mean-elbow` rule, resolved. */
+function meetAt(a: ArmMetrics, b: ArmMetrics) {
+  return gripHeight(a, b);
+}
+
 /** Stand two characters facing each other, `frac` of the way to their reach limit. */
 function facingPair(a: ArmMetrics, b: ArmMetrics, frac = 0.8) {
-  const sep = maxSeparation(a, b) * frac;
+  const sep = maxSeparation(a, b, meetAt(a, b)) * frac;
   // A looks along +z toward B; B looks back along -z.
   return [at(0, 0, 0), at(0, sep, Math.PI)] as const;
+}
+
+/** A forearm span from the elbow — where a pose actually puts the hand (ADR-0017). */
+function handOf(pose: ReturnType<typeof armPose>, m: ArmMetrics) {
+  return {
+    x: pose.x + pose.aimX * m.forearmSpan,
+    y: pose.y + pose.aimY * m.forearmSpan,
+    z: pose.z + pose.aimZ * m.forearmSpan,
+  };
 }
 
 describe("the fist bump, authored", () => {
@@ -120,7 +135,9 @@ describe("the authored move and the hardcoded gesture agree", () => {
 
     const expected = armPose();
     const cc = resolveContact(bumpContact(), player, npc, SELF, localPartner(at(0, 0), pa, pb));
-    bumpPose(expected, player, cc, cc.dirAX, cc.dirAZ);
+    // `"right-positive"` puts the anatomical right shoulder on +x, so `restSign` is +1
+    // — the same shoulder `resolveRole` solved against, which is now part of the answer.
+    bumpPose(expected, player, cc, cc.dirAX, cc.dirAZ, restSign("right-positive", "right"));
 
     expect(authored.pose.x).toBeCloseTo(expected.x, 12);
     expect(authored.pose.y).toBeCloseTo(expected.y, 12);
@@ -135,7 +152,12 @@ describe("the authored move and the hardcoded gesture agree", () => {
       resolution(), scratch(), move, c, "A", player, npc, pa, pb, 1, "right-positive");
     const b = resolveRole(
       resolution(), scratch(), move, c, "B", npc, player, pb, pa, 1, "right-positive");
-    expect(player.rigOriginY + a.pose.y).toBeCloseTo(npc.rigOriginY + b.pose.y, 10);
+    // The **fists**, not the elbows: two elbows solved from two different shoulders have
+    // no reason to share a height, and since ADR-0017 a pose names the elbow.
+    expect(player.rigOriginY + handOf(a.pose, player).y).toBeCloseTo(
+      npc.rigOriginY + handOf(b.pose, npc).y,
+      10,
+    );
   });
 
   it("sizes the fists as fists", () => {
@@ -190,14 +212,38 @@ describe("rig handedness — which shoulder the arm goes back to", () => {
     expect(r.pose.x).toBeCloseTo(player.restX, 10);
   });
 
-  it("does not move the contact point — which is why this hides", () => {
+  // 🔴 **This used to assert the opposite, and the change is the point.** Under the
+  // one-segment arm the whole pose was placed from the contact point, so the handedness
+  // sign vanished from the answer at full extension — the two rigs produced the *same*
+  // pose and only the group it was written to differed. That is what made "it was driving
+  // the left arm" invisible to every assertion here. Since ADR-0017 the shoulder is an
+  // input, so the sign is now visible in the pose itself, while the contact point — which
+  // is a property of the pair, not of either arm — still does not move.
+  it("moves the arm but not the contact point", () => {
     const [pa, pb] = facingPair(player, npc);
     const right = resolveRole(
       resolution(), scratch(), move, c, "A", player, npc, pa, pb, 1, "right-positive");
     const rx = right.pose.x;
+    const rc = { x: right.contact.x, z: right.contact.z, height: right.contact.height };
     const left = resolveRole(
       resolution(), scratch(), move, c, "A", player, npc, pa, pb, 1, "left-positive");
-    expect(left.pose.x).toBeCloseTo(rx, 12);
+
+    expect(left.contact.x).toBeCloseTo(rc.x, 12);
+    expect(left.contact.z).toBeCloseTo(rc.z, 12);
+    expect(left.contact.height).toBeCloseTo(rc.height, 12);
+    expect(left.pose.x).not.toBeCloseTo(rx, 6);
+  });
+
+  it("still lands both hands on the contact point, whichever shoulder they came from", () => {
+    const [pa, pb] = facingPair(player, npc);
+    for (const rig of ["right-positive", "left-positive"] as const) {
+      const r = resolveRole(
+        resolution(), scratch(), move, c, "A", player, npc, pa, pb, 1, rig);
+      const hand = handOf(r.pose, player);
+      expect(Math.hypot(hand.x - r.contact.x, hand.z - r.contact.z)).toBeCloseTo(
+        player.handRadius, 10);
+      expect(upperArmStrain(r.pose, player, restSign(rig, r.side))).toBeCloseTo(0, 10);
+    }
   });
 });
 
@@ -206,19 +252,21 @@ describe("horizontal rules", () => {
   const small = armMetrics(SPROUT_DEFAULTS);
 
   it("reach-fraction makes the longer arm cover more of the gap", () => {
-    const f = horizontalFraction("reach-fraction", big, small);
-    expect(f).toBe(contactFraction(big, small));
+    const h = meetAt(big, small);
+    const f = horizontalFraction("reach-fraction", big, small, h);
+    expect(f).toBe(contactFraction(big, small, h));
     // `f` is the share measured from `big`, so a bigger reach means meeting further away.
     expect(f).toBeGreaterThan(0.5);
   });
 
   it("midpoint ignores the bodies", () => {
-    expect(horizontalFraction("midpoint", big, small)).toBe(0.5);
+    expect(horizontalFraction("midpoint", big, small, meetAt(big, small))).toBe(0.5);
   });
 
   it("at-a and at-b are the ends", () => {
-    expect(horizontalFraction("at-a", big, small)).toBe(0);
-    expect(horizontalFraction("at-b", big, small)).toBe(1);
+    const h = meetAt(big, small);
+    expect(horizontalFraction("at-a", big, small, h)).toBe(0);
+    expect(horizontalFraction("at-b", big, small, h)).toBe(1);
   });
 
   it("meets at the midpoint on the floor when told to", () => {
@@ -293,40 +341,40 @@ describe("handedness", () => {
 describe("stance is the availability predicate", () => {
   const a = armMetrics(PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
   const b = armMetrics(RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
-  const reach = maxSeparation(a, b);
+  const reach = maxSeparation(a, b, meetAt(a, b));
 
   it("holds when they are close and facing", () => {
     const [pa, pb] = facingPair(a, b);
-    expect(stanceHolds("facing-within-reach", a, b, pa, pb)).toBeNull();
+    expect(stanceHolds("facing-within-reach", a, b, pa, pb, meetAt(a, b))).toBeNull();
   });
 
   it("fails out of reach", () => {
     expect(
-      stanceHolds("facing-within-reach", a, b, at(0, 0, 0), at(0, reach * 2, Math.PI)),
+      stanceHolds("facing-within-reach", a, b, at(0, 0, 0), at(0, reach * 2, Math.PI), meetAt(a, b)),
     ).toBe("out-of-reach");
   });
 
   it("fails when one of them is facing away — both have to be looking", () => {
     // The first screenshot: close enough, pointed the wrong way.
     const sep = reach * 0.5;
-    expect(stanceHolds("facing-within-reach", a, b, at(0, 0, Math.PI), at(0, sep, Math.PI)))
+    expect(stanceHolds("facing-within-reach", a, b, at(0, 0, Math.PI), at(0, sep, Math.PI), meetAt(a, b)))
       .toBe("not-facing");
-    expect(stanceHolds("facing-within-reach", a, b, at(0, 0, 0), at(0, sep, 0)))
+    expect(stanceHolds("facing-within-reach", a, b, at(0, 0, 0), at(0, sep, 0), meetAt(a, b)))
       .toBe("not-facing");
   });
 
   it("tolerates being a little off", () => {
     const sep = reach * 0.5;
     const nudge = FACING_TOLERANCE * 0.5;
-    expect(stanceHolds("facing-within-reach", a, b, at(0, 0, nudge), at(0, sep, Math.PI)))
+    expect(stanceHolds("facing-within-reach", a, b, at(0, 0, nudge), at(0, sep, Math.PI), meetAt(a, b)))
       .toBeNull();
   });
 
   it("side-by-side wants matching headings, not opposed ones", () => {
     const sep = reach * 0.5;
-    expect(stanceHolds("side-by-side-within-reach", a, b, at(0, 0, 0), at(sep, 0, 0)))
+    expect(stanceHolds("side-by-side-within-reach", a, b, at(0, 0, 0), at(sep, 0, 0), meetAt(a, b)))
       .toBeNull();
-    expect(stanceHolds("side-by-side-within-reach", a, b, at(0, 0, 0), at(sep, 0, Math.PI)))
+    expect(stanceHolds("side-by-side-within-reach", a, b, at(0, 0, 0), at(sep, 0, Math.PI), meetAt(a, b)))
       .toBe("not-side-by-side");
   });
 
@@ -347,9 +395,9 @@ describe("staging a stance satisfies the stance", () => {
   const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
 
   it("stages a facing pair the predicate accepts", () => {
-    const sep = maxSeparation(a, b) * 0.75;
+    const sep = maxSeparation(a, b, meetAt(a, b)) * 0.75;
     const p = stancePlacements(move, sep);
-    expect(stanceHolds("facing-within-reach", a, b, p.a, p.b)).toBeNull();
+    expect(stanceHolds("facing-within-reach", a, b, p.a, p.b, meetAt(a, b))).toBeNull();
     expect(availability(move, a, b, p.a, p.b).available).toBe(true);
   });
 
@@ -358,9 +406,9 @@ describe("staging a stance satisfies the stance", () => {
       ...move,
       stance: "side-by-side-within-reach",
     });
-    const sep = maxSeparation(a, b) * 0.75;
+    const sep = maxSeparation(a, b, meetAt(a, b)) * 0.75;
     const p = stancePlacements(hip, sep);
-    expect(stanceHolds("side-by-side-within-reach", a, b, p.a, p.b)).toBeNull();
+    expect(stanceHolds("side-by-side-within-reach", a, b, p.a, p.b, meetAt(a, b))).toBeNull();
   });
 
   it("stages them the requested distance apart, centred on the origin", () => {
@@ -376,7 +424,7 @@ describe("availability is geometry and consent", () => {
   const c = move.constraints[0];
   const a = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
   const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
-  const reach = maxSeparation(a, b);
+  const reach = maxSeparation(a, b, meetAt(a, b));
   const near = facingPair(a, b, 0.5);
   const far = [at(0, 0, 0), at(0, reach * 3, Math.PI)] as const;
 
