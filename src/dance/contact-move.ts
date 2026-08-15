@@ -59,6 +59,8 @@ import {
   localPartner,
   maxSeparation,
   resolveContactAt,
+  twistFor,
+  twistOf,
   SELF,
 } from "./fist-bump";
 
@@ -194,6 +196,28 @@ export const APPROACH_FRACTION = 0.8;
 /** How long the approach takes, in seconds — a beat of moving, before the gesture. */
 export const APPROACH_SECONDS = 0.35;
 
+/**
+ * How far a move may turn a body **past** facing its partner, so the engaged shoulder
+ * leads. Degrees, because it is authored and read by people.
+ *
+ * Ryan, on watching a bump that made the pair stand almost torso to torso: *"we need the
+ * body to twist — in a real life fist bump there is a turn towards a person sometimes."*
+ * ADR-0019. It is the difference between reaching across your own chest and turning to
+ * offer the fist, and geometrically it is the difference between the lateral shoulder
+ * offset being a **cost** and being a **bonus** — see {@link axialReach}.
+ *
+ * 35° by arithmetic rather than by eye: it takes the default pairing's limit to 1.43,
+ * comfortably past the 1.215 of the flat limit that preceded any of this, without the
+ * pair reading as standing side-on to each other. A number to watch.
+ */
+export const DEFAULT_MAX_TWIST_DEGREES = 35;
+
+/** Radians, for the geometry. */
+export function maxTwistOf(move: ContactMove): number {
+  const deg = move.maxTwistDegrees ?? DEFAULT_MAX_TWIST_DEGREES;
+  return (deg * Math.PI) / 180;
+}
+
 export interface ContactConstraint {
   id: string;
   anchors: readonly [Anchor, Anchor];
@@ -225,6 +249,14 @@ export interface ContactMove {
    * old behaviour, which is `"none"`.
    */
   approach?: Approach;
+  /**
+   * How far this move may turn a body past facing, in degrees, so the engaged shoulder
+   * leads (ADR-0019). Optional; {@link maxTwistOf} supplies the default.
+   *
+   * Authored per move because it is a *manner*, not a fact about bodies. A fist bump
+   * turns in; a formal handshake squares up; a shoulder barge is nearly side-on.
+   */
+  maxTwistDegrees?: number;
   constraints: ContactConstraint[];
   envelope: ContactEnvelope;
   /**
@@ -318,7 +350,11 @@ export function angleBetween(a: number, b: number): number {
  * for them this is exactly the reach limit.
  */
 export function offerReach(move: ContactMove, a: ArmMetrics, b: ArmMetrics, height: number): number {
-  const reach = maxSeparation(a, b, height);
+  // At full twist, because the approach is allowed to spend it — the same "could they get
+  // there" question the rest of this predicate asks. A move that does not turn anybody
+  // gets the square-on number.
+  const twist = approachOf(move) === "none" ? 0 : maxTwistOf(move);
+  const reach = maxSeparation(a, b, height, twist, twist);
   if (approachOf(move) !== "turn-and-step") return reach;
   // Measured from where the approach *stages* them, not from the reach limit, so the gap
   // actually closed is never more than the step budget. Taking it from the limit instead
@@ -367,6 +403,7 @@ export function approachTarget(
   pa: Placement,
   pb: Placement,
   height: number,
+  rig: RigHandedness,
 ): { a: Placement; b: Placement } {
   const approach = approachOf(move);
   const dx = pb.x - pa.x;
@@ -392,10 +429,16 @@ export function approachTarget(
     out.b.yaw = facingYaw(pb, pa);
   }
 
-  if (approach !== "turn-and-step") return out;
+  if (approach !== "turn-and-step") {
+    applyTwist(out, move, a, b, height, rig);
+    return out;
+  }
 
   const near = closestComfortable(a, b);
-  const far = maxSeparation(a, b, height) * APPROACH_FRACTION;
+  // Staged against the reach a full twist buys, because the turn above is what pays for
+  // it. Untwisted this is the number that had the pair standing almost torso to torso.
+  const twist = maxTwistOf(move);
+  const far = maxSeparation(a, b, height, twist, twist) * APPROACH_FRACTION;
   // A pair whose comfortable band is empty — bodies so wide they cannot both fit inside
   // their own reach — are left at the near edge rather than being pulled through each
   // other. The bump will be strained and `upperArmStrain` will say so, which is the
@@ -410,7 +453,57 @@ export function approachTarget(
   out.a.z = pa.z - uz * half;
   out.b.x = pb.x + ux * half;
   out.b.z = pb.z + uz * half;
+  // After the step, so the twist is solved against the separation they will actually be
+  // standing at rather than the one they started from.
+  applyTwist(out, move, a, b, height, rig);
   return out;
+}
+
+/**
+ * Turn each of them past facing by however much the distance actually asks for, and no
+ * more — applied to a target the rest of {@link approachTarget} has already produced.
+ *
+ * **A budget, not a pose** (ADR-0019). Nobody turns sideways to bump fists with someone
+ * standing right in front of them, so a pair who can reach squarely are left square. The
+ * twist is spent only where the geometry needs it, which is what keeps the manner of the
+ * gesture from being a constant.
+ *
+ * Which *way* each turns is decided by the shoulder the move engages: the engaged
+ * shoulder leads, so a right-handed bump turns each of them one way and a left-handed one
+ * the other. `sideFor` already answers that per role, and `restSign` turns it into the
+ * `+x`/`−x` fact the geometry needs — the same pair of functions the pose uses, so the
+ * arm and the body cannot disagree about which side this is.
+ */
+function applyTwist(
+  out: { a: Placement; b: Placement },
+  move: ContactMove,
+  a: ArmMetrics,
+  b: ArmMetrics,
+  height: number,
+  rig: RigHandedness,
+): void {
+  const max = maxTwistOf(move);
+  if (max <= 0) return;
+  const sep = Math.hypot(out.b.x - out.a.x, out.b.z - out.a.z);
+  if (sep < 1e-6) return;
+
+  // Where each of them has to put a hand: their own share of the gap, measured at the
+  // twist they are about to be given, so the budget and the target agree.
+  const fraction = contactFraction(a, b, height, max, max);
+  const c = move.constraints[0];
+  const pairs = [
+    { p: out.a, m: a, d: sep * fraction, role: "A" as RoleId },
+    { p: out.b, m: b, d: sep * (1 - fraction), role: "B" as RoleId },
+  ];
+  for (const { p, m, d, role } of pairs) {
+    const t = twistFor(m, height, d, max);
+    if (t <= 0) continue;
+    // The engaged shoulder sits at `sign · restX`; turning by `−sign · t` about `+y`
+    // swings it toward the partner. Facing `+z`, the anatomical right is at `−x`, so a
+    // right-handed bump turns each of them positive.
+    const sign = c ? restSign(rig, sideFor(move, c, role)) : -1;
+    p.yaw -= sign * t;
+  }
 }
 
 /**
@@ -432,7 +525,13 @@ export function stanceHolds(
   height: number,
 ): UnavailableReason | null {
   const separation = Math.hypot(pb.x - pa.x, pb.z - pa.z);
-  if (separation > maxSeparation(a, b, height)) return "out-of-reach";
+  // Reach is judged at the twist each of them is **actually standing at**, read off the
+  // placements (ADR-0019). A turned body reaches further, so a pair angled toward each
+  // other genuinely can bump from further apart — and an approach that staged them at a
+  // twisted distance would otherwise be refused by the very predicate it staged them for.
+  if (separation > maxSeparation(a, b, height, twistOf(pa, pb), twistOf(pb, pa))) {
+    return "out-of-reach";
+  }
 
   if (stance === "facing-within-reach") {
     // Each has to be looking roughly at the other, which is two checks and not one — a
@@ -565,9 +664,11 @@ export function horizontalFraction(
   a: ArmMetrics,
   b: ArmMetrics,
   height: number,
+  twistA = 0,
+  twistB = 0,
 ): number {
   switch (rule) {
-    case "reach-fraction": return contactFraction(a, b, height);
+    case "reach-fraction": return contactFraction(a, b, height, twistA, twistB);
     case "midpoint":       return 0.5;
     case "at-a":           return 0;
     case "at-b":           return 1;
@@ -604,7 +705,14 @@ export function resolveConstraint(
   pb: Placement,
 ): BumpContact {
   const height = verticalHeight(c.vertical, a, b, c.absoluteHeight);
-  return resolveContactAt(out, a, b, pa, pb, horizontalFraction(c.horizontal, a, b, height), height);
+  // Each one's twist is read off where they are standing (`twistOf`) rather than passed
+  // in. A turned body reaches further, so it should cover more of the gap — and deriving
+  // it means that holds whether an approach turned them (ADR-0019) or the player simply
+  // stopped at an angle, instead of only in the case somebody remembered to plumb.
+  const fraction = horizontalFraction(
+    c.horizontal, a, b, height, twistOf(pa, pb), twistOf(pb, pa),
+  );
+  return resolveContactAt(out, a, b, pa, pb, fraction, height);
 }
 
 /**

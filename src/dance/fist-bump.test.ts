@@ -9,8 +9,11 @@ import {
   contactFraction,
   envelopeAt,
   facingYaw,
+  axialReach,
   maxSeparation,
   resolveContact,
+  twistFor,
+  twistOf,
   separationOf,
   localPartner,
   SELF,
@@ -541,5 +544,99 @@ describe("facing", () => {
     const f = facingYaw(at(0, 0), at(3, 4));
     const r = facingYaw(at(3, 4), at(0, 0));
     expect(Math.abs(Math.atan2(Math.sin(f - r), Math.cos(f - r)))).toBeCloseTo(Math.PI, 10);
+  });
+});
+
+describe("twisting toward the partner", () => {
+  // ADR-0019. Ryan, on a watch that had the pair standing almost torso to torso: "we need
+  // the body to twist — in a real life fist bump there is a turn towards a person."
+  const player = armMetrics(PLAYER_DEFAULTS, 0, 0.75, "closed");
+  const npc = armMetrics(RYAN_DEFAULTS, 0.5, 0, "closed");
+  const h = gripHeight(player, npc);
+  const deg = (d: number) => (d * Math.PI) / 180;
+
+  it("buys reach, monotonically, up to a quarter turn", () => {
+    let last = -Infinity;
+    for (const d of [0, 10, 20, 35, 50, 70, 90]) {
+      const r = axialReach(player, h, deg(d));
+      expect(r).toBeGreaterThan(last);
+      last = r;
+    }
+  });
+
+  it("turns the lateral offset from a cost into a bonus at a quarter turn", () => {
+    // Square on, the arm spends `restX` crossing the body. Side on, the shoulder *is*
+    // `restX` further up the axis. That sign flip is the whole argument for twisting.
+    const rise = player.rigOriginY + player.restY - h;
+    const flat = Math.sqrt(player.handReach ** 2 - rise ** 2);
+    expect(axialReach(player, h, 0)).toBeLessThan(flat);
+    expect(axialReach(player, h, deg(90))).toBeCloseTo(flat + player.restX, 9);
+  });
+
+  it("gets the default pair past the flat limit that preceded all of this", () => {
+    // The number that matters: 0.917 square-on, ~1.43 at 35°, against 1.215 for the old
+    // `handReach + handReach`. Twisting is a fix, not a partial walk-back of ADR-0017.
+    const square = maxSeparation(player, npc, h);
+    const turned = maxSeparation(player, npc, h, deg(35), deg(35));
+    expect(square).toBeLessThan(player.handReach + npc.handReach);
+    expect(turned).toBeGreaterThan(player.handReach + npc.handReach);
+    expect(turned / square).toBeGreaterThan(1.5);
+  });
+
+  it("twistFor is the exact inverse of axialReach", () => {
+    // The solve is the law of cosines rather than a search, so this should be tight.
+    for (const d of [10, 25, 35, 60]) {
+      const reach = axialReach(player, h, deg(d)) + player.handRadius;
+      const needed = twistFor(player, h, reach - player.handRadius, Math.PI / 2);
+      expect(needed).toBeCloseTo(deg(d), 8);
+    }
+  });
+
+  it("asks for no twist at all when the pair can reach squarely", () => {
+    // A budget, not a pose — this is what keeps a close-up bump looking square-on.
+    const easy = axialReach(player, h, 0) * 0.5;
+    expect(twistFor(player, h, easy, Math.PI / 2)).toBe(0);
+  });
+
+  it("caps at the budget rather than reporting what it would need", () => {
+    const far = axialReach(player, h, Math.PI / 2) * 1.5;
+    expect(twistFor(player, h, far, deg(35))).toBeCloseTo(deg(35), 12);
+  });
+
+  it("never returns NaN, whatever it is asked", () => {
+    for (const d of [0, 1e-9, 0.2, 5, 50]) {
+      for (const max of [0, deg(35), Math.PI / 2]) {
+        const t = twistFor(player, h, d, max);
+        expect(Number.isFinite(t)).toBe(true);
+        expect(t).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it("reads a twist back off a placement, whichever way they turned", () => {
+    // Derived rather than plumbed, so the reach maths agrees with the bodies whether an
+    // approach turned them or the player just stopped at an angle.
+    expect(twistOf(at(0, 0, 0), at(0, 1))).toBeCloseTo(0, 12);
+    expect(twistOf(at(0, 0, deg(30)), at(0, 1))).toBeCloseTo(deg(30), 12);
+    expect(twistOf(at(0, 0, deg(-30)), at(0, 1))).toBeCloseTo(deg(30), 12);
+    // And across the ±π seam, where a subtraction would report nearly a full turn.
+    expect(twistOf(at(0, 0, Math.PI - 0.1), at(0, -1))).toBeCloseTo(0.1, 12);
+  });
+
+  it("still lands the fists touching once they are turned", () => {
+    // The pose maths is rig-local and the twist is rig yaw, so this should be untouched —
+    // asserted because "should be untouched" is how the last three defects got in.
+    const t = deg(35);
+    const sep = maxSeparation(player, npc, h, t, t) * 0.9;
+    const pa = at(0, 0, t);
+    const pb = at(0, sep, Math.PI - t);
+    const ca = resolveContact(bumpContact(), player, npc, SELF, localPartner(at(0, 0), pa, pb));
+    const cb = resolveContact(bumpContact(), npc, player, SELF, localPartner(at(0, 0), pb, pa));
+    const ha = handOf(bumpPose(armPose(), player, ca, ca.dirAX, ca.dirAZ, RIGHT), player);
+    const hb = handOf(bumpPose(armPose(), npc, cb, cb.dirAX, cb.dirAZ, RIGHT), npc);
+    expect(Math.hypot(ha.x - ca.x, ha.z - ca.z)).toBeCloseTo(player.handRadius, 10);
+    expect(Math.hypot(hb.x - cb.x, hb.z - cb.z)).toBeCloseTo(npc.handRadius, 10);
+    expect(upperArmStrain(bumpPose(armPose(), player, ca, ca.dirAX, ca.dirAZ, RIGHT),
+      player, RIGHT)).toBeCloseTo(0, 9);
   });
 });

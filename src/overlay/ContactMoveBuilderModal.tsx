@@ -17,6 +17,7 @@ import {
   HANDEDNESS,
   HORIZONTAL_RULES,
   APPROACHES,
+  DEFAULT_MAX_TWIST_DEGREES,
   OUT_OF_RANGE,
   STANCES,
   approachOf,
@@ -320,6 +321,19 @@ function Editor({ move: initial, cast, castOptions, castIds, onCast, onSave, onB
             that turns and steps is offered from further out and closes the gap itself — which
             is what stops a bump needing the two of them lined up by hand. It moves both
             people, so it only ever runs on a move somebody chose.
+          </p>
+          <SliderRow
+            label="max turn past facing"
+            value={move.maxTwistDegrees ?? DEFAULT_MAX_TWIST_DEGREES}
+            min={0} max={90} step={5}
+            onChange={(maxTwistDegrees) => patch({ maxTwistDegrees })}
+          />
+          <p style={HINT}>
+            How far each of them may turn <em>past</em> square, so the working shoulder leads —
+            the turn you make toward someone to bump a fist. Spent only as far as the distance
+            asks for, so a close-up bump still reads square-on. It buys a lot of reach: without
+            it the arm has to cross the body to meet in the middle, and with it the shoulder
+            starts closer instead. 0 squares up; 90 is nearly side-on.
           </p>
         </div>
 

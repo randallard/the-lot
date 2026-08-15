@@ -148,35 +148,64 @@ export function separationOf(a: Placement, b: Placement): number {
 }
 
 /**
- * How far along the floor one character can put a hand **centre**, reaching from a
- * fixed shoulder to a point on the line between the pair at world height `height`.
+ * How far along the floor one character can put a hand **centre**, reaching from their
+ * shoulder to a point on the line between the pair at world height `height`, with the
+ * body **twisted** `twist` radians toward the partner.
  *
- * `handReach` is the straight arm, shoulder to hand centre, and the arm has to spend
- * some of it going **up or down** to the contact height and some of it going
- * **sideways** across the body's own midline — a bump between two characters facing
- * each other is each of them reaching inward, which is why a handshake needs the arm
- * that is on the far side from the hand it meets. What is left over is what travels
- * across the floor, and Pythagoras takes the two off.
+ * `handReach` is the straight arm, shoulder to hand centre, and the arm has to spend some
+ * of it going **up or down** to the contact height. What is left is horizontal, and where
+ * that horizontal reach can put a hand depends on where the shoulder is — which is what
+ * the twist moves.
  *
- * 🔴 **This is stricter than the number it replaces**, which was `handReach` flat and
- * called itself conservative while ignoring both terms. The lateral one is not small —
- * `restX` runs to 0.46 on the wider bodies — so some pairs that used to be offered a
- * bump will now be told to move closer. That is the honest reading of a rigid arm on a
- * torso that cannot twist (ADR-0017), and the first thing to watch if bumps start
- * feeling fussy.
+ * **Untwisted, the shoulder is `restX` off to the side and the arm has to spend reach
+ * crossing back.** Two characters facing each other bump with the arm on the far side
+ * from the hand it meets — that is why a handshake works — so the lateral offset is a
+ * real cost, and not a small one: `restX` runs to 0.46 on the wider bodies.
+ *
+ * **Twisting turns that cost into a gain**, which is why this is the lever rather than a
+ * looser limit. Turn `t` toward the partner and the shoulder swings from `restX` across
+ * the axis to `restX·cos t` across and `restX·sin t` **along** it — so the lateral term
+ * shrinks *and* the shoulder starts closer. At a quarter turn the cost has become a pure
+ * bonus. Measured on the default player↔NPC pair: 0.917 untwisted, 1.20 at 20°, **1.43 at
+ * 35°**, against 1.215 for the flat `handReach + handReach` this replaced. That is the
+ * arithmetic behind ADR-0019.
  */
-export function axialReach(m: ArmMetrics, height: number): number {
+export function axialReach(m: ArmMetrics, height: number, twist = 0): number {
   const rise = m.rigOriginY + m.restY - height;
-  const spare = m.handReach * m.handReach - rise * rise - m.restX * m.restX;
-  return spare > 0 ? Math.sqrt(spare) : 0;
+  const spare = m.handReach * m.handReach - rise * rise;
+  if (spare <= 0) return 0;
+  const across = m.restX * Math.cos(twist);
+  const along = m.restX * Math.sin(twist);
+  const left = spare - across * across;
+  // Past the point where the arm cannot clear its own lateral offset, all that is left is
+  // however far the twist itself carried the shoulder up the axis.
+  return left > 0 ? along + Math.sqrt(left) : along;
 }
 
 /**
- * How far from their own centre a character can put the **contact point** — their whole
- * share of the separation, hand radius included.
+ * The smallest twist that brings a contact point `d` from this character's centre within
+ * reach, capped at `max` and never negative.
+ *
+ * The inverse of {@link axialReach}, and it falls out as the law of cosines rather than
+ * needing a search: the shoulder sits on a circle of radius `restX` about the body centre,
+ * the hand has a fixed budget, and the twist is the angle between them.
+ *
+ * **A budget, not a pose** — this is what keeps a close-up bump looking square-on. Nobody
+ * twists to shake hands with someone right in front of them; you turn as much as the
+ * distance asks for and no more. Zero when the pair are close enough to reach squarely.
  */
-export function bumpReach(m: ArmMetrics, height: number): number {
-  return axialReach(m, height) + m.handRadius;
+export function twistFor(m: ArmMetrics, height: number, d: number, max: number): number {
+  if (max <= 0 || d <= 0 || m.restX <= 0) return 0;
+  const rise = m.rigOriginY + m.restY - height;
+  const spare = m.handReach * m.handReach - rise * rise;
+  const sin = (d * d - spare + m.restX * m.restX) / (2 * d * m.restX);
+  if (!(sin > 0)) return 0;
+  const t = sin >= 1 ? Math.PI / 2 : Math.asin(sin);
+  return t > max ? max : t;
+}
+
+export function bumpReach(m: ArmMetrics, height: number, twist = 0): number {
+  return axialReach(m, height, twist) + m.handRadius;
 }
 
 /**
@@ -188,8 +217,14 @@ export function bumpReach(m: ArmMetrics, height: number): number {
  * separation the fraction puts the contact point where both arms are straight, and
  * `upperArmStrain` reads zero on both. Any further and it goes positive on both at once.
  */
-export function maxSeparation(a: ArmMetrics, b: ArmMetrics, height: number): number {
-  return bumpReach(a, height) + bumpReach(b, height);
+export function maxSeparation(
+  a: ArmMetrics,
+  b: ArmMetrics,
+  height: number,
+  twistA = 0,
+  twistB = 0,
+): number {
+  return bumpReach(a, height, twistA) + bumpReach(b, height, twistB);
 }
 
 /** Whether these two, standing here, can touch fists at `height` at all. */
@@ -199,8 +234,10 @@ export function canBump(
   pa: Placement,
   pb: Placement,
   height: number,
+  twistA = 0,
+  twistB = 0,
 ): boolean {
-  return separationOf(pa, pb) <= maxSeparation(a, b, height);
+  return separationOf(pa, pb) <= maxSeparation(a, b, height, twistA, twistB);
 }
 
 /**
@@ -219,9 +256,15 @@ export function canBump(
  * toward them than it used to, which is what "the taller dancer does nearly all the
  * accommodating" actually looks like when you measure it.
  */
-export function contactFraction(a: ArmMetrics, b: ArmMetrics, height: number): number {
-  const ra = bumpReach(a, height);
-  const total = ra + bumpReach(b, height);
+export function contactFraction(
+  a: ArmMetrics,
+  b: ArmMetrics,
+  height: number,
+  twistA = 0,
+  twistB = 0,
+): number {
+  const ra = bumpReach(a, height, twistA);
+  const total = ra + bumpReach(b, height, twistB);
   if (total <= 0) return 0.5;
   return ra / total;
 }
@@ -405,4 +448,22 @@ export function localPartner(out: Placement, self: Placement, partner: Placement
  */
 export function facingYaw(from: Placement, to: Placement): number {
   return Math.atan2(to.x - from.x, to.z - from.z);
+}
+
+/**
+ * How far a character has turned **past** squarely facing their partner — their twist,
+ * read off where they are actually standing.
+ *
+ * Derived rather than plumbed, and that is the point: the twist is a property of a
+ * placement, so every consumer of a placement can recover it without anybody passing it
+ * along. It comes out the same whether an approach put them there (ADR-0019) or the
+ * player simply happened to stop at an angle, which means the reach maths agrees with the
+ * bodies in both cases instead of only the one it was told about.
+ *
+ * Always non-negative: which way they turned is decided by which shoulder is engaged, and
+ * the reach it buys is the same either way.
+ */
+export function twistOf(self: Placement, partner: Placement): number {
+  const to = facingYaw(self, partner);
+  return Math.abs(Math.atan2(Math.sin(self.yaw - to), Math.cos(self.yaw - to)));
 }

@@ -389,6 +389,7 @@ export function FistBumpDriver({
       approachTarget(
         s.to, move, m.player, m.npc, s.from.a, s.from.b,
         verticalHeight(constraint.vertical, m.player, m.npc, constraint.absoluteHeight),
+        PLAYER_NPC_RIG,
       );
       s.staged = true;
     }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   APPROACH_FRACTION,
   APPROACH_STEP,
+  DEFAULT_MAX_TWIST_DEGREES,
   FACING_TOLERANCE,
   OPEN_TO_EVERYTHING,
   approachOf,
@@ -46,6 +47,7 @@ import {
   localPartner,
   maxSeparation,
   resolveContact,
+  twistOf,
   SELF,
 } from "./fist-bump";
 import {
@@ -545,9 +547,14 @@ describe("the approach — a move may bring the pair into position", () => {
   const h = meetAt(a, b);
   const reach = maxSeparation(a, b, h);
 
+  const RIG = "left-positive" as const;
+  const maxTwist = (DEFAULT_MAX_TWIST_DEGREES * Math.PI) / 180;
+  /** Reach once both are turned as far as the move allows — what staging is measured against. */
+  const twistedReach = maxSeparation(a, b, h, maxTwist, maxTwist);
+
   function target(m: ContactMove, pa: Placement, pb: Placement) {
     return approachTarget(
-      { a: at(0, 0), b: at(0, 0) }, m, a, b, pa, pb, h,
+      { a: at(0, 0), b: at(0, 0) }, m, a, b, pa, pb, h, RIG,
     );
   }
 
@@ -568,9 +575,46 @@ describe("the approach — a move may bring the pair into position", () => {
   });
 
   it("turns both of them to face each other, whatever they were looking at", () => {
-    const t = target(turner, at(0, 0, 2.5), at(0, 1, -1.2));
+    // Close enough to reach squarely, so no twist is spent and facing is exact.
+    const near = closestComfortable(a, b);
+    const t = target(turner, at(0, 0, 2.5), at(0, near, -1.2));
     expect(t.a.yaw).toBeCloseTo(0, 10);           // partner at +z
     expect(t.b.yaw).toBeCloseTo(Math.PI, 10);     // partner at −z
+  });
+
+  it("turns them past facing when the distance asks for it, and no further", () => {
+    // ADR-0019. The twist is a budget spent on reach, so it appears exactly when squaring
+    // up would not get there — and is capped where the move says.
+    const t = target(turner, at(0, 0, 0), at(0, twistedReach * 0.98, Math.PI));
+    const offA = twistOf(t.a, t.b);
+    const offB = twistOf(t.b, t.a);
+    expect(offA).toBeGreaterThan(0.01);
+    expect(offB).toBeGreaterThan(0.01);
+    expect(offA).toBeLessThanOrEqual(maxTwist + 1e-9);
+    expect(offB).toBeLessThanOrEqual(maxTwist + 1e-9);
+  });
+
+  it("leaves a close pair square-on — nobody turns sideways to bump a fist in their face", () => {
+    const t = target(turner, at(0, 0, 0), at(0, closestComfortable(a, b), Math.PI));
+    expect(twistOf(t.a, t.b)).toBeCloseTo(0, 9);
+    expect(twistOf(t.b, t.a)).toBeCloseTo(0, 9);
+  });
+
+  it("turns the engaged shoulder toward the partner, not away", () => {
+    // The whole point: the twist has to bring the bumping shoulder forward. Facing +z the
+    // anatomical right shoulder is at −x, so it leads on a *positive* yaw offset.
+    const t = target(turner, at(0, 0, 0), at(0, twistedReach * 0.98, Math.PI));
+    const sign = restSign("left-positive", sideFor(move, c, "A"));
+    // The shoulder's world z after the turn — positive means it moved toward the partner.
+    const shoulderZ = -(sign * a.restX) * Math.sin(t.a.yaw);
+    expect(shoulderZ).toBeGreaterThan(0);
+  });
+
+  it("twisting really does buy reach — the arithmetic behind the decision", () => {
+    expect(twistedReach).toBeGreaterThan(maxSeparation(a, b, h));
+    // And past the flat `handReach + handReach` limit that preceded ADR-0017, which is
+    // what makes this a fix rather than a partial walk-back.
+    expect(twistedReach).toBeGreaterThan(a.handReach + b.handReach);
   });
 
   it("turns on the short arc — a handshake is not a pirouette", () => {
@@ -600,9 +644,10 @@ describe("the approach — a move may bring the pair into position", () => {
   });
 
   it("closes a gap that is too wide, to a comfortable fraction of reach", () => {
-    const t = target(stepper, at(0, 0, 0), at(0, reach * 1.3, Math.PI));
+    const t = target(stepper, at(0, 0, 0), at(0, twistedReach * 1.3, Math.PI));
     const staged = Math.hypot(t.b.x - t.a.x, t.b.z - t.a.z);
-    expect(staged).toBeCloseTo(reach * APPROACH_FRACTION, 10);
+    // Measured against the reach a full twist buys, because the turn is what pays for it.
+    expect(staged).toBeCloseTo(twistedReach * APPROACH_FRACTION, 10);
     // And the staged pair satisfy the predicate they were staged for, which is the
     // property worth having: an approach that produced a stance the move would still
     // refuse is an approach that walks you somewhere useless.
@@ -627,9 +672,9 @@ describe("the approach — a move may bring the pair into position", () => {
   it("splits the walk evenly — who reaches further is a different question", () => {
     // `contactFraction` already makes the longer arm cover more of the *reach*. Making it
     // also cover more of the *walk* would count the same asymmetry twice.
-    const t = target(stepper, at(0, 0, 0), at(0, reach * 1.3, Math.PI));
+    const t = target(stepper, at(0, 0, 0), at(0, twistedReach * 1.3, Math.PI));
     const movedA = Math.hypot(t.a.x - 0, t.a.z - 0);
-    const movedB = Math.hypot(t.b.x - 0, t.b.z - reach * 1.3);
+    const movedB = Math.hypot(t.b.x - 0, t.b.z - twistedReach * 1.3);
     expect(movedA).toBeCloseTo(movedB, 10);
   });
 
@@ -672,7 +717,11 @@ describe("the approach widens the offer", () => {
   const still = makeContactMove("still", { ...move, approach: "none" });
 
   it("offers a stepping move from a step further out", () => {
-    expect(offerReach(move, a, b, h)).toBeCloseTo(reach * APPROACH_FRACTION + APPROACH_STEP, 10);
+    const maxTwist = (DEFAULT_MAX_TWIST_DEGREES * Math.PI) / 180;
+    const twisted = maxSeparation(a, b, h, maxTwist, maxTwist);
+    expect(offerReach(move, a, b, h)).toBeCloseTo(twisted * APPROACH_FRACTION + APPROACH_STEP, 10);
+    // A move that turns nobody gets the square-on number — the twist is the approach's to
+    // spend, so a move that does not approach cannot borrow against it.
     expect(offerReach(still, a, b, h)).toBeCloseTo(reach, 10);
     expect(offerReach(move, a, b, h)).toBeGreaterThan(offerReach(still, a, b, h));
   });
@@ -685,7 +734,7 @@ describe("the approach widens the offer", () => {
     const edge = offerReach(move, a, b, h);
     for (const sep of [edge, edge * 0.9, edge * 0.5, 0.02]) {
       const t = approachTarget({ a: at(0, 0), b: at(0, 0) }, move, a, b,
-        at(0, 0, 0), at(0, sep, Math.PI), h);
+        at(0, 0, 0), at(0, sep, Math.PI), h, "left-positive");
       const movedA = Math.hypot(t.a.x, t.a.z);
       const movedB = Math.hypot(t.b.x, t.b.z - sep);
       expect(movedA + movedB).toBeLessThanOrEqual(APPROACH_STEP + 1e-9);
