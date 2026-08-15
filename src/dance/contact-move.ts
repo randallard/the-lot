@@ -323,6 +323,23 @@ export function approachOf(move: ContactMove): Approach {
 // Comfort
 
 /**
+ * Whether a participant's standing preferences are the whole of their consent.
+ *
+ * - `"standing"` — they are all there is. True of a character the game plays: an NPC
+ *   cannot be asked in the moment, so what it has declared in advance is the complete
+ *   answer, and a move may act on it immediately.
+ * - `"live"` — this participant can be asked, and for anything that **moves them** they
+ *   must be. No mechanism exists to ask (ADR-0021), so such a move is refused rather than
+ *   performed on a standing preference that was never meant to carry that weight.
+ *
+ * The distinction is not "player vs NPC" by another name, though today it lines up with
+ * that exactly. It is about whether a live answer is *available*, which is the property
+ * the decision actually turns on — a scripted cutscene character or a replay ghost is
+ * `"standing"` too, and would be miscategorised by asking about avatars.
+ */
+export type ConsentMode = "standing" | "live";
+
+/**
  * One participant's stance on what may be done *with* them.
  *
  * Not a rendering filter — that is a separate, later, receiver-side concern. This is the
@@ -335,11 +352,34 @@ export interface ComfortPreferences {
   mutedTags: readonly string[];
   /** Whether this character accepts a move that ends with a part of them owned by someone else. */
   allowsTransfer: boolean;
+  /**
+   * Whether these preferences are the whole of this participant's consent, or only the
+   * part they set in advance. See {@link ConsentMode}.
+   */
+  consent: ConsentMode;
 }
 
+/**
+ * Someone who has muted nothing — **and who can be asked**, which is the default that
+ * fails safe. A participant whose consent mode is not thought about is treated as one
+ * whose live answer is owed, so the guard fires rather than sleeping.
+ */
 export const OPEN_TO_EVERYTHING: ComfortPreferences = {
   mutedTags: [],
   allowsTransfer: true,
+  consent: "live",
+};
+
+/**
+ * The same openness, for a character the game plays: nothing muted and nothing to ask.
+ *
+ * Separate constant rather than a flag on the call, so that "this participant cannot be
+ * asked" is stated where the participant is described instead of at each call site.
+ */
+export const NPC_OPEN_TO_EVERYTHING: ComfortPreferences = {
+  mutedTags: [],
+  allowsTransfer: true,
+  consent: "standing",
 };
 
 // ---------------------------------------------------------------------------
@@ -351,7 +391,12 @@ export type UnavailableReason =
   | "not-side-by-side"
   | "muted-by-a"
   | "muted-by-b"
-  | "transfer-not-consented";
+  | "transfer-not-consented"
+  /**
+   * The move would move a participant whose consent has to be asked for in the moment,
+   * and there is no way to ask yet. ADR-0021.
+   */
+  | "needs-live-consent";
 
 export interface Availability {
   available: boolean;
@@ -616,7 +661,11 @@ export function availability(
   pa: Placement,
   pb: Placement,
   prefsA: ComfortPreferences = OPEN_TO_EVERYTHING,
-  prefsB: ComfortPreferences = OPEN_TO_EVERYTHING,
+  // **Asymmetric on purpose, and it is the shipping arrangement written down.** `A` is
+  // whoever chose the move and `B` is whoever it is being done to, and every pairing this
+  // game currently has is a player choosing something to do with an NPC. A caller with two
+  // people passes both explicitly and meets the ADR-0021 guard below.
+  prefsB: ComfortPreferences = NPC_OPEN_TO_EVERYTHING,
   out?: Availability,
 ): Availability {
   // Caller-owned result, because the wheel wants this answer every frame and the frame
@@ -630,6 +679,23 @@ export function availability(
 
   if (move.exit === "transfer" && !(prefsA.allowsTransfer && prefsB.allowsTransfer)) {
     return fail(r, "transfer-not-consented");
+  }
+
+  // **ADR-0021 — being moved needs a live yes, and there is no way to ask for one.**
+  //
+  // ADR-0018 let a move step and turn both participants on the strength of one of them
+  // picking it off a wheel. That holds while the *other* one is a character the game
+  // plays: an NPC cannot be asked, so its standing preferences are the whole of its
+  // consent and acting on them is not a shortcut. It does not hold when the other one is
+  // a person, who has chosen nothing and whose body is about to be walked and turned by
+  // somebody else's click.
+  //
+  // Narrowed here rather than remembered, because the gap is invisible from the geometry:
+  // every other check in this function is about where two bodies are, and this one is
+  // about whether one of them agreed. `B` only — `A` is the participant doing the
+  // choosing, and choosing is their live answer.
+  if (approachOf(move) !== "none" && prefsB.consent === "live") {
+    return fail(r, "needs-live-consent");
   }
 
   // Reach is judged at the height the move's own first constraint asks for. One
@@ -679,6 +745,7 @@ export function availabilityLabel(reason: UnavailableReason | null): string | nu
     case "muted-by-a": return "you turned this off";
     case "muted-by-b": return "they'd rather not";
     case "transfer-not-consented": return "needs both to agree";
+    case "needs-live-consent": return "needs their say-so";
   }
 }
 

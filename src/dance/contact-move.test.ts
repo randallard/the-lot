@@ -4,10 +4,12 @@ import {
   APPROACH_STEP,
   DEFAULT_MAX_TWIST_DEGREES,
   FACING_TOLERANCE,
+  NPC_OPEN_TO_EVERYTHING,
   OPEN_TO_EVERYTHING,
   approachOf,
   approachTarget,
   availability,
+  availabilityLabel,
   closestComfortable,
   offerReach,
   angleBetween,
@@ -526,9 +528,10 @@ describe("availability is geometry and consent", () => {
   });
 
   it("withholds it from someone who has muted its tags", () => {
-    const prefs: ComfortPreferences = { mutedTags: ["contact"], allowsTransfer: true };
+    const prefs: ComfortPreferences = { mutedTags: ["contact"], allowsTransfer: true, consent: "live" };
+    const npcPrefs: ComfortPreferences = { ...prefs, consent: "standing" };
     expect(availability(move, a, b, near[0], near[1], prefs).reason).toBe("muted-by-a");
-    expect(availability(move, a, b, near[0], near[1], OPEN_TO_EVERYTHING, prefs).reason)
+    expect(availability(move, a, b, near[0], near[1], OPEN_TO_EVERYTHING, npcPrefs).reason)
       .toBe("muted-by-b");
   });
 
@@ -538,15 +541,16 @@ describe("availability is geometry and consent", () => {
 
   it("needs both to consent before a part changes hands", () => {
     const lob = makeContactMove("lob", { ...move, exit: "transfer" });
-    const no: ComfortPreferences = { mutedTags: [], allowsTransfer: false };
+    const no: ComfortPreferences = { mutedTags: [], allowsTransfer: false, consent: "live" };
+    const npcNo: ComfortPreferences = { ...no, consent: "standing" };
     expect(availability(lob, a, b, near[0], near[1]).available).toBe(true);
     expect(availability(lob, a, b, near[0], near[1], no).reason).toBe("transfer-not-consented");
-    expect(availability(lob, a, b, near[0], near[1], OPEN_TO_EVERYTHING, no).reason)
+    expect(availability(lob, a, b, near[0], near[1], OPEN_TO_EVERYTHING, npcNo).reason)
       .toBe("transfer-not-consented");
   });
 
   it("checks consent before geometry — a muted move is never offered, near or far", () => {
-    const prefs: ComfortPreferences = { mutedTags: ["greeting"], allowsTransfer: true };
+    const prefs: ComfortPreferences = { mutedTags: ["greeting"], allowsTransfer: true, consent: "live" };
     expect(availability(move, a, b, far[0], far[1], prefs).reason).toBe("muted-by-a");
   });
 });
@@ -836,7 +840,7 @@ describe("the approach widens the offer", () => {
 
   it("does not let an approach override consent", () => {
     // Geometry is what the approach relaxes. Consent is not geometry.
-    const shy = { mutedTags: ["greeting"], allowsTransfer: true };
+    const shy: ComfortPreferences = { mutedTags: ["greeting"], allowsTransfer: true, consent: "standing" };
     const r = availability(move, a, b, at(0, 0, 0), at(0, reach * 0.5, Math.PI),
       OPEN_TO_EVERYTHING, shy);
     expect(r.available).toBe(false);
@@ -912,5 +916,72 @@ describe("squaring back up after the gesture", () => {
     squareUp(settled, hip, staged.a, staged.b);
     expect(settled.a.yaw).toBeCloseTo(settled.b.yaw, 12);
     expect(stanceHolds("side-by-side-within-reach", a, b, settled.a, settled.b, h)).toBeNull();
+  });
+});
+
+describe("being moved needs a live yes (ADR-0021)", () => {
+  // ADR-0018 let a move step and turn both participants on the strength of one of them
+  // picking it off a wheel. That holds while the other one is a character the game plays;
+  // it does not hold when the other one is a person who has chosen nothing. Narrowed here
+  // rather than remembered, because the gap is invisible from the geometry.
+  const move = fistBumpMove();
+  const c = move.constraints[0];
+  const a = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
+  const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
+  const h = meetAt(a, b);
+  const near = facingPair(a, b, 0.5);
+
+  const still = makeContactMove("still", { ...move, approach: "none" });
+
+  it("offers the shipping arrangement — a player choosing something to do with an NPC", () => {
+    const r = availability(move, a, b, near[0], near[1], OPEN_TO_EVERYTHING, NPC_OPEN_TO_EVERYTHING);
+    expect(r.available).toBe(true);
+  });
+
+  it("refuses to move a participant who could be asked and has not been", () => {
+    const r = availability(move, a, b, near[0], near[1], OPEN_TO_EVERYTHING, OPEN_TO_EVERYTHING);
+    expect(r.available).toBe(false);
+    expect(r.reason).toBe("needs-live-consent");
+    expect(availabilityLabel(r.reason)).toBe("needs their say-so");
+  });
+
+  it("does not care that the chooser is live — choosing is their answer", () => {
+    // The guard is on B alone. A picked the move off a wheel; that *is* the live yes.
+    for (const chooser of [OPEN_TO_EVERYTHING, NPC_OPEN_TO_EVERYTHING]) {
+      expect(availability(move, a, b, near[0], near[1], chooser, NPC_OPEN_TO_EVERYTHING).available)
+        .toBe(true);
+    }
+  });
+
+  it("draws the line at *moving* them, not at touching them", () => {
+    // The distinction ADR-0021 turns on. A move that does not approach never writes anyone's
+    // placement, so standing preferences remain the whole question — which is ADR-0016's
+    // answer and is not being narrowed. A move that steps and turns them is the new case.
+    expect(availability(still, a, b, near[0], near[1], OPEN_TO_EVERYTHING, OPEN_TO_EVERYTHING)
+      .available).toBe(true);
+    expect(availability(move, a, b, near[0], near[1], OPEN_TO_EVERYTHING, OPEN_TO_EVERYTHING)
+      .reason).toBe("needs-live-consent");
+  });
+
+  it("catches `turn` as well as `turn-and-step` — a turn is still being moved", () => {
+    const turner = makeContactMove("turner", { ...move, approach: "turn" });
+    expect(availability(turner, a, b, near[0], near[1], OPEN_TO_EVERYTHING, OPEN_TO_EVERYTHING)
+      .reason).toBe("needs-live-consent");
+  });
+
+  it("fails safe on a participant nobody classified", () => {
+    // `OPEN_TO_EVERYTHING` is "live", so a caller who builds preferences without thinking
+    // about consent mode gets the guard rather than the shortcut. The unsafe default would
+    // be the other way round, and this is the assertion that keeps it from drifting.
+    expect(OPEN_TO_EVERYTHING.consent).toBe("live");
+    expect(NPC_OPEN_TO_EVERYTHING.consent).toBe("standing");
+  });
+
+  it("still checks consent before geometry", () => {
+    // Out of reach *and* unasked reports the consent problem, not the distance one — the
+    // ordering ADR-0016 established, extended to the new check.
+    const far = [at(0, 0, 0), at(0, maxSeparation(a, b, h) * 5, Math.PI)] as const;
+    expect(availability(move, a, b, far[0], far[1], OPEN_TO_EVERYTHING, OPEN_TO_EVERYTHING)
+      .reason).toBe("needs-live-consent");
   });
 });

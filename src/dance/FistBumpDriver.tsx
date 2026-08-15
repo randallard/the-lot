@@ -52,6 +52,7 @@ import {
 import { bumpContact, envelopeWith, type BumpEnvelope } from "./fist-bump";
 import {
   APPROACH_SECONDS,
+  NPC_OPEN_TO_EVERYTHING,
   OPEN_TO_EVERYTHING,
   approachOf,
   approachTarget,
@@ -251,7 +252,9 @@ export function FistBumpDriver({
   availabilityRef,
   drivenKey = "right",
   playerComfort = OPEN_TO_EVERYTHING,
-  npcComfort = OPEN_TO_EVERYTHING,
+  // The NPC's standing preferences are the whole of its consent (ADR-0021) — it cannot be
+  // asked, so there is nothing else to wait for.
+  npcComfort = NPC_OPEN_TO_EVERYTHING,
   onActiveChange,
   onDone,
 }: FistBumpDriverProps) {
