@@ -4,6 +4,37 @@ _Last updated: 2026-08-15_
 
 ## Status / next
 
+**The twist now unwinds too (2026-08-15, fourth pass) — 🔴 unwatched.** Ryan on the twist:
+*"looks pretty good but the npc falls back to facing and the player character stays twisted."*
+Two symptoms, **one defect**, and the asymmetry is the tell — the driver held the staged
+placement to its last frame and dropped it, and afterwards each component resumed a different
+behaviour. The NPC has one (`lookAt(player)` while hovered) so it **snapped** square; the player
+has none, so the yaw the driver left behind just **stayed**. The half that looked right was
+right by accident. Narrative in
+[the fourth journal entry](journal/2026-08-15-4-the-twist-outlived-the-contact.md).
+
+- **Squaring up is part of the gesture.** The twist now unwinds across the **withdraw**, on the
+  same beat the arm returns to rest, so it costs no extra time in charge of the player.
+- `squareUp` is extracted from `approachTarget`, which already held this logic for turning them
+  *in* — so the heading they return to is by construction the one they were turned away from,
+  for either stance. The driver stages a `settle` beside `to`: same positions, twist removed.
+  You square up; you do not walk back.
+- **Through extend and hold the unwind parameter is a flat 0**, which writes the staged
+  placement exactly. `easePlacement` at 0 is the identity, so replacing the old snap with an
+  ease changed nothing inside the contact window — the grip's rule is intact.
+- By release both are already square, so the NPC's `lookAt` is a no-op. A test asserts the
+  settled NPC yaw *equals* `facingYaw` toward the player, which is the "nothing left to snap"
+  property stated as an equality rather than hoped for.
+- 🔴 **Correcting [ADR-0019](adr/0019-a-move-may-turn-a-body-past-facing-so-the-shoulder-leads.md),
+  which is accepted and immutable:** its Consequences say a twisted pair "are no longer square
+  to each other … the main thing to watch", which is true during the gesture and quietly implies
+  the state persists. It should have said the twist is **spent and returned within** the gesture,
+  and named the release point as the thing to get right. The decision is unaffected.
+
+544 tests (from 539), gates green.
+
+---
+
 **The body twists now (2026-08-15, third pass) — 🔴 unwatched.** Ryan watched the nudge and
 sent a screenshot of two characters almost torso to torso: *"we need the body to twist — that
 reach is too limited — in a real life fist bump there is a turn towards a person sometimes …
