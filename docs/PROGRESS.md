@@ -4,6 +4,53 @@ _Last updated: 2026-08-15_
 
 ## Status / next
 
+**The body twists now (2026-08-15, third pass) — 🔴 unwatched.** Ryan watched the nudge and
+sent a screenshot of two characters almost torso to torso: *"we need the body to twist — that
+reach is too limited — in a real life fist bump there is a turn towards a person sometimes …
+also maybe the upper arm is restricted so it can't reach out?"*
+[ADR-0019](adr/0019-a-move-may-turn-a-body-past-facing-so-the-shoulder-leads.md). Narrative in
+[the third journal entry](journal/2026-08-15-3-the-lateral-cost-was-a-choice.md). 539 tests
+(from 526), gates green.
+
+- **It is not the upper arm, and measuring said so.** `handReach` is exactly `upper + forearm`
+  (player: 0.220 + 0.325 = 0.545) and `reachPose` straightens all the way. What eats the arm is
+  the two terms `axialReach` subtracts: the **rise** to the contact height (0.380) and the
+  **lateral offset** (0.250), leaving 0.300 to travel.
+- **Turning inverts the lateral term's sign, which is the whole decision.** A pair facing each
+  other bump with the arm on the far side from the hand it meets, so each spends reach crossing
+  their own midline. Turn `t` toward the partner and the shoulder swings to `restX·cos t`
+  across and `restX·sin t` **along** — the cost shrinks and the shoulder starts closer.
+
+  | | square on | 20° | 35° | 90° | old flat limit |
+  |---|---|---|---|---|---|
+  | max separation | 0.917 | 1.198 | **1.427** | 1.909 | 1.215 |
+
+  At 35° the pair reach further apart than the flat `handReach + handReach` that preceded any of
+  this — which is what makes twisting a **fix** rather than a partial walk-back of ADR-0017.
+- **A budget, not a pose.** `twistFor` gives the smallest twist that reaches and **zero when
+  they can reach squarely**, so a close-up bump still reads square-on. The solve is the law of
+  cosines, not a search, and a test pins it as the exact inverse of `axialReach`.
+- **Twist is derived from placements, never plumbed** (`twistOf`). A pair angled toward each
+  other reach further whether an approach turned them or the player just stopped at an angle —
+  the same "make the wrong thing inexpressible" move as ADR-0017's rig split.
+- **A defect in yesterday's code, one day old:** `offerReach` passed a single twist to a
+  `maxSeparation` that had just become per-side, so the second character was measured square-on
+  and the radius came out 0.27 short. Caught by the test pinning the offer radius to the staging
+  arithmetic — the same check that caught the step-budget overshoot. **When two numbers are one
+  promise seen from opposite ends, assert them against each other, not each against a
+  constant.**
+- **Staged separation goes from about 0.73 to about 1.14** (combined body radii 0.45), and the
+  offer radius to about 2.64.
+
+**Add to the watch list:** a twisted pair are no longer square to each other, which is new on
+screen; 35° was chosen by arithmetic, not by eye, and the slider is in the editor. And 🔴 **the
+rise is now the biggest single term and is still a placeholder** — the player spends 0.38 of a
+0.545 arm getting down to the contact height, because `gripHeight` means two elbows and the
+player's rig stands 0.25 higher. That is step 3 of the dancer-size brief, and the likeliest
+reason a bump reads as an arm *dangling toward* rather than *reaching out*.
+
+---
+
 **The bump now brings you into position (2026-08-15, after the watch) — 🔴 also unwatched.**
 Ryan watched the arm work below and reported the bump *"requires way too close of a
 position — I thought we talked about nudging"*. Both halves right, and they are two problems.
