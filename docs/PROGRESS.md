@@ -4,6 +4,49 @@ _Last updated: 2026-08-15_
 
 ## Status / next
 
+**The fists meet like a punch now (2026-08-15, fifth pass) — 🔴 unwatched.** Ryan: *"in life,
+the forearm lines up like a punch to punch fists with a straight wrist — these are coming in at
+a real angle."*
+[ADR-0020](adr/0020-the-forearm-aims-along-the-contact-axis.md). Narrative in
+[the fifth journal entry](journal/2026-08-15-5-a-punch-that-stops.md). 545 tests, gates green.
+
+- **The angle was the solve working, not failing.** `reachPose` pins the elbow one *rigid*
+  upper arm from the shoulder, so both ends of the forearm are fixed and its direction is
+  whatever that demands. "Always plausibly attached" and "straight wrist" are competing goals,
+  and ADR-0017 chose the first this morning without noticing it was choosing.
+- 🔴 **It also retires an answer given too quickly.** Asked whether the upper arm was
+  restricted, I measured *maximum reach*, found `handReach = upper + forearm` used in full, and
+  said no. True, and a narrower question than the one asked — the rigid upper arm was not
+  capping reach, it was dictating the forearm's angle. The failure mode worth naming: picking
+  the reading of a question that a measurement already to hand can settle.
+- **The aim is authored** (`aim: "along-axis" | "natural"` on the constraint, editor control,
+  absent means along-axis). `punchPose` is `gripPose` with radius = the hand's own and
+  separation 0 — exactly what `bumpPose` was before this morning; `bumpPose` survives as
+  `"natural"`.
+- **And the height moved with it, because they are one decision.** A level forearm is only
+  attached if the shoulder can reach down to it. At `mean-elbow` the player's elbow lands
+  *inside their own torso* and the undrawn link needs 0.443 against a natural 0.220; at
+  `mean-shoulder` it needs 0.232. Reach rises 1.427 → 1.605 as a side effect.
+
+  | rule | player strain | NPC strain | max separation |
+  |---|---|---|---|
+  | mean-elbow | **0.223** | 0.084 | 1.427 |
+  | mean-shoulder | **0.012** | 0.062 | 1.605 |
+
+- 🔴 **`upperArmStrain` is nonzero by design now**, where ADR-0017 introduced it as a quantity
+  that should read zero. Still the right instrument — it now measures how well the authored
+  height suits the authored aim, which is the coupling ADR-0020 exists to name.
+- **The handedness guard has now been rewritten by three consecutive ADRs** — invisible in the
+  pose, then visible, now visible one level down at `elbowLocal`. It is tracking *where the
+  handedness fact lives*, and the fact keeps moving. Worth restating the reason each time,
+  because the version that goes wrong is rewriting it to match whatever the code does.
+
+**Add to the watch list:** contact has moved up to shoulder height, which is a visible change to
+where a bump happens. And reach has risen for the third time today — if it now reads as *too*
+far apart, `APPROACH_FRACTION` is the dial rather than any of the geometry.
+
+---
+
 **The twist now unwinds too (2026-08-15, fourth pass) — 🔴 unwatched.** Ryan on the twist:
 *"looks pretty good but the npc falls back to facing and the player character stays twisted."*
 Two symptoms, **one defect**, and the asymmetry is the tell — the driver held the staged
