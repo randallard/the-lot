@@ -17,7 +17,9 @@ import {
   HANDEDNESS,
   HORIZONTAL_RULES,
   APPROACHES,
+  CONTACT_AIMS,
   DEFAULT_MAX_TWIST_DEGREES,
+  aimOf,
   OUT_OF_RANGE,
   STANCES,
   approachOf,
@@ -127,6 +129,11 @@ const HANDEDNESS_LABELS = {
   "same-hand": "same hand (handshake)",
   "opposite-hand": "opposite hands",
   independent: "each side its own",
+} as const;
+
+const AIM_LABELS = {
+  "along-axis": "like a punch",
+  natural: "follow the arm",
 } as const;
 
 const APPROACH_LABELS = {
@@ -404,6 +411,22 @@ function Editor({ move: initial, cast, castOptions, castIds, onCast, onSave, onB
                 labels={VERTICAL_LABELS}
                 onChange={(vertical) => patchConstraint({ vertical })}
               />
+              <span style={{ color: "#666", fontSize: 10, display: "block", marginTop: 8 }}>
+                how the forearm aims
+              </span>
+              <Choice
+                value={aimOf(constraint)}
+                options={CONTACT_AIMS}
+                labels={AIM_LABELS}
+                onChange={(aim) => patchConstraint({ aim })}
+              />
+              <p style={HINT}>
+                "Like a punch" lays the forearm along the line between them with a straight
+                wrist, and lets the undrawn upper arm take up whatever is left — which only
+                looks right if the height above suits it, since a level forearm has to be
+                reachable from the shoulder. "Follow the arm" keeps the elbow a true upper arm
+                from the shoulder and lets the forearm tilt instead.
+              </p>
               {constraint.vertical === "absolute" && (
                 <div style={{ marginTop: 6 }}>
                   <SliderRow

@@ -49,6 +49,7 @@ import {
   type ArmPose,
   type Placement,
   gripHeight,
+  gripPose,
   localHeight,
   reachPose,
 } from "./arm-pose";
@@ -374,7 +375,44 @@ export function resolveContactAt(
 }
 
 /**
- * Place one character's bumping arm.
+ * Place one character's bumping arm **like a punch**: the forearm lying along the axis
+ * between the pair, horizontal, wrist straight, fist meeting fist head on.
+ *
+ * Ryan, watching the two-bone version: *"in life, the forearm lines up like a punch to
+ * punch fists with a straight wrist — these are coming in at a real angle."* He is right,
+ * and the angle was not a bug in the solve — it was the solve doing its job. Pinning the
+ * elbow one rigid upper arm from the shoulder leaves the forearm's direction as the only
+ * unknown, so the forearm tilts to whatever that geometry demands. Making the forearm's
+ * direction the **authored** thing turns it around: the hand goes at the contact, the
+ * forearm points along the axis, and the elbow lands wherever those two put it.
+ *
+ * **The undrawn upper arm takes the difference, which is what it is for** — the same
+ * compliant-link model {@link gripPose} has always used, and the reason ADR-0017 split the
+ * rig so the shoulder stays on the body while that link varies. {@link upperArmStrain}
+ * measures how far it is stretched; keeping that small is the *contact height's* job, not
+ * this function's, which is why the built-in bump meets at shoulder height (ADR-0020).
+ *
+ * `sign` is unused and deliberately still in the signature's sibling {@link bumpPose}: a
+ * punch does not care which shoulder it came from, because the contact and the axis
+ * determine the whole arm. The rig puts it on the right shoulder.
+ */
+export function punchPose(
+  out: ArmPose,
+  m: ArmMetrics,
+  c: BumpContact,
+  dirX: number,
+  dirZ: number,
+): ArmPose {
+  // `gripPose` places everything from a pivot along a direction, which is exactly this:
+  // radius = the hand's own radius so the fists touch rather than overlap, separation = 0
+  // so they meet head on rather than side by side, and the direction negated because
+  // `gripPose` reads it as pointing toward the partner while `dir` arrives pointing back
+  // toward this character.
+  return gripPose(out, m, -m.handRadius, 0, c.x, c.z, -dirX, -dirZ, localHeight(m, c.height));
+}
+
+/**
+ * Place one character's bumping arm so the **arm** stays natural, letting the forearm tilt.
  *
  * The whole gesture is now one sentence: **the fist goes `handRadius` back from the
  * contact point on this character's own side, and {@link reachPose} finds an elbow that

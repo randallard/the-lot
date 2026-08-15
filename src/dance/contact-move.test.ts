@@ -35,8 +35,10 @@ import {
 import {
   armMetrics,
   armPose,
+  elbowLocal,
   gripHeight,
   upperArmStrain,
+  vec3,
   type ArmMetrics,
   type Placement,
 } from "./arm-pose";
@@ -44,11 +46,11 @@ import {
   bumpContact,
   bumpPose,
   contactFraction,
+  punchPose,
   envelopeWith,
   localPartner,
   facingYaw,
   maxSeparation,
-  resolveContact,
   twistOf,
   SELF,
 } from "./fist-bump";
@@ -75,9 +77,17 @@ function resolution(): RoleResolution {
   return { pose: armPose(), side: "right", contact: bumpContact() };
 }
 
-/** The height the built-in fist bump meets at — its `mean-elbow` rule, resolved. */
+/**
+ * The height the built-in fist bump meets at, **resolved through its own authored rule**
+ * rather than assumed.
+ *
+ * It was `gripHeight` while that rule was `mean-elbow`. Hard-coding the rule a test's
+ * subject happens to use is how a test stops testing the subject and starts testing a
+ * copy of it — this now moves when the authored move moves.
+ */
 function meetAt(a: ArmMetrics, b: ArmMetrics) {
-  return gripHeight(a, b);
+  const c = fistBumpMove().constraints[0];
+  return c ? verticalHeight(c.vertical, a, b, c.absoluteHeight) : gripHeight(a, b);
 }
 
 /** Stand two characters facing each other, `frac` of the way to their reach limit. */
@@ -137,7 +147,18 @@ describe("the authored move and the hardcoded gesture agree", () => {
   const player = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
   const npc = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
 
-  it("produces the same pose the hardcoded bump did", () => {
+  // 🔴 **The comparison moved, and the reason is worth keeping.** This used to check
+  // `resolveRole` against `fist-bump.ts`'s own `resolveContact` + `bumpPose` — the path the
+  // driver took before the move was authored. That stopped being the same gesture when the
+  // built-in bump gained `vertical: "mean-shoulder"` and `aim: "along-axis"` (ADR-0020):
+  // `resolveContact` hard-codes mean-elbow and an untwisted split, which is now *a*
+  // gesture rather than *this* one. Comparing against it would assert the authored move had
+  // not changed, which is the opposite of what it is for.
+  //
+  // What has to hold is ADR-0016's property: `resolveRole`, which the editor and the
+  // runtime both call, is exactly the public pieces composed. Nothing extra, nothing
+  // different.
+  it("is exactly the resolver and the pose function composed", () => {
     const [pa, pb] = facingPair(player, npc);
 
     const authored = resolveRole(
@@ -145,16 +166,38 @@ describe("the authored move and the hardcoded gesture agree", () => {
     );
 
     const expected = armPose();
-    const cc = resolveContact(bumpContact(), player, npc, SELF, localPartner(at(0, 0), pa, pb));
-    // `"right-positive"` puts the anatomical right shoulder on +x, so `restSign` is +1
-    // — the same shoulder `resolveRole` solved against, which is now part of the answer.
-    bumpPose(expected, player, cc, cc.dirAX, cc.dirAZ, restSign("right-positive", "right"));
+    const local = localPartner(at(0, 0), pa, pb);
+    const cc = resolveConstraint(bumpContact(), c, player, npc, SELF, local);
+    punchPose(expected, player, cc, cc.dirAX, cc.dirAZ);
 
     expect(authored.pose.x).toBeCloseTo(expected.x, 12);
     expect(authored.pose.y).toBeCloseTo(expected.y, 12);
     expect(authored.pose.z).toBeCloseTo(expected.z, 12);
     expect(authored.pose.aimX).toBeCloseTo(expected.aimX, 12);
     expect(authored.pose.aimZ).toBeCloseTo(expected.aimZ, 12);
+  });
+
+  it("routes an authored `natural` aim to the two-bone arm instead", () => {
+    // Both aims are real and the difference is visible, which is why it is authored. This
+    // is the guard that the field is wired rather than decorative.
+    const [pa, pb] = facingPair(player, npc);
+    const bent = makeContactMove("bent", {
+      ...move,
+      constraints: [{ ...c, aim: "natural" as const }],
+    });
+    const bc = bent.constraints[0];
+    const r = resolveRole(
+      resolution(), scratch(), bent, bc, "A", player, npc, pa, pb, 1, "right-positive");
+
+    const expected = armPose();
+    const cc = resolveConstraint(bumpContact(), bc, player, npc, SELF,
+      localPartner(at(0, 0), pa, pb));
+    bumpPose(expected, player, cc, cc.dirAX, cc.dirAZ, restSign("right-positive", "right"));
+    expect(r.pose.y).toBeCloseTo(expected.y, 12);
+    // And it really is a different arm: the punch is horizontal, the natural one is not.
+    const punched = punchPose(armPose(), player, cc, cc.dirAX, cc.dirAZ);
+    expect(punched.aimY).toBe(0);
+    expect(Math.abs(r.pose.aimY)).toBeGreaterThan(0.01);
   });
 
   it("lands both fists at the same world height", () => {
@@ -230,19 +273,37 @@ describe("rig handedness — which shoulder the arm goes back to", () => {
   // the left arm" invisible to every assertion here. Since ADR-0017 the shoulder is an
   // input, so the sign is now visible in the pose itself, while the contact point — which
   // is a property of the pair, not of either arm — still does not move.
-  it("moves the arm but not the contact point", () => {
+  // 🔴 **Rewritten twice, and the second rewrite is the interesting one.** Originally this
+  // asserted the handedness sign made *no* difference to the pose — true of the
+  // one-segment arm, and the mechanism by which "it was driving the left arm" stayed
+  // invisible to every assertion in this file. ADR-0017 made the sign visible in the pose,
+  // so it was flipped to assert a difference. ADR-0020's punch alignment hides it again,
+  // and legitimately: the contact and the axis determine the whole forearm, so which
+  // shoulder it came from genuinely does not change where it is drawn in rig space.
+  //
+  // The guard survives one level down. The pose is written into the **shoulder's** frame
+  // (`elbowLocal`), and that conversion is where the side lives — so a pose on the wrong
+  // shoulder still lands the arm in the wrong place, and this is where to catch it.
+  it("puts the same forearm on different shoulders, without moving the contact point", () => {
     const [pa, pb] = facingPair(player, npc);
     const right = resolveRole(
       resolution(), scratch(), move, c, "A", player, npc, pa, pb, 1, "right-positive");
     const rx = right.pose.x;
     const rc = { x: right.contact.x, z: right.contact.z, height: right.contact.height };
+    const rLocal = elbowLocal(vec3(), right.pose, player, restSign("right-positive", right.side));
+
     const left = resolveRole(
       resolution(), scratch(), move, c, "A", player, npc, pa, pb, 1, "left-positive");
+    const lLocal = elbowLocal(vec3(), left.pose, player, restSign("left-positive", left.side));
 
     expect(left.contact.x).toBeCloseTo(rc.x, 12);
     expect(left.contact.z).toBeCloseTo(rc.z, 12);
     expect(left.contact.height).toBeCloseTo(rc.height, 12);
-    expect(left.pose.x).not.toBeCloseTo(rx, 6);
+    // Same forearm in rig space — the punch does not care which shoulder fed it...
+    expect(left.pose.x).toBeCloseTo(rx, 12);
+    // ...and a different forearm once it is put on a shoulder, which is what gets drawn.
+    expect(lLocal.x).not.toBeCloseTo(rLocal.x, 6);
+    expect(lLocal.x).toBeCloseTo(rLocal.x + 2 * player.restX, 9);
   });
 
   it("still lands both hands on the contact point, whichever shoulder they came from", () => {
@@ -253,7 +314,12 @@ describe("rig handedness — which shoulder the arm goes back to", () => {
       const hand = handOf(r.pose, player);
       expect(Math.hypot(hand.x - r.contact.x, hand.z - r.contact.z)).toBeCloseTo(
         player.handRadius, 10);
-      expect(upperArmStrain(r.pose, player, restSign(rig, r.side))).toBeCloseTo(0, 10);
+      // 🔴 **This used to assert zero strain, and cannot any more** — a punch-aligned
+      // forearm makes the undrawn upper arm the compliant part by construction (ADR-0020),
+      // so the honest assertion is that the stretch stays *small* rather than absent.
+      // Bounded against the upper arm's own length: half again is a link nobody would see.
+      const strain = upperArmStrain(r.pose, player, restSign(rig, r.side));
+      expect(strain).toBeLessThan(player.elbowReach * 0.5);
     }
   });
 });

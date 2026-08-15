@@ -55,6 +55,7 @@ import {
   type BumpContact,
   bumpPose,
   contactFraction,
+  punchPose,
   facingYaw,
   localPartner,
   maxSeparation,
@@ -119,6 +120,27 @@ export type HorizontalRule = "reach-fraction" | "midpoint" | "at-a" | "at-b";
 export const HORIZONTAL_RULES: readonly HorizontalRule[] = [
   "reach-fraction", "midpoint", "at-a", "at-b",
 ];
+
+/**
+ * How the engaged forearm is aimed once the hand is where the contact wants it.
+ *
+ * - `"along-axis"` — the forearm lies along the line between the pair, horizontal, wrist
+ *   straight. A punch. The undrawn upper arm takes up whatever is left between it and the
+ *   shoulder, which is the compliant-link model ADR-0017 split the rig for.
+ * - `"natural"` — the elbow is pinned one upper arm from the shoulder and the forearm
+ *   tilts to suit. The arm is always plausibly attached; the wrist is not straight.
+ *
+ * Both are legitimate and the difference is visible, which is why it is authored rather
+ * than chosen. Ryan, on a bump built the second way: *"in life, the forearm lines up like
+ * a punch to punch fists with a straight wrist — these are coming in at a real angle."*
+ * A hand landing on someone's shoulder would want the other one.
+ *
+ * **`"along-axis"` only stays attached if the contact height suits it** — a horizontal
+ * forearm needs the upper arm to span from the shoulder down to it, so a contact far below
+ * the shoulder stretches the link however the arm is aimed. See {@link VerticalRule}.
+ */
+export type ContactAim = "along-axis" | "natural";
+export const CONTACT_AIMS: readonly ContactAim[] = ["along-axis", "natural"];
 
 /** How high it sits. Resolves in **world** space; callers localise per character. */
 export type VerticalRule = "mean-elbow" | "mean-shoulder" | "absolute";
@@ -223,6 +245,14 @@ export interface ContactConstraint {
   anchors: readonly [Anchor, Anchor];
   horizontal: HorizontalRule;
   vertical: VerticalRule;
+  /**
+   * How the forearm is aimed (ADR-0020). Optional; {@link aimOf} defaults it.
+   *
+   * An absent value means `"along-axis"`, which is what every move authored before this
+   * field existed was previewed and played with — `bumpPose` aimed along the axis until
+   * ADR-0017's two-bone solve replaced it earlier the same day.
+   */
+  aim?: ContactAim;
   /** World Y, used only when `vertical` is `"absolute"`. */
   absoluteHeight: number;
 }
@@ -271,6 +301,11 @@ export interface ContactMove {
 
 export function totalSeconds(e: ContactEnvelope): number {
   return e.extend + e.hold + e.withdraw;
+}
+
+/** This constraint's forearm aim, defaulting an absent one to `"along-axis"`. */
+export function aimOf(c: ContactConstraint): ContactAim {
+  return c.aim ?? "along-axis";
 }
 
 /**
@@ -861,7 +896,11 @@ export function resolveRole(
   // shoulder is now an input to the pose rather than a by-product of it.
   const sign = restSign(rig, out.side);
   restPose(scratch.rest, self, sign);
-  bumpPose(out.pose, self, out.contact, out.contact.dirAX, out.contact.dirAZ, sign);
+  if (aimOf(c) === "along-axis") {
+    punchPose(out.pose, self, out.contact, out.contact.dirAX, out.contact.dirAZ);
+  } else {
+    bumpPose(out.pose, self, out.contact, out.contact.dirAX, out.contact.dirAZ, sign);
+  }
   blendPose(out.pose, scratch.rest, out.pose, blend);
   return out;
 }
@@ -946,7 +985,13 @@ export function fistBumpMove(): ContactMove {
           makeAnchor("B", { side: "right", part: "hand", hand: "closed" }),
         ] as const,
         horizontal: "reach-fraction",
-        vertical: "mean-elbow",
+        // **Shoulder, not elbow** (ADR-0020). A horizontal forearm needs the undrawn upper
+        // arm to span from the shoulder down to it, and at mean-elbow height that span is
+        // 0.443 against a natural 0.220 on the player — a forearm floating half an arm
+        // from its own body. At mean-shoulder it is 0.232 against 0.220. It also buys
+        // reach, since the arm stops spending itself on the descent.
+        vertical: "mean-shoulder",
+        aim: "along-axis",
       }),
     ],
   });
