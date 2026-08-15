@@ -1,5 +1,5 @@
 # ADR-0018: A contact move may bring the pair into position, and being chosen is the consent
-- Status: Accepted
+- Status: Superseded by [ADR-0021](0021-being-moved-needs-a-live-yes.md)
 - Date: 2026-08-15
 - Deciders: Ryan, Claude
 

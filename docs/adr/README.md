@@ -106,9 +106,10 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0015](0015-radial-wheel-dead-zone-cancels-selection-unbounded.md) | The radial wheel cancels in the dead zone, and selects without an outer bound | Accepted |
 | [0016](0016-contact-moves-are-authored-constraints-not-keyframes.md) | A contact move is authored as constraints on body parts, not as a keyframed pose | Accepted |
 | [0017](0017-an-arm-is-two-segments-with-a-pinned-shoulder.md) | An arm is two segments — a pinned shoulder, a free elbow, and a compliant link between them | Accepted |
-| [0018](0018-a-contact-move-may-bring-the-pair-into-position.md) | A contact move may bring the pair into position, and being chosen is the consent | Accepted |
+| [0018](0018-a-contact-move-may-bring-the-pair-into-position.md) | A contact move may bring the pair into position, and being chosen is the consent | Superseded by ADR-0021 |
 | [0019](0019-a-move-may-turn-a-body-past-facing-so-the-shoulder-leads.md) | A move may turn a body past facing, so the working shoulder leads | Accepted |
 | [0020](0020-the-forearm-aims-along-the-contact-axis.md) | The forearm's aim is authored, and a punch meets at shoulder height | Accepted |
+| [0021](0021-being-moved-needs-a-live-yes.md) | Being moved needs a live yes, so the approach is narrowed to NPC receivers | Accepted |
 
 ## Decisions this repo inherits
 
