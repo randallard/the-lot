@@ -109,6 +109,11 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
     right: { current: null } as React.RefObject<THREE.Group | null>,
   }).current;
   const drivenArms = useRef({ left: false, right: false });
+  // Placement ownership for an approaching move (ADR-0018). Same contract as
+  // `drivenArms`, one level up: while a flag is set that character's own frame loop
+  // leaves its transform alone.
+  const playerBodyDriven = useRef(false);
+  const npcBodyDriven = useRef(false);
 
   const playerPos = useRef(new THREE.Vector3(
     initialPlayerPos?.x ?? 0,
@@ -304,7 +309,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
 
       <CameraRig target={playerPos} offset={cameraOffset} lookAtOffset={cameraLookAtOffset} />
       <Ground />
-      <Player positionRef={playerPos} inputDir={inputDir} rushMode={rushMode} rushTarget={rushTarget} hidden={hidePlayer} bodyShape={bodyShapes?.["player"]} animController={playerAnimController} rigRef={playerRig} forearms={playerForearms} drivenArms={drivenArms} handPose={bumping ? bumpHands.player : "open"} />
+      <Player positionRef={playerPos} inputDir={inputDir} rushMode={rushMode} rushTarget={rushTarget} hidden={hidePlayer} bodyShape={bodyShapes?.["player"]} animController={playerAnimController} rigRef={playerRig} forearms={playerForearms} drivenArms={drivenArms} drivenBody={playerBodyDriven} handPose={bumping ? bumpHands.player : "open"} />
       {part1Spawned && !part1Collected && (
         <BotParts
           position={[PART1_POS.x, PART1_POS.y, PART1_POS.z]}
@@ -330,6 +335,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
           wheelHandlers={npcWheelHandlers}
           rigRef={npcRig}
           forearms={npcForearms}
+          drivenBody={npcBodyDriven}
           relaxing={npcRelaxing}
           talking={npcTalking}
           screenPos={npcScreenPos}
@@ -352,6 +358,8 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
           npcForearm={npcForearms.left}
           drivenKey="left"
           drivenArms={drivenArms}
+          playerBodyDriven={playerBodyDriven}
+          npcBodyDriven={npcBodyDriven}
           playerShape={bodyShapes?.["player"] ?? PLAYER_DEFAULTS}
           npcShape={bodyShapes?.["ryan"] ?? NPC_DEFAULTS}
           availabilityRef={bumpAvailability}

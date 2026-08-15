@@ -37,7 +37,7 @@
  * character may still be drifting when the bump begins.
  */
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import {
@@ -51,15 +51,20 @@ import {
 } from "./arm-pose";
 import { bumpContact, envelopeWith, type BumpEnvelope } from "./fist-bump";
 import {
+  APPROACH_SECONDS,
   OPEN_TO_EVERYTHING,
+  approachOf,
+  approachTarget,
   availability,
   fistBumpMove,
   metricsFor,
   resolveRole,
   restSign,
   totalSeconds,
+  verticalHeight,
   type Availability,
   type ComfortPreferences,
+  type Approach,
   type ContactMove,
   type RigHandedness,
   type RoleResolution,
@@ -87,6 +92,19 @@ export interface FistBumpDriverProps {
   npcForearm: React.RefObject<THREE.Group | null>;
   /** Set while the driver owns the player's arm, so `Player` leaves it alone. */
   drivenArms: React.RefObject<{ left: boolean; right: boolean }>;
+  /**
+   * Set while the driver owns each character's **placement** — position and heading.
+   *
+   * ADR-0010's owned-channel rule applied to the body, which is what an approach needs
+   * (ADR-0018): during the step both characters are being written from here, and a
+   * component still running its own movement would fight for the same transform. The
+   * arms already work exactly this way; this is the same contract one level up.
+   *
+   * Two separate refs rather than one object with two fields, because each one is handed
+   * to a *different* component and a ref is the only thing a component can watch.
+   */
+  playerBodyDriven: React.RefObject<boolean>;
+  npcBodyDriven: React.RefObject<boolean>;
   /**
    * Which key of `drivenArms` corresponds to the arm this driver is writing.
    *
@@ -149,6 +167,57 @@ function readPlacement(out: Placement, rig: THREE.Group): void {
   out.yaw = rig.rotation.y;
 }
 
+function copyPlacement(out: Placement, from: Placement): void {
+  out.x = from.x;
+  out.z = from.z;
+  out.yaw = from.yaw;
+}
+
+/** Same smoothstep the envelope uses, so the step and the gesture share an easing. */
+function smoothstep(x: number): number {
+  const k = x < 0 ? 0 : x > 1 ? 1 : x;
+  return k * k * (3 - 2 * k);
+}
+
+function writePlacement(rig: THREE.Group, p: Placement): void {
+  rig.position.x = p.x;
+  rig.position.z = p.z;
+  rig.rotation.y = p.yaw;
+}
+
+/**
+ * Move a rig a fraction of the way from one placement to another.
+ *
+ * Yaw is interpolated on the **shortest arc** rather than between two raw numbers: a
+ * character at 3.0 rad turning to −3.0 should sweep 0.28 rad through π, not 6 rad the long
+ * way round, and the long way round is a character spinning on the spot to shake a hand.
+ * `position.y` is left alone — it is the jump and bob channel, and it is not ours.
+ */
+function easePlacement(rig: THREE.Group, from: Placement, to: Placement, k: number): void {
+  rig.position.x = from.x + (to.x - from.x) * k;
+  rig.position.z = from.z + (to.z - from.z) * k;
+  const delta = Math.atan2(Math.sin(to.yaw - from.yaw), Math.cos(to.yaw - from.yaw));
+  rig.rotation.y = from.yaw + delta * k;
+}
+
+/** The two placement-ownership flags, as the driver holds them. */
+interface BodyOwnership {
+  player: React.RefObject<boolean>;
+  npc: React.RefObject<boolean>;
+}
+
+/** Take ownership of the placements this approach is going to write. */
+function claim(bodies: BodyOwnership, approach: Approach): void {
+  const owned = approach !== "none";
+  bodies.player.current = owned;
+  bodies.npc.current = owned;
+}
+
+function release(bodies: BodyOwnership): void {
+  bodies.player.current = false;
+  bodies.npc.current = false;
+}
+
 /**
  * Write one side's pose onto its **forearm** group, the way `DanceFloor` does.
  *
@@ -179,6 +248,8 @@ export function FistBumpDriver({
   playerForearm,
   npcForearm,
   drivenArms,
+  playerBodyDriven,
+  npcBodyDriven,
   playerShape,
   npcShape,
   move = DEFAULT_MOVE,
@@ -205,12 +276,35 @@ export function FistBumpDriver({
     constraintId: "",
     owning: false,
     announced: false,
+    // The approach's frozen start and end, captured on the first frame of a bump.
+    //
+    // **Frozen, unlike the contact point, and for the opposite reason.** Contact is
+    // resolved per frame because either character may be drifting; the approach *is* the
+    // thing moving them, so a target recomputed from positions it is itself changing is a
+    // feedback loop that would creep. Two fixed placements and an eased parameter cannot.
+    from: { a: { x: 0, z: 0, yaw: 0 }, b: { x: 0, z: 0, yaw: 0 } } as {
+      a: Placement; b: Placement;
+    },
+    to: { a: { x: 0, z: 0, yaw: 0 }, b: { x: 0, z: 0, yaw: 0 } } as {
+      a: Placement; b: Placement;
+    },
+    staged: false,
   });
+
+  // Ownership is released on the frame a bump ends — but only if that frame runs. An
+  // unmount mid-gesture (the NPC despawning, a route change) would otherwise leave both
+  // flags set, and a set flag means `Player` never moves again. A frozen player is a much
+  // worse failure than a dropped bump, so the release is also a teardown.
+  useEffect(() => {
+    const bodies = { player: playerBodyDriven, npc: npcBodyDriven };
+    return () => release(bodies);
+  }, [playerBodyDriven, npcBodyDriven]);
 
   useFrame(() => {
     const s = scratch.current;
     const req = request.current;
     const driven = drivenArms.current;
+    const bodies = { player: playerBodyDriven, npc: npcBodyDriven };
     const pRig = playerRig.current;
     const nRig = npcRig.current;
     const pArm = playerForearm.current;
@@ -269,12 +363,15 @@ export function FistBumpDriver({
       );
     }
 
-    // Nothing running: release the arm exactly once, then stay out of the way.
+    // Nothing running: release the arm and both bodies exactly once, then stay out of
+    // the way.
     if (req.startedAt === null) {
       if (s.owning) {
         driven.left = false;
         driven.right = false;
+        release(bodies);
         s.owning = false;
+        s.staged = false;
       }
       if (s.announced) {
         s.announced = false;
@@ -283,14 +380,59 @@ export function FistBumpDriver({
       return;
     }
 
-    const elapsed = (performance.now() - req.startedAt) / 1000;
-    envelopeWith(elapsed, move.envelope.extend, move.envelope.hold, move.envelope.withdraw, s.env);
+    // The approach, staged once on the first frame of the bump (ADR-0018). Both
+    // placements are read *before* anything is written, so `from` is genuinely where the
+    // pair were standing when the player asked rather than one frame into being moved.
+    if (!s.staged) {
+      copyPlacement(s.from.a, s.self);
+      copyPlacement(s.from.b, s.other);
+      approachTarget(
+        s.to, move, m.player, m.npc, s.from.a, s.from.b,
+        verticalHeight(constraint.vertical, m.player, m.npc, constraint.absoluteHeight),
+      );
+      s.staged = true;
+    }
 
-    if (s.env.done || elapsed > totalSeconds(move.envelope)) {
+    const approach = approachOf(move);
+    const approachSeconds = approach === "none" ? 0 : APPROACH_SECONDS;
+    const elapsed = (performance.now() - req.startedAt) / 1000;
+
+    // Claim both bodies for the whole gesture, not just the approach: letting go at the
+    // moment the fists meet would hand the player back their controls mid-contact and
+    // let them walk out of a grip they are still in. Claimed every frame, like the arms,
+    // so a remount cannot leave a component writing a transform the driver also writes.
+    claim(bodies, approach);
+    s.owning = true;
+
+    if (elapsed < approachSeconds) {
+      const k = smoothstep(elapsed / approachSeconds);
+      easePlacement(pRig, s.from.a, s.to.a, k);
+      easePlacement(nRig, s.from.b, s.to.b, k);
+      // The arms stay at rest through the approach: `envelopeWith` has not started, and
+      // reaching while still walking in is the "detached arm" screenshot with extra steps.
+      return;
+    }
+
+    // Snapped, not eased, and for the grip's reason: the envelope solves contact against
+    // these placements, so arriving *nearly* at the staged pair means every frame of the
+    // hold is solved against a pose the bodies never quite took.
+    if (approach !== "none") {
+      writePlacement(pRig, s.to.a);
+      writePlacement(nRig, s.to.b);
+      readPlacement(s.self, pRig);
+      readPlacement(s.other, nRig);
+    }
+
+    const played = elapsed - approachSeconds;
+    envelopeWith(played, move.envelope.extend, move.envelope.hold, move.envelope.withdraw, s.env);
+
+    if (s.env.done || played > totalSeconds(move.envelope)) {
       req.startedAt = null;
       driven.left = false;
       driven.right = false;
+      release(bodies);
       s.owning = false;
+      s.staged = false;
       if (s.announced) {
         s.announced = false;
         onActiveChange?.(false);

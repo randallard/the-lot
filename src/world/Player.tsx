@@ -55,11 +55,24 @@ interface PlayerProps {
   forearms?: { left: React.RefObject<THREE.Group | null>; right: React.RefObject<THREE.Group | null> };
   /** Sides a driver is currently posing. Read per frame; usually empty. */
   drivenArms?: React.RefObject<{ left: boolean; right: boolean }>;
+  /**
+   * Set while a driver owns this player's **placement** — an authored move stepping them
+   * into position (ADR-0018).
+   *
+   * The same owned-channel contract the arms already use, one level up. While it is set,
+   * input and the rush target are ignored: two writers on one transform is the defect
+   * `drivenArms` exists to prevent, and the player walking out of a bump they asked for
+   * is the version of it that would actually be visible.
+   *
+   * Deliberately narrow. The jump/bob offset and the mirror into `positionRef` both keep
+   * running, because the rest of the game still needs to know where the player is.
+   */
+  drivenBody?: React.RefObject<boolean>;
   /** The whole character group, for a driver that needs this player's yaw as well as position. */
   rigRef?: React.RefObject<THREE.Group | null>;
 }
 
-export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bodyShape, animController, forearms, drivenArms, rigRef, handPose = "open" }: PlayerProps) {
+export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bodyShape, animController, forearms, drivenArms, drivenBody, rigRef, handPose = "open" }: PlayerProps) {
   const shape = bodyShape ?? PLAYER_DEFAULTS;
   const ownGroup       = useRef<THREE.Group>(null);
   const groupRef       = rigRef ?? ownGroup;
@@ -175,7 +188,13 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
     groupRef.current.position.y = BASE_Y + rp.bodyDeltaY;
 
     // --- Movement ---
-    if (isRushing) {
+    // Skipped entirely while a driver owns the placement: it is writing position and yaw
+    // from its own frame loop, and an input vector added on top would drag the player out
+    // of a staged pair mid-gesture.
+    const bodyDriven = drivenBody?.current === true;
+    if (bodyDriven) {
+      // Nothing — the driver has it.
+    } else if (isRushing) {
       const target = rushTarget.current!;
       const toTarget = new THREE.Vector3(
         target.x - groupRef.current.position.x,

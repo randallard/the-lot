@@ -46,6 +46,16 @@ interface NpcProps {
    * near end inside a torso.
    */
   forearms?: { left: React.RefObject<THREE.Group | null>; right: React.RefObject<THREE.Group | null> };
+  /**
+   * Set while a driver owns this NPC's **placement** — an authored move stepping them
+   * into position (ADR-0018).
+   *
+   * The whole behaviour loop stands down while it is set. This component writes position
+   * for its walk targets *and* rotation for its look-at, and both are transforms the
+   * driver is writing from its own frame loop — the same owned-channel contract the arms
+   * already use, one level up.
+   */
+  drivenBody?: React.RefObject<boolean>;
   /** The whole character group, for a driver that needs this NPC's yaw as well as position. */
   rigRef?: React.RefObject<THREE.Group | null>;
   /**
@@ -66,7 +76,7 @@ const WALK_SPEED = 1.5;
 const SIP_INTERVAL = 4000;
 const UKE_DELAY = 12000;
 
-export function Npc({ position, playerPosition, onClick, relaxing, talking, screenPos, worldPosRef, bodyShape, forearms, rigRef, wheelHandlers, handPose = "open" }: NpcProps) {
+export function Npc({ position, playerPosition, onClick, relaxing, talking, screenPos, worldPosRef, bodyShape, forearms, drivenBody, rigRef, wheelHandlers, handPose = "open" }: NpcProps) {
   const shape = bodyShape ?? NPC_DEFAULTS;
   const ownGroup = useRef<THREE.Group>(null);
   const groupRef = rigRef ?? ownGroup;
@@ -149,6 +159,11 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
+
+    // A driver owns this NPC's placement — position *and* heading. Stand down completely
+    // rather than skipping the walk alone: the look-at below writes rotation, which is
+    // exactly what an approach's turn is writing.
+    if (drivenBody?.current === true) return;
 
     // When talking or hovered, just face the player and freeze all other movement
     if (talking || hovered.current) {

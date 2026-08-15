@@ -48,6 +48,7 @@ import {
   gripHeight,
   restPose,
   blendPose,
+  PERSONAL_SPACE,
 } from "./arm-pose";
 import type { CharacterBodyShape } from "../services/body-shapes";
 import {
@@ -151,6 +152,48 @@ export const HANDEDNESS: readonly Handedness[] = ["same-hand", "opposite-hand", 
  */
 export type ContactExit = "return" | "transfer";
 
+/**
+ * How much a move may move the pair to make itself possible.
+ *
+ * The stance says what relation the move needs. This says whether the move is willing to
+ * **produce** that relation rather than only test for it — the split ADR-0018 turns on.
+ *
+ * - `"none"` — the pair must already be standing right. The move is a pure test.
+ * - `"turn"` — each may be turned to face the other. Positions are untouched.
+ * - `"turn-and-step"` — each may also take a bounded step along the line between them,
+ *   to close or open the gap to something comfortable.
+ *
+ * A move that approaches drops the **facing** half of its stance check, because it is
+ * about to fix exactly that. It keeps the distance half, widened by {@link APPROACH_STEP}:
+ * a nudge is a step, not a walk across the room, and a move that teleported its
+ * participants together would be a different and much more alarming feature.
+ */
+export type Approach = "none" | "turn" | "turn-and-step";
+export const APPROACHES: readonly Approach[] = ["none", "turn", "turn-and-step"];
+
+/**
+ * How far, in world units, `"turn-and-step"` may close a gap — **in total, across both
+ * participants**, so each takes half of it at most.
+ *
+ * Sized so it reads as a step rather than a walk: the default cast's bodies are around
+ * 0.2 radius, so half of this is roughly one body width of travel each. It is the number
+ * that decides how forgiving the wheel feels, and the first thing to turn if a bump is
+ * still fussy to line up.
+ */
+export const APPROACH_STEP = 1.5;
+
+/**
+ * Where in the reach window an approach stages the pair, as a fraction of their limit.
+ *
+ * Comfortably inside it rather than at the edge, for the same reason the editor's preview
+ * is: a pair standing at the very limit have both arms straight, which looks strained and
+ * leaves nothing for either of them drifting a little before the envelope finishes.
+ */
+export const APPROACH_FRACTION = 0.8;
+
+/** How long the approach takes, in seconds — a beat of moving, before the gesture. */
+export const APPROACH_SECONDS = 0.35;
+
 export interface ContactConstraint {
   id: string;
   anchors: readonly [Anchor, Anchor];
@@ -174,6 +217,14 @@ export interface ContactMove {
   handedness: Handedness;
   outOfRange: OutOfRange;
   exit: ContactExit;
+  /**
+   * Whether this move brings the pair into position, and how far (ADR-0018).
+   *
+   * Optional in the type and defaulted by {@link approachOf}, because moves authored
+   * before this field exists are already in `localStorage` — an absent value means the
+   * old behaviour, which is `"none"`.
+   */
+  approach?: Approach;
   constraints: ContactConstraint[];
   envelope: ContactEnvelope;
   /**
@@ -188,6 +239,17 @@ export interface ContactMove {
 
 export function totalSeconds(e: ContactEnvelope): number {
   return e.extend + e.hold + e.withdraw;
+}
+
+/**
+ * This move's approach, defaulting an absent one to `"none"`.
+ *
+ * Read through here rather than off the field, so a move stored before ADR-0018 keeps
+ * behaving the way it did when it was authored instead of silently gaining the ability to
+ * move its participants.
+ */
+export function approachOf(move: ContactMove): Approach {
+  return move.approach ?? "none";
 }
 
 // ---------------------------------------------------------------------------
@@ -245,6 +307,110 @@ export const FACING_TOLERANCE = (75 * Math.PI) / 180;
 /** Smallest absolute angle between two headings, in radians. */
 export function angleBetween(a: number, b: number): number {
   return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+}
+
+/**
+ * The furthest apart this move may be *offered*, which is not the same as the furthest
+ * apart it may be *performed*.
+ *
+ * That difference is ADR-0018's whole point: a move that steps is offered from a step
+ * further out and closes the gap itself. `"none"` and `"turn"` do not move anybody, so
+ * for them this is exactly the reach limit.
+ */
+export function offerReach(move: ContactMove, a: ArmMetrics, b: ArmMetrics, height: number): number {
+  const reach = maxSeparation(a, b, height);
+  if (approachOf(move) !== "turn-and-step") return reach;
+  // Measured from where the approach *stages* them, not from the reach limit, so the gap
+  // actually closed is never more than the step budget. Taking it from the limit instead
+  // overshoots by the width of the comfortable margin — small, and exactly the kind of
+  // quiet disagreement between a documented promise and its arithmetic that this
+  // subsystem keeps getting caught by.
+  const staged = reach * APPROACH_FRACTION + APPROACH_STEP;
+  return staged > reach ? staged : reach;
+}
+
+/**
+ * The closest this pair may comfortably stand — torsos not overlapping, with the same
+ * daylight between them that arms keep from each other.
+ *
+ * The lower end of the band an approach stages into. A step that closed the gap past this
+ * would push two bodies through one another to make a gesture work, which is exactly the
+ * kind of thing being willing to move people has to be careful about.
+ */
+export function closestComfortable(a: ArmMetrics, b: ArmMetrics): number {
+  return a.bodyRadius + b.bodyRadius + PERSONAL_SPACE;
+}
+
+/**
+ * Where this move wants the pair standing, given where they are now.
+ *
+ * The staging counterpart of {@link stanceHolds} for a *moving* move: that function asks
+ * whether the pair satisfy the stance, {@link stancePlacements} builds an abstract pair
+ * who do, and this one asks what these two — here, facing however they are facing — would
+ * have to become. Pure, so the driver eases toward an answer it did not compute itself and
+ * a test can assert the destination without a renderer.
+ *
+ * **Separation is clamped, not set.** A pair already standing comfortably are left where
+ * they are and only turned, so the nudge nudges and otherwise keeps out of the way. Only
+ * the part of the gap outside the comfortable band is closed, and each covers half of it,
+ * because who reaches further is already {@link contactFraction}'s job and asking the
+ * longer-armed character to also do more of the walking would double-count it.
+ *
+ * Degenerate co-location keeps each character's own heading, since there is no axis to
+ * face along and inventing one would spin them both on the spot.
+ */
+export function approachTarget(
+  out: { a: Placement; b: Placement },
+  move: ContactMove,
+  a: ArmMetrics,
+  b: ArmMetrics,
+  pa: Placement,
+  pb: Placement,
+  height: number,
+): { a: Placement; b: Placement } {
+  const approach = approachOf(move);
+  const dx = pb.x - pa.x;
+  const dz = pb.z - pa.z;
+  const sep = Math.hypot(dx, dz);
+
+  out.a.x = pa.x; out.a.z = pa.z; out.a.yaw = pa.yaw;
+  out.b.x = pb.x; out.b.z = pb.z; out.b.yaw = pb.yaw;
+  if (approach === "none" || sep < 1e-6) return out;
+
+  // Facing first: it costs nothing and both approach modes do it.
+  if (move.stance === "side-by-side-within-reach") {
+    // One shared heading, and the one that turns each of them least: the mean, taken on
+    // the circle rather than as an average of two numbers that may straddle ±π.
+    const mean = Math.atan2(
+      Math.sin(pa.yaw) + Math.sin(pb.yaw),
+      Math.cos(pa.yaw) + Math.cos(pb.yaw),
+    );
+    out.a.yaw = mean;
+    out.b.yaw = mean;
+  } else {
+    out.a.yaw = facingYaw(pa, pb);
+    out.b.yaw = facingYaw(pb, pa);
+  }
+
+  if (approach !== "turn-and-step") return out;
+
+  const near = closestComfortable(a, b);
+  const far = maxSeparation(a, b, height) * APPROACH_FRACTION;
+  // A pair whose comfortable band is empty — bodies so wide they cannot both fit inside
+  // their own reach — are left at the near edge rather than being pulled through each
+  // other. The bump will be strained and `upperArmStrain` will say so, which is the
+  // honest failure for a pairing the body editor allows and the geometry does not.
+  const want = far < near ? near : sep < near ? near : sep > far ? far : sep;
+  const half = (want - sep) / 2;
+  if (half === 0) return out;
+
+  const ux = dx / sep;
+  const uz = dz / sep;
+  out.a.x = pa.x - ux * half;
+  out.a.z = pa.z - uz * half;
+  out.b.x = pb.x + ux * half;
+  out.b.z = pb.z + uz * half;
+  return out;
 }
 
 /**
@@ -321,7 +487,18 @@ export function availability(
   const height = first
     ? verticalHeight(first.vertical, a, b, first.absoluteHeight)
     : gripHeight(a, b);
-  const failed = stanceHolds(move.stance, a, b, pa, pb, height);
+
+  // **"Could they get there", not "are they there"** — ADR-0018's split. A move that
+  // approaches is asked a weaker question, because it is about to do something about the
+  // answer: the facing half of the stance is dropped outright (it is what the turn is
+  // for), and the distance half is widened by however far the move may step. A move that
+  // does not approach is asked the original question and behaves exactly as before.
+  const failed =
+    approachOf(move) === "none"
+      ? stanceHolds(move.stance, a, b, pa, pb, height)
+      : r.separation > offerReach(move, a, b, height)
+        ? "out-of-reach"
+        : null;
   // A move that would rather stretch than decline is still offered out of reach — reach
   // is a rule the move chooses, not a gate the model imposes.
   if (failed && !(failed === "out-of-reach" && move.outOfRange !== "decline")) {
@@ -604,6 +781,7 @@ export function makeContactMove(name = "", overrides: Partial<ContactMove> = {})
     handedness: "same-hand",
     outOfRange: "decline",
     exit: "return",
+    approach: "turn-and-step",
     constraints: [makeConstraint()],
     envelope: { extend: 0.25, hold: 0.35, withdraw: 0.3 },
     tags: [],
@@ -627,6 +805,11 @@ export function fistBumpMove(): ContactMove {
     handedness: "same-hand",
     outOfRange: "decline",
     exit: "return",
+    // The built-in bump brings you into position (ADR-0018). Watched 2026-08-15 without
+    // it and the verdict was that lining the pair up by hand is far too fussy — which is
+    // the honest consequence of a rigid arm on a torso that cannot twist, and the reason
+    // the answer is to move rather than to loosen the geometry.
+    approach: "turn-and-step",
     tags: ["greeting", "contact"],
     constraints: [
       makeConstraint({

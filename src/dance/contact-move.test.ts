@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  APPROACH_FRACTION,
+  APPROACH_STEP,
   FACING_TOLERANCE,
   OPEN_TO_EVERYTHING,
+  approachOf,
+  approachTarget,
   availability,
+  closestComfortable,
+  offerReach,
   angleBetween,
   fistBumpMove,
   handFor,
@@ -20,6 +26,7 @@ import {
   totalSeconds,
   verticalHeight,
   type ComfortPreferences,
+  type ContactMove,
   type RoleResolution,
   type RoleScratch,
 } from "./contact-move";
@@ -524,5 +531,198 @@ describe("construction", () => {
       .toBe(MYCO_DEFAULTS.hand.closed.radius);
     expect(metricsFor(c, "B", MYCO_DEFAULTS, 0.5, 0).handRadius)
       .toBe(MYCO_DEFAULTS.hand.open.radius);
+  });
+});
+
+describe("the approach — a move may bring the pair into position", () => {
+  // ADR-0018. The split this rests on: the stance says what relation the move *needs*,
+  // the approach says whether the move will *produce* it. Everything here is the pure
+  // half — the driver eases toward an answer it did not compute itself.
+  const move = fistBumpMove();
+  const c = move.constraints[0];
+  const a = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
+  const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
+  const h = meetAt(a, b);
+  const reach = maxSeparation(a, b, h);
+
+  function target(m: ContactMove, pa: Placement, pb: Placement) {
+    return approachTarget(
+      { a: at(0, 0), b: at(0, 0) }, m, a, b, pa, pb, h,
+    );
+  }
+
+  const stepper = makeContactMove("stepper", { ...move, approach: "turn-and-step" });
+  const turner = makeContactMove("turner", { ...move, approach: "turn" });
+  const still = makeContactMove("still", { ...move, approach: "none" });
+
+  it("ships on the built-in fist bump", () => {
+    // The watch on 2026-08-15 said lining the pair up by hand was far too fussy, and this
+    // is the answer to it. A default of "none" would leave the built-in exactly as it was.
+    expect(approachOf(fistBumpMove())).toBe("turn-and-step");
+  });
+
+  it("defaults an absent field to none, so moves authored before this keep behaving", () => {
+    const legacy = { ...move };
+    delete (legacy as { approach?: unknown }).approach;
+    expect(approachOf(legacy as ContactMove)).toBe("none");
+  });
+
+  it("turns both of them to face each other, whatever they were looking at", () => {
+    const t = target(turner, at(0, 0, 2.5), at(0, 1, -1.2));
+    expect(t.a.yaw).toBeCloseTo(0, 10);           // partner at +z
+    expect(t.b.yaw).toBeCloseTo(Math.PI, 10);     // partner at −z
+  });
+
+  it("turns on the short arc — a handshake is not a pirouette", () => {
+    // Straddling ±π is where a naive average sends a character the long way round. The
+    // target is an angle, so this asserts the *destination*; the driver's easing is what
+    // makes the arc short, and `easePlacement` does that with the same atan2 trick.
+    const t = target(turner, at(0, 0, 3.0), at(0, 1, 0));
+    const delta = Math.abs(Math.atan2(Math.sin(t.a.yaw - 3.0), Math.cos(t.a.yaw - 3.0)));
+    expect(delta).toBeLessThan(Math.PI);
+  });
+
+  it("leaves positions alone when it is only allowed to turn", () => {
+    const pa = at(0, 0, 0);
+    const pb = at(0, reach * 1.4, 0);
+    const t = target(turner, pa, pb);
+    expect(t.a.x).toBe(pa.x);
+    expect(t.a.z).toBe(pa.z);
+    expect(t.b.z).toBe(pb.z);
+  });
+
+  it("does nothing at all when the move does not approach", () => {
+    const pa = at(0, 0, 2.5);
+    const pb = at(0, reach * 1.4, 1.1);
+    const t = target(still, pa, pb);
+    expect(t.a).toEqual(pa);
+    expect(t.b).toEqual(pb);
+  });
+
+  it("closes a gap that is too wide, to a comfortable fraction of reach", () => {
+    const t = target(stepper, at(0, 0, 0), at(0, reach * 1.3, Math.PI));
+    const staged = Math.hypot(t.b.x - t.a.x, t.b.z - t.a.z);
+    expect(staged).toBeCloseTo(reach * APPROACH_FRACTION, 10);
+    // And the staged pair satisfy the predicate they were staged for, which is the
+    // property worth having: an approach that produced a stance the move would still
+    // refuse is an approach that walks you somewhere useless.
+    expect(stanceHolds("facing-within-reach", a, b, t.a, t.b, h)).toBeNull();
+  });
+
+  it("opens a gap that is too narrow, rather than leaving them overlapping", () => {
+    const t = target(stepper, at(0, 0, 0), at(0, 0.05, Math.PI));
+    const staged = Math.hypot(t.b.x - t.a.x, t.b.z - t.a.z);
+    expect(staged).toBeCloseTo(closestComfortable(a, b), 10);
+    expect(staged).toBeGreaterThan(0.05);
+  });
+
+  it("leaves a pair who are already standing well exactly where they are", () => {
+    // The nudge nudges and otherwise keeps out of the way.
+    const sep = (closestComfortable(a, b) + reach * APPROACH_FRACTION) / 2;
+    const t = target(stepper, at(0, 0, 0), at(0, sep, Math.PI));
+    expect(t.a.z).toBeCloseTo(0, 10);
+    expect(t.b.z).toBeCloseTo(sep, 10);
+  });
+
+  it("splits the walk evenly — who reaches further is a different question", () => {
+    // `contactFraction` already makes the longer arm cover more of the *reach*. Making it
+    // also cover more of the *walk* would count the same asymmetry twice.
+    const t = target(stepper, at(0, 0, 0), at(0, reach * 1.3, Math.PI));
+    const movedA = Math.hypot(t.a.x - 0, t.a.z - 0);
+    const movedB = Math.hypot(t.b.x - 0, t.b.z - reach * 1.3);
+    expect(movedA).toBeCloseTo(movedB, 10);
+  });
+
+  it("keeps them on the line they were already on", () => {
+    const pa = at(1, -2, 0);
+    const pb = at(4, 2, 0);
+    const t = target(stepper, pa, pb);
+    // Cross product of the original axis with the staged one is zero if they are parallel.
+    const cross = (pb.x - pa.x) * (t.b.z - t.a.z) - (pb.z - pa.z) * (t.b.x - t.a.x);
+    expect(cross).toBeCloseTo(0, 9);
+  });
+
+  it("survives two characters standing in exactly the same spot", () => {
+    const t = target(stepper, at(2, 2, 0.4), at(2, 2, 1.1));
+    for (const v of [t.a.x, t.a.z, t.a.yaw, t.b.x, t.b.z, t.b.yaw]) {
+      expect(Number.isFinite(v)).toBe(true);
+    }
+    // No axis to face along, so nobody is spun on the spot on the strength of nothing.
+    expect(t.a.yaw).toBe(0.4);
+    expect(t.b.yaw).toBe(1.1);
+  });
+
+  it("gives a side-by-side move one shared heading", () => {
+    const hip = makeContactMove("hip bump", {
+      ...move, stance: "side-by-side-within-reach", approach: "turn",
+    });
+    const t = target(hip, at(0, 0, 0.2), at(0.5, 0, -0.2));
+    expect(t.a.yaw).toBeCloseTo(t.b.yaw, 10);
+    expect(stanceHolds("side-by-side-within-reach", a, b, t.a, t.b, meetAt(a, b))).toBeNull();
+  });
+});
+
+describe("the approach widens the offer", () => {
+  const move = fistBumpMove();
+  const c = move.constraints[0];
+  const a = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
+  const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
+  const h = meetAt(a, b);
+  const reach = maxSeparation(a, b, h);
+  const still = makeContactMove("still", { ...move, approach: "none" });
+
+  it("offers a stepping move from a step further out", () => {
+    expect(offerReach(move, a, b, h)).toBeCloseTo(reach * APPROACH_FRACTION + APPROACH_STEP, 10);
+    expect(offerReach(still, a, b, h)).toBeCloseTo(reach, 10);
+    expect(offerReach(move, a, b, h)).toBeGreaterThan(offerReach(still, a, b, h));
+  });
+
+  it("never asks anyone to walk further than the step budget", () => {
+    // The offer radius and the staged separation are one promise seen from two ends: at
+    // the very edge of the offer, the gap closed is exactly `APPROACH_STEP` and each of
+    // them covers half. Measuring it from the reach *limit* instead overshoots by the
+    // comfortable margin, which is the version this used to have.
+    const edge = offerReach(move, a, b, h);
+    for (const sep of [edge, edge * 0.9, edge * 0.5, 0.02]) {
+      const t = approachTarget({ a: at(0, 0), b: at(0, 0) }, move, a, b,
+        at(0, 0, 0), at(0, sep, Math.PI), h);
+      const movedA = Math.hypot(t.a.x, t.a.z);
+      const movedB = Math.hypot(t.b.x, t.b.z - sep);
+      expect(movedA + movedB).toBeLessThanOrEqual(APPROACH_STEP + 1e-9);
+    }
+  });
+
+  it("offers it at a distance the same move would refuse standing still", () => {
+    // The complaint this exists for: the pair had to be lined up by hand.
+    const sep = reach + APPROACH_STEP * 0.5;
+    const pa = at(0, 0, 0);
+    const pb = at(0, sep, Math.PI);
+    expect(availability(move, a, b, pa, pb).available).toBe(true);
+    expect(availability(still, a, b, pa, pb).available).toBe(false);
+  });
+
+  it("still refuses beyond the step — a nudge is not a teleport", () => {
+    const far = at(0, reach + APPROACH_STEP * 1.5, Math.PI);
+    const r = availability(move, a, b, at(0, 0, 0), far);
+    expect(r.available).toBe(false);
+    expect(r.reason).toBe("out-of-reach");
+  });
+
+  it("stops caring which way they are facing, because it is about to fix that", () => {
+    const sep = reach * 0.6;
+    // Both facing away — the first screenshot's stance, and previously "face them".
+    const pa = at(0, 0, Math.PI);
+    const pb = at(0, sep, 0);
+    expect(availability(move, a, b, pa, pb).available).toBe(true);
+    expect(availability(still, a, b, pa, pb).reason).toBe("not-facing");
+  });
+
+  it("does not let an approach override consent", () => {
+    // Geometry is what the approach relaxes. Consent is not geometry.
+    const shy = { mutedTags: ["greeting"], allowsTransfer: true };
+    const r = availability(move, a, b, at(0, 0, 0), at(0, reach * 0.5, Math.PI),
+      OPEN_TO_EVERYTHING, shy);
+    expect(r.available).toBe(false);
+    expect(r.reason).toBe("muted-by-b");
   });
 });

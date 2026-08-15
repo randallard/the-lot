@@ -16,8 +16,10 @@ import {
   ANCHOR_PARTS,
   HANDEDNESS,
   HORIZONTAL_RULES,
+  APPROACHES,
   OUT_OF_RANGE,
   STANCES,
+  approachOf,
   VERTICAL_RULES,
   type Anchor,
   type ContactConstraint,
@@ -124,6 +126,12 @@ const HANDEDNESS_LABELS = {
   "same-hand": "same hand (handshake)",
   "opposite-hand": "opposite hands",
   independent: "each side its own",
+} as const;
+
+const APPROACH_LABELS = {
+  none: "they must already be there",
+  turn: "turn them to face",
+  "turn-and-step": "turn and step them in",
 } as const;
 
 const OUT_OF_RANGE_LABELS = {
@@ -296,6 +304,22 @@ function Editor({ move: initial, cast, castOptions, castIds, onCast, onSave, onB
           <p style={HINT}>
             Doubles as the rule for when the move is offered at all — this is what greys the
             wedge out instead of letting the arms stretch across the floor.
+          </p>
+        </div>
+
+        <p style={SUB}>getting them there</p>
+        <div style={PANEL}>
+          <Choice
+            value={approachOf(move)}
+            options={APPROACHES}
+            labels={APPROACH_LABELS}
+            onChange={(approach) => patch({ approach })}
+          />
+          <p style={HINT}>
+            Whether the move <em>produces</em> the stance above or only tests for it. A move
+            that turns and steps is offered from further out and closes the gap itself — which
+            is what stops a bump needing the two of them lined up by hand. It moves both
+            people, so it only ever runs on a move somebody chose.
           </p>
         </div>
 
