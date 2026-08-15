@@ -4,6 +4,49 @@ _Last updated: 2026-08-15_
 
 ## Status / next
 
+**The bump now brings you into position (2026-08-15, after the watch) — 🔴 also unwatched.**
+Ryan watched the arm work below and reported the bump *"requires way too close of a
+position — I thought we talked about nudging"*. Both halves right, and they are two problems.
+[ADR-0018](adr/0018-a-contact-move-may-bring-the-pair-into-position.md): a move carries an
+`approach`, and **being chosen off the wheel is the consent to be moved**. Narrative in
+[the second journal entry](journal/2026-08-15-2-the-nudge-that-was-decided-and-never-built.md).
+526 tests (from 507), lint 0 errors, typecheck and build clean.
+
+- **The reach really did get shorter, and honestly so.** Measured: player↔Ryan went **1.215 →
+  0.917**. The player's arm is 0.545 long and spends **0.38 climbing down** to the mean-elbow
+  contact height and **0.25 crossing its own midline**, leaving 0.300 to travel. The climb is
+  `gripHeight`'s known unequal-pair placeholder surfacing as a *reach* cost — the player's rig
+  sits 0.25 higher than an NPC's — and it is still open.
+- **The fix is positioning, not geometry.** Loosening `axialReach` would buy comfort by making
+  the number lie again. `outOfRange: "reach"` was the other tempting wrong answer: already
+  implemented, and it reproduces the original floating-arms screenshot.
+- **Auto-positioning had been item 2 of the next-action list since 2026-07-30** — Ryan's, and
+  deferred pending an offer/response handshake for "accepted by both parties". **That blocker
+  dissolves for the case that exists:** the handshake is needed when both participants are
+  players; today one is an NPC whose consent is already `ComfortPreferences`, and the player's
+  is the wheel press.
+- **What it does.** `approach: "none" | "turn" | "turn-and-step"`, optional and defaulted
+  through `approachOf` so stored moves do not silently gain the power to move people.
+  `availability` asks a move that approaches a *weaker* question — facing dropped entirely,
+  distance widened to `offerReach` — while **consent is not relaxed**. For the default pairing
+  the offer radius goes **0.92 → ~2.2** and facing stops mattering.
+- **Placement is now an owned channel**, `playerBodyDriven` / `npcBodyDriven`, the same
+  contract `drivenArms` has one level down.
+- **One defect the tests caught, and it was mine:** `offerReach` started as
+  `maxSeparation + APPROACH_STEP`, which overshoots the promised budget by the width of the
+  comfortable margin, because the approach stages the pair at 0.8 of reach. Measured from the
+  staged separation now, with a test that walks the offer range and asserts nobody is asked to
+  move further than `APPROACH_STEP` in total.
+
+**Add to the watch list:** this is the first thing in the game that **moves the player without
+them steering** — input is ignored for the whole gesture (~1.25s), not just the step, because
+handing the controls back when the fists meet lets you walk out of a contact you are still in.
+Whether that feels right is the question. Also: the approach ignores obstacles (bounded at 1.5
+units, so a pair can be stepped through scenery), and an NPC mid-walk freezes rather than
+pausing gracefully.
+
+---
+
 **The shoulder decision is taken and built (2026-08-15) — and it is 🔴 unwatched.**
 [ADR-0017](adr/0017-an-arm-is-two-segments-with-a-pinned-shoulder.md): an arm is **two
 segments** — a pinned shoulder, a free elbow, and an undrawn compliant link between them.
@@ -240,7 +283,10 @@ back up.**
      `maxSeparation` ignores the two hand radii, so "full reach" is short by `handRadius`
      (fixed, along with two larger omissions). **With a rigid arm pinned at a real shoulder
      the only free parameter is direction** — true, and the word doing the work is *rigid*.
-  2. **Auto-positioning** (Ryan, 2026-07-30): a move may bring both bodies into position when
+  2. ~~**Auto-positioning**~~ — **built 2026-08-15 as
+     [ADR-0018](adr/0018-a-contact-move-may-bring-the-pair-into-position.md), see the top of
+     this file.** The original note, which was right and is what got built:
+     (Ryan, 2026-07-30): a move may bring both bodies into position when
      accepted by both parties. Fits the schema as
      `approach: "none" | "turn" | "turn-and-step"`, and answers the question `facingYaw` has
      been parked on since M5. Wants **its own ADR**: it splits the availability predicate
