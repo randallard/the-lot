@@ -1,8 +1,73 @@
 # Progress & Status
 
-_Last updated: 2026-07-30_
+_Last updated: 2026-08-15_
 
 ## Status / next
+
+**The shoulder decision is taken and built (2026-08-15) — and it is 🔴 unwatched.**
+[ADR-0017](adr/0017-an-arm-is-two-segments-with-a-pinned-shoulder.md): an arm is **two
+segments** — a pinned shoulder, a free elbow, and an undrawn compliant link between them.
+Narrative in [the journal](journal/2026-08-15-the-shoulder-was-never-there.md). 507 tests
+(from 477), lint 0 errors, typecheck and build clean.
+
+- **What the −0.34 actually was.** `bumpPose` placed the arm group's origin `handRadius +
+  handReach` back from the contact point while the body stands `separation × contactFraction`
+  back from it. Those agree at one separation and nowhere else, so the whole arm slid along
+  the axis to make up the difference — at half reach the forearm's near end sat inside the
+  torso. All three measured offsets fall out of one formula; there was nothing to tune.
+- **The third option Ryan chose.** The old framing had two ways out (the height gives, or the
+  fists interpenetrate) because a *one-segment* arm leaves direction as the only free
+  parameter. The arm groups draw a forearm and a hand and nothing between shoulder and elbow,
+  so a nested group makes the elbow free and turns it into two-bone IK. **ADR-0016's authored
+  vertical rule stays authoritative** — that is the point of picking this one.
+- **The rig split is the load-bearing half.** The solve alone would render correctly through
+  the old single group, because `origin = elbow − elbowReach · aim` encodes any elbow. That
+  was rejected on purpose: it leaves the shoulder as a value that happens to come out right.
+  The outer shoulder group now carries **no ref**, so a driver cannot move a shoulder at all.
+  Same reasoning as the `CHANNELS` record and the `ResolvedExpression` shape — make the defect
+  inexpressible, don't remember not to write it.
+- **The generalisable lesson, and it is a fourth variant of this repo's running theme:** *a
+  quantity that nothing draws and nothing measures is not a quantity the model has.* The
+  earlier three were about tests missing what the code did; this one is about the model not
+  having the concept. `arm-pose.ts` had said since M4 that it "does not model reach or
+  attachment" — written as a modest concession to caricature anatomy, and read by the code as
+  a licence to put a shoulder at the partner's feet.
+- **Two tests now assert the opposite of what they did**, both because the property genuinely
+  inverted. "aims both arms horizontally" is gone — a horizontal forearm was what forcing the
+  arm along the contact axis produced, and forcing it is what dragged the shoulder off the
+  body; what replaces it is that the arm is *attached* at every reach. And "does not move the
+  contact point — which is why this hides" asserted that handedness made no difference to the
+  pose, which was true and was exactly how "it was driving the left arm" stayed invisible.
+- 🔴 **Reach is measurably shorter, and this is the first thing to watch.** The old
+  `maxSeparation` was `handReach + handReach`, ignoring both the climb to the contact height
+  and the reach across the body's own midline; `restX` runs to 0.46 on the wider bodies. Some
+  pairs that used to be offered a bump will now be told to move closer. If it feels fussy the
+  answer is a torso-twist allowance in `axialReach`, not the old flattering number.
+- **New instrument:** `TrackedArms.upperArm` per side per frame, printed min → max in the
+  dance debug overlay. A grip *should* breathe there (it is pinned to the pair's pivot and the
+  bodies breathe); a reach should not.
+
+**Next: watch it, then auto-positioning.** The watch list is below under
+[What to watch](#what-to-watch-2026-08-15). Item 2 of the old next-action list —
+auto-positioning, and its own ADR — is untouched and now first in the queue behind the watch.
+
+### What to watch (2026-08-15)
+
+1. **The bump at close range.** The forearm's near end should be outside the torso at every
+   distance the wheel offers, and the elbow should read as bent rather than as an arm shoved
+   backwards. This is the defect the ADR exists for.
+2. **The fists still meet at the authored height**, and meet each other — the height rule is
+   supposed to be untouched, so anything that moved is a regression rather than a trade.
+3. **Does the wheel now say "too far away" too often?** The reach correction is real and
+   deliberate; whether it is *comfortable* is a judgement only a watch can make.
+4. **The elbow's swing direction.** `ELBOW_SWING` is 0.6, tuned by eye and by arithmetic
+   rather than by watching. Elbows should go out and down; if they read as sticking out too
+   far, that constant is the dial.
+5. **The dance floor's grip is meant to look identical.** `gripPose` is unchanged in what it
+   draws — same pixels, by construction — so a Dosado or an Allemande that looks different is
+   a rig-split bug, not a design change.
+
+
 
 **Status:** A real, working R3F application with no dance subsystem and, until today, no
 docs. The world, tutorial, NPCs, phone, chat, emotes, body/eye editors, game launching, and
@@ -164,15 +229,17 @@ back up.**
     self-consistent with `CharacterPreview`, so every authored emote's "R arm" already means
     the +x arm and renaming would mirror existing content. `World` maps around it instead.
 - **Next action: 🔴 a decision, then auto-positioning.**
-  1. **The shoulder still slides back** at bump range — origin z −0.34 / −0.21 / −0.07 at
-     half / ¾ / full reach, where it should be ≈0. `arm-pose` places the arm relative to the
-     **contact point**, not the shoulder, and its "the undrawn upper arm takes up the
-     difference" bet goes *negative* at bump range. Also `maxSeparation` ignores the two hand
-     radii, so "full reach" is short by `handRadius`. **With a rigid arm pinned at a real
-     shoulder the only free parameter is direction**, so either the contact height gives when
-     they stand closer (arms angle up, fists meet higher) or the fists interpenetrate. Taking
-     the first makes the authored vertical rule non-authoritative — an ADR superseding that
-     part of ADR-0016, not a quiet edit. **Ryan's call.**
+  1. ~~**The shoulder still slides back** at bump range~~ — **decided and built 2026-08-15,
+     see the top of this file.** Ryan took a third option the framing below had missed: the
+     arm becomes **two segments** ([ADR-0017](adr/0017-an-arm-is-two-segments-with-a-pinned-shoulder.md)),
+     so the authored vertical rule survives intact and ADR-0016 is not superseded. The
+     original write-up is kept because its diagnosis was exact and its framing is instructive:
+     origin z −0.34 / −0.21 / −0.07 at half / ¾ / full reach, where it should be ≈0.
+     `arm-pose` places the arm relative to the **contact point**, not the shoulder, and its
+     "the undrawn upper arm takes up the difference" bet goes *negative* at bump range. Also
+     `maxSeparation` ignores the two hand radii, so "full reach" is short by `handRadius`
+     (fixed, along with two larger omissions). **With a rigid arm pinned at a real shoulder
+     the only free parameter is direction** — true, and the word doing the work is *rigid*.
   2. **Auto-positioning** (Ryan, 2026-07-30): a move may bring both bodies into position when
      accepted by both parties. Fits the schema as
      `approach: "none" | "turn" | "turn-and-step"`, and answers the question `facingYaw` has
