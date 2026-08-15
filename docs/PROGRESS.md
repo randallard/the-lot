@@ -563,6 +563,16 @@ This repo's own decisions ([full index](adr/README.md)):
 - NPC dialogue: serverless proxy, opt-in, degrading — [ADR-0006](adr/0006-npc-dialogue-through-a-serverless-proxy.md)
 - Storage: `localStorage` only, versioned backup file — [ADR-0007](adr/0007-localstorage-with-a-versioned-backup-file.md)
 
+**Where it runs: Vercel, as `townage.app`, deployed by Vercel's Git integration on push to
+`main`.** Not GitHub Pages, and not by GitHub Actions — CI going green says the gates passed,
+not that the site shipped. The `deploy to Pages` job is the template's opt-in Pages path with
+`vars.DEPLOY_PAGES` unset, so it is **skipped by design**; it renders as a slashed circle that
+looks like a failure and is not one. Enabling it would stand up a second deployment of the same
+app, which is the arrangement [ADR-0005](adr/0005-games-launch-by-url-hash-handoff.md)
+deliberately does not have. `ANTHROPIC_API_KEY` and the Vercel KV binding are project settings,
+not repo state. Recorded here 2026-08-15 after the skipped job was misread as a stopped
+build — the fact was implied by `api/` and by ADR-0005's aside, and stated plainly nowhere.
+
 Inherited from the planning effort: **ADR-0002** (retrofit this repo, don't restart) and
 **ADR-0006** (consume square-one as a pinned git dependency with a local link during
 co-development).

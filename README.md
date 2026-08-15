@@ -36,6 +36,19 @@ about the world, the tutorial, or the games requires it.
 Player data lives entirely in your browser's `localStorage`. There is no account and no
 backend to point at ([ADR-0007](docs/adr/0007-localstorage-with-a-versioned-backup-file.md)).
 
+## Deployment
+
+**townage deploys to Vercel as `townage.app`, from Vercel's own Git integration on push to
+`main`.** That is a separate pipeline from GitHub Actions: CI passing tells you the gates
+passed, not that the site went out, and the two report in different places.
+
+The `deploy to Pages` job in `.github/workflows/ci.yml` is the template's opt-in GitHub Pages
+path and is **skipped on purpose** — `vars.DEPLOY_PAGES` is unset. It shows as a slashed circle
+in the run graph, which reads like a failure and is not one. Turning it on would stand up a
+second, competing deployment of the same app.
+
+`ANTHROPIC_API_KEY` and the KV binding live on the Vercel project, not in the repo.
+
 ## Controls
 
 | Input | Action |
