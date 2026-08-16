@@ -1,5 +1,5 @@
 /**
- * Which call, if any, the debug scene should show for a given URL hash.
+ * Which figure, if any, the debug scene should show for a given URL hash.
  *
  * Its own module so `DanceDebugScene.tsx` exports only a component — `main.tsx`
  * needs this at mount time, and mixing it in breaks fast refresh.
@@ -7,17 +7,64 @@
 
 import type { CallName } from "square-one";
 
-export const DEBUG_CALLS: readonly CallName[] = ["dosado", "pass-thru", "allemande-left"];
-
-function isCallName(value: string): value is CallName {
-  return (DEBUG_CALLS as readonly string[]).includes(value);
+/**
+ * Something the debug scene can dance: either one call by a **facing pair**, or a
+ * sequence of calls by a **couple**.
+ *
+ * The two are different formations rather than different lengths (planning ADR-0011's
+ * S1). A facing pair points opposite ways; a couple points the same way, which is why
+ * square-one composes each side of a couple from its own chain instead of deriving one
+ * dancer from the other.
+ */
+export interface DebugFigure {
+  readonly id: string;
+  readonly label: string;
+  /** The call a facing pair dances. Ignored when `sequence` is set. */
+  readonly call: CallName;
+  /** When present, the couple sequence to dance instead. */
+  readonly sequence?: readonly CallName[];
 }
 
-/** `#dance` → dosado; `#dance=pass-thru` → that call; anything else → `null`. */
-export function danceSceneCall(hash: string): CallName | null {
+export const DEBUG_FIGURES: readonly DebugFigure[] = [
+  { id: "dosado", label: "Dosado", call: "dosado" },
+  { id: "pass-thru", label: "Pass Thru", call: "pass-thru" },
+  { id: "allemande-left", label: "Allemande Left", call: "allemande-left" },
+  // S1's couple work. Both of these are **zeros** — the set finishes where it started —
+  // which is the property to watch for as much as the shapes themselves.
+  {
+    id: "two-trades",
+    label: "2× Partner Trade (zero)",
+    call: "partner-trade",
+    sequence: ["partner-trade", "partner-trade"],
+  },
+  {
+    id: "two-twirls",
+    label: "2× California Twirl (zero)",
+    call: "california-twirl",
+    sequence: ["california-twirl", "california-twirl"],
+  },
+  // The confirmed equivalence, danced. If the two calls really do land the couple in
+  // the same place, one of each is a zero too — and it looks different on the way.
+  {
+    id: "trade-twirl",
+    label: "Trade + Twirl (equivalence)",
+    call: "partner-trade",
+    sequence: ["partner-trade", "california-twirl"],
+  },
+];
+
+/** The calls a facing pair can be sent to directly. Kept for the scene's older buttons. */
+export const DEBUG_CALLS: readonly CallName[] = DEBUG_FIGURES.filter(
+  (f) => f.sequence === undefined,
+).map((f) => f.call);
+
+const DEFAULT_FIGURE = DEBUG_FIGURES[0] as DebugFigure;
+
+/** `#dance` → Dosado; `#dance=two-trades` → that figure; anything else → the default. */
+export function danceSceneFigure(hash: string): DebugFigure | null {
   const m = /^#dance(?:=(.*))?$/.exec(hash);
   if (m === null) return null;
   const requested = m[1];
-  if (requested === undefined || requested === "") return "dosado";
-  return isCallName(requested) ? requested : "dosado";
+  if (requested === undefined || requested === "") return DEFAULT_FIGURE;
+  return DEBUG_FIGURES.find((f) => f.id === requested) ?? DEFAULT_FIGURE;
 }

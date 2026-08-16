@@ -1,11 +1,13 @@
 /**
- * The M4 debug scene: two NPCs looping a call, driven by square-one.
+ * The dance debug scene: two NPCs driven by square-one — a facing pair looping one
+ * call (M4), or a **couple** dancing a sequence (planning ADR-0011's S1).
  *
  * This is the milestone's "done when", and it is also the check three call specs
  * are stacked behind — square-one's Dosado marks its waypoints "provisional until
  * rendered", and this is the renderer.
  *
- * Reached at `#dance` (optionally `#dance=pass-thru`). Deliberately its own Canvas
+ * Reached at `#dance` (optionally `#dance=pass-thru`, `#dance=two-trades`, …).
+ * Deliberately its own Canvas
  * and its own early return in `App.tsx`, so nothing about the debug scene can touch
  * the game's state machine.
  */
@@ -18,8 +20,7 @@ import { AnimationController } from "../services/animation-controller";
 import { DEBUG_EMOTES } from "./debug-emotes";
 import type { Emote } from "../services/emotes";
 import { DEFAULT_BPM } from "./useDancePerformance";
-import type { CallName } from "square-one";
-import { DEBUG_CALLS } from "./dance-route";
+import { DEBUG_FIGURES, type DebugFigure } from "./dance-route";
 import {
   MYCO_DEFAULTS,
   EMBER_DEFAULTS,
@@ -63,8 +64,9 @@ function fmt(v: number): string {
   return (v < 0 ? "" : " ") + v.toFixed(3);
 }
 
-export function DanceDebugScene({ initialCall }: { initialCall: CallName }) {
-  const [call, setCall] = useState<CallName>(initialCall);
+export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure }) {
+  const [figure, setFigure] = useState<DebugFigure>(initialFigure);
+  const call = figure.call;
   const [bpm, setBpm] = useState(DEFAULT_BPM);
   const [drift, setDrift] = useState(false);
   const [sizes, setSizes] = useState<SizeCast>("default");
@@ -226,6 +228,7 @@ export function DanceDebugScene({ initialCall }: { initialCall: CallName }) {
         <DanceFloor
           key={sizes}
           call={call}
+          {...(figure.sequence === undefined ? {} : { sequence: figure.sequence })}
           bpm={bpm}
           loop
           followDrift={drift}
@@ -278,20 +281,20 @@ export function DanceDebugScene({ initialCall }: { initialCall: CallName }) {
       >
         <strong>square-one · M4 debug</strong>
         <div style={{ display: "flex", gap: 6 }}>
-          {DEBUG_CALLS.map((c) => (
+          {DEBUG_FIGURES.map((c) => (
             <button
-              key={c}
-              onClick={() => { setCall(c); }}
+              key={c.id}
+              onClick={() => { setFigure(c); }}
               style={{
                 padding: "4px 8px",
                 cursor: "pointer",
-                background: c === call ? "#333" : "#fff",
-                color: c === call ? "#fff" : "#333",
+                background: c.id === figure.id ? "#333" : "#fff",
+                color: c.id === figure.id ? "#fff" : "#333",
                 border: "1px solid #999",
                 borderRadius: 4,
               }}
             >
-              {c}
+              {c.label}
             </button>
           ))}
         </div>

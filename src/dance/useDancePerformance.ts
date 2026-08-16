@@ -14,6 +14,9 @@ import { useCallback, useMemo, useRef } from "react";
 import {
   applyCallToPair,
   createPerformance,
+  danceCoupleSequence,
+  flattenSequence,
+  partnerUp,
   type CallName,
   type DancerState,
   type Motion,
@@ -25,6 +28,18 @@ export const DEFAULT_BPM = 120;
 
 export interface DancePerformanceOptions {
   readonly call: CallName;
+  /**
+   * Dance a **couple** through a sequence of calls instead of a facing pair through
+   * one (planning ADR-0011's S1).
+   *
+   * When present, `call` is ignored. The two are different formations, not different
+   * sizes: a facing pair points opposite ways and a couple points the same way, and
+   * square-one's `applyCallToCouple` composes each side from its own chain rather than
+   * deriving one from the other — which is the only thing that works for a
+   * position-dependent call like Partner Trade, where the two dancers genuinely walk
+   * different figures.
+   */
+  readonly sequence?: readonly CallName[];
   readonly bpm?: number;
   /** Restart from beat 0 when the call ends. The debug scene loops; the arc won't. */
   readonly loop?: boolean;
@@ -54,12 +69,18 @@ export interface DanceRuntime {
  * A's 180° rotation, which is the pair symmetry the specs guarantee.
  */
 export function useDancePerformance(options: DancePerformanceOptions): DanceRuntime {
-  const { call, bpm = DEFAULT_BPM, loop = true, externallyDriven } = options;
+  const { call, sequence, bpm = DEFAULT_BPM, loop = true, externallyDriven } = options;
 
   const motions = useMemo<Record<string, Motion>>(() => {
+    if (sequence !== undefined && sequence.length > 0) {
+      // `a` is the beau and `b` the belle, so the keys match the pair case and
+      // everything downstream — shapes, rigs, the arm report — is indifferent to which
+      // formation is being danced.
+      return flattenSequence(danceCoupleSequence(sequence, partnerUp("a", "b")));
+    }
     const { a, b } = applyCallToPair(call);
     return { a, b };
-  }, [call]);
+  }, [call, sequence]);
 
   const beats = useMemo(
     () => Math.max(...Object.values(motions).map((m) => m.beats)),

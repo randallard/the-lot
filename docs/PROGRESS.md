@@ -4,6 +4,47 @@ _Last updated: 2026-08-15_
 
 ## Status / next
 
+**▶ S1 is wired in and ready to watch (2026-08-15).** Planning ADR-0011's S1 — a **couple**
+dancing a **sequence** — is reachable in the debug scene. `pnpm dev`, then:
+
+| hash | what it dances |
+|---|---|
+| `#dance=two-trades` | 2× Partner Trade — a **zero** |
+| `#dance=two-twirls` | 2× California Twirl — a **zero** |
+| `#dance=trade-twirl` | Partner Trade then California Twirl — the confirmed **equivalence**, danced |
+
+The three M4 calls are still there (`#dance`, `#dance=pass-thru`, `#dance=allemande-left`) and
+all six are buttons in the panel.
+
+🔴 **THE SQUARE-ONE LINK IS ACTIVE AND UNCOMMITTED.** `package.json` still pins
+`v0.2.0`; `node_modules/square-one` is a symlink to the local checkout, which is where every
+S1 API lives (`partnerUp`, `applyCallToCouple`, `danceCoupleSequence`, `flattenSequence`).
+Planning ADR-0006 allows this for co-development and names it a **known footgun**: work can
+pass locally against a link and fail from a clean install. **A fresh `pnpm install` will
+silently revert to v0.2.0 and the sequence figures will stop building.** Finishing the loop
+means tagging square-one, pushing it, and bumping the pin — the same sequence the 2026-07-28
+release entry describes.
+
+- **`useDancePerformance` gained a `sequence` option.** When set, the pair is a **couple** and
+  the calls are danced in order. Different *formation*, not different length: a facing pair
+  points opposite ways and a couple points the same way, which is why square-one composes each
+  side of a couple from its own chain rather than deriving one dancer from the other.
+- **`DanceFloor` needed no change at all** — it already spreads `...performanceOptions` into
+  the hook, so the new option arrived for free. Worth noting as a seam that held.
+- **`dance-route` now serves `DebugFigure`s** rather than bare call names, since a figure is
+  either one call by a pair or a sequence by a couple.
+- **Verified through the real stepper** before handing over: all three sequences run to `done`
+  and end on the couple's own starting spots — `a(−0.50, 0)@90 b(0.50, 0)@90` — so all three
+  are zeros, the mixed one included.
+
+**What to watch.** The two zeros should return the pair to their exact starting spots, and the
+mixed figure should too *while looking different on the way*. 🔴 California Twirl's intermediate
+path is marked **provisional until rendered** in its spec — `moves.md` says the beau "stays in
+place or steps through", which is loose, and the rigid-rotation reading is the one consistent
+with the end state. `dosado.md` carried the same marker before its watch caught two defects.
+
+---
+
 **ADR-0018 is narrowed, and superseded (2026-08-15, seventh pass).** Ryan, reading back over
 the day: *"does this mean if another player character chooses my player character off the
 wheel, say, to fist bump me, I can't decline?"* Reading the code rather than ADR-0018's
