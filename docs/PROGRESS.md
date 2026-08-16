@@ -1,8 +1,39 @@
 # Progress & Status
 
-_Last updated: 2026-08-15_
+_Last updated: 2026-08-16_
 
 ## Status / next
+
+**▶ WATCH THIS FIRST: Partner Trade lost its sway, and two beats with it (2026-08-16).** Ryan,
+on `#dance=two-trades`: *"I'm wondering about the sway when just standing — it seems 2x too
+wide and 2X too slow."* **The fix is entirely in square-one** — its `ADR-0013`
+(`docs/adr/0013-the-trade-lane-rides-inside-the-arc.md`) and its fourteenth journal entry, both
+in the sibling checkout. Unlinked because square-one has no public remote and this repo's docs
+gate rejects a relative link that resolves outside the repo root — the same rule ADR-0012
+follows. This repo changed one comment. **560 tests still pass**, lint 0 errors, typecheck
+clean. **Watched and accepted** — Ryan: *"looks ok — a step in the right direction."*
+
+- 🔴 **There is no idle animation in this repo, and that was the finding.** The sway was
+  square-one emitting it: the Trade's own `slide` blocks, two beats of pure lateral translation
+  at each call boundary with facing, depth and separation all constant. Worth remembering the
+  next time something on the floor looks alive — if it moves and nothing here moves it, the
+  engine means it.
+- **What to look for now.** The figure is **8 beats, not 12** (Partner Trade is 4 per
+  CALLERLAB, not 6), so the whole thing runs a third quicker. The couple should never translate
+  without also turning; at the join between the two Trades they pass straight through their
+  standing spots at full rotation rather than pausing there.
+- **New thing to judge:** dancers now **crab up to ~19° (the belle; ~15° for the beau)** off the circle's tangent while bowing
+  out to pass, because facing is solved from actual velocity rather than from the arc. That is
+  correct — they are walking where they are pointed — but it is the part that has never been
+  looked at, and the chest dot is where to judge it.
+- 🔴 **The pass is still a collision and this did not change it.** At the default cast the two
+  dancers cross **0.260** world units apart where the frame scale says they need **0.710**.
+  Visible as interpenetrating bodies at the middle of every Trade. `TRADE_LANE` is a proportion
+  of the couple's width with nothing about bodies in it — square-one's next ADR, most likely
+  wanting a render watch of its own.
+- **`TOUCH_TOLERANCE`'s docstring** was the one code change here: it described the Trade as
+  stepping dancers onto lanes and back, which is no longer the mechanism. The tolerance itself
+  is unchanged and still covers the bowed path.
 
 **▶ S1 is wired in, and the couple holds hands (2026-08-15).** Ryan: *"they should hold
 hands — we say touch hands — beau right palm up and belle's left palm down — making sure hands

@@ -325,9 +325,9 @@ export function gripPose(
  * hands, as a fraction of that width.
  *
  * A tolerance rather than an equality, because the pair breathe: square-one's Partner
- * Trade steps them onto lanes and back, and a couple mid-call is a couple. Generous
- * enough to survive that, tight enough that a facing pair at reach distance is never
- * mistaken for one.
+ * Trade bows them off their standing radius and back (its ADR-0013), and a couple mid-call
+ * is a couple. Generous enough to survive that, tight enough that a facing pair at reach
+ * distance is never mistaken for one.
  */
 export const TOUCH_TOLERANCE = 0.35;
 
