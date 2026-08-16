@@ -4,6 +4,42 @@ _Last updated: 2026-08-15_
 
 ## Status / next
 
+**ADR-0018 is narrowed, and superseded (2026-08-15, seventh pass).** Ryan, reading back over
+the day: *"does this mean if another player character chooses my player character off the
+wheel, say, to fist bump me, I can't decline?"* Reading the code rather than ADR-0018's
+summary of itself: **partly**. `availability` does consult the receiver's preferences and
+refuses with `"muted-by-b"` — but that is a **standing** preference. There is no
+offer/response anywhere, so a second player could pre-mute a category and still not decline
+*that* bump while `playerBodyDriven` walked and turned their avatar for ~1.25s.
+[ADR-0021](adr/0021-being-moved-needs-a-live-yes.md) supersedes
+[ADR-0018](adr/0018-a-contact-move-may-bring-the-pair-into-position.md). Narrative in
+[the seventh journal entry](journal/2026-08-15-7-a-note-is-not-a-guard.md). 552 tests, gates
+green. **Nothing shipping changes.**
+
+- 🔴 **The lesson: a promotion condition is a note, and a note is not a guard.** I had written
+  this exact gap into ADR-0018 myself. The reasoning was sound for the shipping arrangement
+  and unsound one line past it, with nothing in the code marking where the line was.
+- **`ConsentMode` on `ComfortPreferences`** — `"standing"` (all there is; an NPC cannot be
+  asked) or `"live"` (can be asked, and must be for anything that moves them). `availability`
+  refuses with `"needs-live-consent"` when a move approaches and the **receiver** is live.
+  Receiver alone: choosing is the chooser's live answer.
+- **The line is at being *moved*, not *touched*** — `approach: "none"` writes nobody's
+  placement, so ADR-0016's standing preferences still govern there.
+- **Required field, and `OPEN_TO_EVERYTHING` is now `"live"`**, so the default fails toward
+  refusing. Adding it broke four test fixtures and no production code.
+- **The corner analysis Ryan asked for**, recorded in the ADR: the fail-open default
+  (guarded); 🔴 **ownership has no owner** — `playerBodyDriven` is a boolean, so with two
+  people two claims cannot be told apart, and retrofitting an owner id touches every driver
+  (named, not fixed, unreachable while the guard holds); and ✅ **the corner we are not in** —
+  `approachTarget` is pure and returns targets rather than applying them, which is exactly
+  what a networked client needs. ADR-0016 made the geometry pure for editor/runtime parity and
+  bought the multiplayer seam by accident.
+- 🔴 **The guard is unexercised in render** — nothing sets a live receiver. Not a seam, by this
+  repo's rule. It is a refusal, so it fails toward refusing too much, which is the right
+  direction for the one control between a stranger and your avatar.
+
+---
+
 **✅ WATCHED AND ACCEPTED (2026-08-15).** Ryan, at the end of the day's five passes: *"ok that
 looks good, and the allemande left looks good."* Everything below this line was built today and
 carried a 🔴 unwatched flag; it no longer does. Read this section first if you are picking the
