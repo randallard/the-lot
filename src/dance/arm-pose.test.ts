@@ -18,6 +18,10 @@ import {
   reachAllowance,
   reachPose,
   restPose,
+  insideSide,
+  standingAsCouple,
+  touchHeight,
+  armPoses,
   upperArmStrain,
   vec3,
   ELBOW_SWING,
@@ -520,3 +524,102 @@ describe("the rig's two groups compose back to the rest pose", () => {
     }
   });
 });
+
+describe("touch hands — a couple stands with inside hands joined", () => {
+  // Ryan, 2026-08-15: "they should hold hands — we say touch hands — beau right palm up
+  // and belle's left palm down … the characters need to be a bit closer together."
+  const a = armMetrics(MYCO_DEFAULTS);
+  const b = armMetrics(EMBER_DEFAULTS);
+  const WIDTH = a.restX + b.restX;
+  const side = (x: number, yaw = 0): Placement => ({ x, z: 0, yaw });
+
+  it("recognises a couple from where they are standing, not from a flag", () => {
+    // The same shape the rest of this module uses — `reachAllowance` and `constrainArm`
+    // both key off the separation they can see. A renderer that had to be told which
+    // formation it was drawing is one that could be told wrong.
+    expect(standingAsCouple(side(0), side(WIDTH), WIDTH)).toBe(true);
+  });
+
+  it("🔴 does not mistake a facing pair for one", () => {
+    // The check that matters. Two dancers a hand's width apart pointing opposite ways
+    // are not holding hands, and without the heading test the touch pose would fire on
+    // a Dosado's closest moment.
+    expect(standingAsCouple(side(0), side(WIDTH, Math.PI), WIDTH)).toBe(false);
+  });
+
+  it("tolerates the pair breathing, because a couple mid-call is a couple", () => {
+    // Partner Trade steps them onto lanes and back.
+    expect(standingAsCouple(side(0), side(WIDTH * 1.2), WIDTH)).toBe(true);
+    expect(standingAsCouple(side(0), side(WIDTH * 0.85), WIDTH)).toBe(true);
+    // ...but not once they have plainly left the formation.
+    expect(standingAsCouple(side(0), side(WIDTH * 2), WIDTH)).toBe(false);
+  });
+
+  it("picks the inside hand from where the partner actually is", () => {
+    // Derived rather than fixed when the couple formed, so it stays right through a turn.
+    expect(insideSide(side(0), side(WIDTH))).toBe("left");
+    expect(insideSide(side(0), side(-WIDTH))).toBe("right");
+  });
+
+  it("joins the hands at a height nobody has to reach for", () => {
+    // The width square-one chose is the one at which *resting* hands meet, which is what
+    // makes touch hands a resting formation rather than a pose being held.
+    const h = touchHeight(a, b);
+    expect(h).toBeCloseTo(
+      ((a.restY - a.handReach) + (b.restY - b.handReach)) / 2,
+      9,
+    );
+  });
+
+  it("🔴 puts the two hands on each other, one stacked above the other", () => {
+    // The property the whole thing exists for, as a number rather than a look.
+    const self = side(0);
+    const partner = side(WIDTH);
+    const mine = poseArms(armPoses(), a, b, self, partner, gripBlend(), undefined, WIDTH);
+    const theirs = poseArms(armPoses(), b, a, partner, self, gripBlend(), undefined, WIDTH);
+
+    // Each one's inside arm: mine is `left` (partner at +x), theirs is `right`.
+    const myHand = handEnd(mine.left, a);
+    const theirHand = handEnd(theirs.right, b);
+
+    // Same point on the floor — the midpoint between them. Both poses are rig-local, so
+    // each is *added* to its own dancer's position: the second one's hand sits at
+    // −WIDTH/2 in their frame, which is the same spot from the other side.
+    expect(self.x + myHand.x).toBeCloseTo(WIDTH / 2, 5);
+    expect(partner.x + theirHand.x).toBeCloseTo(WIDTH / 2, 5);
+
+    // ...and stacked rather than interpenetrating: the dancer whose inside hand is their
+    // anatomical **right** is the beau, and the beau's palm is underneath. Stated in
+    // anatomical terms so it survives the engine and the renderer disagreeing about
+    // which way `+x` points, which they do.
+    const underneath = insideSide(partner, self) === "right" ? theirHand : myHand;
+    const above = underneath === theirHand ? myHand : theirHand;
+    expect(above.y).toBeGreaterThan(underneath.y);
+  });
+
+  it("leaves the outside arm hanging", () => {
+    const mine = poseArms(armPoses(), a, b, side(0), side(WIDTH), gripBlend(), undefined, WIDTH);
+    // Straight down — the outside arm is not claimed, only limited as it always was.
+    expect(mine.right.aimY).toBeCloseTo(-1, 5);
+  });
+
+  it("🔴 joins nothing when no width is supplied", () => {
+    // Absent means "not a couple", and a facing pair must be untouched by any of this.
+    // Compared against the *folded* rest pose rather than `restX`: at a couple's own
+    // separation `constrainArm` already tucks the inside arm, and that behaviour is
+    // older than this feature and must survive it.
+    const withWidth = poseArms(armPoses(), a, b, side(0), side(WIDTH), gripBlend(), undefined, WIDTH);
+    const without = poseArms(armPoses(), a, b, side(0), side(WIDTH), gripBlend());
+    expect(without.left.aimY).toBeCloseTo(-1, 5);
+    expect(without.left.x).not.toBeCloseTo(withWidth.left.x, 3);
+  });
+});
+
+/** A hand's centre in rig-local space, from the elbow the pose names. */
+function handEnd(pose: ArmPose, m: ArmMetrics) {
+  return {
+    x: pose.x + pose.aimX * m.forearmSpan,
+    y: pose.y + pose.aimY * m.forearmSpan,
+    z: pose.z + pose.aimZ * m.forearmSpan,
+  };
+}

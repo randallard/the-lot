@@ -58,6 +58,7 @@ import {
   type DanceFrame,
   type WorldPoint,
 } from "./frame";
+import { COUPLE_WIDTH } from "square-one";
 import { useDancePerformance, type DancePerformanceOptions } from "./useDancePerformance";
 import type { AnimationController } from "../services/animation-controller";
 import { NEUTRAL_POSE } from "../services/emotes";
@@ -191,6 +192,7 @@ const _ctx: ExpressionContext = {
   self: _self,
   partner: _partner,
   blend: gripBlend(),
+  coupleWidth: undefined,
 };
 
 function readPlacement(out: Placement, rig: THREE.Group): void {
@@ -331,6 +333,21 @@ export function DanceFloor({
 
   const frameRef = useRef<DanceFrame>(makeFrame(origin, scale ?? scaleForGaps(gaps), yaw));
 
+  /**
+   * The couple's standing width **in world units**, when this floor is dancing a couple.
+   *
+   * 🔴 `COUPLE_WIDTH` is an *engine* unit and every placement the arm layer sees is
+   * *world* — scaled by the frame, which for the default cast is 2.60. Comparing the two
+   * directly would have looked for a couple a third of a world unit wide and never found
+   * one, so the hands would simply never have joined and nothing would have said why.
+   * The same class of mistake as the rig-frame defect ADR-0017 chased: two frames, one
+   * subtraction, no error.
+   */
+  const coupleWidthWorld = useMemo(
+    () => COUPLE_WIDTH * (scale ?? scaleForGaps(gaps)),
+    [scale, gaps],
+  );
+
   useFrame((state, delta) => {
     if (!paused) {
       // Guard against tab-restore producing an enormous delta and teleporting the
@@ -423,6 +440,12 @@ export function DanceFloor({
           _ctx.self = _self;
           _ctx.partner = _partner;
           _ctx.blend = blend;
+          // Only when this floor is dancing a couple. square-one owns what a couple's
+          // width *is*; passing it through rather than guessing keeps that one decision
+          // in one place (its `COUPLE_WIDTH`, which a consumer may override for real
+          // bodies).
+          _ctx.coupleWidth =
+            performanceOptions.sequence === undefined ? undefined : coupleWidthWorld;
           resolveExpression(ex, _ctx);
 
           for (const side of SIDES) {

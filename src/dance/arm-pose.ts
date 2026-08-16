@@ -321,6 +321,83 @@ export function gripPose(
 }
 
 /**
+ * How far off a couple's own width the pair may stand and still be read as holding
+ * hands, as a fraction of that width.
+ *
+ * A tolerance rather than an equality, because the pair breathe: square-one's Partner
+ * Trade steps them onto lanes and back, and a couple mid-call is a couple. Generous
+ * enough to survive that, tight enough that a facing pair at reach distance is never
+ * mistaken for one.
+ */
+export const TOUCH_TOLERANCE = 0.35;
+
+/**
+ * How far a couple's heading may differ and still count as side by side, in radians.
+ *
+ * The check that distinguishes a **couple** from a **facing pair**. Two dancers a
+ * hand's width apart pointing opposite ways are not holding hands, they are about to
+ * collide — and without this the touch pose would fire on a Dosado's closest moment.
+ */
+export const TOUCH_FACING_TOLERANCE = 0.6;
+
+/**
+ * Are these two standing side by side, close enough to be holding hands?
+ *
+ * Ryan's "touch hands": a couple stands with inside hands joined, and the render should
+ * show it. Decided from the **live placements** rather than from a formation flag,
+ * because that is the same shape the rest of this module already uses — `reachAllowance`
+ * and `constrainArm` both key off the separation they can see, and a renderer that had
+ * to be told which formation it was drawing would be a renderer that could be told wrong.
+ *
+ * `width` is the couple's own standing width, which the caller knows and this module
+ * does not.
+ */
+export function standingAsCouple(
+  self: Placement,
+  partner: Placement,
+  width: number,
+): boolean {
+  const separation = Math.hypot(partner.x - self.x, partner.z - self.z);
+  if (Math.abs(separation - width) > width * TOUCH_TOLERANCE) return false;
+  const heading = Math.abs(
+    Math.atan2(Math.sin(partner.yaw - self.yaw), Math.cos(partner.yaw - self.yaw)),
+  );
+  return heading <= TOUCH_FACING_TOLERANCE;
+}
+
+/**
+ * Which of this dancer's hands is the **inside** one — the one a couple joins.
+ *
+ * The partner is on one side or the other; the inside hand is the one nearer them.
+ * Derived from where they actually are, so it stays right through a turn rather than
+ * being fixed at the moment the couple formed.
+ */
+export function insideSide(self: Placement, partner: Placement): "left" | "right" {
+  const dx = partner.x - self.x;
+  const dz = partner.z - self.z;
+  // The partner's bearing in this dancer's local space. `+x` is the anatomical **left**
+  // group on every dance rig (see `DancerArmRigs`), so a partner at `+x` is on the left.
+  const localX = dx * Math.cos(self.yaw) - dz * Math.sin(self.yaw);
+  return localX >= 0 ? "left" : "right";
+}
+
+/**
+ * The height a couple's joined hands rest at, in world space — the mean of the two
+ * dancers' own hanging hands.
+ *
+ * Arms hang; the hands meet where they already are. That is why the width square-one
+ * chose is the one at which resting hands touch: **nobody has to lift anything**, which
+ * is what "touch hands" describes and what makes it a resting formation rather than a
+ * pose being held.
+ *
+ * The mean for the same reason {@link gripHeight} takes one: it has to be a single
+ * number or the hands are not on each other.
+ */
+export function touchHeight(a: ArmMetrics, b: ArmMetrics): number {
+  return (a.rigOriginY + a.restY - a.handReach + b.rigOriginY + b.restY - b.handReach) / 2;
+}
+
+/**
  * How much an elbow prefers to swing **outward** rather than straight down, when the
  * solve leaves it a choice.
  *
@@ -652,6 +729,15 @@ export function poseArms(
   partner: Placement,
   blend: GripBlend,
   proposed?: ArmPoses,
+  /**
+   * The couple's own standing width, when these two are a couple.
+   *
+   * Supplied rather than inferred: square-one owns what a couple's width *is*
+   * (`COUPLE_WIDTH`, and a consumer may override it for real bodies), and a renderer
+   * guessing it would be a second copy of that decision. Absent means "not a couple",
+   * and nothing here joins any hands.
+   */
+  coupleWidth?: number,
 ): ArmPoses {
   // The partner, in this dancer's local space: the direction their share of the gap
   // lies in, and half their offset is the pivot a grip is held over.
@@ -663,6 +749,11 @@ export function poseArms(
   const localX = dx * c - dz * s;
   const localZ = dx * s + dz * c;
   const allowance = reachAllowance(me, them, separation);
+
+  // Standing hand in hand, when the pair are a couple rather than a facing pair. Only
+  // the **inside** arm is claimed; the outside one goes on doing whatever it was.
+  const touching = coupleWidth !== undefined && standingAsCouple(self, partner, coupleWidth);
+  const inside = touching ? insideSide(self, partner) : null;
 
   for (const side of ["left", "right"] as const) {
     // `+x` is the anatomical left group — see `DancerArmRigs`.
@@ -690,6 +781,27 @@ export function poseArms(
     constrainArm(_free, me, allowance, dirX, dirZ);
 
     if (joined <= 0) {
+      if (side === inside) {
+        // The hands meet at the midpoint, at the height they already hang at, one
+        // stacked on the other by their own radii — the beau's palm beneath, the
+        // belle's above. Solved with `reachPose` (ADR-0017) rather than placed, so the
+        // arm stays on its shoulder and the elbow does the giving.
+        //
+        // Who goes underneath is decided by which side each dancer's inside hand is,
+        // not by role: the dancer whose inside hand is their **right** is the beau, and
+        // the beau's palm is up. That keeps it true for any pairing (ADR-0012).
+        const under = side === "right";
+        const lift = under ? -me.handRadius : me.handRadius;
+        reachPose(
+          out[side],
+          me,
+          sign,
+          localX / 2,
+          localHeight(me, touchHeight(me, them) + lift),
+          localZ / 2,
+        );
+        continue;
+      }
       blendPose(out[side], _free, _free, 0);
       continue;
     }

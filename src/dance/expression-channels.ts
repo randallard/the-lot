@@ -113,6 +113,11 @@ export interface ExpressionContext {
   self: Placement;
   partner: Placement;
   blend: GripBlend;
+  /**
+   * The couple's own standing width, when these two are a couple rather than a facing
+   * pair. `undefined` for a facing pair, and then no hands are joined.
+   */
+  coupleWidth?: number | undefined;
 }
 
 /**
@@ -196,7 +201,7 @@ export function resolveExpression(
   out: ResolvedExpression,
   ctx: ExpressionContext,
 ): ResolvedExpression {
-  const { pose, me, them, self, partner, blend } = ctx;
+  const { pose, me, them, self, partner, blend, coupleWidth } = ctx;
 
   // limited — arms fold where they trespass, and a gripped hand is taken over entirely
   out.arms = poseArms(
@@ -207,6 +212,7 @@ export function resolveExpression(
     partner,
     blend,
     proposeArms(_proposed, me, pose),
+    coupleWidth,
   );
 
   // limited — shape is clipped to this dancer's share of the live slack
