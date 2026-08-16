@@ -4,7 +4,33 @@ _Last updated: 2026-08-15_
 
 ## Status / next
 
-**▶ S1 is wired in and ready to watch (2026-08-15).** Planning ADR-0011's S1 — a **couple**
+**▶ S1 is wired in, and the couple holds hands (2026-08-15).** Ryan: *"they should hold
+hands — we say touch hands — beau right palm up and belle's left palm down — making sure hands
+in open position — so the characters need to be a bit closer together when partnered up."*
+square-one narrowed the couple ("a bit" was a factor of three, measured against this repo's own
+frame scale); this repo poses the hands. Narrative in
+[the eighth journal entry](journal/2026-08-15-8-a-couple-holds-hands.md). **560 tests**.
+
+- **Decided from the live placements, not a formation flag.** `standingAsCouple` asks whether
+  these two are close enough and pointed the same way — the shape `reachAllowance` and
+  `constrainArm` already use. A renderer that had to be *told* which formation it was drawing
+  is one that could be told wrong; the heading check is what stops the pose firing on a
+  Dosado's closest moment.
+- **`touchHeight` is the mean of the two dancers' own hanging hands**, so nobody lifts
+  anything — which is what makes touch hands a *resting* formation rather than a held pose.
+- **Who is underneath is anatomical:** the dancer whose inside hand is their **right** is the
+  beau, and the beau's palm is up. Phrased in body terms because square-one's characters face
+  `+y` and townage's face `+z` — the two repos disagree about which way `+x` points, and a
+  coordinate rule would not survive that.
+- 🔴 **A units bug written and caught in the same pass:** `COUPLE_WIDTH` is an *engine* unit and
+  every placement the arm layer sees is *world*. Comparing them directly would have joined no
+  hands and **said nothing about why** — an absence, not a wrong number. Same class as the
+  rig-frame defect ADR-0017 chased.
+- 🔴 **Palm rotation is not implemented.** The hands stack by their radii, which reads as under
+  and over, but the hand mesh orientation is static per side; a literal palm-up/palm-down needs
+  a per-frame hand-orientation channel. Flagged rather than faked.
+
+**▶ How to watch it (2026-08-15).** Planning ADR-0011's S1 — a **couple**
 dancing a **sequence** — is reachable in the debug scene. `pnpm dev`, then:
 
 | hash | what it dances |
