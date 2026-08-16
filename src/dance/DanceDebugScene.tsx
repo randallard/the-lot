@@ -10,6 +10,27 @@
  * Deliberately its own Canvas
  * and its own early return in `App.tsx`, so nothing about the debug scene can touch
  * the game's state machine.
+ *
+ * ## The control panel, docked on the left
+ *
+ * Every control here exists because some watch needed it. Kept as a list because the
+ * scene is the project's only instrument for the class of defect tests cannot see, and
+ * an instrument whose dials are undocumented gets used for less than it can do.
+ *
+ * | Control | What it is for |
+ * |---|---|
+ * | **figure buttons** | The six things this scene can dance — three single calls by a facing pair, three couple sequences (planning ADR-0011's S1). The two `2×` figures and the mixed one are **zeros**: watch that the set finishes where it started, which is as much the point as the shapes on the way. |
+ * | **tempo** | 30–180 bpm. Slow it down to judge a moment, not because the dance is wrong at 120. |
+ * | **pause / beat readout** | Freeze mid-move and read the beat. The clock keeps being reported while paused, so the readout is trustworthy either way. |
+ * | **emote row** | Fires a one-shot emote *while* a call runs — the ADR-0010 arbitration this scene exists to watch. Arms fold where they trespass, a gripped hand ignores the emote outright, and a spin turns the head but must never turn a driven dancer's body: judge that on the **chest** dot, not the head dot. |
+ * | **joint markers** | Black = the pivot a gripping pair holds over, blue = elbows, red = hands. A held grip should look nailed to the black dot while the bodies breathe past it. Off by default — a debugging aid, not part of the dance. |
+ * | **follow drift** | Re-fits the frame to the dancers' centroid as the square migrates (square-one's ADR-0006 drift). |
+ * | **bodies** | Swaps the cast between size extremes, to exercise the body-derived frame scale (ADR-0012). `mixed` and `max` must visibly grow the square while everyone still clears. |
+ * | **contact readout** | Min–max of every tracked quantity since the current grip engaged, so drift shows as a spread rather than scrolling past. `separation` should breathe; everything else should be flat. Off by default, and **last in the column on purpose** — it is the one element whose height changes every frame, so nothing clickable sits below it. |
+ *
+ * The panel is **docked** rather than floating. It used to sit `position: absolute` over
+ * the canvas, which put the controls on top of the one thing they exist to let you look
+ * at.
  */
 
 import { createRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -59,6 +80,10 @@ function track(spans: Map<string, Span>, name: string, value: number): void {
   seen.min = Math.min(seen.min, value);
   seen.max = Math.max(seen.max, value);
 }
+
+/** Width of the docked control column, in px. Wide enough for the emote row not to
+ *  wrap and narrow enough to leave the floor the majority of the window. */
+const PANEL_WIDTH = 320;
 
 function fmt(v: number): string {
   return (v < 0 ? "" : " ") + v.toFixed(3);
@@ -207,78 +232,19 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
     window.location.hash = call === "dosado" ? "#dance" : `#dance=${call}`;
   }, [call]);
 
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "#f4f4f2" }}>
-      <Canvas shadows camera={{ position: [0, 6.5, 7.5], fov: 45 }}>
-        <ambientLight intensity={0.75} />
-        <directionalLight position={[4, 8, 4]} intensity={1.4} castShadow />
-
-        {/* Floor, with a grid so travel and lane offsets are readable. */}
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
-          <planeGeometry args={[24, 24]} />
-          <meshStandardMaterial color="#e8e8e4" />
-        </mesh>
-        <gridHelper args={[24, 24, "#b9b9b3", "#d6d6d0"]} />
-        {/* Engine axes: red = +x, blue = engine +y (world −z). */}
-        <arrowHelper args={[new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0.02, 0), 2.2, 0xcc4433]} />
-        <arrowHelper args={[new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0.02, 0), 2.2, 0x3355cc]} />
-
-        {/* Keyed on the cast: the frame (and its body-derived scale) is built
-            once per mount, so a new cast means a fresh DanceFloor. */}
-        <DanceFloor
-          key={sizes}
-          call={call}
-          {...(figure.sequence === undefined ? {} : { sequence: figure.sequence })}
-          bpm={bpm}
-          loop
-          followDrift={drift}
-          paused={paused}
-          onBeat={onBeat}
-          onArms={onArms}
-          controllers={controllers}
-          {...(SIZE_CASTS[sizes] === undefined ? {} : { shapes: SIZE_CASTS[sizes] })}
-        />
-
-        {/* Joint markers: black = the pivot the pair holds over, blue = each elbow,
-            red = each hand. A held grip should look nailed to the black dot while
-            the bodies breathe past it. */}
-        {joints && (
-          <>
-            <mesh ref={markers.pivot} visible={false}>
-              <sphereGeometry args={[0.045, 12, 12]} />
-              <meshBasicMaterial color="#111111" />
-            </mesh>
-            {markers.elbows.map((ref, i) => (
-              <mesh key={`elbow-${String(i)}`} ref={ref} visible={false}>
-                <sphereGeometry args={[0.035, 10, 10]} />
-                <meshBasicMaterial color="#2255cc" />
-              </mesh>
-            ))}
-            {markers.hands.map((ref, i) => (
-              <mesh key={`hand-${String(i)}`} ref={ref} visible={false}>
-                <sphereGeometry args={[0.035, 10, 10]} />
-                <meshBasicMaterial color="#cc3322" />
-              </mesh>
-            ))}
-          </>
-        )}
-      </Canvas>
-
-      <div
-        style={{
-          position: "absolute",
-          top: 16,
-          left: 16,
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          padding: "12px 14px",
-          background: "rgba(255,255,255,0.92)",
-          border: "1px solid #ccc",
-          borderRadius: 8,
-          font: "13px/1.4 system-ui, sans-serif",
-        }}
-      >
+  // The panel's own markup, lifted into a variable so the layout above reads as the
+  // two columns it now is rather than burying the docked column under 150 lines of
+  // controls. Same elements, same order, same handlers.
+  const panel = (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        padding: "12px 14px",
+        font: "13px/1.4 system-ui, sans-serif",
+      }}
+    >
         <strong>square-one · M4 debug</strong>
         <div style={{ display: "flex", gap: 6 }}>
           {DEBUG_FIGURES.map((c) => (
@@ -421,6 +387,81 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
             </span>
           </>
         )}
+    </div>
+  );
+
+  return (
+    // Docked, not floating. The panel used to sit `position: absolute` over the canvas,
+    // which put the controls on top of the one thing they exist to let you look at — and
+    // this scene's whole job is looking. A flex row gives the panel its own column and
+    // the canvas everything else, so nothing to judge is ever underneath a button.
+    <div style={{ position: "fixed", inset: 0, background: "#f4f4f2", display: "flex" }}>
+      <div
+        style={{
+          width: PANEL_WIDTH,
+          flex: "0 0 auto",
+          overflowY: "auto",
+          borderRight: "1px solid #ccc",
+          background: "#fbfbfa",
+        }}
+      >
+        {panel}
+      </div>
+      <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+      <Canvas shadows camera={{ position: [0, 6.5, 7.5], fov: 45 }}>
+        <ambientLight intensity={0.75} />
+        <directionalLight position={[4, 8, 4]} intensity={1.4} castShadow />
+
+        {/* Floor, with a grid so travel and lane offsets are readable. */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
+          <planeGeometry args={[24, 24]} />
+          <meshStandardMaterial color="#e8e8e4" />
+        </mesh>
+        <gridHelper args={[24, 24, "#b9b9b3", "#d6d6d0"]} />
+        {/* Engine axes: red = +x, blue = engine +y (world −z). */}
+        <arrowHelper args={[new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0.02, 0), 2.2, 0xcc4433]} />
+        <arrowHelper args={[new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0.02, 0), 2.2, 0x3355cc]} />
+
+        {/* Keyed on the cast: the frame (and its body-derived scale) is built
+            once per mount, so a new cast means a fresh DanceFloor. */}
+        <DanceFloor
+          key={sizes}
+          call={call}
+          {...(figure.sequence === undefined ? {} : { sequence: figure.sequence })}
+          bpm={bpm}
+          loop
+          followDrift={drift}
+          paused={paused}
+          onBeat={onBeat}
+          onArms={onArms}
+          controllers={controllers}
+          {...(SIZE_CASTS[sizes] === undefined ? {} : { shapes: SIZE_CASTS[sizes] })}
+        />
+
+        {/* Joint markers: black = the pivot the pair holds over, blue = each elbow,
+            red = each hand. A held grip should look nailed to the black dot while
+            the bodies breathe past it. */}
+        {joints && (
+          <>
+            <mesh ref={markers.pivot} visible={false}>
+              <sphereGeometry args={[0.045, 12, 12]} />
+              <meshBasicMaterial color="#111111" />
+            </mesh>
+            {markers.elbows.map((ref, i) => (
+              <mesh key={`elbow-${String(i)}`} ref={ref} visible={false}>
+                <sphereGeometry args={[0.035, 10, 10]} />
+                <meshBasicMaterial color="#2255cc" />
+              </mesh>
+            ))}
+            {markers.hands.map((ref, i) => (
+              <mesh key={`hand-${String(i)}`} ref={ref} visible={false}>
+                <sphereGeometry args={[0.035, 10, 10]} />
+                <meshBasicMaterial color="#cc3322" />
+              </mesh>
+            ))}
+          </>
+        )}
+      </Canvas>
       </div>
     </div>
   );

@@ -4,6 +4,83 @@ _Last updated: 2026-08-16_
 
 ## Status / next
 
+**▶ RIGHT NOW — partner up, rebuilt from a body that is finally where it claims to be
+(2026-08-16). 🔴 UNCOMMITTED AND UNWATCHED.** Ryan: *"we should finalize 'partner up' —
+that look is a bit off — the stance could be a little farther apart and have the reach
+accommodate the handhold better — the hands should be at the belle's waist height — let's
+see if that fixes the arm angle."* **562 tests** (from 560), lint 0 errors, typecheck and
+build clean. `pnpm dev`, `#dance=two-trades`, and look at the standing couple.
+
+- 🔴 **First: a dancer's torso was drawn half a world unit low, and had been all along.**
+  `Dancer.tsx` seated the body capsule at the rig origin while *every other height in the
+  same component* — the shoulders the arms hang from, the head, the chest marker — came
+  from `computePositions(shape, NPC_BODY_CENTER_Y)`. `Npc.tsx` has always placed the same
+  capsule at that constant; the dance rig was written from scratch and the offset did not
+  come with it. So heads and arms floated clear of their torsos, and Ember's body was
+  mostly under the floor. **All 560 tests passed before and after the fix**, which is the
+  tell: everything that *reasons* about a dancer (`armMetrics`, `silhouetteMetrics`,
+  `rigidParts`, the frame scale) reads the constant and was right the whole time. Only the
+  picture was wrong. Nothing but looking could have found it.
+- **The stance is now computed here, not taken from the engine.** `coupleStandingWidth`
+  sets it from the two dancers' shoulders: **1.140** world units, up from 0.868. That is
+  square-one's own instruction being followed — its `COUPLE_WIDTH` doc says a third is the
+  *body-agnostic default* and a consumer with bodies should compute this and pass it to
+  `partnerUp`. The ADR-0004 seam, used rather than admired.
+- **Why the arms looked wrong:** at 0.868 the couple was **narrower than Myco's own
+  shoulders** (0.920 across), so each dancer's inside shoulder sat *over* the joined hands
+  and both arms hung dead vertical. There was no handhold shape because there was no room
+  for one.
+- **The hands are carried at the belle's waist** (`waistY`, new in `body-shapes` — half
+  the shoulder height, because a legless capsule's waist is its own middle). Was the mean
+  of the two dancers' *hanging* hands, which landed at 0.375 — **below Ember's hanging
+  hand** — so Ember came out **113% extended**, the undrawn upper arm stretching to reach
+  a height beneath it.
+- 🔴 **The belle's waist alone was not enough either, and the cast is why.** Shoulders at
+  0.950 and 1.425 differ by more than the slack in either arm, so with Myco as the belle
+  her waist is 0.973 from Ember's shoulder against an arm of 0.935 — over-extended again,
+  by the same mechanism. `touchHeight` therefore takes the belle's waist as a **target**
+  and raises it to whatever the shorter reach can manage. What two people of very
+  different heights actually do.
+- **Result, as numbers.** In the scene (belle = Ember) the hands land at 0.713, her waist
+  exactly, no clamp needed: **Myco 38% extended at 25° inward, Ember 79% at 16°** — against
+  83%/−3° and 113%/4° before. Reversed, the clamp lifts the hands from 0.475 to 0.562 and
+  nobody exceeds 95%.
+- **And it moved clearance for free:** a wider couple widens the Trade's pass in step, from
+  **0.260 to 0.342** world units. Still short of the 0.710 needed — see the clearance
+  decision in `work/square-dance-planning/PROGRESS.md` — but a third of the way there
+  without touching the lane.
+- 🔴 **Then Ryan, on the first look: *"see the beau's arm is pointing at the belle though?"***
+  He was right and the cause was in the elbow solve, not the handhold. `reachPose` breaks the
+  elbow's one degree of freedom with a preference of `(sign × ELBOW_SWING, −1, 0)` — "mostly
+  down, a little out". That vector is then **projected onto the plane perpendicular to the
+  shoulder→hand axis**, and a couple's joined hands put the hand nearly *below* the shoulder,
+  so the axis is near-vertical, the elbow's circle is near-horizontal, and the `−1` is almost
+  entirely parallel to the axis. Projection deletes it. What survived was "out", with a
+  *positive* y residual: the beau's elbow landed at **x 0.790 against a joined hand at
+  0.570** — the undrawn upper arm dead horizontal, the elbow outboard of the hand it was
+  holding with.
+- **`ELBOW_BACK` is the fix**, weighted by how folded the arm is. Backward is the one
+  direction always perpendicular to a vertical axis, so it cannot be projected away; and a
+  nearly straight arm has almost no circle to choose on, so the weighting makes this free for
+  the fist bump (render-validated 2026-07-26, and its tests are unchanged). The beau's elbow
+  now sits at **(0.565, 0.868, −0.302)** — above the hand, below the shoulder, behind the
+  body. A real folded elbow.
+- 🔴 **Still open, and it is the cast rather than the code:** Myco's arm is 0.690 but the
+  shoulder-to-hand span at Ember's waist is only 0.30, so the beau's arm remains visibly
+  *folded* — forearm 57° off vertical — and no height fixes it. Myco needs the hands low
+  (long arm, low shoulder), Ember needs them high; with a comfort ceiling as well as the
+  existing floor **the band is empty**. This pairing cannot hold hands naturally. Worth
+  deciding whether that is a cast problem (Myco's arms and head are outsized) or whether
+  touch hands should bend the arm differently. Not guessed at.
+
+**▶ ALSO — the debug panel is docked, not floating (2026-08-16).** Ryan: *"let's doc the
+panel to the left."* It sat `position: absolute` over the canvas, putting the controls on top
+of the one thing they exist to let you look at. Now a flex row: a 320px column, its own
+scroll, canvas taking the rest. Every control is also documented in `DanceDebugScene.tsx`'s
+module doc — a table of what each dial is for — since this scene is the project's only
+instrument for the defects tests cannot see, and an undocumented instrument gets used for
+less than it can do.
+
 **▶ WATCH THIS FIRST: Partner Trade lost its sway, and two beats with it (2026-08-16).** Ryan,
 on `#dance=two-trades`: *"I'm wondering about the sway when just standing — it seems 2x too
 wide and 2X too slow."* **The fix is entirely in square-one** — its `ADR-0013`

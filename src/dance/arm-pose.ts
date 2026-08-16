@@ -165,6 +165,8 @@ export interface ArmMetrics {
   readonly armHalfWidth: number;
   /** Resting elbow height — where this dancer's forearm sits when horizontal. */
   readonly elbowY: number;
+  /** Waist height — where a couple's joined hands are carried. */
+  readonly waistY: number;
   /** The torso's own radius — this dancer's share of a tight gap. */
   readonly bodyRadius: number;
 }
@@ -192,6 +194,7 @@ export function armMetrics(
     handRadius,
     armHalfWidth,
     elbowY: pos.elbowY,
+    waistY: pos.waistY,
     bodyRadius: shape.body.radius,
   };
 }
@@ -382,19 +385,90 @@ export function insideSide(self: Placement, partner: Placement): "left" | "right
 }
 
 /**
- * The height a couple's joined hands rest at, in world space — the mean of the two
- * dancers' own hanging hands.
+ * How much of their arm a dancer may spend on a *resting* handhold.
  *
- * Arms hang; the hands meet where they already are. That is why the width square-one
- * chose is the one at which resting hands touch: **nobody has to lift anything**, which
- * is what "touch hands" describes and what makes it a resting formation rather than a
- * pose being held.
- *
- * The mean for the same reason {@link gripHeight} takes one: it has to be a single
- * number or the hands are not on each other.
+ * Touch hands is a formation people stand in, not a stretch they hold, so the joined
+ * hands have to sit inside a comfortable reach with the elbow still bent. Below 1 by
+ * enough to leave the elbow visible.
  */
-export function touchHeight(a: ArmMetrics, b: ArmMetrics): number {
-  return (a.rigOriginY + a.restY - a.handReach + b.rigOriginY + b.restY - b.handReach) / 2;
+export const TOUCH_COMFORT = 0.95;
+
+/**
+ * The height a couple's joined hands are carried at, in world space: **the belle's
+ * waist**, raised if that is lower than either dancer can comfortably reach.
+ *
+ * Ryan, 2026-08-16: *"the hands should be at the belle's waist height."* One dancer's
+ * body sets it rather than both, which is the difference from {@link gripHeight}'s mean
+ * — but it is still a single number, because two hands that are not at one height are
+ * not joined.
+ *
+ * 🔴 **This was the mean of the two dancers' own hanging hands**, on the reasoning that
+ * arms hang and the hands should meet where they already are, so nobody lifts anything.
+ * The reasoning was sound and the result was not: on the default cast the mean lands at
+ * 0.375, which is **below** Ember's hanging hand (0.490) and above Myco's (0.260), so
+ * Myco lifted, Ember pushed *down* — and Ember's arm came out **113% extended**, the
+ * undrawn upper arm stretching to reach a height beneath it. A rule that asks a dancer
+ * to reach past the end of their own arm is not a resting pose.
+ *
+ * 🔴 **And the belle's waist alone is not enough either, on a cast this mismatched.**
+ * Myco's shoulder is at 0.950 and Ember's at 1.425 — a difference of half a world unit,
+ * larger than the slack in either arm. With Myco as the belle, her waist at 0.475 is
+ * 0.973 from Ember's shoulder against an arm of 0.935: over-extended again, by the same
+ * mechanism the mean produced. So the belle's waist is a **target**, and the floor is
+ * what the shorter reach can actually manage. The clamp is the honest version of what
+ * two people of very different heights do: they meet above the shorter one's waist.
+ *
+ * Both dancers must arrive at the same number or their hands are not on each other, so
+ * every input here is symmetric in the pair — `Math.max` over both, at a separation both
+ * of them measure the same way.
+ */
+export function touchHeight(
+  belle: ArmMetrics,
+  a: ArmMetrics,
+  b: ArmMetrics,
+  halfSeparation: number,
+): number {
+  let carried = belle.rigOriginY + belle.waistY;
+  for (const m of [a, b]) {
+    // How far this dancer's inside hand is from their own shoulder, horizontally.
+    const dx = Math.max(0, halfSeparation - m.restX);
+    const reach = TOUCH_COMFORT * m.handReach;
+    // Everything left over after the horizontal span is what they can spend going down.
+    const drop = reach > dx ? Math.sqrt(reach * reach - dx * dx) : 0;
+    carried = Math.max(carried, m.rigOriginY + m.restY - drop);
+  }
+  return carried;
+}
+
+/**
+ * How far the joined hands sit inboard of the wider dancer's inside shoulder.
+ *
+ * The stance follows from this rather than the other way round. Ryan, 2026-08-16:
+ * *"the stance could be a little farther apart and have the reach accommodate the
+ * handhold better."* At the engine's body-agnostic default the couple stood 0.868 apart
+ * while Myco's shoulders alone are 0.920 across — so each dancer's inside shoulder sat
+ * *over* the joined hands (dx = −0.026) and both arms hung dead vertical. There was no
+ * handhold shape on screen because there was no room for one.
+ *
+ * A hand's width of daylight is the smallest offset that reads as an arm reaching
+ * *inward* rather than hanging. Tuned by eye against the debug scene; a number to watch.
+ */
+export const TOUCH_INBOARD = 0.11;
+
+/**
+ * The width a couple of these two bodies actually stands at, centre to centre.
+ *
+ * square-one's `COUPLE_WIDTH` is explicitly the **body-agnostic default** and its own
+ * doc says a consumer with real bodies should compute this and pass it to `partnerUp`.
+ * This is that computation, and it is the ADR-0004 seam doing the job it was cut for:
+ * the engine says *a couple stands hand in hand*, and the side that owns shoulders says
+ * how far apart that puts them.
+ *
+ * Set by the **wider** of the two inside shoulders, so the narrower dancer gets at least
+ * as much room to angle their arm in — a couple is as wide as its wider member needs.
+ */
+export function coupleStandingWidth(a: ArmMetrics, b: ArmMetrics): number {
+  return 2 * (Math.max(a.restX, b.restX) + TOUCH_INBOARD);
 }
 
 /**
@@ -409,6 +483,18 @@ export function touchHeight(a: ArmMetrics, b: ArmMetrics): number {
  * anything.
  */
 export const ELBOW_SWING = 0.6;
+
+/**
+ * How hard a **folded** elbow prefers to go backward rather than outward.
+ *
+ * Companion to {@link ELBOW_SWING}, and it exists because that one alone cannot answer
+ * the case a couple's joined hands create. Weighted by the fold, so it is ~0 for a
+ * reaching arm and dominant for a crumpled one — see the note in {@link reachPose}.
+ *
+ * Characters face local `+z` (the `DancerArmRigs` convention), so backward is `−z`.
+ * Tuned by eye against touch hands; a number to watch, like its sibling.
+ */
+export const ELBOW_BACK = 1.5;
 
 /**
  * Put the hand at a named point and let the **elbow** find its own way there.
@@ -480,9 +566,26 @@ export function reachPose(
 
   // The swing direction: the preferred one, with its component along the axis removed
   // so what is left is perpendicular and the elbow stays on its circle.
+  //
+  // 🔴 **The backward term is what stops a folded arm pointing at the partner.** With
+  // the hand nearly *below* the shoulder — which is where a couple's joined hands are —
+  // the axis is near-vertical, so the elbow's circle is near-horizontal and the `-1`
+  // above is almost entirely parallel to the axis. Projection removes it, and what
+  // survives is the outward term alone, with a *positive* y residual. Touch hands landed
+  // the beau's elbow at x 0.790 against a joined hand at 0.570: the undrawn upper arm
+  // dead horizontal, the elbow outboard of the hand it was holding with, and the whole
+  // arm reading as pointed at the belle. Ryan, watching it: *"the beau's arm is pointing
+  // at the belle."*
+  //
+  // A real elbow folds **backward**, not outward — which is the one direction that is
+  // always perpendicular to a vertical axis and so cannot be projected away. Scaled by
+  // how folded the arm is, so it costs nothing where it is not needed: a nearly straight
+  // arm has almost no circle to choose on, which is why the fist bump (render-validated
+  // 2026-07-26) is untouched by this.
+  const fold = 1 - d / (upper + fore);
   let px = sign * ELBOW_SWING;
   let py = -1;
-  let pz = 0;
+  let pz = -ELBOW_BACK * fold;
   const dot = px * ux + py * uy + pz * uz;
   px -= dot * ux;
   py -= dot * uy;
@@ -782,14 +885,16 @@ export function poseArms(
 
     if (joined <= 0) {
       if (side === inside) {
-        // The hands meet at the midpoint, at the height they already hang at, one
-        // stacked on the other by their own radii — the beau's palm beneath, the
-        // belle's above. Solved with `reachPose` (ADR-0017) rather than placed, so the
-        // arm stays on its shoulder and the elbow does the giving.
+        // The hands meet at the midpoint, carried at the **belle's waist**, one stacked
+        // on the other by their own radii — the beau's palm beneath, the belle's above.
+        // Solved with `reachPose` (ADR-0017) rather than placed, so the arm stays on its
+        // shoulder and the elbow does the giving.
         //
         // Who goes underneath is decided by which side each dancer's inside hand is,
         // not by role: the dancer whose inside hand is their **right** is the beau, and
-        // the beau's palm is up. That keeps it true for any pairing (ADR-0012).
+        // the beau's palm is up. That keeps it true for any pairing (ADR-0012) — and it
+        // is also how this dancer knows whose waist to use without being told, since the
+        // belle is simply the other one.
         const under = side === "right";
         const lift = under ? -me.handRadius : me.handRadius;
         reachPose(
@@ -797,7 +902,7 @@ export function poseArms(
           me,
           sign,
           localX / 2,
-          localHeight(me, touchHeight(me, them) + lift),
+          localHeight(me, touchHeight(under ? them : me, me, them, separation / 2) + lift),
           localZ / 2,
         );
         continue;

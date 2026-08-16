@@ -40,6 +40,16 @@ export interface DancePerformanceOptions {
    * different figures.
    */
   readonly sequence?: readonly CallName[];
+  /**
+   * How wide the couple stands, in engine units. Omitted falls back to square-one's
+   * `COUPLE_WIDTH`.
+   *
+   * The engine's own constant documents itself as the **body-agnostic default** and
+   * says a consumer with real bodies should compute this and pass it — the exact seam
+   * ADR-0004 cut. `DanceFloor` has bodies and computes it from the two dancers'
+   * shoulders, so this is where that answer arrives.
+   */
+  readonly coupleWidth?: number;
   readonly bpm?: number;
   /** Restart from beat 0 when the call ends. The debug scene loops; the arc won't. */
   readonly loop?: boolean;
@@ -69,18 +79,23 @@ export interface DanceRuntime {
  * A's 180° rotation, which is the pair symmetry the specs guarantee.
  */
 export function useDancePerformance(options: DancePerformanceOptions): DanceRuntime {
-  const { call, sequence, bpm = DEFAULT_BPM, loop = true, externallyDriven } = options;
+  const { call, sequence, coupleWidth, bpm = DEFAULT_BPM, loop = true, externallyDriven } = options;
 
   const motions = useMemo<Record<string, Motion>>(() => {
     if (sequence !== undefined && sequence.length > 0) {
       // `a` is the beau and `b` the belle, so the keys match the pair case and
       // everything downstream — shapes, rigs, the arm report — is indifferent to which
       // formation is being danced.
-      return flattenSequence(danceCoupleSequence(sequence, partnerUp("a", "b")));
+      return flattenSequence(
+        danceCoupleSequence(
+          sequence,
+          partnerUp("a", "b", undefined, undefined, coupleWidth),
+        ),
+      );
     }
     const { a, b } = applyCallToPair(call);
     return { a, b };
-  }, [call, sequence]);
+  }, [call, sequence, coupleWidth]);
 
   const beats = useMemo(
     () => Math.max(...Object.values(motions).map((m) => m.beats)),

@@ -21,6 +21,7 @@ import {
   insideSide,
   standingAsCouple,
   touchHeight,
+  coupleStandingWidth,
   armPoses,
   upperArmStrain,
   vec3,
@@ -530,7 +531,7 @@ describe("touch hands — a couple stands with inside hands joined", () => {
   // and belle's left palm down … the characters need to be a bit closer together."
   const a = armMetrics(MYCO_DEFAULTS);
   const b = armMetrics(EMBER_DEFAULTS);
-  const WIDTH = a.restX + b.restX;
+  const WIDTH = coupleStandingWidth(a, b);
   const side = (x: number, yaw = 0): Placement => ({ x, z: 0, yaw });
 
   it("recognises a couple from where they are standing, not from a flag", () => {
@@ -548,7 +549,7 @@ describe("touch hands — a couple stands with inside hands joined", () => {
   });
 
   it("tolerates the pair breathing, because a couple mid-call is a couple", () => {
-    // Partner Trade steps them onto lanes and back.
+    // Partner Trade bows them off their standing radius and back.
     expect(standingAsCouple(side(0), side(WIDTH * 1.2), WIDTH)).toBe(true);
     expect(standingAsCouple(side(0), side(WIDTH * 0.85), WIDTH)).toBe(true);
     // ...but not once they have plainly left the formation.
@@ -561,14 +562,38 @@ describe("touch hands — a couple stands with inside hands joined", () => {
     expect(insideSide(side(0), side(-WIDTH))).toBe("right");
   });
 
-  it("joins the hands at a height nobody has to reach for", () => {
-    // The width square-one chose is the one at which *resting* hands meet, which is what
-    // makes touch hands a resting formation rather than a pose being held.
-    const h = touchHeight(a, b);
-    expect(h).toBeCloseTo(
-      ((a.restY - a.handReach) + (b.restY - b.handReach)) / 2,
-      9,
-    );
+  it("carries the joined hands at the belle's waist", () => {
+    // Ryan, 2026-08-16: "the hands should be at the belle's waist height." One body sets
+    // it, not both. Here `a` is the belle — their partner stands at +x, so their inside
+    // hand is their left, and the beau is the dancer whose inside hand is their right.
+    expect(insideSide(side(0), side(WIDTH))).toBe("left");
+    expect(touchHeight(a, a, b, WIDTH / 2)).toBeGreaterThanOrEqual(a.rigOriginY + a.waistY);
+  });
+
+  it("🔴 asks neither dancer to reach past the end of their own arm", () => {
+    // The defect that replaced the mean-of-hanging-hands rule, as a number. That rule
+    // put the hands at 0.375 on this cast — *below* Ember's hanging hand at 0.490 — so
+    // Ember's arm came out 113% extended, the undrawn upper arm stretching to reach a
+    // height beneath it. ADR-0017 permits that (a hand may be placed further than the
+    // arm can go, and the strain reports it), which is exactly why it needs a test
+    // rather than a crash.
+    const h = touchHeight(a, a, b, WIDTH / 2);
+    for (const m of [a, b]) {
+      const dx = WIDTH / 2 - m.restX;
+      const dy = m.restY - h;
+      expect(Math.hypot(dx, dy)).toBeLessThan(m.handReach);
+    }
+  });
+
+  it("stands the couple wide enough that the arms angle inward at all", () => {
+    // The stance is derived from the handhold, not the other way round. With each
+    // dancer's inside shoulder *over* the joined hands the arms hang dead vertical and
+    // there is no handhold to see — which is where the default width left them, since
+    // Myco's shoulders alone are wider than the couple was.
+    for (const m of [a, b]) {
+      expect(WIDTH / 2).toBeGreaterThan(m.restX);
+    }
+    expect(WIDTH).toBeGreaterThan(2 * Math.max(a.restX, b.restX));
   });
 
   it("🔴 puts the two hands on each other, one stacked above the other", () => {

@@ -90,7 +90,25 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
 
   return (
     <group ref={rig}>
-      <mesh ref={expression?.body} rotation={[deg2rad(body.leanX), 0, deg2rad(body.leanZ)]} castShadow>
+      {/* 🔴 The torso is seated at `NPC_BODY_CENTER_Y`, and it had been sitting at the
+          rig origin — half a world unit low, with nothing else moved to match. Every
+          other height in this component comes from `computePositions(shape,
+          NPC_BODY_CENTER_Y)`: the shoulders the arms hang from, the head, the chest
+          marker. Only the mesh that draws the body was left at 0, so a dancer's head
+          and arms floated half a unit clear of their torso — and, for a shape as tall
+          as Ember's, most of the torso was under the floor.
+          `Npc.tsx` has always placed the same capsule at the same constant; the dance
+          rig was written from scratch and the offset did not come with it. It survived
+          the arm work because every measurement that *reasons* about a dancer —
+          `armMetrics`, `silhouetteMetrics`, `rigidParts`, the frame scale — reads the
+          constant and was therefore right the whole time. Only the picture was wrong,
+          which is why no test caught it and looking did. */}
+      <mesh
+        ref={expression?.body}
+        position={[0, NPC_BODY_CENTER_Y, 0]}
+        rotation={[deg2rad(body.leanX), 0, deg2rad(body.leanZ)]}
+        castShadow
+      >
         <capsuleGeometry args={[body.radius, body.height, body.capSegments, body.radialSegments]} />
         <meshStandardMaterial color={COLOR} />
       </mesh>

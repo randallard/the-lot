@@ -48,6 +48,7 @@ import {
   type GripHand,
   type Placement,
   type Vec3,
+  coupleStandingWidth,
 } from "./arm-pose";
 import {
   facingToRotationY,
@@ -228,7 +229,37 @@ export function DanceFloor({
   controllers,
   ...performanceOptions
 }: DanceFloorProps) {
-  const runtime = useDancePerformance(performanceOptions);
+  /**
+   * The width a couple of *these two bodies* stands at, in world units and then in
+   * engine ones.
+   *
+   * Derived from `shapes` rather than from `occupantShapes`, which is the whole reason
+   * it sits up here: the couple's width is an input to the performance, and
+   * `occupantShapes` is downstream of the performance's own keys. Reading it here would
+   * be a cycle — and it would be a cycle for no gain, since a couple is two dancers and
+   * the cast's first two are those two either way.
+   *
+   * square-one's `COUPLE_WIDTH` is the fallback and says of itself that it is the
+   * body-agnostic default, to be replaced by a consumer that has bodies. This is that
+   * consumer (ADR-0004's seam).
+   */
+  const coupleWidthWorld = useMemo(() => {
+    const a = shapes[0];
+    const b = shapes[1];
+    const fallback = COUPLE_WIDTH * (scale ?? scaleForGaps(clearanceGaps([...shapes])));
+    if (a === undefined || b === undefined) return fallback;
+    return coupleStandingWidth(armMetrics(a), armMetrics(b));
+  }, [shapes, scale]);
+
+  const coupleWidthEngine = useMemo(
+    () => coupleWidthWorld / (scale ?? scaleForGaps(clearanceGaps([...shapes]))),
+    [coupleWidthWorld, scale, shapes],
+  );
+
+  const runtime = useDancePerformance({
+    ...performanceOptions,
+    coupleWidth: coupleWidthEngine,
+  });
   const keys = useMemo(() => Object.keys(runtime.motions), [runtime.motions]);
 
   // One rig per dancer, created in a memo rather than by mutating a ref during
@@ -343,10 +374,6 @@ export function DanceFloor({
    * The same class of mistake as the rig-frame defect ADR-0017 chased: two frames, one
    * subtraction, no error.
    */
-  const coupleWidthWorld = useMemo(
-    () => COUPLE_WIDTH * (scale ?? scaleForGaps(gaps)),
-    [scale, gaps],
-  );
 
   useFrame((state, delta) => {
     if (!paused) {

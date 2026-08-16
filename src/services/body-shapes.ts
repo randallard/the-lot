@@ -253,6 +253,16 @@ export const SHAPE_BOUNDS = {
   },
 } as const;
 
+/**
+ * Where the waist sits as a fraction of shoulder height.
+ *
+ * Half, because a legless capsule's waist is its own middle and the capsule runs from
+ * the floor to the shoulder. A figure *with* legs would want roughly 0.73 (waist at
+ * 0.6 of stature over a shoulder at 0.82); if this cast ever grows legs, that is the
+ * number to change to and this is the one place it lives.
+ */
+export const WAIST_OF_SHOULDER = 0.5;
+
 export interface ComputedPositions {
   headY: number;
   /** Top of body = shoulder joint height */
@@ -267,6 +277,20 @@ export interface ComputedPositions {
   handCenterY: number;
   /** Horizontal distance from body center to arm */
   forearmX: number;
+  /**
+   * Waist height — the middle of the standing figure, floor to shoulder.
+   *
+   * This cast has no legs: a character is a capsule with a head on it, so the waist
+   * that *reads* on screen is the middle of the capsule rather than the anthropometric
+   * 0.6-of-stature. Defined off `shoulderY` because that is the only height here that
+   * tracks how tall a shape actually is — `bodyCenterY` is one constant applied to the
+   * whole cast, so anything derived from it alone would give a 0.95-shouldered dancer
+   * and a 1.43-shouldered one the same waist.
+   *
+   * Added for touch hands: joined hands sit at a waist, and a waist is a body fact, so
+   * it belongs next to the shoulder rather than being reconstructed by the arm layer.
+   */
+  waistY: number;
 }
 
 /**
@@ -300,6 +324,7 @@ export function computePositions(
     forearmCenterY,
     handCenterY,
     forearmX: layout.forearmXOffset,
+    waistY: shoulderY * WAIST_OF_SHOULDER,
   };
 }
 
