@@ -3,6 +3,7 @@
  * Stores per-part geometry args and positional layout params.
  */
 
+import * as THREE from "three";
 import {
   type CharacterEyes,
   PLAYER_EYE_DEFAULTS,
@@ -420,6 +421,44 @@ export function handRotations(pose: HandPose): {
     right: [deg2rad(rx), deg2rad(ry), deg2rad(rz)],
     left:  [deg2rad(rx), deg2rad(-ry), deg2rad(-rz)],
   };
+}
+
+/**
+ * A 3×3, row-major. Small enough to pass by value and plain enough that the geometry
+ * layer can use one without importing a renderer.
+ */
+export type Mat3 = readonly number[];
+
+/**
+ * The hand as it is **drawn**, as a linear map from the unit sphere — this pose's
+ * `flattenZ` and its own `rotation`, in the forearm group's frame.
+ *
+ * 🔴 It exists because `radius` is not how big a hand is. A hand mesh is a sphere of
+ * `radius` *flattened* to `flattenZ` in z and then rotated, so the distance from its centre
+ * to its surface is between `radius · flattenZ` and `radius` depending which way you ask —
+ * Myco's open hand is 0.11 across and 0.025 thick. Everything that asked `handRadius` how far
+ * a hand reaches has been asking about a ball that is not drawn, and the couple's stacked
+ * palms are where that showed: solved tangent, drawn 0.0415 apart.
+ *
+ * Built here rather than in `arm-pose` on purpose. This is the **renderer's** composition —
+ * `Dancer` puts a `sphereGeometry(radius)` inside a mesh with `scale=[1,1,flattenZ]` and
+ * `rotation=handRotations(pose)[side]`, and three composes local matrices as `T·R·S` — so it
+ * belongs beside `handRotations`, next to the numbers it reads. `arm-pose` stays free of
+ * three, and gets a matrix instead of a second opinion about how a hand is built.
+ */
+export function handDrawnMap(pose: HandPose, side: "left" | "right"): Mat3 {
+  const r = handRotations(pose)[side];
+  const e = new THREE.Matrix4()
+    .makeRotationFromEuler(new THREE.Euler(r[0], r[1], r[2]))
+    .elements; // column-major: e[c * 4 + row]
+  const sx = pose.radius;
+  const sy = pose.radius;
+  const sz = pose.radius * pose.flattenZ;
+  return [
+    e[0] * sx, e[4] * sy, e[8] * sz,
+    e[1] * sx, e[5] * sy, e[9] * sz,
+    e[2] * sx, e[6] * sy, e[10] * sz,
+  ];
 }
 
 // ---------------------------------------------------------------------------

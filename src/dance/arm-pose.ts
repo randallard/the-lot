@@ -25,8 +25,14 @@
  * difference, exactly as a real one would. Two joined forearms that stretched and
  * squashed with the bodies would be the wrong model of a hold.
  *
- * Two poses:
+ * Three poses:
  *
+ * - **Hold.** A couple stands with its inside hands joined ("touch hands"), and where
+ *   those hands are is a fact about two bodies rather than about the formation:
+ *   {@link touchHold} solves the stance width, the contact height *and* how far off the
+ *   midpoint the hands sit, all three from the pair's own shoulders and arms, and
+ *   {@link touchPose} hangs each upper arm where its body puts it and folds the elbow
+ *   back to suit. Nothing in either one is tuned.
  * - **Grip.** square-one's `Motion.grips` names a hand and a span of beats. A
  *   forearm grip is two **horizontal, antiparallel** forearms lying along the line
  *   between the dancers, side by side and touching, each hand at the other's elbow.
@@ -48,14 +54,20 @@
  *
  * Pure, and deliberately three.js-free: the driver hands over floor positions and
  * headings and eases its rig toward what comes back, so the geometry can be tested
- * without a renderer. Every function fills a caller-owned result — the frame loop
- * allocates nothing.
+ * without a renderer. Every function on the frame path fills a caller-owned result — the
+ * frame loop allocates nothing. {@link touchHold} is the one exception and returns a fresh
+ * object: it is a property of a *cast*, not of a frame, and its caller memoises it.
  */
 
 import {
   NPC_BODY_CENTER_Y,
   computePositions,
+  handDrawnMap,
+  lateralClearance,
+  rigidParts,
   type CharacterBodyShape,
+  type Mat3,
+  type RigidPart,
 } from "../services/body-shapes";
 
 /** A point in world space. Mutable so the frame loop can reuse it. */
@@ -159,8 +171,22 @@ export interface ArmMetrics {
   readonly forearmSpan: number;
   /** Half the forearm's width — how far off the shared plane it sits in a grip. */
   readonly forearmHalfWidth: number;
-  /** The hand's radius, for judging whether it really has hold of something. */
+  /**
+   * The hand's radius, for judging whether it really has hold of something.
+   *
+   * ⚠️ The radius of the **sphere the hand is made from**, before it is flattened and
+   * rotated — so it is how *wide* a hand is, and not how far it reaches in any particular
+   * direction. Anything asking "does this hand's surface reach that point" wants
+   * {@link handRiseAlongUp} and {@link handMap}, not this.
+   */
   readonly handRadius: number;
+  /**
+   * The hand as it is **drawn**, per side — {@link handDrawnMap} of this dancer's hand pose.
+   *
+   * Two entries because the mesh's own rotation is mirrored between the sides, so a
+   * dancer's left hand and right hand are not the same shape in the same frame.
+   */
+  readonly handMap: { readonly left: Mat3; readonly right: Mat3 };
   /** Half the width of the arm's widest part, hand included — what a tuck hides. */
   readonly armHalfWidth: number;
   /** Resting elbow height — where this dancer's forearm sits when horizontal. */
@@ -169,6 +195,47 @@ export interface ArmMetrics {
   readonly waistY: number;
   /** The torso's own radius — this dancer's share of a tight gap. */
   readonly bodyRadius: number;
+  /**
+   * The body and head as ADR-0012 {@link RigidPart}s, in **world** height (the rig
+   * origin already added), for anything that has to keep out of this dancer.
+   *
+   * A radius is not enough for that and never was: a head can be wider than the torso
+   * it sits on, can be offset sideways, and sits at a height a hand may or may not be
+   * near. `bodyRadius` answers "how wide is the middle of them"; this answers "what is
+   * in the way, and at what height" — which is the question a handhold between two
+   * bodies is actually asking.
+   *
+   * Arms are deliberately absent, exactly as in `rigidParts`: they are articulated, and
+   * a dancer's own arm passing through their own torso is a within-one-body cosmetic
+   * matter (Ryan, 2026-08-17: *"sometimes arms will be set wide … that type of thing we
+   * don't need to build for — just bodies heads and shoulders"*). What must not happen
+   * is one dancer's hand inside the *other* dancer.
+   */
+  readonly parts: readonly RigidPart[];
+}
+
+/**
+ * How far this body sticks out sideways at one height — the thing a hand at that
+ * height has to clear.
+ *
+ * Height-aware for the same reason {@link lateralClearance} is: a big head costs
+ * nothing at waist height, and a hold placed under it is not inside anybody. Each part
+ * contributes the half-width of its own cross-section there, so a sphere narrows to
+ * nothing at its poles instead of being treated as a column.
+ */
+export function sideExtentAt(
+  parts: readonly RigidPart[],
+  y0: number,
+  y1: number = y0,
+): number {
+  const [lo, hi] = y0 <= y1 ? [y0, y1] : [y1, y0];
+  let extent = 0;
+  for (const p of parts) {
+    const dy = Math.max(0, Math.max(p.y0 - hi, lo - p.y1));
+    if (dy >= p.radius) continue;
+    extent = Math.max(extent, Math.sqrt(p.radius * p.radius - dy * dy));
+  }
+  return extent;
 }
 
 export function armMetrics(
@@ -182,20 +249,47 @@ export function armMetrics(
   const handRadius = shape.hand[handPose].radius;
   const armHalfWidth = Math.max(forearmHalfWidth, handRadius);
   const handReach = pos.shoulderY - pos.handCenterY;
+  const parts = rigidParts(shape, bodyCenterY).map((p) => ({
+    y0: p.y0 + rigOriginY,
+    y1: p.y1 + rigOriginY,
+    radius: p.radius,
+  }));
+  // **An arm hangs beside a body, not through it.** `forearmXOffset` is a layout slider and
+  // knows nothing about the torso it is attached to, so a wide enough body swallows its own
+  // arms: at radius 0.6 against Myco's 0.46 offset the shoulder — and the hand hanging from
+  // it — is inside the chest, and every hold solved from that shoulder starts inside the
+  // dancer. The editor stays free to say anything (Ryan, 2026-08-17: *"I want to keep body
+  // composition as flexible as we have it … arms will be set wide, even"*); this is the
+  // **dance's** reading of that shape, and the dance accommodates the body rather than the
+  // other way round. Measured over the hanging arm's own span, so it clears whatever is
+  // actually beside the arm — a sunken head included — and not the pole of the capsule the
+  // shoulder happens to sit on. Widening only: an arm already outside its body stays where
+  // the slider put it, which is every shipped cast.
+  //
+  // Measured over the **drawn** forearm, elbow to hand, rather than from the shoulder: a
+  // head overhangs the shoulder on almost every cast (`headBodyGap` is negative by
+  // default, so they overlap on purpose), and nobody holds their arms out to clear their
+  // own jaw. What an arm has to hang clear of is what is beside the *arm*.
+  const bodyBeside = sideExtentAt(parts, pos.handCenterY + rigOriginY, pos.elbowY + rigOriginY);
   return {
     rigOriginY,
     handPose,
-    restX: pos.forearmX,
+    restX: Math.max(pos.forearmX, bodyBeside + armHalfWidth),
     restY: pos.shoulderY,
     elbowReach: pos.upperArmLength,
     handReach,
     forearmSpan: handReach - pos.upperArmLength,
     forearmHalfWidth,
     handRadius,
+    handMap: {
+      left: handDrawnMap(shape.hand[handPose], "left"),
+      right: handDrawnMap(shape.hand[handPose], "right"),
+    },
     armHalfWidth,
     elbowY: pos.elbowY,
     waistY: pos.waistY,
     bodyRadius: shape.body.radius,
+    parts,
   };
 }
 
@@ -385,90 +479,512 @@ export function insideSide(self: Placement, partner: Placement): "left" | "right
 }
 
 /**
- * How much of their arm a dancer may spend on a *resting* handhold.
+ * Which hand this dancer has joined by simply **standing** as half of a couple, or
+ * `null` if they are not standing as one — {@link standingAsCouple} and
+ * {@link insideSide} asked as the one question they are only ever asked together.
  *
- * Touch hands is a formation people stand in, not a stretch they hold, so the joined
- * hands have to sit inside a comfortable reach with the elbow still bent. Below 1 by
- * enough to leave the elbow visible.
+ * Exported because two places need the same answer and must not each decide it:
+ * {@link poseArms}, which puts the hand at the hold, and the debug scene's joint
+ * markers, which claim to show where that hand went. The markers used to key off the
+ * *engine's* grip spans alone, and a standing couple's hold is not one of those — so
+ * every dot went dark for exactly the pose the elbow watch was about.
+ *
+ * A touch hold is not a grip and this is deliberately not `GripHand`: nothing here is
+ * eased, nothing is owned, and the outside arm goes on doing whatever it was.
  */
-export const TOUCH_COMFORT = 0.95;
-
-/**
- * The height a couple's joined hands are carried at, in world space: **the belle's
- * waist**, raised if that is lower than either dancer can comfortably reach.
- *
- * Ryan, 2026-08-16: *"the hands should be at the belle's waist height."* One dancer's
- * body sets it rather than both, which is the difference from {@link gripHeight}'s mean
- * — but it is still a single number, because two hands that are not at one height are
- * not joined.
- *
- * 🔴 **This was the mean of the two dancers' own hanging hands**, on the reasoning that
- * arms hang and the hands should meet where they already are, so nobody lifts anything.
- * The reasoning was sound and the result was not: on the default cast the mean lands at
- * 0.375, which is **below** Ember's hanging hand (0.490) and above Myco's (0.260), so
- * Myco lifted, Ember pushed *down* — and Ember's arm came out **113% extended**, the
- * undrawn upper arm stretching to reach a height beneath it. A rule that asks a dancer
- * to reach past the end of their own arm is not a resting pose.
- *
- * 🔴 **And the belle's waist alone is not enough either, on a cast this mismatched.**
- * Myco's shoulder is at 0.950 and Ember's at 1.425 — a difference of half a world unit,
- * larger than the slack in either arm. With Myco as the belle, her waist at 0.475 is
- * 0.973 from Ember's shoulder against an arm of 0.935: over-extended again, by the same
- * mechanism the mean produced. So the belle's waist is a **target**, and the floor is
- * what the shorter reach can actually manage. The clamp is the honest version of what
- * two people of very different heights do: they meet above the shorter one's waist.
- *
- * Both dancers must arrive at the same number or their hands are not on each other, so
- * every input here is symmetric in the pair — `Math.max` over both, at a separation both
- * of them measure the same way.
- */
-export function touchHeight(
-  belle: ArmMetrics,
-  a: ArmMetrics,
-  b: ArmMetrics,
-  halfSeparation: number,
-): number {
-  let carried = belle.rigOriginY + belle.waistY;
-  for (const m of [a, b]) {
-    // How far this dancer's inside hand is from their own shoulder, horizontally.
-    const dx = Math.max(0, halfSeparation - m.restX);
-    const reach = TOUCH_COMFORT * m.handReach;
-    // Everything left over after the horizontal span is what they can spend going down.
-    const drop = reach > dx ? Math.sqrt(reach * reach - dx * dx) : 0;
-    carried = Math.max(carried, m.rigOriginY + m.restY - drop);
-  }
-  return carried;
+export function touchingSide(
+  self: Placement,
+  partner: Placement,
+  hold: TouchHold | undefined,
+): "left" | "right" | null {
+  if (hold === undefined) return null;
+  return standingAsCouple(self, partner, hold.width) ? insideSide(self, partner) : null;
 }
 
 /**
- * How far the joined hands sit inboard of the wider dancer's inside shoulder.
+ * A couple's handhold, solved for the pair: where the two palms meet, and how far
+ * apart the two dancers stand to put them there.
  *
- * The stance follows from this rather than the other way round. Ryan, 2026-08-16:
- * *"the stance could be a little farther apart and have the reach accommodate the
- * handhold better."* At the engine's body-agnostic default the couple stood 0.868 apart
- * while Myco's shoulders alone are 0.920 across — so each dancer's inside shoulder sat
- * *over* the joined hands (dx = −0.026) and both arms hung dead vertical. There was no
- * handhold shape on screen because there was no room for one.
+ * Three numbers rather than one, because the joined hands have three degrees of freedom
+ * and **every one of them has to come from the bodies** if a mismatched pair is to hold
+ * hands at all. Ryan, 2026-08-17: *"I want it to work with no new limitations — the
+ * movement should accommodate the body size."*
  *
- * A hand's width of daylight is the smallest offset that reads as an arm reaching
- * *inward* rather than hanging. Tuned by eye against the debug scene; a number to watch.
+ * The one that was missing is {@link lateral}. Everything before this assumed the hands
+ * meet at the couple's *midpoint* — the midpoint between their two **bodies**, which is a
+ * body-agnostic answer for the same reason `COUPLE_WIDTH` is. The hands meet between the two
+ * **inside shoulders** instead (ADR-0027), which is the same point for a matched pair and
+ * moves with the bodies for every other one.
  */
-export const TOUCH_INBOARD = 0.11;
+export interface TouchHold {
+  /** Centre-to-centre distance between the two dancers, in world units. */
+  readonly width: number;
+  /** World height of the contact between the two palms. */
+  readonly height: number;
+  /**
+   * How far the joined hands sit off the couple's midpoint, **toward the belle** —
+   * negative is toward the beau, zero for a matched pair.
+   *
+   * Halfway between the two inside shoulders, then clamped into the corridor between the
+   * bodies (ADR-0027). Off the *bodies'* midpoint only because the two dancers' shoulders
+   * are not the same distance in from their own centres.
+   */
+  readonly lateral: number;
+  /**
+   * How far **in front** of the pair the joined hands sit, along the way they are facing.
+   *
+   * Ryan, 2026-08-18: *"they should be held a little forward from where they are, as if the
+   * upper arm is relaxed and hanging straight down."* That is the derivation, not just the
+   * look: an elbow directly below its own shoulder is a relaxed upper arm, and a forearm
+   * running from there to a hand at the hold has to spend its length on three axes. Whatever
+   * it does not spend going across and going down, it spends going **forward** — so the
+   * hands land in front of the bodies rather than in the plane through both of them, which
+   * is where they used to be and where nobody's hands are.
+   *
+   * As far forward as the pair can *both* manage with the upper arm hanging, which is the
+   * shorter of the two answers ({@link relaxedForward}); the other dancer's elbow swings
+   * back to take up the slack, which is what an elbow is for.
+   */
+  readonly forward: number;
+}
 
 /**
- * The width a couple of these two bodies actually stands at, centre to centre.
+ * How far the **drawn** hand reaches straight up (or down — it is symmetric) from its own
+ * centre, for an arm aimed along `aim`.
  *
- * square-one's `COUPLE_WIDTH` is explicitly the **body-agnostic default** and its own
- * doc says a consumer with real bodies should compute this and pass it to `partnerUp`.
- * This is that computation, and it is the ADR-0004 seam doing the job it was cut for:
- * the engine says *a couple stands hand in hand*, and the side that owns shoulders says
- * how far apart that puts them.
+ * 🔴 The number `handRadius` was standing in for, and getting wrong. A hand is a sphere
+ * flattened to `flattenZ` in its own z and then rotated ({@link handDrawnMap}), and the
+ * forearm group turns the whole thing again to point along the arm. Where that leaves the
+ * flat face is a property of the pose, not of the body: Myco's hand is 0.110 across but
+ * only 0.025 thick, and on the standing couple his forearm aims **77% forward**, which
+ * swings the thin axis most of the way to vertical and leaves him reaching 0.073 up
+ * instead of 0.110. Stacking two palms by their radii left the drawn hands 0.0415 apart —
+ * a gap Ryan could see and the tests called tangent (2026-08-18).
  *
- * Set by the **wider** of the two inside shoulders, so the narrower dancer gets at least
- * as much room to angle their arm in — a couple is as wide as its wider member needs.
+ * **The whole of the frame change is `(aimX, −aimY, aimZ)`, which is worth the two lines it
+ * takes to say why.** The forearm group's rotation is the *minimal* one taking `DOWN` to
+ * `aim`; run world up back through its inverse and every trig term cancels, leaving the aim
+ * with its y flipped. Check it on the easy ones: `aim = DOWN` gives back up, and an arm
+ * aimed forward gives `+z`, the group's own forward.
+ *
+ * With `d` in the group's frame, the half-extent of an ellipsoid `M·(unit sphere)` along it
+ * is `|Mᵀd|` — the length of `d` dotted through `M`'s columns.
  */
-export function coupleStandingWidth(a: ArmMetrics, b: ArmMetrics): number {
-  return 2 * (Math.max(a.restX, b.restX) + TOUCH_INBOARD);
+export function handRiseAlongUp(
+  m: ArmMetrics,
+  side: "left" | "right",
+  aimX: number,
+  aimY: number,
+  aimZ: number,
+): number {
+  const h = m.handMap[side];
+  const dx = aimX;
+  const dy = -aimY;
+  const dz = aimZ;
+  const c0 = (h[0] ?? 0) * dx + (h[3] ?? 0) * dy + (h[6] ?? 0) * dz;
+  const c1 = (h[1] ?? 0) * dx + (h[4] ?? 0) * dy + (h[7] ?? 0) * dz;
+  const c2 = (h[2] ?? 0) * dx + (h[5] ?? 0) * dy + (h[8] ?? 0) * dz;
+  return Math.hypot(c0, c1, c2);
+}
+
+/**
+ * Which way this dancer's own hand centre sits from the contact, and how far: the beau's
+ * palm is up and **underneath**, so his hand centre sits below the hold and the belle's
+ * above. Ryan, 2026-08-15: *"beau right palm up and belle's left palm down."*
+ *
+ * The distance is the **drawn** hand's rise, so each dancer independently puts their own
+ * palm *on* the contact plane — the beau's top surface and the belle's bottom surface both
+ * land on `hold.height`, and the two hands meet there without either needing to know the
+ * other's hand at all. That locality is the reason this is per-dancer and not a stack
+ * height solved for the pair.
+ *
+ * `aim` is which way the forearm points; pass `DOWN` for an arm that has not been posed yet,
+ * which is the seed the solve starts from.
+ */
+function palmOffset(
+  m: ArmMetrics,
+  isBeau: boolean,
+  aimX: number,
+  aimY: number,
+  aimZ: number,
+): number {
+  const rise = handRiseAlongUp(m, isBeau ? "right" : "left", aimX, aimY, aimZ);
+  return isBeau ? -rise : rise;
+}
+
+/** How far this dancer's inside hand sits below their own shoulder, given its own lift. */
+function handDrop(m: ArmMetrics, height: number, lift: number): number {
+  return m.rigOriginY + m.restY - (height + lift);
+}
+
+/**
+ * How far forward this dancer's own hand ends up when their **upper arm hangs straight
+ * down** — the relaxed arm, and the whole of Ryan's *"as if the upper arm is relaxed."*
+ *
+ * A hanging upper arm puts the elbow directly below the shoulder, at `elbowY`, with no
+ * freedom left in it. From there the forearm is a fixed length reaching a hand that is
+ * already committed to a lateral offset (`across`, ADR-0027's shoulder midpoint) and a
+ * height (`handY`, the belle's waist plus this dancer's own palm). One axis is left, and the
+ * leftover length goes into it: **forward**.
+ *
+ * Zero when the arm has nothing spare, which is the honest answer rather than a special
+ * case — a dancer already at full stretch across and down cannot also hold their hands out
+ * in front, and {@link touchReach} is what says so.
+ */
+function relaxedForward(m: ArmMetrics, across: number, handY: number): number {
+  const drop = handY - (m.rigOriginY + m.elbowY);
+  const spare = m.forearmSpan * m.forearmSpan - across * across - drop * drop;
+  return Math.sqrt(Math.max(0, spare));
+}
+
+/** Scratch for {@link settleTouch}'s callers that only want the lift. */
+const _settle = armPose();
+
+/**
+ * Settle one dancer's inside arm onto a hold: writes the pose, returns the lift — how far
+ * their own hand centre ended up from the contact plane.
+ *
+ * **Iterated, because the two are each other's inputs.** Where the hand goes decides which
+ * way the forearm points; which way it points decides how much hand lies between its centre
+ * and the plane ({@link handRiseAlongUp}). Seeded with a hanging arm and settled — the same
+ * shape as the height band's own fixed point, and for the same reason. Bounded, so a
+ * pathological body cannot spin it, and the last `touchPose` is outside the loop so the pose
+ * always matches the lift that is returned.
+ *
+ * `handX`/`handZ` are the contact point in **this dancer's** local frame; `height` is world.
+ * Both dancers run this independently and neither needs the other's hand: each puts its own
+ * palm *on* `height`, so they meet there.
+ */
+function settleTouch(
+  out: ArmPose,
+  m: ArmMetrics,
+  isBeau: boolean,
+  handX: number,
+  handZ: number,
+  height: number,
+): number {
+  const sign = isBeau ? -1 : 1;
+  let lift = palmOffset(m, isBeau, 0, -1, 0);
+  // Linear, at roughly a factor of ten a pass on every cast in the repo, from a first guess
+  // that is out by about 0.04 — so a dozen passes is machine precision and the cap is there
+  // for a body that misbehaves, not for the ones we have. Cheap enough to spend: this is a
+  // handful of multiply-adds and two square roots per pass.
+  for (let pass = 0; pass < 16; pass++) {
+    touchPose(out, m, sign, handX, localHeight(m, height + lift), handZ);
+    const next = palmOffset(m, isBeau, out.aimX, out.aimY, out.aimZ);
+    const settled = Math.abs(next - lift) < 1e-12;
+    lift = next;
+    if (settled) break;
+  }
+  touchPose(out, m, sign, handX, localHeight(m, height + lift), handZ);
+  return lift;
+}
+
+/**
+ * The lift each dancer's inside hand ends up with at a candidate hold, in the **canonical
+ * standing couple** — the stance the hold is solved for, before the pair start breathing.
+ *
+ * The couple's own geometry, in one place: each dancer's inside hand is `across` beyond their
+ * own inside shoulder, on the side their partner is on, at `z` 0. `poseArms` derives the same
+ * point from the *live* placements, which is what keeps a held hand on the pivot while the
+ * bodies move; this is what the solve has to agree with at rest.
+ */
+function touchLifts(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  height: number,
+  acrossBeau: number,
+  acrossBelle: number,
+  forward: number,
+): { beau: number; belle: number } {
+  return {
+    beau: settleTouch(_settle, beau, true, -(acrossBeau + beau.restX), forward, height),
+    belle: settleTouch(_settle, belle, false, acrossBelle + belle.restX, forward, height),
+  };
+}
+
+/**
+ * The horizontal distance from shoulder to hand left over once the drop is paid for, at
+ * `f` of this dancer's reach. Zero when the drop alone uses the whole arm.
+ */
+function spanAt(m: ArmMetrics, drop: number, f: number): number {
+  const r = f * m.handReach;
+  return r > Math.abs(drop) ? Math.sqrt(r * r - drop * drop) : 0;
+}
+
+/**
+ * How much daylight the joined hands keep between themselves and a shoulder: **their own
+ * width**.
+ *
+ * The couple has to be wider than its wider member's shoulders or that dancer's inside
+ * shoulder sits over the joined hands and the arm hangs dead vertical with no handhold
+ * to see — which is where the engine's body-agnostic default left them (0.868 across
+ * Myco's 0.920 shoulders). How much wider was the last eyeballed number here, `0.11`,
+ * and this is the same number said properly: the pair of stacked hands is one hand
+ * radius wide, so a hand's width of daylight is exactly enough to see that the hands are
+ * *between* the dancers rather than under a shoulder. Derived, so it moves when a hand
+ * does.
+ */
+function handDaylight(a: ArmMetrics, b: ArmMetrics): number {
+  return Math.max(a.handRadius, b.handRadius);
+}
+
+/**
+ * The narrowest stance that leaves somewhere to *put* the joined hands at a given
+ * height: both bodies' cross-sections there, plus a hand's width of daylight off each.
+ *
+ * A pair that merely clears each other can still have no room for a handhold — two wide
+ * dancers standing a hair apart have hands but nowhere between them for the hands to be.
+ * The stacked pair of palms is one hand radius wide either side of the contact, so that
+ * is what each body has to give back.
+ *
+ * **Narrowest, not roomiest.** Widening past this makes both dancers reach further for
+ * no gain, so "as comfortable as possible" and "as close as the bodies allow" are the
+ * same number, and the couple only stands wider when their shoulders ask for it.
+ */
+function corridorWidth(beau: ArmMetrics, belle: ArmMetrics, height: number): number {
+  return (
+    sideExtentAt(beau.parts, height) +
+    sideExtentAt(belle.parts, height) +
+    2 * handDaylight(beau, belle)
+  );
+}
+
+/**
+ * Solve a couple's handhold from the two bodies — the whole of what "touch hands" means
+ * geometrically, in one pass, with nothing tuned.
+ *
+ * **Height: the belle's waist, and the beau lives with it.** Ryan, 2026-08-16 and again on
+ * 2026-08-17 after watching it: *"the gent's job is to make the belle's job easier, even if
+ * she's taller — so if a dancer chooses that side then they need to be the ones to pay
+ * attention to the belle's comfortable hand position at the belle's waist — even if it looks
+ * awkward — maintain opinionation that way."*
+ *
+ * This is a **dance** opinion, not a geometric one, and it is the reason the rule is not
+ * symmetric. It costs something real and the cost is the point: on the debug cast the belle
+ * is the taller dancer, so her waist (0.713) is nearly the beau's own *shoulder* height
+ * (0.950), and his forearm comes out around 80° off vertical — nearly horizontal, reaching
+ * across. Splitting the difference (the lower of the two waists) hangs both forearms neatly
+ * at 16° and was briefly implemented here on exactly that reasoning. It was the wrong call:
+ * it makes the picture tidier by quietly reassigning the accommodation to whoever is shorter,
+ * and the beau's side is the side that carries it.
+ *
+ * It is a band rather than a point only because an arm has a length: no dancer
+ * can put their inside hand lower than it hangs, or higher than they can lift it, and
+ * the hold has to be somewhere both of them can put a hand. That is *reachability*, not
+ * comfort — the rule this replaces also carried a comfort ceiling (`TOUCH_COMFORT`, 0.95
+ * of the reach), and with a floor as well the permitted band for MYCO + EMBER was
+ * **empty**, which is what produced the standing conclusion that this pairing could not
+ * hold hands. Dropping the ceiling dissolves it: an arm that has
+ * to hang straight to reach hangs straight, which is what the taller dancer's arm does
+ * in every real pair of mismatched heights.
+ *
+ * **Width.** As wide as the wider shoulders plus {@link handDaylight} on each side, but never
+ * wider than the **beau** can stand and still reach her hanging hand (a couple stands where
+ * its hands can meet, and the reaching across is his), and never closer than the bodies allow.
+ * On the default cast the first term wins and gives 1.140 — the same stance that landed on
+ * 2026-08-16, now derived rather than fitted.
+ *
+ * "What the bodies allow" is two things, and it used to be a third thing that was neither:
+ * the sum of the two torso radii, which allowed the pair to stand exactly flush and knew
+ * nothing about heads. It is now ADR-0012's {@link lateralClearance} over both dancers'
+ * {@link RigidPart}s plus {@link PERSONAL_SPACE} — the same height-aware clearance the rest
+ * of the square uses, so a head wider than its torso counts and a head at a height nobody
+ * is near does not — and, at the hold's own height, a {@link corridorWidth} wide enough to
+ * put the hands in. **The square accommodates the bodies rather than the bodies being
+ * assumed to fit the square** (Ryan, 2026-08-17: *"we want the square to accommodate in this
+ * case"*).
+ *
+ * **Lateral: halfway between the two inside shoulders.** Ryan, 2026-08-18, looking at the
+ * standing couple: *"they can move to the horizontal middle between the dancer's shoulders —
+ * vertical level should be at the belle's waist — the body / head disproportion might affect
+ * this but that's the general rule."* So the height keeps its opinion and the lateral loses
+ * one: it is a landmark rather than a preference about whose arm does the work. On the
+ * default cast that moves the hold from 0.210 toward the belle — which is her inside shoulder
+ * exactly, the previous rule's answer — to **0.050**, and both dancers reach the same 0.160
+ * across.
+ *
+ * It is off the couple's midpoint at all only because the two dancers' shoulders sit different
+ * distances in from their own centres; a matched pair holds hands dead centre. The "body /
+ * head disproportion" Ryan names is the corridor clamp below, which is what actually moves the
+ * hold off this landmark, and only on bodies that leave it nowhere else to go.
+ *
+ * **The one thing that outranks the opinion is a body.** The lateral is finally clamped into
+ * the corridor between the two of them, so the joined hands are never inside either dancer
+ * however the preference came out. That clamp binds on exactly the casts the preference gets
+ * wrong — a wide beau beside a narrow belle, where "her arm hangs and he covers the daylight"
+ * puts the hold under his own shoulder, which on a wide enough body is a point inside his
+ * chest.
+ *
+ * Deterministic and symmetric in the pair — both dancers must arrive at the same three
+ * numbers or their hands are not on each other, which is why this is solved once by the
+ * caller and handed to both.
+ */
+export function touchHold(beau: ArmMetrics, belle: ArmMetrics): TouchHold {
+  const target = belle.rigOriginY + belle.waistY;
+
+  // Everything below the height is a function *of* the height, and the height turns out to
+  // be a function of them back — three ways round, now:
+  //
+  // - how far each dancer reaches **sideways** decides how much arm is left to reach *down*
+  //   with, so the reachable band cannot be cut from the vertical alone;
+  // - and which way that leaves each forearm **pointing** decides how much of the hand lies
+  //   between its centre and the contact plane, which is where the hand centre goes.
+  //
+  // So this is a fixed point rather than a pass: place the hold, settle both arms onto it,
+  // re-cut the band knowing what they cost, and stop when nothing moves. Bounded, so a
+  // pathological body cannot spin it. Three passes settle every cast in the repo.
+  let acrossBeau = 0;
+  let acrossBelle = 0;
+  let forward = 0;
+  let lifts = { beau: palmOffset(beau, true, 0, -1, 0), belle: palmOffset(belle, false, 0, -1, 0) };
+  let height = bandedHeight(beau, belle, target, acrossBeau, acrossBelle, lifts, forward);
+  let solved = placeHold(beau, belle, height, lifts, forward);
+  for (let pass = 0; pass < 12; pass++) {
+    acrossBeau = solved.acrossBeau;
+    acrossBelle = solved.acrossBelle;
+    const nextLifts = touchLifts(beau, belle, height, acrossBeau, acrossBelle, solved.forward);
+    const next = bandedHeight(beau, belle, target, acrossBeau, acrossBelle, nextLifts, solved.forward);
+    const settled =
+      Math.abs(next - height) < 1e-12 &&
+      Math.abs(solved.forward - forward) < 1e-12 &&
+      Math.abs(nextLifts.beau - lifts.beau) < 1e-12 &&
+      Math.abs(nextLifts.belle - lifts.belle) < 1e-12;
+    lifts = nextLifts;
+    height = next;
+    forward = solved.forward;
+    solved = placeHold(beau, belle, height, lifts, forward);
+    if (settled) break;
+  }
+
+  return { width: solved.width, height, lateral: solved.lateral, forward: solved.forward };
+}
+
+/**
+ * The belle's waist, clamped into the height both of them can actually reach **given how
+ * far sideways each of them already has to go**.
+ *
+ * The sideways part is why this takes `across`. An arm's reach is a sphere, not a plumb
+ * line: a hand that is already 0.02 out to the side has less than its full length left to
+ * go down, so a band cut from the vertical alone is a band the arms cannot always make.
+ * That is the same shape of error as the couple's midpoint — one number standing in for a
+ * constraint with two axes — and it showed up as four shipped pairs overshooting their arms
+ * by 0.06% once the hold stopped being free to sit exactly under a shoulder.
+ *
+ * Floor and ceiling come last, after the waist, because they are *reachability* rather than
+ * comfort: if the two bands do not overlap, the pair are too far apart in height to join
+ * hands at her waist at all, and the honest answer is the nearest height the arms can make,
+ * with {@link upperArmStrain} reporting what is left over.
+ */
+function bandedHeight(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  target: number,
+  acrossBeau: number,
+  acrossBelle: number,
+  lifts: { beau: number; belle: number },
+  forward: number,
+): number {
+  let floor = -Infinity;
+  let ceiling = Infinity;
+  for (const [m, across, palm] of [
+    [beau, acrossBeau, lifts.beau],
+    [belle, acrossBelle, lifts.belle],
+  ] as const) {
+    const shoulder = m.rigOriginY + m.restY;
+    // What the arm has left for the vertical, once the sideways **and the forward** are paid
+    // for. Three axes now, for the same reason it stopped being one: a reach is a sphere.
+    const drop = Math.sqrt(
+      Math.max(0, m.handReach * m.handReach - across * across - forward * forward),
+    );
+    floor = Math.max(floor, shoulder - drop - palm);
+    ceiling = Math.min(ceiling, shoulder + drop - palm);
+  }
+  return Math.max(floor, Math.min(ceiling, target));
+}
+
+/** The stance, the off-midpoint offset and the forward offset for one candidate height. */
+interface PlacedHold {
+  readonly width: number;
+  readonly lateral: number;
+  readonly forward: number;
+  readonly acrossBeau: number;
+  readonly acrossBelle: number;
+}
+
+function placeHold(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  height: number,
+  lifts: { beau: number; belle: number },
+  forward: number,
+): PlacedHold {
+  // Vertical and forward both come out of the same reach, so the stance sees them as one
+  // number: what is left over is what may be spent going sideways.
+  const beauDrop = Math.hypot(handDrop(beau, height, lifts.beau), forward);
+  const belleDrop = Math.hypot(handDrop(belle, height, lifts.belle), forward);
+
+  // The stance. `shoulders` is the width a handhold wants; `arms` is as far apart as the
+  // pair can stand and still **meet in the middle** of the daylight between their inside
+  // shoulders, which is as far as the *shorter* of the two inside arms can go, twice;
+  // `bodies` is the closest the pair can stand at all.
+  const beauReach = spanAt(beau, beauDrop, 1);
+  const belleReach = spanAt(belle, belleDrop, 1);
+  const shoulders = 2 * (Math.max(beau.restX, belle.restX) + handDaylight(beau, belle));
+  const arms = beau.restX + belle.restX + 2 * Math.min(beauReach, belleReach);
+  const bodies = Math.max(
+    // Nothing of one dancer inside the other, at any height — heads included.
+    lateralClearance(beau.parts, belle.parts) + PERSONAL_SPACE,
+    // And a corridor at the hold's own height wide enough to put the hands in.
+    corridorWidth(beau, belle, height),
+  );
+  const width = Math.max(bodies, Math.min(shoulders, arms));
+
+  // **The hands hang halfway between the two inside shoulders.** Ryan, 2026-08-18: *"they
+  // can move to the horizontal middle between the dancer's shoulders … that's the general
+  // rule."* The beau's inside shoulder is `beau.restX` in from his side of the stance and
+  // the belle's is `belle.restX` in from hers, so the point between them sits off the
+  // couple's own midpoint by half the difference: zero for a matched pair, and toward the
+  // **narrower** dancer when the two are built differently, because a broader dancer's
+  // inside shoulder reaches further into the gap.
+  //
+  // Two things fall out of it that the rule it replaces had to work for. It does not depend
+  // on `width` at all — both shoulders move with the stance, so the middle between them
+  // stays the middle — and it is the one point at which the two dancers reach the *same
+  // distance* across, so neither of them can be handed the other's share of the daylight.
+  const preferred = (beau.restX - belle.restX) / 2;
+
+  // **And then the bodies get the last word.** Everything above is a preference about
+  // whose arm does the work, computed from shoulders and reach — none of which knows
+  // where a torso is. On a mismatched pair that preference walks the hold straight into
+  // somebody: the joined hands land under the wider dancer's shoulder, and their shoulder
+  // is inside their own chest. So the hold is finally clamped into the corridor between
+  // the two bodies, which `width` above guarantees is wide enough to hold it.
+  //
+  // The clamp is the accommodation, and it outranks the preference on purpose: a hold
+  // inside a dancer is not a hold, and no opinion about which dancer reaches can buy one.
+  const clear = handDaylight(beau, belle);
+  const floorX = -width / 2 + sideExtentAt(beau.parts, height) + clear;
+  const ceilX = width / 2 - sideExtentAt(belle.parts, height) - clear;
+  const lateral = Math.max(floorX, Math.min(ceilX, preferred));
+
+  const acrossBeau = width / 2 + lateral - beau.restX;
+  const acrossBelle = width / 2 - lateral - belle.restX;
+
+  return {
+    width,
+    lateral,
+    // **As far forward as both of them can hold with the upper arm hanging.** The shorter of
+    // the two relaxed answers, because the longer-armed dancer can always fold an elbow back
+    // to take up the slack and the shorter-armed one cannot conjure length. Same shape as the
+    // height's own band: whichever demand binds, binds.
+    forward: Math.min(
+      relaxedForward(beau, acrossBeau, height + lifts.beau),
+      relaxedForward(belle, acrossBelle, height + lifts.belle),
+    ),
+    acrossBeau,
+    acrossBelle,
+  };
 }
 
 /**
@@ -487,12 +1003,21 @@ export const ELBOW_SWING = 0.6;
 /**
  * How hard a **folded** elbow prefers to go backward rather than outward.
  *
- * Companion to {@link ELBOW_SWING}, and it exists because that one alone cannot answer
- * the case a couple's joined hands create. Weighted by the fold, so it is ~0 for a
- * reaching arm and dominant for a crumpled one — see the note in {@link reachPose}.
+ * Companion to {@link ELBOW_SWING}, and it exists because that one alone cannot answer a
+ * folded arm: with the hand nearly below the shoulder the elbow's circle is
+ * near-horizontal, the "down" preference is parallel to the axis, and projection deletes
+ * it. Weighted by the fold, so it is ~0 for a reaching arm and dominant for a crumpled
+ * one — see the note in {@link reachPose}.
+ *
+ * 🔴 **It went in for touch hands and touch hands no longer uses it.** A handhold now goes
+ * through {@link touchPose}, where the answer comes from anatomy — the humerus hangs in
+ * its own shoulder's plane — instead of from a weighting between two tuned directions.
+ * What is left here is the case it was tuned against second-hand: a folded *reach*, which
+ * the fist bump is not (it is nearly straight, so it has almost no circle to choose on).
+ * That makes this a constant with no render-validated case behind it, exactly the state
+ * {@link ELBOW_SWING} was in when a genuinely folded arm found it out.
  *
  * Characters face local `+z` (the `DancerArmRigs` convention), so backward is `−z`.
- * Tuned by eye against touch hands; a number to watch, like its sibling.
  */
 export const ELBOW_BACK = 1.5;
 
@@ -582,6 +1107,10 @@ export function reachPose(
   // how folded the arm is, so it costs nothing where it is not needed: a nearly straight
   // arm has almost no circle to choose on, which is why the fist bump (render-validated
   // 2026-07-26) is untouched by this.
+  //
+  // Touch hands does not come through here any more — {@link touchPose} answers the same
+  // question from the shoulder's own plane, with nothing tuned — so what this weighting
+  // now serves is a folded *reach*. There is no such call yet.
   const fold = 1 - d / (upper + fore);
   let px = sign * ELBOW_SWING;
   let py = -1;
@@ -623,6 +1152,118 @@ export function reachPose(
   out.aimX = ax / alen;
   out.aimY = ay / alen;
   out.aimZ = az / alen;
+  return out;
+}
+
+/**
+ * How much of their own arm one dancer spends on a hold, as a fraction: 0 is a hand at the
+ * shoulder, 1 is a straight arm, and above 1 is a hand the body cannot reach.
+ *
+ * The number {@link touchHold}'s split exists to equalise, and the one that says whether an
+ * arm reads folded or stretched — so it belongs next to the solve rather than being
+ * re-derived by every test and readout that wants it. Measured to this dancer's own hand
+ * *centre*, stacking included, which is the distinction that hid a real over-extension
+ * behind a plausible-looking 100%.
+ */
+export function touchReach(m: ArmMetrics, hold: TouchHold, isBeau: boolean): number {
+  const across = hold.width / 2 + (isBeau ? hold.lateral : -hold.lateral) - m.restX;
+  // Settled rather than assumed, so the readout is the arm the render poses and not an
+  // arm whose hand is a sphere. Needs no partner: `across` is already in `hold`.
+  const lift = settleTouch(
+    _settle,
+    m,
+    isBeau,
+    (isBeau ? -1 : 1) * (across + m.restX),
+    hold.forward,
+    hold.height,
+  );
+  return (
+    Math.hypot(across, handDrop(m, hold.height, lift), hold.forward) / m.handReach
+  );
+}
+
+/**
+ * Put the hand at a named point with the **upper arm hanging by the body** — the pose a
+ * resting handhold wants, and the one {@link ELBOW_SWING} and {@link ELBOW_BACK} were
+ * being asked to guess at.
+ *
+ * Same two-link problem as {@link reachPose} and the same circle of legal elbows; the
+ * difference is what breaks the tie. A reach breaks it with a *preference* — mostly down,
+ * a little out, backward when folded — because a bump has no anatomy to appeal to. A
+ * handhold does: **the humerus of a hanging arm stays in the plane of its own shoulder.**
+ * Nobody lifts their elbow sideways to hold a hand; the elbow drops and swings back, and
+ * the forearm comes forward to the join. So the elbow keeps the shoulder's lateral offset
+ * exactly, which cuts the circle of legal elbows down to two points, and the one further
+ * *back* is the fold. No tuned constant appears anywhere in it.
+ *
+ * That is the defect Ryan named on 2026-08-16 — *"the beau's arm is pointing at the belle"*
+ * — closed at the source rather than counterweighted. `reachPose` put that elbow at x 0.790
+ * against a joined hand at 0.570, outboard of the hand it was holding with, because with the
+ * hand nearly *below* the shoulder the elbow's circle is near-horizontal and only the
+ * outward term survived the projection. Here the outward term does not exist: the elbow
+ * cannot leave the shoulder's plane, so it cannot get outboard of anything.
+ *
+ * Falls back to {@link reachPose} where the shoulder's plane cannot hold the elbow at all:
+ * out of arm's reach, or a hand far enough out to the side that the elbow circle lies clear
+ * of the plane. Both of the default cast's dancers stay in the plane; SPROUT reaching a tall
+ * belle's waist at 100% of her own arm does not. That split is the right way round, and the
+ * opposite of how the swing constants were tuned: **the straighter the arm, the smaller the
+ * elbow's circle**, so a nearly straight arm gives a preference almost nothing to get wrong,
+ * while the folded arms — where it had everything to get wrong, and did — are the ones that
+ * now come through the anatomy.
+ */
+export function touchPose(
+  out: ArmPose,
+  m: ArmMetrics,
+  sign: number,
+  handX: number,
+  handY: number,
+  handZ: number,
+): ArmPose {
+  const sx = sign * m.restX;
+  const sy = m.restY;
+  const upper = m.elbowReach;
+  const fore = m.forearmSpan;
+
+  const ax = handX - sx;
+  const ay = handY - sy;
+  const az = handZ;
+  const d = Math.hypot(ax, ay, az);
+  if (d < 1e-9 || d >= upper + fore) return reachPose(out, m, sign, handX, handY, handZ);
+
+  // The elbow lies on both spheres, so its offset `e` from the shoulder satisfies
+  // `a·e = (d² + upper² − fore²)/2` and `|e| = upper`. Pinning `e.x` to zero leaves a
+  // line and a circle in the dancer's own (y, z) plane.
+  const k = (d * d + upper * upper - fore * fore) / 2;
+  const r = Math.hypot(ay, az);
+  if (r < 1e-9) return reachPose(out, m, sign, handX, handY, handZ);
+  const along = k / r;
+  if (Math.abs(along) >= upper) return reachPose(out, m, sign, handX, handY, handZ);
+  const off = Math.sqrt(upper * upper - along * along);
+
+  // `n` points from the shoulder toward the hand within the plane; `p` is perpendicular to
+  // it, and the two solutions are `±off` along `p`. Take the one with the elbow further
+  // back: characters face local `+z`, so that is the smaller z.
+  const ny = ay / r;
+  const nz = az / r;
+  const py = -nz;
+  const pz = ny;
+  const swing = pz > 0 ? -off : off;
+
+  const ex = sx;
+  const ey = sy + along * ny + swing * py;
+  const ez = along * nz + swing * pz;
+  out.x = ex;
+  out.y = ey;
+  out.z = ez;
+
+  const bx = handX - ex;
+  const by = handY - ey;
+  const bz = handZ - ez;
+  const blen = Math.hypot(bx, by, bz) || 1;
+  out.aimX = bx / blen;
+  out.aimY = by / blen;
+  out.aimZ = bz / blen;
   return out;
 }
 
@@ -833,14 +1474,15 @@ export function poseArms(
   blend: GripBlend,
   proposed?: ArmPoses,
   /**
-   * The couple's own standing width, when these two are a couple.
+   * The pair's handhold, when these two are a couple: {@link touchHold} of the two
+   * bodies, solved once by the caller rather than per frame per arm.
    *
-   * Supplied rather than inferred: square-one owns what a couple's width *is*
-   * (`COUPLE_WIDTH`, and a consumer may override it for real bodies), and a renderer
-   * guessing it would be a second copy of that decision. Absent means "not a couple",
-   * and nothing here joins any hands.
+   * Supplied rather than inferred because its `width` is also the couple's width, and
+   * square-one owns what that *is* (`COUPLE_WIDTH`, which a consumer with bodies may
+   * override) — the caller is the one who has to tell the engine the same number it
+   * draws. Absent means "not a couple", and nothing here joins any hands.
    */
-  coupleWidth?: number,
+  hold?: TouchHold,
 ): ArmPoses {
   // The partner, in this dancer's local space: the direction their share of the gap
   // lies in, and half their offset is the pivot a grip is held over.
@@ -855,8 +1497,7 @@ export function poseArms(
 
   // Standing hand in hand, when the pair are a couple rather than a facing pair. Only
   // the **inside** arm is claimed; the outside one goes on doing whatever it was.
-  const touching = coupleWidth !== undefined && standingAsCouple(self, partner, coupleWidth);
-  const inside = touching ? insideSide(self, partner) : null;
+  const inside = touchingSide(self, partner, hold);
 
   for (const side of ["left", "right"] as const) {
     // `+x` is the anatomical left group — see `DancerArmRigs`.
@@ -884,26 +1525,38 @@ export function poseArms(
     constrainArm(_free, me, allowance, dirX, dirZ);
 
     if (joined <= 0) {
-      if (side === inside) {
-        // The hands meet at the midpoint, carried at the **belle's waist**, one stacked
-        // on the other by their own radii — the beau's palm beneath, the belle's above.
-        // Solved with `reachPose` (ADR-0017) rather than placed, so the arm stays on its
-        // shoulder and the elbow does the giving.
+      if (side === inside && hold !== undefined) {
+        // The hands meet at the solved hold — not at the midpoint, which is where this
+        // used to put them and is only the same place for a matched pair. One palm rests on
+        // the other: the beau's beneath, the belle's above. `settleTouch` puts each dancer's
+        // own **drawn** palm on the contact plane and poses the arm with `touchPose`, so the
+        // upper arm hangs where the body puts it and the elbow folds back rather than out.
         //
         // Who goes underneath is decided by which side each dancer's inside hand is,
         // not by role: the dancer whose inside hand is their **right** is the beau, and
         // the beau's palm is up. That keeps it true for any pairing (ADR-0012) — and it
-        // is also how this dancer knows whose waist to use without being told, since the
-        // belle is simply the other one.
-        const under = side === "right";
-        const lift = under ? -me.handRadius : me.handRadius;
-        reachPose(
+        // is also how this dancer knows which way `hold.lateral` points without being
+        // told, since the belle is simply the other one.
+        const beau = side === "right";
+        // `lateral` runs toward the belle: the belle is the partner if I am the beau and
+        // is me if I am not, so the offset flips with the role and both dancers write the
+        // same point on the floor.
+        const offset = beau ? hold.lateral : -hold.lateral;
+        // Settled **here**, against the live placements, rather than taken from the hold:
+        // the pair breathe (square-one's Partner Trade bows them off their radius), which
+        // turns the forearms, which moves how much hand is between centre and plane. A lift
+        // frozen at the standing stance would let the hands drift apart through the move.
+        // `+ hold.forward` on the dancer's own **local z**, which is the way they are facing.
+        // A couple faces the same way, so both add the same thing to parallel axes and both
+        // still write the same point on the floor — the hands come forward of the pair, not
+        // forward of one of them.
+        settleTouch(
           out[side],
           me,
-          sign,
-          localX / 2,
-          localHeight(me, touchHeight(under ? them : me, me, them, separation / 2) + lift),
-          localZ / 2,
+          beau,
+          localX / 2 + offset * dirX,
+          localZ / 2 + offset * dirZ + hold.forward,
+          hold.height,
         );
         continue;
       }

@@ -28,6 +28,7 @@ import * as THREE from "three";
 import {
   type ArmMetrics,
   type ArmPoses,
+  type TouchHold,
   type GripBlend,
   type Placement,
   armPoses,
@@ -114,10 +115,11 @@ export interface ExpressionContext {
   partner: Placement;
   blend: GripBlend;
   /**
-   * The couple's own standing width, when these two are a couple rather than a facing
-   * pair. `undefined` for a facing pair, and then no hands are joined.
+   * The pair's solved handhold, when these two are a couple rather than a facing pair —
+   * its `width` is the couple's own standing width. `undefined` for a facing pair, and
+   * then no hands are joined.
    */
-  coupleWidth?: number | undefined;
+  hold?: TouchHold | undefined;
 }
 
 /**
@@ -162,9 +164,10 @@ const _clipped: ResolvedPose = structuredClone(NEUTRAL_POSE);
  * The expression layer's arms, restated as poses the dance layer can reason about.
  *
  * An emote gives an arm a *rotation* about the shoulder; the dance layer works in where
- * the arm ends up. Same rig either way — one group per shoulder — so this is a change of
- * description, not of pose: the group stays at rest and the aim is the emote's own rotation
- * applied to the resting hang.
+ * the arm ends up. So this is a change of description, not of pose: the rotation is applied
+ * to the resting hang, and **both ends of the arm follow it** — the elbow swings on a sphere
+ * of radius `elbowReach` about the pinned shoulder, and the forearm aims on down the same
+ * line (ADR-0017's straight arm). At zero rotation that is exactly `restPose`.
  *
  * Emote arm names are viewer-mirrored: they were authored against the player rig, where
  * "left" is the group at −x, and −x is a dancer's anatomical *right*.
@@ -174,15 +177,24 @@ function proposeArms(out: ArmPoses, m: ArmMetrics, rp: ResolvedPose): ArmPoses {
     const sign = side === "left" ? 1 : -1;
     const from = side === "left" ? rp.rightArm : rp.leftArm;
     const target = out[side];
-    target.x = sign * m.restX;
-    target.y = m.restY;
-    target.z = 0;
     _euler.set(
       deg2rad(from.upperArmRotation[0]),
       deg2rad(from.upperArmRotation[1]),
       deg2rad(from.upperArmRotation[2]),
     );
     _swing.copy(DOWN).applyEuler(_euler);
+    // 🔴 The elbow is `elbowReach` **down the swing from the shoulder**, not at the shoulder.
+    // An `ArmPose` names the elbow (ADR-0017); writing the shoulder into it gave every arm
+    // this layer proposes a zero-length upper arm, which hung the drawn forearm from the
+    // shoulder itself — the whole free arm one upper-arm too high, 0.330 on the shipped cast,
+    // and the belle's free hand ending up *above* the couple's joined hands.
+    //
+    // Reduces to `restPose` exactly when the rotation is zero, which is what every dancer
+    // without an emote gets: `resolveExpression` always calls this, so this — not `restPose`
+    // — is the path a resting dance arm actually takes.
+    target.x = sign * m.restX + _swing.x * m.elbowReach;
+    target.y = m.restY + _swing.y * m.elbowReach;
+    target.z = _swing.z * m.elbowReach;
     target.aimX = _swing.x;
     target.aimY = _swing.y;
     target.aimZ = _swing.z;
@@ -201,7 +213,7 @@ export function resolveExpression(
   out: ResolvedExpression,
   ctx: ExpressionContext,
 ): ResolvedExpression {
-  const { pose, me, them, self, partner, blend, coupleWidth } = ctx;
+  const { pose, me, them, self, partner, blend, hold } = ctx;
 
   // limited — arms fold where they trespass, and a gripped hand is taken over entirely
   out.arms = poseArms(
@@ -212,7 +224,7 @@ export function resolveExpression(
     partner,
     blend,
     proposeArms(_proposed, me, pose),
-    coupleWidth,
+    hold,
   );
 
   // limited — shape is clipped to this dancer's share of the live slack

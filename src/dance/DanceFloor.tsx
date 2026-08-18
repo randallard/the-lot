@@ -48,7 +48,9 @@ import {
   type GripHand,
   type Placement,
   type Vec3,
-  coupleStandingWidth,
+  type TouchHold,
+  touchHold,
+  touchingSide,
 } from "./arm-pose";
 import {
   facingToRotationY,
@@ -95,6 +97,17 @@ interface DanceFloorProps extends DancePerformanceOptions {
   /** Freeze the performance clock; dancers hold their pose mid-move. */
   paused?: boolean;
   /**
+   * Send the square home: **bump this number** and the next frame stands everyone at
+   * beat 0 of whatever they are dancing.
+   *
+   * A token rather than a flag, because "go home" is an event and a flag would have to
+   * be lowered again by whoever raised it. The pose is written once even while
+   * `paused` — a paused floor writes nothing at all, so a rewind with no pass behind it
+   * would move the clock and leave the dancers standing mid-move, which is the one
+   * reading this control exists to prevent.
+   */
+  home?: number;
+  /**
    * Called every frame with the performance clock, paused or not. Runs inside
    * the frame loop — write to refs or the DOM directly, never set React state.
    */
@@ -119,6 +132,18 @@ export interface TrackedArms {
   readonly key: string;
   /** The hand square-one has engaged, or `null` for hands free. */
   grip: GripHand;
+  /**
+   * The hand joined by **standing** as a couple — the touch hold, which square-one's
+   * grip spans know nothing about (ADR-0027). `null` for a facing pair, or for a
+   * couple who have moved out of their standing width.
+   *
+   * Separate from {@link grip} rather than folded into it because the two are different
+   * kinds of hold: a grip is eased, owned, and resolved against the partner's forearm,
+   * while a touch hold is written outright at the solved point and leaves the outside
+   * arm alone. Anything that only wants to know *which hand is in somebody else's*
+   * — the joint markers — should read `grip ?? touch`.
+   */
+  touch: "left" | "right" | null;
   readonly left: Forearm;
   readonly right: Forearm;
   /**
@@ -193,7 +218,7 @@ const _ctx: ExpressionContext = {
   self: _self,
   partner: _partner,
   blend: gripBlend(),
-  coupleWidth: undefined,
+  hold: undefined,
 };
 
 function readPlacement(out: Placement, rig: THREE.Group): void {
@@ -224,14 +249,18 @@ export function DanceFloor({
   shapes = DEFAULT_SHAPES,
   followDrift = false,
   paused = false,
+  home = 0,
   onBeat,
   onArms,
   controllers,
   ...performanceOptions
 }: DanceFloorProps) {
   /**
-   * The width a couple of *these two bodies* stands at, in world units and then in
-   * engine ones.
+   * The handhold a couple of *these two bodies* stands in — where the joined hands are and
+   * how far apart that puts them, in world units and then in engine ones.
+   *
+   * Solved once here rather than per frame per arm, and it is the same object both dancers
+   * pose against, which is what keeps their two hands on each other.
    *
    * Derived from `shapes` rather than from `occupantShapes`, which is the whole reason
    * it sits up here: the couple's width is an input to the performance, and
@@ -243,13 +272,19 @@ export function DanceFloor({
    * body-agnostic default, to be replaced by a consumer that has bodies. This is that
    * consumer (ADR-0004's seam).
    */
-  const coupleWidthWorld = useMemo(() => {
+  const hold = useMemo<TouchHold | undefined>(() => {
     const a = shapes[0];
     const b = shapes[1];
-    const fallback = COUPLE_WIDTH * (scale ?? scaleForGaps(clearanceGaps([...shapes])));
-    if (a === undefined || b === undefined) return fallback;
-    return coupleStandingWidth(armMetrics(a), armMetrics(b));
-  }, [shapes, scale]);
+    if (a === undefined || b === undefined) return undefined;
+    // `shapes[0]` wears the key `a`, which `useDancePerformance` makes the **beau**. The
+    // hold is not symmetric in the pair — its height is the belle's waist and its lateral
+    // offset is signed toward her — so the order matters here in a way the width alone
+    // never did.
+    return touchHold(armMetrics(a), armMetrics(b));
+  }, [shapes]);
+
+  const coupleWidthWorld =
+    hold?.width ?? COUPLE_WIDTH * (scale ?? scaleForGaps(clearanceGaps([...shapes])));
 
   const coupleWidthEngine = useMemo(
     () => coupleWidthWorld / (scale ?? scaleForGaps(clearanceGaps([...shapes]))),
@@ -328,6 +363,7 @@ export function DanceFloor({
       map[key] = {
         key,
         grip: null,
+        touch: null,
         left: forearm(),
         right: forearm(),
         upperArm: { left: 0, right: 0 },
@@ -375,12 +411,22 @@ export function DanceFloor({
    * subtraction, no error.
    */
 
+  /** The last `home` token this floor acted on, so one bump means one pass. */
+  const homeSeen = useRef(home);
+
   useFrame((state, delta) => {
-    if (!paused) {
+    // A home request outranks the pause — it is the one thing that must move the
+    // dancers while the clock is frozen — and it is consumed here, so a bump of the
+    // token buys exactly one pass however long the floor then sits paused.
+    const goingHome = home !== homeSeen.current;
+    homeSeen.current = home;
+
+    if (goingHome || !paused) {
       // Guard against tab-restore producing an enormous delta and teleporting the
-      // square across the floor.
-      const dt = Math.min(delta, 0.1);
-      const states = runtime.advance(dt);
+      // square across the floor. Going home takes no time at all: the whole point is
+      // to land on beat 0 rather than to travel there.
+      const dt = goingHome ? 0 : Math.min(delta, 0.1);
+      const states = goingHome ? runtime.home() : runtime.advance(dt);
 
       for (const state of states) {
         const rig = rigs[state.key]?.current;
@@ -411,7 +457,11 @@ export function DanceFloor({
       // from formations.
       if (keys.length === 2) {
         const beat = runtime.beat();
-        const ease = Math.min(1, dt * 10);
+        // A home pass eases nothing. Arriving at beat 0 is a cut rather than a move,
+        // and `ease` from a zero `dt` would be 0 — which leaves the grip blend exactly
+        // where the interrupted move left it, so hands the figure's first beat does not
+        // join would still be drawn holding.
+        const ease = goingHome ? 1 : Math.min(1, dt * 10);
 
         // Pose. Both dancers first, because contact is a property of the pair and
         // cannot be resolved until both arms have moved.
@@ -471,8 +521,11 @@ export function DanceFloor({
           // width *is*; passing it through rather than guessing keeps that one decision
           // in one place (its `COUPLE_WIDTH`, which a consumer may override for real
           // bodies).
-          _ctx.coupleWidth =
-            performanceOptions.sequence === undefined ? undefined : coupleWidthWorld;
+          const coupleHold = performanceOptions.sequence === undefined ? undefined : hold;
+          _ctx.hold = coupleHold;
+          // Reported from the same call `poseArms` poses from, so the markers cannot
+          // point at a hold the render did not draw.
+          track.touch = touchingSide(_self, _partner, coupleHold);
           resolveExpression(ex, _ctx);
 
           for (const side of SIDES) {

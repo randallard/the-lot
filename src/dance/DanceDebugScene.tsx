@@ -22,8 +22,10 @@
  * | **figure buttons** | The six things this scene can dance — three single calls by a facing pair, three couple sequences (planning ADR-0011's S1). The two `2×` figures and the mixed one are **zeros**: watch that the set finishes where it started, which is as much the point as the shapes on the way. |
  * | **tempo** | 30–180 bpm. Slow it down to judge a moment, not because the dance is wrong at 120. |
  * | **pause / beat readout** | Freeze mid-move and read the beat. The clock keeps being reported while paused, so the readout is trustworthy either way. |
+ * | **go home** | Stand the square at beat 0 of the selected figure and hold it there — the starting pose, paused, with any emote in flight dropped. This is how you get a *nameable* moment to judge: "the standing couple" only exists at the top of the loop, and at 120 bpm you cannot pause on it. |
+ * | **the camera** (drag · scroll · right-drag) | Orbit, zoom and pan the fixed three-quarter view. Not a control in the panel, but a control: a pose is judged from a *chosen* angle — a straight-on front view and a level side view are two different questions about the same arm — and this scene had one angle and no way off it. Tilt stops at the horizon through the dancers, so the level side view is reachable and the camera never ends up under the floor. |
  * | **emote row** | Fires a one-shot emote *while* a call runs — the ADR-0010 arbitration this scene exists to watch. Arms fold where they trespass, a gripped hand ignores the emote outright, and a spin turns the head but must never turn a driven dancer's body: judge that on the **chest** dot, not the head dot. |
- * | **joint markers** | Black = the pivot a gripping pair holds over, blue = elbows, red = hands. A held grip should look nailed to the black dot while the bodies breathe past it. Off by default — a debugging aid, not part of the dance. |
+ * | **joint markers** | Black = the pair's midpoint, blue = elbows, red = hands — on whichever hand is in the partner's, an engine grip or a standing couple's touch hold. A held *grip* should look nailed to the black dot while the bodies breathe past it; a *touch hold* sits off it in **two** directions — `hold.lateral` (the hands hang between the two inside shoulders, not between the two bodies) and `hold.forward` (the upper arms hang, so the hands come out in front), both printed in the readout. The forward offset is a **plan view** question: from above, the dot the pair holds over and the dot their hands are on are visibly different points (ADR-0027). Off by default — a debugging aid, not part of the dance. |
  * | **follow drift** | Re-fits the frame to the dancers' centroid as the square migrates (square-one's ADR-0006 drift). |
  * | **bodies** | Swaps the cast between size extremes, to exercise the body-derived frame scale (ADR-0012). `mixed` and `max` must visibly grow the square while everyone still clears. |
  * | **contact readout** | Min–max of every tracked quantity since the current grip engaged, so drift shows as a spread rather than scrolling past. `separation` should breathe; everything else should be flat. Off by default, and **last in the column on purpose** — it is the one element whose height changes every frame, so nothing clickable sits below it. |
@@ -35,13 +37,15 @@
 
 import { createRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import { DanceFloor, type ArmReport } from "./DanceFloor";
 import { AnimationController } from "../services/animation-controller";
 import { DEBUG_EMOTES } from "./debug-emotes";
 import type { Emote } from "../services/emotes";
 import { DEFAULT_BPM } from "./useDancePerformance";
-import { DEBUG_FIGURES, type DebugFigure } from "./dance-route";
+import { DEBUG_FIGURES, danceSceneHash, type DebugFigure } from "./dance-route";
+import { armMetrics, sideExtentAt, touchHold, touchReach } from "./arm-pose";
 import {
   MYCO_DEFAULTS,
   EMBER_DEFAULTS,
@@ -65,6 +69,56 @@ const SIZE_CASTS = {
 
 type SizeCast = keyof typeof SIZE_CASTS;
 
+/**
+ * The couple's solved handhold for a cast, as text — the numbers behind what the
+ * standing couple looks like.
+ *
+ * Read straight from {@link touchHold} rather than plumbed out of the render, because it
+ * *is* what the render poses against: one function, one set of inputs, so the panel cannot
+ * disagree with the picture. `shapes[0]` is the beau (it wears the engine's key `a`).
+ *
+ * `reach` is the fraction of their own arm each dancer spends on the hold — the one that says
+ * whether an arm is folded or stretched — and `across` is the distance itself. Since ADR-0027
+ * the hands hang halfway between the two inside shoulders, so it is **`across` that the two
+ * dancers share equally**; the fractions differ with the arms, and a shorter-armed dancer
+ * spends more of themselves on the same distance.
+ */
+function holdReadout(cast: readonly CharacterBodyShape[]): string {
+  const beau = armMetrics(cast[0] ?? MYCO_DEFAULTS);
+  const belle = armMetrics(cast[1] ?? EMBER_DEFAULTS);
+  const hold = touchHold(beau, belle);
+  const lines = [
+    `stance   ${hold.width.toFixed(3)}  hands ${hold.height.toFixed(3)}`,
+    `off-mid  ${hold.lateral.toFixed(3)} toward the belle`,
+    `forward  ${hold.forward.toFixed(3)} in front of the pair`,
+  ];
+  // Daylight between the joined hands and each dancer's own surface at the hold's height.
+  // Negative means the hands are *inside* somebody, which is what the size casts used to do
+  // and what no amount of looking at the default cast would have shown.
+  const stack = Math.max(beau.handRadius, belle.handRadius);
+  for (const [m, name, sign] of [
+    [beau, "beau ", 1],
+    [belle, "belle", -1],
+  ] as const) {
+    // Each dancer stands half a stance from the midpoint on their own side, so the hold's
+    // distance from *them* is the half-stance plus its offset toward the other one.
+    const toHold = hold.width / 2 + sign * hold.lateral;
+    const gap = toHold - sideExtentAt(m.parts, hold.height) - stack;
+    // `+ 0` because a hold sitting exactly on a surface lands on negative zero, and a
+    // readout that says `-0.000` for "touching" invites a bug hunt that has no bug in it.
+    lines.push(`clear    ${name} ${(Number(gap.toFixed(3)) + 0).toFixed(3)}`);
+  }
+  for (const [m, name, isBeau] of [
+    [beau, "beau ", true],
+    [belle, "belle", false],
+  ] as const) {
+    const across = hold.width / 2 + (isBeau ? hold.lateral : -hold.lateral) - m.restX;
+    const reach = touchReach(m, hold, isBeau);
+    lines.push(`${name}    reach ${(100 * reach).toFixed(0)}%  across ${across.toFixed(3)}`);
+  }
+  return lines.join("\n");
+}
+
 /** Min–max of one tracked quantity since the current grip engaged. */
 interface Span {
   min: number;
@@ -85,6 +139,17 @@ function track(spans: Map<string, Span>, name: string, value: number): void {
  *  wrap and narrow enough to leave the floor the majority of the window. */
 const PANEL_WIDTH = 320;
 
+/**
+ * What the camera orbits around, and what a level view is level *with*.
+ *
+ * Chest height rather than the floor or the frame's centre: the things this scene is
+ * looked at to judge — an elbow, a joined hand, a shoulder — all live in that band
+ * (the solved hold sits at 0.713 on the default cast, shoulders at 0.950), so an
+ * orbit at the horizon puts the eye at the joint instead of below the dancers looking
+ * up at them.
+ */
+const ORBIT_TARGET: [number, number, number] = [0, 0.9, 0];
+
 function fmt(v: number): string {
   return (v < 0 ? "" : " ") + v.toFixed(3);
 }
@@ -96,6 +161,8 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
   const [drift, setDrift] = useState(false);
   const [sizes, setSizes] = useState<SizeCast>("default");
   const [paused, setPaused] = useState(false);
+  // Bumped to send the square home; `DanceFloor` reads the change, not the value.
+  const [home, setHome] = useState(0);
   const [joints, setJoints] = useState(false);
   const [emoting, setEmoting] = useState<string | null>(null);
   // The contact readout is off by default and sits at the bottom of the panel. It
@@ -142,6 +209,26 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
     [],
   );
 
+  // Go home: stand the square at beat 0 of the selected figure, and **stay** there.
+  //
+  // Pausing is not a side effect of this button, it is half of what it means. The
+  // reason to ask for the start of a move is to look at it, and a scene that ran on
+  // from beat 0 would give you the one frame you asked for and then take it away.
+  //
+  // Any emote in flight is stopped for the same reason: at beat 0 what should be on
+  // screen is the figure's own starting pose, and a mid-flight emote is still folding
+  // an arm somewhere while you judge it.
+  const goHome = useCallback(() => {
+    if (emoteTimer.current !== null) {
+      clearTimeout(emoteTimer.current);
+      emoteTimer.current = null;
+    }
+    for (const c of controllers) c.stop();
+    setEmoting(null);
+    setPaused(true);
+    setHome((n) => n + 1);
+  }, [controllers]);
+
   // The beat readout updates every frame; written straight to the DOM so a
   // 60 fps clock doesn't become 60 fps React renders (ADR-0002's idiom).
   const beatLabel = useRef<HTMLSpanElement>(null);
@@ -174,34 +261,72 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
     [],
   );
 
+  // What the last pass found there was to mark: whether the pair have a midpoint worth
+  // a dot, and which hand — if either — each dancer has in somebody else's.
+  //
+  // Remembered rather than recomputed because **a paused floor runs no frame**. The
+  // markers are turned on to judge a held pose, and the way to get one is `go home`,
+  // which pauses — so a marker that only learned it had something to show during a pass
+  // would come up dark at exactly the moment it was switched on for.
+  const held = useRef<{ pivot: boolean; sides: ("left" | "right" | null)[] }>({
+    pivot: false,
+    sides: [null, null],
+  });
+
+  /** Show or hide the markers from what the last pass found. Positions are already on
+   *  the meshes — they are mounted whether or not they are shown, so they keep them. */
+  const paintMarkers = useCallback(
+    (show: boolean) => {
+      const pivot = markers.pivot.current;
+      if (pivot) pivot.visible = show && held.current.pivot;
+      held.current.sides.forEach((side, i) => {
+        for (const marker of [markers.elbows[i], markers.hands[i]]) {
+          const mesh = marker?.current;
+          if (mesh) mesh.visible = show && side !== null;
+        }
+      });
+    },
+    [markers],
+  );
+
   const onArms = useCallback((report: ArmReport) => {
     // Markers first: they should track whether or not the readout is legible.
     const pivot = markers.pivot.current;
-    if (pivot) {
-      pivot.visible = report.dancers.some((d) => d.holding);
-      pivot.position.set(report.pivot.x, 0.02, report.pivot.z);
-    }
+    // Drawn for a standing couple too, not only a gripping pair. The joined hands sit
+    // *off* this dot by `hold.lateral` **and** `hold.forward` there, by design (ADR-0027) — the one
+    // thing about a touch hold worth having a reference point for.
+    held.current.pivot = report.dancers.some((d) => d.holding || d.touch !== null);
+    if (pivot) pivot.position.set(report.pivot.x, 0.02, report.pivot.z);
     report.dancers.forEach((d, i) => {
-      const side = d.grip === "left" || d.grip === "right" ? d.grip : null;
+      // A hand in somebody else's, however it got there: square-one's grip spans, or the
+      // couple's standing touch hold, which is not one of them and used to leave every
+      // dot dark for the exact pose the elbow watch was about.
+      const side = d.grip === "left" || d.grip === "right" ? d.grip : d.touch;
+      held.current.sides[i] = side;
+      if (side === null) return;
       for (const [which, marker] of [
         ["elbow", markers.elbows[i]],
         ["hand", markers.hands[i]],
       ] as const) {
         const mesh = marker?.current;
         if (!mesh) continue;
-        mesh.visible = side !== null;
-        if (side === null) continue;
         const point = which === "elbow" ? d[side].elbow : d[side].hand;
         mesh.position.set(point.x, point.y, point.z);
       }
     });
+    paintMarkers(joints);
 
     const el = armLabel.current;
     if (!el) return;
     const holding = report.dancers.filter((d) => d.holding);
     if (holding.length === 0) {
       spans.current.clear();
-      el.textContent = "hands free";
+      // A standing couple is not "hands free" — their hands are joined, they simply have
+      // no *engine* grip, which is what every row below is measured against. Two panes
+      // of the same instrument should not disagree about whether anyone is holding on.
+      el.textContent = report.dancers.some((d) => d.touch !== null)
+        ? "hands joined — a standing couple, no engine grip to track"
+        : "hands free";
       return;
     }
     track(spans.current, "separation", report.separation);
@@ -226,11 +351,17 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
     el.textContent = [...spans.current]
       .map(([name, s]) => `${name.padEnd(14)} ${fmt(s.min)} → ${fmt(s.max)}   ±${fmt((s.max - s.min) / 2)}`)
       .join("\n");
-  }, [markers]);
+  }, [markers, joints, paintMarkers]);
 
+  // The toggle itself, for the paused case: no pass is coming to act on it.
+  useEffect(() => { paintMarkers(joints); }, [joints, paintMarkers]);
+
+  // The URL follows the chosen figure, and it follows it in the namespace the loader
+  // reads: `danceSceneHash` is `danceSceneFigure`'s inverse, so what is in the bar is
+  // what a reload — or a link to somebody else — brings back.
   useEffect(() => {
-    window.location.hash = call === "dosado" ? "#dance" : `#dance=${call}`;
-  }, [call]);
+    window.location.hash = danceSceneHash(figure);
+  }, [figure]);
 
   // The panel's own markup, lifted into a variable so the layout above reads as the
   // two columns it now is rather than burying the docked column under 150 lines of
@@ -288,6 +419,20 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
             }}
           >
             {paused ? "▶ play" : "⏸ pause"}
+          </button>
+          <button
+            onClick={goHome}
+            title="Stand the square at beat 0 of the selected figure, paused"
+            style={{
+              padding: "4px 10px",
+              cursor: "pointer",
+              background: "#fff",
+              color: "#333",
+              border: "1px solid #999",
+              borderRadius: 4,
+            }}
+          >
+            ⏮ go home
           </button>
           <span ref={beatLabel} style={{ fontVariantNumeric: "tabular-nums", color: "#333" }}>
             beat 0.0 / –
@@ -349,6 +494,40 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
         </div>
         <span style={{ color: "#666" }}>red = engine +x · blue = engine +y</span>
 
+        {/* Touch hands, as numbers. Fixed for a cast, so it sits above the frame-by-frame
+            readout and never moves. */}
+        {figure.sequence !== undefined && (
+          <>
+            <pre
+              style={{
+                font: "11px/1.45 ui-monospace, monospace",
+                color: "#333",
+                margin: 0,
+                padding: "6px 8px",
+                background: "#f7f7f4",
+                border: "1px solid #e0e0da",
+                borderRadius: 4,
+                whiteSpace: "pre",
+              }}
+            >
+              {holdReadout(SIZE_CASTS[sizes] ?? [MYCO_DEFAULTS, EMBER_DEFAULTS])}
+            </pre>
+            <span style={{ color: "#666", fontSize: 11 }}>
+              The standing couple, solved from the two bodies. The hands hang halfway
+              between the two inside shoulders, so the two <strong>across</strong> figures
+              should be <em>equal</em> — the reach percentages need not be, since a shorter
+              arm spends more of itself on the same distance, and neither may exceed 100%.
+              <strong>forward</strong> is how far in front of the pair the hands sit: as far
+              as both can manage with the upper arm hanging straight down, so one dancer's
+              elbow is dead below their shoulder and the other's folds back.
+              <strong>clear</strong> is the daylight between the joined hands and each
+              dancer's own surface at that height — never negative, whatever the cast, or the
+              hands are inside somebody. Measured side-to-side at <em>z</em> 0, which is the
+              conservative reading now the hands are in front: a body is narrower there.
+            </span>
+          </>
+        )}
+
         {/* Last in the column on purpose: this is the one element whose height
             changes every frame, so nothing that has to be clicked sits below it. */}
         <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -409,6 +588,25 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
       </div>
       <div style={{ flex: "1 1 auto", minWidth: 0 }}>
       <Canvas shadows camera={{ position: [0, 6.5, 7.5], fov: 45 }}>
+        {/* The camera moves. Until now it did not, and that was the missing half of
+            every watch this scene exists for: "go home" gets you the moment, this gets
+            you the angle — a straight-on front view and a level side view of the same
+            paused pose are two different judgements, and the fixed three-quarter view
+            answered neither cleanly.
+
+            `maxPolarAngle` stops the orbit at the horizon through {@link ORBIT_TARGET}:
+            level with the dancers' chests is the lowest useful angle and also the last
+            one above the floor, so one clamp buys the side view and rules out the
+            camera-under-the-ground-plane mistake. Panning stays enabled, unlike the
+            character previews — the square migrates under `follow drift`, and going
+            after it by hand is a thing you want to be able to do. */}
+        <OrbitControls
+          target={ORBIT_TARGET}
+          maxPolarAngle={Math.PI / 2}
+          minDistance={1.5}
+          maxDistance={24}
+        />
+
         <ambientLight intensity={0.75} />
         <directionalLight position={[4, 8, 4]} intensity={1.4} castShadow />
 
@@ -432,35 +630,37 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
           loop
           followDrift={drift}
           paused={paused}
+          home={home}
           onBeat={onBeat}
           onArms={onArms}
           controllers={controllers}
           {...(SIZE_CASTS[sizes] === undefined ? {} : { shapes: SIZE_CASTS[sizes] })}
         />
 
-        {/* Joint markers: black = the pivot the pair holds over, blue = each elbow,
-            red = each hand. A held grip should look nailed to the black dot while
-            the bodies breathe past it. */}
-        {joints && (
-          <>
-            <mesh ref={markers.pivot} visible={false}>
-              <sphereGeometry args={[0.045, 12, 12]} />
-              <meshBasicMaterial color="#111111" />
-            </mesh>
-            {markers.elbows.map((ref, i) => (
-              <mesh key={`elbow-${String(i)}`} ref={ref} visible={false}>
-                <sphereGeometry args={[0.035, 10, 10]} />
-                <meshBasicMaterial color="#2255cc" />
-              </mesh>
-            ))}
-            {markers.hands.map((ref, i) => (
-              <mesh key={`hand-${String(i)}`} ref={ref} visible={false}>
-                <sphereGeometry args={[0.035, 10, 10]} />
-                <meshBasicMaterial color="#cc3322" />
-              </mesh>
-            ))}
-          </>
-        )}
+        {/* Joint markers: black = the pair's midpoint, blue = each elbow, red = each
+            hand — on whichever hand is in the partner's, an engine grip or a standing
+            couple's touch hold. A held grip should look nailed to the black dot while
+            the bodies breathe past it; a touch hold sits off it by `hold.lateral`.
+
+            Always mounted, shown by `paintMarkers` — five tiny spheres cost nothing,
+            and unmounting them on the toggle threw away both their positions and their
+            visibility, which only a *pass* could put back. A paused floor runs none. */}
+        <mesh ref={markers.pivot} visible={false}>
+          <sphereGeometry args={[0.045, 12, 12]} />
+          <meshBasicMaterial color="#111111" />
+        </mesh>
+        {markers.elbows.map((ref, i) => (
+          <mesh key={`elbow-${String(i)}`} ref={ref} visible={false}>
+            <sphereGeometry args={[0.035, 10, 10]} />
+            <meshBasicMaterial color="#2255cc" />
+          </mesh>
+        ))}
+        {markers.hands.map((ref, i) => (
+          <mesh key={`hand-${String(i)}`} ref={ref} visible={false}>
+            <sphereGeometry args={[0.035, 10, 10]} />
+            <meshBasicMaterial color="#cc3322" />
+          </mesh>
+        ))}
       </Canvas>
       </div>
     </div>

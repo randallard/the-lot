@@ -6,7 +6,7 @@ import {
   resolvedExpression,
 } from "./expression-channels";
 import { silhouetteMetrics, restClearance } from "./silhouette-limit";
-import { armMetrics, gripBlend, type Placement } from "./arm-pose";
+import { armMetrics, armPose, gripBlend, restPose, type Placement } from "./arm-pose";
 import { NEUTRAL_POSE, type ResolvedPose } from "../services/emotes";
 import {
   EMBER_DEFAULTS,
@@ -79,6 +79,50 @@ describe("CHANNELS", () => {
 });
 
 describe("resolveExpression", () => {
+  it("🔴 hangs an un-emoting arm where the body says its elbow rests", () => {
+    // Ryan, 2026-08-18, looking at the standing couple: *"verify that the other forearm is set
+    // by the character customization - they seem really high."* It was not and they were.
+    //
+    // An `ArmPose` names the **elbow** (ADR-0017). The proposal wrote the *shoulder* into it,
+    // giving every arm this layer proposes a zero-length upper arm — the drawn forearm hung
+    // from the shoulder, one whole `elbowReach` (0.330 on Myco) above where the body puts it,
+    // and the belle's free hand came out *above* the couple's joined hands.
+    //
+    // `restPose` is the statement of what a resting arm is, and this is the assertion that the
+    // dance actually goes through it: `resolveExpression` always builds a proposal, even with
+    // no emote, so `poseArms`' own `restPose` fallback is never reached from a dance floor.
+    const me = armMetrics(MYCO_DEFAULTS);
+    const resting = resolve(pose());
+    for (const [side, sign] of [
+      ["left", 1],
+      ["right", -1],
+    ] as const) {
+      const want = restPose(armPose(), me, sign);
+      const got = resting.arms[side];
+      expect(got.y).toBeCloseTo(want.y, 12);
+      expect(got.y).toBeCloseTo(me.restY - me.elbowReach, 12);
+      expect(got.x).toBeCloseTo(want.x, 12);
+      expect(got.z).toBeCloseTo(want.z, 12);
+      expect([got.aimX, got.aimY, got.aimZ]).toEqual([want.aimX, want.aimY, want.aimZ]);
+    }
+  });
+
+  it("swings the elbow about the shoulder, not the forearm about the elbow", () => {
+    // The general case of the same statement: an emote's `upperArmRotation` turns the whole
+    // arm about a **pinned** shoulder, so the elbow travels on a sphere of radius `elbowReach`
+    // and the forearm aims on down the same line. Raising the arm 90° out to the side puts the
+    // elbow beside the shoulder at exactly that radius — not at the shoulder with a forearm
+    // sticking out of it.
+    const me = armMetrics(MYCO_DEFAULTS);
+    const raised = resolve(pose({ leftArm: { upperArmRotation: [0, 0, 90], forearmRotation: [0, 0, 0], handRotation: [0, 0, 0] } }));
+    // Emote arm names are viewer-mirrored: `leftArm` is the dancer's anatomical right.
+    const arm = raised.arms.right;
+    const dx = arm.x - -me.restX;
+    const dy = arm.y - me.restY;
+    expect(Math.hypot(dx, dy, arm.z)).toBeCloseTo(me.elbowReach, 12);
+    expect(Math.abs(dy)).toBeLessThan(1e-9);
+  });
+
   it("drops an owned channel — a spin cannot reach a driven dancer", () => {
     const still = resolve(pose());
     const spinning = resolve(pose({ bodyDeltaRotY: 360 }));

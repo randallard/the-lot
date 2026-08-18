@@ -20,8 +20,12 @@ import {
   restPose,
   insideSide,
   standingAsCouple,
-  touchHeight,
-  coupleStandingWidth,
+  touchingSide,
+  touchHold,
+  touchPose,
+  touchReach,
+  handRiseAlongUp,
+  sideExtentAt,
   armPoses,
   upperArmStrain,
   vec3,
@@ -529,10 +533,17 @@ describe("the rig's two groups compose back to the rest pose", () => {
 describe("touch hands — a couple stands with inside hands joined", () => {
   // Ryan, 2026-08-15: "they should hold hands — we say touch hands — beau right palm up
   // and belle's left palm down … the characters need to be a bit closer together."
-  const a = armMetrics(MYCO_DEFAULTS);
-  const b = armMetrics(EMBER_DEFAULTS);
-  const WIDTH = coupleStandingWidth(a, b);
+  //
+  // `beau` is MYCO and `belle` is EMBER, which is the debug scene's own arrangement:
+  // `shapes[0]` wears the key `a` and `useDancePerformance` makes `a` the beau.
+  const beau = armMetrics(MYCO_DEFAULTS);
+  const belle = armMetrics(EMBER_DEFAULTS);
+  const HOLD = touchHold(beau, belle);
+  const WIDTH = HOLD.width;
   const side = (x: number, yaw = 0): Placement => ({ x, z: 0, yaw });
+  // The beau's inside hand is his **right**, so his partner stands at −x.
+  const BEAU_AT = side(0);
+  const BELLE_AT = side(-WIDTH);
 
   it("recognises a couple from where they are standing, not from a flag", () => {
     // The same shape the rest of this module uses — `reachAllowance` and `constrainArm`
@@ -562,81 +573,277 @@ describe("touch hands — a couple stands with inside hands joined", () => {
     expect(insideSide(side(0), side(-WIDTH))).toBe("right");
   });
 
-  it("carries the joined hands at the belle's waist", () => {
-    // Ryan, 2026-08-16: "the hands should be at the belle's waist height." One body sets
-    // it, not both. Here `a` is the belle — their partner stands at +x, so their inside
-    // hand is their left, and the beau is the dancer whose inside hand is their right.
-    expect(insideSide(side(0), side(WIDTH))).toBe("left");
-    expect(touchHeight(a, a, b, WIDTH / 2)).toBeGreaterThanOrEqual(a.rigOriginY + a.waistY);
+  it("🔴 names the joined hand for anyone who has to point at it", () => {
+    // The debug scene's joint markers used to key off square-one's grip spans alone, and
+    // a standing couple's hold is not one of those — so every elbow and hand dot went dark
+    // for exactly the pose the elbow watch was about. Both places now ask this.
+    expect(touchingSide(BEAU_AT, BELLE_AT, HOLD)).toBe("right");
+    expect(touchingSide(BELLE_AT, BEAU_AT, HOLD)).toBe("left");
+    // Not a couple, no joined hand: a facing pair at the same distance...
+    expect(touchingSide(side(0), side(WIDTH, Math.PI), HOLD)).toBeNull();
+    // ...a pair who have left the formation...
+    expect(touchingSide(side(0), side(WIDTH * 2), HOLD)).toBeNull();
+    // ...and a floor with no couple hold at all, which is how a facing pair is danced.
+    expect(touchingSide(BEAU_AT, BELLE_AT, undefined)).toBeNull();
+  });
+
+  it("carries the joined hands at the belle's waist, whatever it costs the beau", () => {
+    // Ryan, 2026-08-17: "the gent's job is to make the belle's job easier, even if she's
+    // taller … they need to be the ones to pay attention to the belle's comfortable hand
+    // position at the belle's waist — even if it looks awkward — maintain opinionation that
+    // way." One body sets the height and it is always hers.
+    expect(HOLD.height).toBeCloseTo(belle.rigOriginY + belle.waistY, 12);
+    // The cost, asserted rather than left implied: this belle is the taller dancer, so the
+    // hold sits well above the beau's own waist and most of the way to his shoulder. Taking
+    // the *lower* waist instead would hang both forearms neatly and is not the rule.
+    expect(HOLD.height).toBeGreaterThan(beau.rigOriginY + beau.waistY);
+    expect(HOLD.height).toBeGreaterThan(0.7 * (beau.rigOriginY + beau.restY));
+  });
+
+  it("raises them only where an arm cannot reach that low at all", () => {
+    // The other arrangement of the same two bodies: EMBER as the beau, whose palm is
+    // underneath, so her hand has to get below the contact. The lower waist — Myco's, 0.475
+    // — is past the end of Ember's arm however the pair stand, since width only ever *adds*
+    // to a reach, so the hold rises to exactly where her arm hangs straight.
+    // Reachability, not comfort: the comfort ceiling this replaces left the permitted band
+    // for this pair empty, which is what "this pairing cannot hold hands" was built on.
+    //
+    // "Below the contact" is the **drawn** hand's rise, not `handRadius` — her arm hangs
+    // dead vertical here, which is the one case where the two used to agree by accident and
+    // now agrees by construction.
+    const swapped = touchHold(belle, beau);
+    expect(swapped.height).toBeCloseTo(
+      belle.rigOriginY +
+        belle.restY -
+        belle.handReach +
+        handRiseAlongUp(belle, "right", 0, -1, 0),
+      12,
+    );
+    expect(swapped.height).toBeGreaterThan(beau.rigOriginY + beau.waistY);
   });
 
   it("🔴 asks neither dancer to reach past the end of their own arm", () => {
-    // The defect that replaced the mean-of-hanging-hands rule, as a number. That rule
-    // put the hands at 0.375 on this cast — *below* Ember's hanging hand at 0.490 — so
-    // Ember's arm came out 113% extended, the undrawn upper arm stretching to reach a
-    // height beneath it. ADR-0017 permits that (a hand may be placed further than the
-    // arm can go, and the strain reports it), which is exactly why it needs a test
-    // rather than a crash.
-    const h = touchHeight(a, a, b, WIDTH / 2);
-    for (const m of [a, b]) {
-      const dx = WIDTH / 2 - m.restX;
-      const dy = m.restY - h;
-      expect(Math.hypot(dx, dy)).toBeLessThan(m.handReach);
+    // The defect that killed the mean-of-hanging-hands rule, as a number, now asserted on
+    // the posed arms rather than on an intermediate: `upperArmStrain` is zero when the arm
+    // is plausible and positive when a hand has been sent where the body cannot go.
+    // ADR-0017 permits the latter (a lobbed fist is a deliberate detachment), which is
+    // exactly why a resting formation needs a test rather than a crash.
+    for (const [x, y] of [
+      [beau, belle],
+      [belle, beau],
+    ] as const) {
+      const hold = touchHold(x, y);
+      const at = side(0);
+      const other = side(-hold.width);
+      const his = poseArms(armPoses(), x, y, at, other, gripBlend(), undefined, hold);
+      const hers = poseArms(armPoses(), y, x, other, at, gripBlend(), undefined, hold);
+      expect(upperArmStrain(his.right, x, -1)).toBeCloseTo(0, 9);
+      expect(upperArmStrain(hers.left, y, 1)).toBeCloseTo(0, 9);
     }
   });
 
-  it("stands the couple wide enough that the arms angle inward at all", () => {
-    // The stance is derived from the handhold, not the other way round. With each
-    // dancer's inside shoulder *over* the joined hands the arms hang dead vertical and
-    // there is no handhold to see — which is where the default width left them, since
-    // Myco's shoulders alone are wider than the couple was.
-    for (const m of [a, b]) {
-      expect(WIDTH / 2).toBeGreaterThan(m.restX);
+  it("stands the couple a hand's width clear of the wider shoulders", () => {
+    // The stance is derived from the handhold, not the other way round. With a dancer's
+    // inside shoulder *over* the joined hands the arm hangs dead vertical and there is no
+    // handhold to see — which is where the engine's body-agnostic width left them, since
+    // Myco's shoulders alone are wider than the couple was. The daylight is the joined
+    // hands' own width, which is where the eyeballed 0.11 went.
+    expect(WIDTH).toBeCloseTo(
+      2 * (Math.max(beau.restX, belle.restX) + Math.max(beau.handRadius, belle.handRadius)),
+      12,
+    );
+    for (const m of [beau, belle]) expect(WIDTH / 2).toBeGreaterThan(m.restX);
+  });
+
+  it("🔴 hangs the joined hands halfway between the two inside shoulders", () => {
+    // Ryan, 2026-08-18: "they can move to the horizontal middle between the dancer's
+    // shoulders." The rule this replaces put them under the belle's inside shoulder — the
+    // far end of the same gap, `WIDTH / 2 - belle.restX` — because the beau covered all of
+    // the daylight. Stated as the two shoulder positions rather than as `(restX - restX) / 2`
+    // so the test says the *landmark* and not the arithmetic.
+    const beauShoulder = -WIDTH / 2 + beau.restX;
+    const belleShoulder = WIDTH / 2 - belle.restX;
+    expect(HOLD.lateral).toBeCloseTo((beauShoulder + belleShoulder) / 2, 9);
+    for (const [m, isBeau] of [
+      [beau, true],
+      [belle, false],
+    ] as const) {
+      expect(touchReach(m, HOLD, isBeau)).toBeLessThan(1);
     }
-    expect(WIDTH).toBeGreaterThan(2 * Math.max(a.restX, b.restX));
+  });
+
+  it("has both dancers reach the same distance across", () => {
+    // What the midpoint *is*, said the other way round: neither dancer can be handed the
+    // other's share of the daylight, because the landmark sits where the two spans are equal.
+    // Not the same as equal *effort* — the fractions differ with the arms, and this belle
+    // spends more of hers than the beau does of his.
+    const acrossBeau = WIDTH / 2 + HOLD.lateral - beau.restX;
+    const acrossBelle = WIDTH / 2 - HOLD.lateral - belle.restX;
+    expect(acrossBeau).toBeCloseTo(acrossBelle, 12);
+    expect(acrossBeau).toBeGreaterThan(0);
+  });
+
+  it("holds a matched pair's hands dead centre", () => {
+    // MYCO and RYAN are the same body, so their inside shoulders are the same distance in
+    // from their own centres and the middle between them *is* the couple's midpoint. The rule
+    // this replaces put the hold the whole daylight off centre even on twins — the beau's
+    // side was the side that accommodated, at 91% of his arm against 53% of hers. A landmark
+    // is symmetric where the bodies are.
+    const twinBeau = armMetrics(MYCO_DEFAULTS);
+    const twinBelle = armMetrics(RYAN_DEFAULTS);
+    const twins = touchHold(twinBeau, twinBelle);
+    expect(twins.lateral).toBeCloseTo(0, 12);
+    // Their *spans across* are equal, which is what the landmark buys. Their reach
+    // **fractions** are not, and on twins that is the whole of what is left: the beau's palm
+    // is underneath, so his hand centre sits a hand's radius lower than hers and his arm
+    // reaches that much further down. 86% against 55% here, on identical bodies. The stacking
+    // is the asymmetry (ADR-0022's "beau right palm up"), not the placement.
+    expect(touchReach(twinBeau, twins, true)).toBeGreaterThan(
+      touchReach(twinBelle, twins, false),
+    );
+    for (const [m, isBeau] of [
+      [twinBeau, true],
+      [twinBelle, false],
+    ] as const) {
+      expect(touchReach(m, twins, isBeau)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("never sends a hand further than the arm can span, whoever the pair are", () => {
+    // The whole shipped cast against itself, both ways round. `touchReach` at or under 1 is
+    // the same statement as zero strain, said about the solve rather than about one pose —
+    // and it is the claim that replaces "this pairing cannot hold hands".
+    const cast = [MYCO_DEFAULTS, EMBER_DEFAULTS, RYAN_DEFAULTS, SPROUT_DEFAULTS];
+    for (const first of cast) {
+      for (const second of cast) {
+        const x = armMetrics(first);
+        const y = armMetrics(second);
+        const hold = touchHold(x, y);
+        expect(touchReach(x, hold, true)).toBeLessThanOrEqual(1 + 1e-9);
+        expect(touchReach(y, hold, false)).toBeLessThanOrEqual(1 + 1e-9);
+        // ...and they are standing far enough apart not to be inside one another.
+        expect(hold.width).toBeGreaterThanOrEqual(x.bodyRadius + y.bodyRadius);
+      }
+    }
   });
 
   it("🔴 puts the two hands on each other, one stacked above the other", () => {
     // The property the whole thing exists for, as a number rather than a look.
-    const self = side(0);
-    const partner = side(WIDTH);
-    const mine = poseArms(armPoses(), a, b, self, partner, gripBlend(), undefined, WIDTH);
-    const theirs = poseArms(armPoses(), b, a, partner, self, gripBlend(), undefined, WIDTH);
+    const his = poseArms(armPoses(), beau, belle, BEAU_AT, BELLE_AT, gripBlend(), undefined, HOLD);
+    const hers = poseArms(armPoses(), belle, beau, BELLE_AT, BEAU_AT, gripBlend(), undefined, HOLD);
 
-    // Each one's inside arm: mine is `left` (partner at +x), theirs is `right`.
-    const myHand = handEnd(mine.left, a);
-    const theirHand = handEnd(theirs.right, b);
+    // Each one's inside arm: the beau's is `right` (partner at −x), the belle's is `left`.
+    const beauHand = handEnd(his.right, beau);
+    const belleHand = handEnd(hers.left, belle);
 
-    // Same point on the floor — the midpoint between them. Both poses are rig-local, so
-    // each is *added* to its own dancer's position: the second one's hand sits at
-    // −WIDTH/2 in their frame, which is the same spot from the other side.
-    expect(self.x + myHand.x).toBeCloseTo(WIDTH / 2, 5);
-    expect(partner.x + theirHand.x).toBeCloseTo(WIDTH / 2, 5);
+    // Same point on the floor. Both poses are rig-local, so each is *added* to its own
+    // dancer's position — and that point is the hold, off the midpoint toward the belle.
+    const meet = (BEAU_AT.x + BELLE_AT.x) / 2 - HOLD.lateral;
+    expect(BEAU_AT.x + beauHand.x).toBeCloseTo(meet, 5);
+    expect(BELLE_AT.x + belleHand.x).toBeCloseTo(meet, 5);
 
     // ...and stacked rather than interpenetrating: the dancer whose inside hand is their
     // anatomical **right** is the beau, and the beau's palm is underneath. Stated in
     // anatomical terms so it survives the engine and the renderer disagreeing about
     // which way `+x` points, which they do.
-    const underneath = insideSide(partner, self) === "right" ? theirHand : myHand;
-    const above = underneath === theirHand ? myHand : theirHand;
-    expect(above.y).toBeGreaterThan(underneath.y);
+    expect(belleHand.y).toBeGreaterThan(beauHand.y);
+
+    // 🔴 **And the two drawn palms land on the contact plane** — which is the property
+    // "the hands touch" actually means, and the one this test used to get wrong. It asserted
+    // the centres were `handRadius + handRadius` apart, which is exactly what the solve
+    // computed, so it passed while the *drawn* hands sat 0.0415 apart: a hand is a sphere
+    // flattened to `flattenZ` and rotated, and on this pose the beau's forearm aims 77%
+    // forward, which turns his thin axis most of the way to vertical. Ryan, 2026-08-18:
+    // *"the hands could still be closer to actually touching."*
+    const beauTop = beauHand.y + handRiseAlongUp(beau, "right", his.right.aimX, his.right.aimY, his.right.aimZ);
+    const belleBottom = belleHand.y - handRiseAlongUp(belle, "left", hers.left.aimX, hers.left.aimY, hers.left.aimZ);
+    expect(beauTop).toBeCloseTo(HOLD.height, 9);
+    expect(belleBottom).toBeCloseTo(HOLD.height, 9);
+    expect(belleBottom - beauTop).toBeCloseTo(0, 9);
+  });
+
+  it("🔴 never lets an elbow get outboard of the hand it is holding with", () => {
+    // Ryan, 2026-08-16: "see the beau's arm is pointing at the belle though?" The elbow had
+    // landed at x 0.790 against a joined hand at 0.570 — the undrawn upper arm dead
+    // horizontal, the elbow outboard of its own hand, the whole arm reading as pointed at
+    // the partner. The invariant it violated, for both dancers and either pose path.
+    const his = poseArms(armPoses(), beau, belle, BEAU_AT, BELLE_AT, gripBlend(), undefined, HOLD);
+    const hers = poseArms(armPoses(), belle, beau, BELLE_AT, BEAU_AT, gripBlend(), undefined, HOLD);
+    for (const [pose, m] of [
+      [his.right, beau],
+      [hers.left, belle],
+    ] as const) {
+      const hand = handEnd(pose, m);
+      const toward = Math.sign(hand.x);
+      // The belle's is an equality to the last bit — her arm hangs, so her elbow is directly
+      // above her hand — which is the invariant met exactly rather than a near miss.
+      expect(pose.x * toward).toBeLessThanOrEqual(hand.x * toward + 1e-9);
+      // ...and folded backward rather than forward: characters face local +z.
+      expect(pose.z).toBeLessThanOrEqual(0);
+    }
+    // Both of these arms are folded enough for the shoulder's own plane to hold the elbow,
+    // which is `touchPose`'s answer outright: the elbow keeps its shoulder's lateral offset
+    // to the digit and the whole fold goes into z. A straighter arm has to leave that plane —
+    // SPROUT reaching a tall belle's waist does — and `reachPose` picks it up there, where
+    // the circle is small enough that the swing constants barely move it.
+    expect(hers.left.x).toBeCloseTo(belle.restX, 12);
+    expect(his.right.x).toBeCloseTo(-beau.restX, 12);
+  });
+
+  it("hands a reach back to `reachPose` rather than inventing one", () => {
+    // `touchPose` answers a hang. Past the end of the arm there is no elbow circle to pick
+    // a point on, and the two-link solve's own answer — hand honoured, upper arm stretched,
+    // strain reported — is the right one.
+    const far = touchPose(armPose(), beau, 1, 2, 2, 0);
+    const same = reachPose(armPose(), beau, 1, 2, 2, 0);
+    expect(far).toEqual(same);
   });
 
   it("leaves the outside arm hanging", () => {
-    const mine = poseArms(armPoses(), a, b, side(0), side(WIDTH), gripBlend(), undefined, WIDTH);
+    const his = poseArms(armPoses(), beau, belle, BEAU_AT, BELLE_AT, gripBlend(), undefined, HOLD);
     // Straight down — the outside arm is not claimed, only limited as it always was.
-    expect(mine.right.aimY).toBeCloseTo(-1, 5);
+    expect(his.left.aimY).toBeCloseTo(-1, 5);
   });
 
-  it("🔴 joins nothing when no width is supplied", () => {
+  it("🔴 joins nothing when no hold is supplied", () => {
     // Absent means "not a couple", and a facing pair must be untouched by any of this.
-    // Compared against the *folded* rest pose rather than `restX`: at a couple's own
-    // separation `constrainArm` already tucks the inside arm, and that behaviour is
-    // older than this feature and must survive it.
-    const withWidth = poseArms(armPoses(), a, b, side(0), side(WIDTH), gripBlend(), undefined, WIDTH);
-    const without = poseArms(armPoses(), a, b, side(0), side(WIDTH), gripBlend());
-    expect(without.left.aimY).toBeCloseTo(-1, 5);
-    expect(without.left.x).not.toBeCloseTo(withWidth.left.x, 3);
+    // Compared on the *aim*, because by construction almost nothing else separates them any
+    // more: `touchPose` keeps the shoulder's own offset, so a held arm and a hanging one share
+    // an elbow x — and since ADR-0027 the binding dancer's elbow hangs dead vertical too, so
+    // they share an elbow **z**. What is left, and what a handhold actually is, is a forearm
+    // that leaves the elbow and goes somewhere: forward and across, rather than straight down.
+    const held = poseArms(armPoses(), beau, belle, BEAU_AT, BELLE_AT, gripBlend(), undefined, HOLD);
+    const free = poseArms(armPoses(), beau, belle, BEAU_AT, BELLE_AT, gripBlend());
+    expect(free.right.aimY).toBeCloseTo(-1, 5);
+    expect(free.right.z).toBeCloseTo(0, 12);
+    expect(free.right.aimZ).toBeCloseTo(0, 12);
+    expect(held.right.aimY).not.toBeCloseTo(-1, 2);
+    expect(held.right.aimZ).toBeGreaterThan(0.5);
+  });
+
+  it("🔴 hangs the binding dancer's upper arm dead vertical, and holds the hands forward", () => {
+    // Ryan, 2026-08-18: *"they should be held a little forward from where they are, as if the
+    // upper arm is relaxed and hanging straight down."* The hold used to sit in the plane
+    // through both dancers (`z` 0) with the elbow swung *back* to reach it — which is where
+    // nobody's hands are. The upper arm is the thing that relaxes; forward is what falls out.
+    const his = poseArms(armPoses(), beau, belle, BEAU_AT, BELLE_AT, gripBlend(), undefined, HOLD);
+    const hers = poseArms(armPoses(), belle, beau, BELLE_AT, BEAU_AT, gripBlend(), undefined, HOLD);
+
+    expect(HOLD.forward).toBeGreaterThan(0);
+    // Both hands still land on the same point, forward included — the whole thing is void
+    // otherwise.
+    expect(handEnd(his.right, beau).z).toBeCloseTo(HOLD.forward, 9);
+    expect(handEnd(hers.left, belle).z).toBeCloseTo(HOLD.forward, 9);
+
+    // The binding dancer — the one whose relaxed reach is shorter, here the beau — has his
+    // upper arm exactly vertical: elbow directly below the shoulder, in x *and* z.
+    expect(his.right.x).toBeCloseTo(-beau.restX, 12);
+    expect(his.right.z).toBeCloseTo(0, 9);
+    expect(his.right.y).toBeCloseTo(beau.restY - beau.elbowReach, 9);
+
+    // The other dancer's elbow takes up the slack by folding back, which is what an elbow is
+    // for — never forward of her own shoulder, which would read as an elbow leading.
+    expect(hers.left.z).toBeLessThanOrEqual(1e-9);
   });
 });
 
@@ -648,3 +855,116 @@ function handEnd(pose: ArmPose, m: ArmMetrics) {
     z: pose.z + pose.aimZ * m.forearmSpan,
   };
 }
+
+describe("touch hands — the square accommodates the bodies", () => {
+  // Ryan, 2026-08-17, watching `go home` on the debug scene's size casts: *"with different
+  // body sizes go home should update so that the handhold is between the beau and the belle
+  // as comfortably as possible, right? never pushed into the body of either — we want the
+  // square to accommodate in this case."*
+  //
+  // It did not. The solve knew a torso only as a floor on the stance (`beauR + belleR`,
+  // which permits standing flush and knows nothing about heads), and nothing at all
+  // constrained *where the hold went*, so on the debug scene's `mixed` cast the joined hands
+  // sat 0.140 inside the beau's chest and the couple stood **narrower** than the default
+  // pair while being twice the size.
+  const wide = (s: CharacterBodyShape, radius: number): CharacterBodyShape => ({
+    ...s,
+    body: { ...s.body, radius },
+  });
+  // The debug scene's own `bodies` casts, which is where this was seen.
+  const SIZE_CASTS: readonly (readonly [string, CharacterBodyShape, CharacterBodyShape])[] = [
+    ["default", MYCO_DEFAULTS, EMBER_DEFAULTS],
+    ["mixed", wide(MYCO_DEFAULTS, 0.6), wide(EMBER_DEFAULTS, 0.1)],
+    ["max", wide(MYCO_DEFAULTS, 0.6), wide(EMBER_DEFAULTS, 0.6)],
+    // ...and the same two the other way round, since neither rule is symmetric.
+    ["mixed reversed", wide(EMBER_DEFAULTS, 0.1), wide(MYCO_DEFAULTS, 0.6)],
+  ];
+
+  it.each(SIZE_CASTS)(
+    "🔴 %s — puts the joined hands between the two dancers, never inside one",
+    (_name, beauShape, belleShape) => {
+      const beau = armMetrics(beauShape);
+      const belle = armMetrics(belleShape);
+      const hold = touchHold(beau, belle);
+      // Each dancer's surface at the hold's own height, from the couple's midpoint.
+      const beauSurface = -hold.width / 2 + sideExtentAt(beau.parts, hold.height);
+      const belleSurface = hold.width / 2 - sideExtentAt(belle.parts, hold.height);
+      // The stacked palms are a hand wide, and the wider of the two hands is what has to fit.
+      const hand = Math.max(beau.handRadius, belle.handRadius);
+      expect(hold.lateral - beauSurface).toBeGreaterThanOrEqual(hand - 1e-9);
+      expect(belleSurface - hold.lateral).toBeGreaterThanOrEqual(hand - 1e-9);
+    },
+  );
+
+  it.each(SIZE_CASTS)("%s — stands the couple clear of both bodies and heads", (_name, beauShape, belleShape) => {
+    const beau = armMetrics(beauShape);
+    const belle = armMetrics(belleShape);
+    // ADR-0012's own clearance, which the stance used to undercut by ignoring heads and by
+    // allowing two torsos to stand exactly flush.
+    const need = lateralClearance(rigidParts(beauShape), rigidParts(belleShape));
+    expect(touchHold(beau, belle).width).toBeGreaterThanOrEqual(need + PERSONAL_SPACE - 1e-9);
+  });
+
+  it("🔴 grows the square when the bodies grow, rather than shrinking it", () => {
+    // The tell that the old rule was upside down: `mixed` came out at 0.820 against the
+    // default cast's 1.140 — a bigger pair standing closer, because the stance was capped
+    // by the beau's reach and the reach got shorter as the hold slid into him.
+    const narrow = touchHold(armMetrics(MYCO_DEFAULTS), armMetrics(EMBER_DEFAULTS)).width;
+    const fat = touchHold(
+      armMetrics(wide(MYCO_DEFAULTS, 0.6)),
+      armMetrics(wide(EMBER_DEFAULTS, 0.6)),
+    ).width;
+    expect(fat).toBeGreaterThan(narrow);
+  });
+
+  it("hangs an arm beside its own body rather than through it", () => {
+    // The layout slider knows nothing about the torso it is attached to, so a wide enough
+    // body swallows its own arms — and then every hold solved from that shoulder starts
+    // inside the dancer. The dance reads the shape and hangs the arm clear.
+    const fat = armMetrics(wide(MYCO_DEFAULTS, 0.6));
+    expect(fat.restX).toBeGreaterThanOrEqual(fat.bodyRadius + fat.armHalfWidth - 1e-9);
+  });
+
+  it.each(CAST)("leaves %s's authored arm width alone, because it already clears", (_name, shape) => {
+    // Widening only. Every shipped body already hangs its arms outside itself, so this rule
+    // is invisible on the whole cast — which is what keeps the watched pose watched.
+    expect(armMetrics(shape).restX).toBeCloseTo(computePositions(shape, 0.5).forearmX, 12);
+  });
+
+  it.each(SIZE_CASTS)("%s — still puts the two hands on each other", (_name, beauShape, belleShape) => {
+    // The property the whole solve exists for, asserted on the casts that broke it. A hold
+    // that clears both bodies but leaves the two hands in different places is not a hold —
+    // and the clamp above moves the hold *after* each arm has been solved for, so this is
+    // exactly where that could have gone wrong.
+    const beauM = armMetrics(beauShape);
+    const belleM = armMetrics(belleShape);
+    const hold = touchHold(beauM, belleM);
+    const at = (x: number): Placement => ({ x, z: 0, yaw: 0 });
+    // The beau's inside hand is his right, so his partner stands at −x.
+    const beauAt = at(0);
+    const belleAt = at(-hold.width);
+    const his = poseArms(armPoses(), beauM, belleM, beauAt, belleAt, gripBlend(), undefined, hold);
+    const hers = poseArms(armPoses(), belleM, beauM, belleAt, beauAt, gripBlend(), undefined, hold);
+    const meet = (beauAt.x + belleAt.x) / 2 - hold.lateral;
+    expect(beauAt.x + handEnd(his.right, beauM).x).toBeCloseTo(meet, 5);
+    expect(belleAt.x + handEnd(hers.left, belleM).x).toBeCloseTo(meet, 5);
+    // And touching, on every cast — the drawn palms, not the sphere centres.
+    const top = handEnd(his.right, beauM).y
+      + handRiseAlongUp(beauM, "right", his.right.aimX, his.right.aimY, his.right.aimZ);
+    const bottom = handEnd(hers.left, belleM).y
+      - handRiseAlongUp(belleM, "left", hers.left.aimX, hers.left.aimY, hers.left.aimZ);
+    expect(bottom - top).toBeCloseTo(0, 9);
+  });
+
+  it("leaves the watched default hold exactly where Ryan signed it off", () => {
+    // 2026-08-18, after the shoulder-midpoint correction: stance 1.140, hands 0.713 (the
+    // belle's waist, unmoved), off-mid **0.050** toward the belle. The stance and the height
+    // are the numbers Ryan signed off on 2026-08-17 and none of the accommodation may move
+    // them; the lateral is the one he changed, from 0.210 — her inside shoulder — to the
+    // middle between the two shoulders.
+    const hold = touchHold(armMetrics(MYCO_DEFAULTS), armMetrics(EMBER_DEFAULTS));
+    expect(hold.width).toBeCloseTo(1.14, 3);
+    expect(hold.height).toBeCloseTo(0.713, 3);
+    expect(hold.lateral).toBeCloseTo(0.05, 3);
+  });
+});

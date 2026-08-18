@@ -69,6 +69,15 @@ export interface DanceRuntime {
    * from the frame loop.
    */
   readonly beat: () => number;
+  /**
+   * Stand the square at beat 0 of whatever it is dancing, and return that state.
+   *
+   * A fresh performance and a `sample`, not a `tick(-beat)`: the stepper is stateful
+   * and only moves forward, so the same seeded restart the loop uses is the honest
+   * rewind. No time passes — the caller gets beat 0 to pose against and the clock
+   * stays where it is put.
+   */
+  readonly home: () => readonly DancerState[];
 }
 
 /**
@@ -132,5 +141,11 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
 
   const beat = useCallback(() => perfRef.current?.beat ?? 0, []);
 
-  return { advance, motions, beats, beat };
+  const home = useCallback((): readonly DancerState[] => {
+    const perf = makePerformance();
+    perfRef.current = perf;
+    return perf.sample();
+  }, [makePerformance]);
+
+  return { advance, motions, beats, beat, home };
 }

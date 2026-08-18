@@ -110,6 +110,12 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0019](0019-a-move-may-turn-a-body-past-facing-so-the-shoulder-leads.md) | A move may turn a body past facing, so the working shoulder leads | Accepted |
 | [0020](0020-the-forearm-aims-along-the-contact-axis.md) | The forearm's aim is authored, and a punch meets at shoulder height | Accepted |
 | [0021](0021-being-moved-needs-a-live-yes.md) | Being moved needs a live yes, so the approach is narrowed to NPC receivers | Accepted |
+| [0022](0022-a-couples-handhold-is-solved-for-the-pair.md) | A couple's handhold is solved for the pair, and the joined hands are not at the midpoint | Superseded by ADR-0023 |
+| [0023](0023-the-bodies-bound-the-handhold.md) | The bodies bound the handhold, and the square grows to fit them | Superseded by ADR-0025 |
+| [0024](0024-the-dance-hangs-an-arm-outside-its-own-body.md) | The dance hangs an arm outside its own body, whatever the editor says | Accepted |
+| [0025](0025-the-joined-hands-hang-between-the-shoulders.md) | The joined hands hang halfway between the two inside shoulders | Superseded by ADR-0027 |
+| [0026](0026-a-hand-is-the-ellipsoid-that-is-drawn.md) | A hand is the ellipsoid that is drawn, not the sphere it is made from | Accepted |
+| [0027](0027-the-upper-arm-hangs-and-the-hands-come-forward.md) | The upper arm hangs, and the joined hands come forward | Accepted |
 
 ## Decisions this repo inherits
 

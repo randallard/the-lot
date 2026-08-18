@@ -68,3 +68,18 @@ export function danceSceneFigure(hash: string): DebugFigure | null {
   if (requested === undefined || requested === "") return DEFAULT_FIGURE;
   return DEBUG_FIGURES.find((f) => f.id === requested) ?? DEFAULT_FIGURE;
 }
+
+/**
+ * The hash that names a figure — the inverse of {@link danceSceneFigure}, and here
+ * rather than in the scene because an inverse that lives away from its function is an
+ * inverse nobody notices has stopped being one.
+ *
+ * The scene writes this as figures are chosen, so the URL in the bar is the URL that
+ * reloads what is on screen. It used to write the figure's **call** instead, which is a
+ * different namespace: `two-trades` dances `partner-trade`, so the couple figures each
+ * wrote a hash that read back as the default and no couple watch could be reloaded or
+ * shared. Round-tripped over every figure in `dance-route.test.ts`.
+ */
+export function danceSceneHash(figure: DebugFigure): string {
+  return figure.id === DEFAULT_FIGURE.id ? "#dance" : `#dance=${figure.id}`;
+}
