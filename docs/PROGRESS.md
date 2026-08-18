@@ -4,7 +4,93 @@ _Last updated: 2026-08-18_
 
 ## Status / next
 
-**▶ RIGHT NOW — ✅ THE UPPER ARM HANGS, AND THE JOINED HANDS COME FORWARD (2026-08-18) —
+**▶ RIGHT NOW (2026-08-18, latest) — ✅ THE ARCH IS DRAWN, AND WHEN THE BODIES CANNOT MAKE ONE
+THEY EITHER RESHAPE OR LET GO — DRAWN AT RANDOM PER EXECUTION.** Ryan: *"can we make the duck
+shrink the torso? actually I want two options that happen randomly each time a move like this is
+executed — sometimes the torsos grow/shrink each a little more than necessary to accommodate, and
+sometimes the arms just reach as far as they can and the hold breaks to accommodate."*
+[ADR-0028](adr/0028-an-arch-a-pair-cannot-make-is-accommodated-two-ways.md), and
+[ADR-0029](adr/0029-a-shoulder-follows-the-torso-it-hangs-from.md) for the shipped defect it
+uncovered. Journal *[the arch nobody can reach](journal/2026-08-18-7-the-arch-nobody-can-reach.md)*.
+**LANDED in `9041d70`**, which Ryan verified in the running scene before saying to commit it:
+*"looks pretty good."* **626 tests** (from 605), lint 0 errors, typecheck and build clean.
+
+🔴 **The premise: on the cast that is on screen the arch is impossible.** Ember's crown is at
+**2.155**; Myco's shoulder is at 0.950 with a 0.690 arm, so with the arm dead vertical he reaches
+**1.640**. Three of the six pairings in the repo cannot make an arch at all, including the default
+one. This is `gripHeight`'s long-standing note — *"the taller dancer does nearly all the
+accommodating"* — arriving somewhere it cannot be deferred.
+
+**Watched and accepted, and still the things to keep an eye on** — `pnpm dev` →
+`#dance=two-twirls` (and `#dance=trade-twirl` for the pair):
+- **The reshape is big.** The beau's torso goes **0.30 → 1.03** and the belle's **1.41 → 0.68** —
+  they roughly swap stature for four beats. Accepted as it stands; if it ever reads as too much
+  the dial is `ARCH_OVERSHOOT`, and past that, whether the arch has to clear the crown at all.
+- **The break** should read as the tall belle holding her hand over her own head while the short
+  beau cannot follow, and her turning under her own hand.
+- The debug line names which one was drawn: `arch — reshape (torso a +0.729, b −0.729)`.
+
+🔴 **Still unresolved, and it is a question about a picture: where the join sits.** The arch sits
+between the two inside shoulders like a standing hold — but the pair's midpoint bulges forward to a
+quarter of the couple's width at the pass while the belle passes through the couple's *centre*, so
+she may not pass **under** the joined hands at all. Left alone on purpose until someone looks.
+
+**⚠️ Still owed, unchanged:** the **elbow watch** re-take, then the **clearance watch** — which now
+covers both couple calls at once, because after square-one's ADR-0017 they walk the same paths.
+And 🔴 the hold's `forward` is still **0.320** on the default cast, flagged on 2026-08-17 and
+untouched.
+
+---
+
+**Earlier the same day, and landed in the same commit — ✅ THE CALIFORNIA TWIRL'S PATHS ARE FIXED
+IN THE ENGINE (square-one `bd93203`), AND THE ARCH WAS DECLARED BUT NOT YET DRAWN.** Ryan, watching both couple calls: *"partner
+trade looks good — california twirl beau might be same path but raise arm and have belle duck under
+the two held hands — belle's path might be the same as partner trade too — but she needs to start
+the turn to the left, ccw, and make it only a 180 degree turn — the way it's running now the belle
+is doing 540 degree turn cw."* **The engine work is all in square-one**
+([ADR-0017](https://github.com/randallard/square-one/blob/main/docs/adr/0017-a-california-twirl-is-a-partner-trade-holding-on.md)):
+the Twirl was a rigid rotation of the pair about their joined hands with the belle taking a whole
+extra turn beneath a fixed arch, and it is now the **Partner Trade's own two chains with a `hold`
+on them** — the same paths, waypoint for waypoint, and the joined hands are the only difference
+between the two calls. Journal
+*[the Twirl was a Trade](journal/2026-08-18-6-the-twirl-was-a-trade-and-the-arch-is-a-hold.md)*.
+**605 tests**, lint 0 errors, typecheck and build clean. square-one at 176 tests, also clean; both
+working trees **uncommitted**.
+
+🔴 **What Ryan will see, and what he will not.** `#dance=two-twirls` — the belle turns 180° CCW
+instead of 540° CW, and the beau walks the arc he walks in a Trade. **No arch.** A Twirl renders
+exactly as the Partner Trade it is now geometrically identical to, and `#dance=trade-twirl` has two
+halves that look the same. That is the honest state of it and the readout says so:
+`arch declared by the call — raised handhold not drawn yet`.
+
+🔴 **The decision this side is owed, and it is a decision rather than a fallback.** Every hold this
+module can pose is built on [ADR-0027](adr/0027-the-upper-arm-hangs-and-the-hands-come-forward.md)
+— *the humerus of a hanging arm stays in the plane of its own shoulder* — which is the right
+anatomy for a couple standing hand in hand and **exactly false of an arch**. `touchPose` already
+falls back to `reachPose` for a hand above the shoulder, so an arch drawn today would be drawn by
+`ELBOW_SWING` and `ELBOW_BACK`: the preference constants ADR-0027 was written to stop relying on.
+Routing it to `gripPose` instead would draw an **Allemande**. So the frame loop splits the engine's
+spans by style, `TrackedArms` gains an `arch` field beside `grip` and `touch`, and nothing is posed.
+
+**Three questions, in order, for the next round:**
+1. **The raised-arm anatomy** — what breaks the tie on the elbow's circle when the hand is above the
+   shoulder. Same shape of question ADR-0027 answered for the hanging arm; everything else follows.
+2. **Where the join sits.** A couple's hands meet between their inside shoulders. An arch the belle
+   *walks under* wants the join over her path — and in this figure the pair's midpoint bulges
+   forward to a quarter of the couple's width at the pass while she passes through the centre, so
+   the two are not the same point. Worth **watching** before solving.
+3. **The height**, which is the easy part: `bandedHeight` already clamps a target into what both
+   arms can reach given what they have spent sideways and forward, and `placeHold` already asks
+   `sideExtentAt` for the corridor at the hold's own height — the head, at head height. Point the
+   same solve at a different target.
+
+**⚠️ Still owed from yesterday, unchanged:** the **elbow watch** re-take (placement, both free arms,
+both hands and the whole hold's forward offset have all moved), then the **clearance watch** — which
+now covers both couple calls at once, because they walk the same paths.
+
+---
+
+**Earlier the same day — ✅ THE UPPER ARM HANGS, AND THE JOINED HANDS COME FORWARD (2026-08-18) —
 LANDED in `d3cd4fb`,** which Ryan verified in the running scene before saying to commit it. Two
 days of the S1 couple work went in with it: six ADRs (0022–0027) and the debug scene that judged
 them. Ryan: *"they should be held a little forward from where they are, as if the upper
