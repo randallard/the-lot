@@ -1,11 +1,352 @@
 # Progress & Status
 
-_Last updated: 2026-08-16_
+_Last updated: 2026-08-18_
 
 ## Status / next
 
-**▶ RIGHT NOW — partner up, rebuilt from a body that is finally where it claims to be
-(2026-08-16). 🔴 UNCOMMITTED AND UNWATCHED.** Ryan: *"we should finalize 'partner up' —
+**▶ RIGHT NOW — ✅ THE UPPER ARM HANGS, AND THE JOINED HANDS COME FORWARD (2026-08-18) —
+LANDED in `d3cd4fb`,** which Ryan verified in the running scene before saying to commit it. Two
+days of the S1 couple work went in with it: six ADRs (0022–0027) and the debug scene that judged
+them. Ryan: *"they should be held a little forward from where they are, as if the upper
+arm is relaxed and hanging straight down."* The hold had **no forward axis at all** — its `z` was
+zero, the plane through both dancers' centres, and `touchPose` reached it by swinging each elbow
+*backward* out of that plane. So the upper arm was never relaxed. Ryan's sentence is the derivation:
+a hanging upper arm pins the elbow below its own shoulder, the forearm's length is then committed to
+`across` and to the height, and **whatever is left goes forward**.
+[ADR-0027](adr/0027-the-upper-arm-hangs-and-the-hands-come-forward.md) supersedes ADR-0025 — which
+carried a promotion condition saying exactly this would need it. Journal
+*[the upper arm was never relaxed](journal/2026-08-18-5-the-upper-arm-was-never-relaxed.md)*.
+**600 tests**, lint 0 errors, typecheck and build clean. **Stance, height, lateral and every
+clearance unchanged on all three casts.**
+
+🔴 **One thing for Ryan to judge:** `forward` comes out **0.320** on the default cast, which is about
+one torso radius — so the hands sit at the front surface of the beau's belly and his forearm is 3°
+*above* horizontal. Cause: her waist (0.713) is essentially at his hanging elbow (0.620), so almost
+all his spare forearm has nowhere to go but forward. That is his mechanism followed exactly; if it
+reads thrust-out, the dial is the decision that *her* waist sets the height, not a fudge on
+`forward`.
+
+**Earlier the same day — ✅ THE JOINED HANDS TOUCH, FOR REAL, AGAINST THE MESH THAT IS DRAWN** (same commit). Ryan: *"looks better — the hands could still be closer to actually
+touching."* They **were** touching, in the model, and a test asserted exactly that and passed: the
+two hand centres were `handRadius + handRadius` apart, tangent spheres. But `handRadius` is the
+radius of the sphere a hand is *made from*, and what is **drawn** is that sphere flattened to
+`flattenZ` and rotated — Myco's open hand is 0.110 across and **0.025 thick** — so on a forearm
+aiming 77% forward his hand reached 0.073 up instead of 0.110 and the drawn hands sat **0.0415
+apart**. The geometry layer now asks the renderer's own mesh how far a hand reaches in a direction:
+[ADR-0026](adr/0026-a-hand-is-the-ellipsoid-that-is-drawn.md). Palms land on the contact plane to
+1e-9 in the suite and 7e-6 when independently sampled from the real mesh transform; stance, height,
+lateral and every clearance unchanged on all three casts. Journal
+*[the hands were tangent spheres](journal/2026-08-18-4-the-hands-were-tangent-spheres-that-are-not-drawn.md)*.
+**599 tests**, lint 0 errors, typecheck and build clean.
+
+**Earlier the same day — ✅ THE FREE ARM HUNG FROM THE SHOULDER, AND THE JOINED HANDS MOVED TO THE
+MIDDLE.** Ryan, last: *"verify that the other forearm is set by the
+character customization — they seem really high but maybe that's just the way it is."* It was not
+set by the customization and it was not just the way it is: `proposeArms` wrote the **shoulder**
+into a field that names the **elbow**, so every un-gripped arm in the dance had a zero-length
+upper arm and hung one whole `elbowReach` — 0.330 — too high. The belle's free hand was coming out
+*above* the couple's joined hands. Fixed, watched live, two tests through `resolveExpression`
+(the seam nothing tested). Journal
+*[the free arm hung from the shoulder](journal/2026-08-18-3-the-free-arm-hung-from-the-shoulder.md)*.
+**599 tests**, lint 0 errors, typecheck and build clean. No ADR — it restores ADR-0017.
+
+Before it, the same day: Ryan, looking at the standing couple through the
+just-repaired joint markers: *"they can move to the horizontal middle between the dancer's shoulders — vertical level should
+be at the belle's waist — the body / head disproportion might affect this but that's the general
+rule."* The hands were sitting on **her inside shoulder**, which is where ADR-0022's "her arm
+hangs and the beau covers the daylight" put them by definition. They are halfway along that gap
+now: [ADR-0025](adr/0025-the-joined-hands-hang-between-the-shoulders.md) supersedes ADR-0023, the
+lateral stops being an opinion about whose arm works and becomes a landmark, and the stance and
+the height do not move on any cast. Journal
+*[the hands move to the middle](journal/2026-08-18-2-the-hands-move-to-the-middle.md)*.
+**597 tests**, lint 0 errors, typecheck and build clean.
+
+Before it, the same day: the four **instrument** defects the elbow watch turned up are fixed and
+watched live — the joint markers draw a touch hold, the URL round-trips the figure, a marker
+switched on while paused paints itself, and the readout no longer calls a couple holding hands
+"hands free". Journal
+*[the instrument could not show its own hold](journal/2026-08-18-the-instrument-could-not-show-its-own-hold.md)*.
+**Fixing the instrument is what made the pose visible enough to correct**, in that order and
+within the hour.
+
+**Next, and owed:** ⚠️ **re-take the elbow watch on the new placement.** Both elbows passed on
+2026-08-17 against a hold 0.210 toward the belle; it is 0.050 now, the beau's across dropped
+0.320 → 0.160 and the belle's rose 0.000 → 0.160, so her arm is doing something it was not.
+Nothing looked wrong on any of the three casts, but the four-step watch is against the old pose.
+Then the *clearance* branch — the Partner Trade's pass, which is still a collision.
+`pnpm dev`, `#dance=two-trades`, `go home`, joint markers on.
+
+Behind that, the handhold itself: Ryan, on "this pairing cannot hold hands naturally": *"try again
+with the body spacing and arm positions — I want it to work with no new limitations — the movement
+should accommodate the body size."* He was right and the limitation was self-inflicted. Then, on
+the first look: *"the gent's job is to make the belle's job easier, even if she's taller."*
+[ADR-0022](adr/0022-a-couples-handhold-is-solved-for-the-pair.md), journal
+*the hands were never at the midpoint*.
+
+- 🆕 **The debug panel has a `go home` button, and it is what the owed watch was missing**
+  (2026-08-17). Ryan: *"a button for go home that takes whatever move is selected and just goes to
+  the start of it … and it should be paused, don't play automatically."* The standing couple only
+  exists at beat 0 of the loop, and the standing instruction for reaching it was *drop to 30 bpm
+  and try to catch it* — an instrument asking for good reflexes. It now stands the square at beat
+  0 of the selected figure and holds it there, emote in flight dropped. **Watched live in both
+  formations**; `#dance=two-trades` and `#dance` (Dosado) both land on their start and stay.
+  Journal *a way back to beat zero*. The interesting part: a paused floor writes **nothing**, so a
+  rewind under the pause would have moved the clock and left the dancers mid-move — the number and
+  the picture disagreeing for the third time this week, and the first time it was expected. No
+  ADR; this is a scene control, and the panel's own table documents it.
+- 🆕 **The render watch is inside the session now.** The Chrome browser tool is connected to this
+  machine's Chromium, so the scene can be driven and screenshotted from here rather than handed to
+  Ryan and waited on. **First reading, taken live:** the panel's solved hold matches the code
+  exactly — stance **1.140**, hands **0.713**, off-mid **0.210 toward the belle**, beau **68%**
+  across 0.320, belle **69%** across 0.000. That is the numbers confirmed *in the running app*,
+  which is one step further than a green suite and still **not** the thing that matters.
+- 🔴 **The handhold was never checked against a body, and the square shrank as the bodies grew**
+  (2026-08-17). Found by Ryan the first time the new camera was pointed at `bodies: mixed`:
+  *"note with different body sizes go home should update so that the handhold is between the beau
+  and the belle as comfortably as possible … never pushed into the body of either — we want the
+  square to accommodate."* It did not. `mixed` stood at **0.820** — narrower than the default
+  cast at twice the size — with the joined hands **0.140 inside the beau's chest**; `max` stood
+  with the two torsos exactly **flush** and the hands 0.240 inside the belle.
+  [ADR-0023](adr/0023-the-bodies-bound-the-handhold.md) supersedes ADR-0022: the stance is
+  floored by ADR-0012's own `lateralClearance` (height-aware, counts heads) plus `PERSONAL_SPACE`
+  and by a corridor wide enough for the hands, and the hold is **clamped into that corridor**,
+  which outranks the preference about whose arm reaches.
+  [ADR-0024](adr/0024-the-dance-hangs-an-arm-outside-its-own-body.md) is the other half — the
+  editor stays free to build any body, and the *dance* hangs an arm outside the torso it is
+  attached to. Journal *the hold was never checked against a body*. **590 tests** (from 571),
+  lint 0 errors, typecheck clean. **Watched on all three casts:** default unchanged (1.140 /
+  0.713 / 0.210, clear 0.306/0.030), `mixed` 1.070 with clear 0.000/0.150, `max` 1.640 with clear
+  0.276/0.000. Nobody's hand is inside anybody, asserted both ways round.
+  - The one to carry: `lateralClearance` **already existed** and is what every other spacing
+    decision goes through. `touchHold` used a sum of two radii because the thing in front of me
+    was arms, and the body number already sitting in `ArmMetrics` was closer to hand than the
+    house answer one import away. Not a missing idea — a local answer to a question that was
+    already settled elsewhere.
+  - Fell out of it: four **shipped** pairs (every one involving Sprout) overshot their arms by
+    0.06% once the hold could no longer sit exactly under a shoulder, because the reachable
+    height band was cut from the vertical alone. Third instance this week of *one number standing
+    in for a constraint with two axes*. The band is re-cut as a bounded fixed point now.
+- 🆕 **The camera moves** (2026-08-17). Ryan: *"add orbit controls to #dance."* drei's
+  `OrbitControls`, the same component `CharacterPreview` and `ContactMovePreview` already mount,
+  targeted at chest height (0.9) so "level" is level with the joints being judged. Tilt is clamped
+  at the horizon through that target, which buys the level side view *and* rules out the camera
+  going under the opaque floor; panning stays on, unlike the previews, because this square
+  migrates. **Watched live:** orbit, the horizon clamp (re-dragging from it changes nothing), the
+  top-down end, and scroll dolly. Journal *the camera moves*. No ADR — a scene control, documented
+  in the panel's own table. The **figure** is in the URL and round-trips now, but still **no view
+  presets and no camera state**, so a watch can be linked to but not framed by the link.
+- ✅ **The render watch is taken, and both elbows pass** (2026-08-17). All four steps, on the
+  default cast: paused on the standing couple with `go home`, orbited to front, rear-quarter, side
+  and plan views. Journal *the elbow watch, taken*.
+  - **The beau's elbow** sits at exactly his shoulder's lateral offset (dx **0.000**), 0.155
+    behind his body, and inboard of his hand (0.460 against 0.780), with the undrawn upper arm at
+    exactly its natural 0.330. The **plan view** is what answers "behind the body" — that question
+    wants a view from above, not the side, which is worth knowing next time.
+  - **His 81° forearm reads exactly like the defect it is not.** Standing instruction for anyone
+    watching this pose: the elbow is the test, the forearm angle is not.
+  - **Ember's forearm does read as detached** from behind — floating clear of her back, her hand a
+    separate pebble below the tapered tip. **But her free arm looks identical**, so it is
+    ADR-0017's undrawn upper arm plus her authored shape (0.10 → 0.025 taper, 0.015 wrist gap,
+    0.07 hand), not anything touch hands did. Changing it is a body-shape decision affecting every
+    dancer standing still.
+  - **The hands visibly meet**, hers above his, confirmed from three angles.
+- ✅ **The upper arm was never relaxed, and `forward` is what was left over** (2026-08-18). Ryan:
+  *"they should be held a little forward … as if the upper arm is relaxed and hanging straight
+  down."* [ADR-0027](adr/0027-the-upper-arm-hangs-and-the-hands-come-forward.md) supersedes
+  ADR-0025; journal
+  *[the upper arm was never relaxed](journal/2026-08-18-5-the-upper-arm-was-never-relaxed.md)*.
+  - **`TouchHold` had three numbers and needed four.** Its `z` was zero, and `ELBOW_BACK` — which
+    went in on 08-16 to stop an arm reading as *pointing at the belle* — was the only place an elbow
+    could go once the hand was pinned to that plane. Right fix for that, papered over this.
+  - **The derivation is Ryan's own sentence:** `forward² = forearmSpan² − across² − (handY −
+    elbowY)²`, with the elbow hanging. The hold takes the **shorter** of the two dancers' answers;
+    the other's elbow folds back, which is what an elbow is for.
+  - 🔑 **`touchPose` needed no change, which is the check that the reading is right.** Its
+    further-back-of-two-solutions rule *is* the vertical elbow at the exactly-relaxed hand position,
+    to 1e-16. And it surfaced as a **failing test whose failure was the feature landing**: "expected
+    −1.4e-16 to be less than −0.01".
+  - default `forward` **0.320** (beau's upper arm 0.00° off vertical, belle folded 25.8°); `max`
+    **0.306** with the roles swapped; `mixed` **0.000**, honestly, because the beau has no spare arm
+    there at all. Reaches rise — beau 50→67%, belle 71→79% — and nobody passes 100%.
+  - **The promotion condition ADR-0025 left open is resolved, not deferred.** The corridor stays
+    side-to-side at `z` 0 and that is *provably conservative* in front: a capsule's half-width at
+    offset `z` is `sqrt(r² − z²)`, strictly narrower. No 3D corridor needed.
+  - 🔑 **A mechanism is a better instruction than a target.** "A little forward" alone is a constant
+    to guess; "as if the upper arm is relaxed" has an answer in it — derived, testable, and
+    different per cast. Worth asking for the mechanism whenever a look note arrives.
+- ✅ **The joined hands were tangent *spheres*, and the spheres are not what is drawn**
+  (2026-08-18). Ryan: *"looks better — the hands could still be closer to actually touching."*
+  [ADR-0026](adr/0026-a-hand-is-the-ellipsoid-that-is-drawn.md); journal
+  *[the hands were tangent spheres](journal/2026-08-18-4-the-hands-were-tangent-spheres-that-are-not-drawn.md)*.
+  - **They were touching, and that was the problem.** Centres exactly `0.110 + 0.070 = 0.180`
+    apart, asserted by a test that passed. `handRadius` is the sphere a hand is *made from*;
+    `Dancer` draws it scaled `[1,1,flattenZ]` and rotated, so Myco's hand is **0.110 across and
+    0.025 thick** and its reach is a question per direction.
+  - **The worst direction was the one in use:** the beau's forearm aims **77% forward** (the elbow
+    swings back, ADR-0017), which turns his thin axis most of the way to vertical — 0.073 of rise,
+    not 0.110. Drawn surfaces spanned 0.1385 of 0.1800. **Gap 0.0415.**
+  - `handDrawnMap` (in `body-shapes`, beside `handRotations`, where the renderer's numbers live) +
+    `handRiseAlongUp` (in `arm-pose`, still free of three). The frame change is the whole trick:
+    `(aimX, −aimY, aimZ)`, because the group's rotation is the *minimal* one from `DOWN` to `aim`
+    and running up back through its inverse cancels every trig term.
+  - 🔑 **Each dancer puts their own palm on the plane, so neither needs the other's hand.** The
+    stack is two independent local facts that agree, not a pair quantity — the sturdiest kind of
+    agreement.
+  - **Third fixed point of the week:** lift and aim are each other's inputs, so `settleTouch`
+    iterates (≈×10 a pass, bounded at 16 — six passes left 3.4e-8 on the table). `poseArms`
+    re-settles against the **live** placements, because the pair breathe.
+  - 🔑 **The test asserted the implementation back to itself** — "the centres are `handRadius +
+    handRadius` apart" is what the solve computes. The replacement asserts the **drawn palms land
+    on the contact plane**: a statement about the world, which can fail for the reason we care
+    about.
+  - 🔴 **Accepted cost:** the pose solve now depends on cosmetic hand authoring (`flattenZ`, the
+    hand's `rotation`) — an inversion of ADR-0024's line, and the opposite of what the dance does
+    with `head.rotation`. Ryan chose it over the alternative (draw held hands as plain spheres):
+    a hand is the thing that *holds*, so how it is drawn is load-bearing in a way a head tilt is
+    not.
+- ✅ **The free arm hung from the shoulder — every one of them an upper arm too high**
+  (2026-08-18). Ryan: *"verify that the other forearm is set by the character customization — they
+  seem really high."* Journal
+  *[the free arm hung from the shoulder](journal/2026-08-18-3-the-free-arm-hung-from-the-shoulder.md)*.
+  No ADR: it restores [ADR-0017](adr/0017-an-arm-is-two-segments-with-a-pinned-shoulder.md).
+  - **Measured, default cast:** the beau's free elbow was drawn at **0.950** where his body puts
+    it at 0.620; the belle's at **1.425** against 1.095. The tell that it is a bug and not a look
+    — her free hand landed at 0.820, *above* the joined hands at 0.713.
+  - **One line.** `proposeArms` wrote `target.y = m.restY` — the shoulder — into a field that names
+    the **elbow**. A zero-length upper arm, so the drawn forearm hung off the shoulder itself. The
+    elbow is now `elbowReach` down the swing, which is `restPose` exactly at zero rotation and
+    ADR-0017's pinned shoulder away from it (an emote used to pivot the forearm about the
+    shoulder *point*).
+  - 🔑 **Two definitions of "a resting arm", and the wrong one was the live one.** `restPose` has
+    always been right and is **unreachable from a dance floor**: `resolveExpression` always builds
+    a proposal, even for `NEUTRAL_POSE`, so `poseArms`' fallback never runs. Worth looking for
+    elsewhere — a correct function kept beside the path that actually executes.
+  - 🔑 **Why 597 tests missed it.** The contact readout prints `upper arm` **only for a gripped
+    hand**, so a free arm's 0.000 was never on screen — a pane's *filter* hiding a defect, the
+    third time this week. And every arm test drives `poseArms` directly, which is the path that
+    reaches the correct `restPose`; nothing tested the seam the dance uses. Both new tests go
+    through `resolveExpression`.
+  - Blast radius is `DanceFloor` alone — `resolveExpression` has one caller — so the character
+    preview and the free-roaming player and NPCs are untouched.
+- ✅ **The joined hands hang halfway between the two inside shoulders** (2026-08-18).
+  [ADR-0025](adr/0025-the-joined-hands-hang-between-the-shoulders.md) supersedes ADR-0023; journal
+  *[the hands move to the middle](journal/2026-08-18-2-the-hands-move-to-the-middle.md)*.
+  - **What it was doing:** `lateral` was 0.210 toward the belle on the default cast, and that
+    number is `width / 2 − belle.restX` — **her inside shoulder, exactly**. ADR-0022's rule did
+    not put the hands near her shoulder as a side effect; it defined her share of the gap as zero
+    and so put them *on* it. Ryan's "move to the middle" is the precise correction.
+  - **The rule is now one line** — `(beau.restX - belle.restX) / 2` — and it deleted a `daylight`,
+    a `beauSpan` and a `belleSpan`. It is **independent of the stance**, because both shoulders
+    move with the width, and it is the one point where the two dancers reach the *same distance*
+    across, so the old rule's shortage case cannot arise.
+  - **Stance and height did not move on any cast.** default 1.140 / 0.713 (lateral 0.210 →
+    **0.050**, both across 0.160, clear 0.146/0.190, reaches 55%/71%); `mixed` 1.070 / 0.670
+    (lateral 0.175, both hands hang straight down, beau still at 100% for the reason ADR-0023
+    recorded); `max` 1.640 / 0.903 (lateral 0.005, clear 0.171/0.105, reaches 68%/90%).
+  - 🔑 **`max` is where the rule earns its place:** the hold used to be clamped *flush* against
+    the belle's surface there (clear 0.276/**0.000**) — the preference walked it into her and
+    ADR-0023's clamp caught it. It lands between the two bodies now and **the clamp binds on none
+    of the three casts**. The bound is still there and still outranks the landmark — that is what
+    Ryan's "the body / head disproportion might affect this" is — but it has stopped being what
+    decides the pose on the bodies we ship.
+  - **Equal distance is not equal effort**, and the panel says so now: the `across` figures should
+    match, the percentages need not. On `max` the belle spends 90% against the beau's 68% for the
+    same 0.115. The old rule bought him a lower number by *placing* the hold to manage effort;
+    effort is a consequence now, and `touchReach` / `upperArmStrain` report it.
+  - ⚠️ **The elbow watch's verdict is against the old placement** and is owed again — see the
+    "Next" line above.
+- ✅ **Four instrument defects, all found by using it, all fixed** (2026-08-18). Ryan: *"let's fix
+  these."* Journal
+  *[the instrument could not show its own hold](journal/2026-08-18-the-instrument-could-not-show-its-own-hold.md)*.
+  **No ADR** — nothing here decides anything the ADRs have not decided already.
+  - **The joint markers were dark for the touch hold.** `track.grip` came from square-one's motion
+    grips and a standing couple's hold is not one, so every elbow and hand dot was hidden for the
+    exact pose the elbow watch is about. `poseArms` already made this decision every frame and
+    threw it away; it is now **`touchingSide(self, partner, hold)`** in `arm-pose.ts`, asked by the
+    pose *and* by `DanceFloor` to fill a new `TrackedArms.touch`, so the markers cannot point at a
+    hold the render did not draw. The markers read `grip ?? touch`.
+    - **`touch` is not folded into `grip` on purpose.** A grip is eased, owned, and resolved
+      against a forearm; a touch hold is written outright and leaves the outside arm alone.
+      Merging them would blend the standing pose through `gripPose` — breaking the thing being
+      watched in order to watch it.
+    - The black pivot dot now shows for a standing couple too. It is the pair's **midpoint**, and
+      the joined hands sit off it by `hold.lateral` *by design* (ADR-0022/0023); the panel's table
+      says so now instead of promising a dot the hands are nailed to.
+  - **The scene wrote a hash it could not read back.** `#dance=<call>` against a loader that
+    matches on figure **id** — so `two-trades` rewrote to `#dance=partner-trade` and reloaded as
+    Dosado. **`danceSceneHash` is now the inverse of `danceSceneFigure`**, living next to it, and
+    `dance-route.test.ts` round-trips every figure. An inverse that lives away from its function is
+    an inverse nobody notices has stopped being one.
+  - 🆕 **A marker switched on while paused stayed dark** — found while verifying the first fix, and
+    it defeated it in the order anyone would actually use the scene. Visibility was written only
+    inside the frame callback, and **a paused floor runs no frame**; `go home` pauses, so the one
+    control that produces a nameable pose guaranteed no pass was coming to paint the markers. The
+    meshes are mounted unconditionally now and what the last pass found is kept in a `held` ref, so
+    the toggle paints from it.
+  - 🆕 **The readout said "hands free" about a couple holding hands** — `holding` counts engine
+    grips. It now says *hands joined — a standing couple, no engine grip to track*. No invented
+    numbers: `along` and `gap` measure a hand against a **forearm** and are genuinely unresolved
+    for a hand-on-hand hold. **What that pane should print for a touch hold is still open.**
+  - **The one to carry:** all four are the same shape — *a fact the render acts on that the
+    instrument re-derives, or does not have at all.* Worth checking the remaining panes against it.
+- **Panel state does not survive a reload** — tempo and joint markers are component state, so the
+  scene comes up at 120 bpm with markers off however it was left. The **figure** does survive now.
+  `go home` is the reliable way back to the standing pose; the 30 bpm crawl was only ever a way of
+  catching it.
+
+- 🔴 **"The band is empty" was measuring the midpoint, not handholding.** The joined hands had
+  been pinned to the couple's centre since the day this was written, by nothing — the engine's
+  `insideHands` says `couple.center`, which is body-agnostic for the same reason `COUPLE_WIDTH`
+  is, and unlike the width nobody had asked the side that owns bodies for a better answer. Pin
+  the hands there and *one* number (the shared height) has to absorb every difference between
+  two bodies, so every mismatch becomes a clamp, and two clamps on one number make an empty
+  band. `touchHold` returns three numbers instead: **stance, height, and how far off the
+  midpoint**.
+- **The hold is placed for the belle, and the beau reaches.** Ryan, watching the first version:
+  *"the gent's job is to make the belle's job easier, even if she's taller … even if it looks
+  awkward — maintain opinionation that way."* So the height is **her waist, full stop** (0.713
+  here, clamped only where an arm physically cannot reach), and the hands sit under **her own
+  inside shoulder** — her arm hangs to them, he covers all the daylight. Default cast: hold
+  **0.210** toward the belle, she spends **69%** of her reach at 30° off vertical, he spends
+  **68%** at **81°**, both at zero strain. On two *identical* bodies the hold is still off centre
+  toward her, 91% him against 53% her.
+- 🔴 **The change I made without being asked is the one that was wrong.** The first version took
+  the *lower* of the two waists, reasoning that the taller dancer can drop their arm and the
+  shorter cannot raise theirs — true, prettier (both forearms hang at 15°, both dancers at 94%),
+  and answering a question nobody asked. **The beau's position is the one that accommodates;
+  that is what taking that side means.** A geometric answer to a question about a role, and the
+  nicer picture was the tell rather than the evidence. Same correction removed the equal-reach
+  split: the last machinery in here solving for fairness instead of for the dance.
+- **`TOUCH_COMFORT` is deleted and the stance is unchanged.** The comfort ceiling was the second
+  clamp; without it an arm that has to hang straight hangs straight, which is what the taller
+  dancer's arm does in every mismatched pair. Width is now `2 × (max shoulder + max hand radius)`
+  = **1.140**, the same number, with the eyeballed `TOUCH_INBOARD = 0.11` replaced by the joined
+  hands' own radius. So **the Trade's pass stays 0.342** and the clearance decision is untouched.
+- **The elbow is closed at the source rather than counterweighted.** `touchPose` keeps the
+  humerus in the plane of its own shoulder — nobody lifts an elbow sideways to hold a hand —
+  which cuts the elbow's circle to two points and takes the one further back. **No constant
+  appears in it.** Both of the default cast's arms stay in the plane; a straighter one (SPROUT
+  reaching a tall belle's waist) needs its elbow clear of it and `reachPose` picks that up. The
+  split is the inverse of how `ELBOW_SWING`/`ELBOW_BACK` were tuned, and the right way round —
+  the straighter the arm, the smaller the elbow's circle and the less a preference can get wrong.
+- 🔴 **Two measurement slips found, and they were the same slip.** Yesterday's "Myco 38% /
+  Ember 79%" was measured to the **contact point**; each hand centre is half a hand off it, and
+  to the hands that pose was 53%/72%. The same error then did real damage — splitting the
+  daylight on the contact handed Sprout reach-across her 0.300 arm did not have and sent her
+  hand 0.043 past the end of it. One definition now, `touchReach`, used by the tests *and* the
+  panel.
+- 🔴 **The beau's near-horizontal forearm is now a feature, and it will look exactly like the
+  defect fixed twice this week.** The distinction is the *elbow*, not the forearm angle: the old
+  defect was an elbow outboard of its own hand, which `touchPose` makes structurally impossible
+  and a test asserts. Check the elbow before believing the forearm. `WAIST_OF_SHOULDER = 0.5`
+  (its own doc says a legged figure wants ~0.73) is the one dial that would move the hold's
+  height without touching the opinion.
+- **The whole cast is asserted pairwise now**, both ways round: nobody's hand goes past the end
+  of their arm and nobody stands inside anybody.
+
+**▶ PREVIOUSLY (2026-08-16) — partner up, rebuilt from a body that is finally where it claims to
+be. Superseded in part by the entry above; the torso fix and the stance stand.** Ryan: *"we
+should finalize 'partner up' —
 that look is a bit off — the stance could be a little farther apart and have the reach
 accommodate the handhold better — the hands should be at the belle's waist height — let's
 see if that fixes the arm angle."* **562 tests** (from 560), lint 0 errors, typecheck and
@@ -65,13 +406,14 @@ build clean. `pnpm dev`, `#dance=two-trades`, and look at the standing couple.
   the fist bump (render-validated 2026-07-26, and its tests are unchanged). The beau's elbow
   now sits at **(0.565, 0.868, −0.302)** — above the hand, below the shoulder, behind the
   body. A real folded elbow.
-- 🔴 **Still open, and it is the cast rather than the code:** Myco's arm is 0.690 but the
-  shoulder-to-hand span at Ember's waist is only 0.30, so the beau's arm remains visibly
-  *folded* — forearm 57° off vertical — and no height fixes it. Myco needs the hands low
-  (long arm, low shoulder), Ember needs them high; with a comfort ceiling as well as the
-  existing floor **the band is empty**. This pairing cannot hold hands naturally. Worth
-  deciding whether that is a cast problem (Myco's arms and head are outsized) or whether
-  touch hands should bend the arm differently. Not guessed at.
+- ✅ **CLOSED 2026-08-17 — and the diagnosis was wrong.** This bullet said the beau's arm stayed
+  folded whatever the height, that with a comfort ceiling as well as a floor **the band is
+  empty**, and that this pairing therefore could not hold hands naturally — a cast problem or a
+  special arm rule. It was neither: the empty band came from holding the hands at the couple's
+  *midpoint*, which left one number to absorb two bodies' worth of difference. See the entry at
+  the top and [ADR-0022](adr/0022-a-couples-handhold-is-solved-for-the-pair.md). Kept here
+  rather than deleted, because the shape of the mistake is the useful part: an arithmetic proof
+  of impossibility is only as good as its unstated premises, and this one had three.
 
 **▶ ALSO — the debug panel is docked, not floating (2026-08-16).** Ryan: *"let's doc the
 panel to the left."* It sat `position: absolute` over the canvas, putting the controls on top
