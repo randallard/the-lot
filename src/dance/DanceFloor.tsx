@@ -62,6 +62,14 @@ import {
   type WorldPoint,
 } from "./frame";
 import { COUPLE_WIDTH } from "square-one";
+import {
+  ARCH_BREAK,
+  drawAccommodation,
+  growBody,
+  planArch,
+  type Accommodation,
+  type ArchPlan,
+} from "./arch";
 import { useDancePerformance, type DancePerformanceOptions } from "./useDancePerformance";
 import type { AnimationController } from "../services/animation-controller";
 import { NEUTRAL_POSE } from "../services/emotes";
@@ -144,6 +152,34 @@ export interface TrackedArms {
    * — the joint markers — should read `grip ?? touch`.
    */
   touch: "left" | "right" | null;
+  /**
+   * The hand square-one has engaged in an **arch** — palms joined and raised clear of the
+   * head, high enough to walk beneath. `null` when no arch span covers this beat.
+   *
+   * 🔴 **Reported and not yet drawn.** square-one's California Twirl declares it for the
+   * whole call (its ADR-0017), and nothing here poses it: an arch is a *raised* arm, and
+   * every hold this module can pose is built on [ADR-0027](../../docs/adr/0027-the-upper-arm-hangs-and-the-hands-come-forward.md)
+   * — the humerus of a **hanging** arm stays in the plane of its own shoulder. That is the
+   * right anatomy for a couple standing hand in hand and the wrong one for an arch, and
+   * which anatomy replaces it is a decision, not a fallback.
+   *
+   * It is a third field rather than a value of {@link grip} because routing it there would
+   * pose it as a **forearm** grip — the arm-turn hold — which is a visibly wrong hold
+   * rather than an absent one. A Twirl currently renders as the Partner Trade it is
+   * geometrically identical to, with the hands free, which is honest about what has been
+   * decided so far.
+   */
+  arch: "left" | "right" | null;
+  /**
+   * How this pair is accommodating an arch their bodies may not be able to make — drawn once
+   * per execution of the move, `null` when no arch is live. See [`arch.ts`](arch.ts).
+   */
+  accommodation: Accommodation | null;
+  /**
+   * How far this dancer's torso has been stretched or squashed for the arch, in body-height
+   * units. `0` under a break, and `0` for anyone whose reach was already enough.
+   */
+  bodyDelta: number;
   readonly left: Forearm;
   readonly right: Forearm;
   /**
@@ -182,6 +218,11 @@ const DEFAULT_SHAPES = [MYCO_DEFAULTS, EMBER_DEFAULTS] as const;
 const DEBUG_COLORS = ["#e2725b", "#5b8ce2"] as const;
 
 const SIDES = ["left", "right"] as const;
+
+/** Straight-line interpolation. Named because the arch uses it four times on one hold. */
+function lerp(from: number, to: number, t: number): number {
+  return from + (to - from) * t;
+}
 
 /**
  * The `restX` multiplier for each side's shoulder. `+x` is the anatomical **left** on
@@ -364,6 +405,9 @@ export function DanceFloor({
         key,
         grip: null,
         touch: null,
+        arch: null,
+        accommodation: null,
+        bodyDelta: 0,
         left: forearm(),
         right: forearm(),
         upperArm: { left: 0, right: 0 },
@@ -377,9 +421,38 @@ export function DanceFloor({
   // Body and head refs, for the channels an emote owns outright.
   const expressions = useMemo(() => {
     const map: Record<string, DancerExpressionRigs> = {};
-    for (const key of keys) map[key] = { body: createRef(), head: createRef() };
+    for (const key of keys) {
+      map[key] = {
+        body: createRef(),
+        head: createRef(),
+        shoulders: { left: createRef(), right: createRef() },
+      };
+    }
     return map;
   }, [keys]);
+
+  /**
+   * The arch this pair is currently under, if any — **one plan per execution of the move**.
+   *
+   * A ref rather than state: it is read and written inside the frame loop and nothing
+   * renders off it. Three things are decided once when a span begins and then held still
+   * for the whole call:
+   *
+   * - **the accommodation**, because a coin flipped every frame is not a coin flip;
+   * - **the plan**, at the separation the pair start from. A California Twirl closes the
+   *   couple to half their width at the pass, and re-planning against that would have the
+   *   torsos breathing in and out through the figure. A dancer decides how to handle a hold
+   *   when they take it.
+   * - **the reshaped bodies**, so `armMetrics` is paid for once per call rather than per
+   *   frame. `blend` eases the *effect* of them in and out; the target does not move.
+   */
+  const arch = useRef<{
+    span: string | null;
+    accommodation: Accommodation;
+    plan: ArchPlan | null;
+    /** 0 hands down and shapes unchanged, 1 fully into the arch. */
+    blend: number;
+  }>({ span: null, accommodation: ARCH_BREAK, plan: null, blend: 0 });
 
   // The only eased quantity in the arm channel: how far each hand is into its grip.
   const blends = useMemo(() => {
@@ -463,6 +536,48 @@ export function DanceFloor({
         // join would still be drawn holding.
         const ease = goingHome ? 1 : Math.min(1, dt * 10);
 
+        /*
+         * The arch (square-one's ADR-0017), resolved for the **pair** before either dancer
+         * is posed — it is one hold, one accommodation and one plan, and a per-dancer answer
+         * would be two dancers negotiating separately about the same pair of hands.
+         *
+         * The span identity is its beat range: a second California Twirl in a sequence is a
+         * second execution and gets its own draw, which is the whole point of the draw.
+         */
+        const first = keys[0];
+        const archSpan =
+          first === undefined
+            ? undefined
+            : runtime.motions[first]?.grips.find(
+                (g) => g.grip === "arch" && beat >= g.from && beat <= g.to,
+              );
+        const under = arch.current;
+        if (archSpan === undefined) {
+          under.span = null;
+        } else {
+          const id = `${String(archSpan.from)}:${String(archSpan.to)}`;
+          if (under.span !== id) {
+            under.span = id;
+            under.accommodation = drawAccommodation();
+            const beauM = metrics[0];
+            const belleM = metrics[1];
+            const beauS = occupantShapes[0];
+            const belleS = occupantShapes[1];
+            under.plan =
+              beauM && belleM && beauS && belleS && hold
+                ? planArch(beauM, belleM, beauS, belleS, hold.width, under.accommodation)
+                : null;
+          }
+        }
+        // Eased like a grip and snapped like one: a shape a hair off its target is a torso
+        // that never quite finishes moving, and it would be drawn every frame for as long
+        // as the dancers stand still afterwards.
+        {
+          const target = archSpan === undefined ? 0 : 1;
+          const next = under.blend + (target - under.blend) * Math.min(1, Math.max(0, ease));
+          under.blend = Math.abs(target - next) < 1e-3 ? target : next;
+        }
+
         // Pose. Both dancers first, because contact is a property of the pair and
         // cannot be resolved until both arms have moved.
         //
@@ -476,16 +591,50 @@ export function DanceFloor({
           const rig = rigs[key]?.current;
           const partner = partnerKey === undefined ? null : rigs[partnerKey]?.current;
           const arms = armRigs[key];
-          const me = metrics[i];
-          const them = metrics[1 - i];
+          const baseMe = metrics[i];
+          const baseThem = metrics[1 - i];
+          const baseShape = occupantShapes[i];
+          const partnerShape = occupantShapes[1 - i];
           const track = tracked[key];
           const blend = blends[key];
-          if (!rig || !partner || !arms || !me || !them || !track || !blend) return;
+          if (!rig || !partner || !arms || !baseMe || !baseThem || !track || !blend) return;
+          if (!baseShape || !partnerShape) return;
 
-          const grip = runtime.motions[key]?.grips.find(
-            (g) => beat >= g.from && beat <= g.to,
-          );
-          track.grip = grip?.hand ?? null;
+          /*
+           * The reshape, if this pair drew one. `blend` eases the *effect* in and out; the
+           * plan itself was fixed when the span began.
+           *
+           * 🔴 **`armMetrics` per frame, and only here.** This module's standing idiom is
+           * that a frame allocates nothing, and this breaks it for the few beats a torso is
+           * actually changing size. The alternative is arithmetic — a body-height change of
+           * `d` moves the shoulder by `d/2` and no arm length at all — but `armMetrics` also
+           * re-derives `restX` from what is beside the arm at its new height, and a shape
+           * that has grown is not a shape to half-measure. A break costs nothing: its deltas
+           * are zero and both branches fall back to the memoised metrics.
+           */
+          const plan = under.plan;
+          const mine = i === 0 ? "beau" : "belle";
+          const theirs = i === 0 ? "belle" : "beau";
+          const myDelta = plan === null ? 0 : plan.bodyDeltas[mine] * under.blend;
+          const theirDelta = plan === null ? 0 : plan.bodyDeltas[theirs] * under.blend;
+          const shape = myDelta === 0 ? baseShape : growBody(baseShape, myDelta);
+          const me = myDelta === 0 ? baseMe : armMetrics(shape);
+          const them =
+            theirDelta === 0 ? baseThem : armMetrics(growBody(partnerShape, theirDelta));
+          track.bodyDelta = myDelta;
+
+          const spans = runtime.motions[key]?.grips ?? [];
+          const live = spans.filter((g) => beat >= g.from && beat <= g.to);
+          // Split by **style**, because they are posed by different machinery and one of
+          // them is not posed at all yet. A `forearm` grip is the arm-turn hold this module
+          // owns; an `arch` is square-one's California Twirl (its ADR-0017), reported so a
+          // watch can see the span is live and deliberately left undrawn — see `arch` on
+          // `TrackedArms`. Sending it to `gripPose` would draw an Allemande.
+          track.grip = live.find((g) => g.grip === "forearm")?.hand ?? null;
+          // `Hand` includes `"none"`, which is a value there and an absence here.
+          const archHand = live.find((g) => g.grip === "arch")?.hand;
+          track.arch = archHand === "left" || archHand === "right" ? archHand : null;
+          track.accommodation = archSpan === undefined ? null : under.accommodation;
           track.holding = false;
           advanceGripBlend(blend, track.grip, ease);
 
@@ -500,11 +649,10 @@ export function DanceFloor({
           // Everything below writes rigs from `ex` and never from the emote's own pose.
           // That is not a convention to keep — `ResolvedExpression` has no field for an
           // owned channel, so a spin has nowhere to arrive from.
-          const shape = occupantShapes[i];
           const sil = silhouettes[i];
           const theirSil = silhouettes[1 - i];
           const ex = resolved[i];
-          if (!shape || !sil || !theirSil || !ex) return;
+          if (!sil || !theirSil || !ex) return;
 
           _ctx.pose = controllers?.[i]?.tick(state.clock.elapsedTime) ?? NEUTRAL_POSE;
           _ctx.shape = shape;
@@ -517,15 +665,40 @@ export function DanceFloor({
           _ctx.self = _self;
           _ctx.partner = _partner;
           _ctx.blend = blend;
-          // Only when this floor is dancing a couple. square-one owns what a couple's
-          // width *is*; passing it through rather than guessing keeps that one decision
-          // in one place (its `COUPLE_WIDTH`, which a consumer may override for real
-          // bodies).
-          const coupleHold = performanceOptions.sequence === undefined ? undefined : hold;
+          /*
+           * The hold this dancer poses to — only when this floor is dancing a couple, since
+           * square-one owns what a couple's width *is* and passing it through rather than
+           * guessing keeps that decision in one place.
+           *
+           * It is the standing hold until an arch is declared, and then eases into it.
+           *
+           * **One `TouchHold`, two heights.** Everything about an arch that differs from a
+           * standing handhold is already expressible here — it is higher, it is not carried
+           * forward of the bodies, and it sits between the same two shoulders — so this is a
+           * different hold rather than a different mechanism, and `poseArms` needs no branch
+           * for it. The one thing that is new is that the two dancers may be given
+           * **different heights**: under a break each reaches their own ceiling, and hands
+           * that are not on the same plane are hands that have come apart. That is the whole
+           * of "the hold breaks", and it is a number rather than a special case.
+           */
+          const standing = performanceOptions.sequence === undefined ? undefined : hold;
+          const archHold: TouchHold | undefined =
+            standing === undefined || plan === null || under.blend <= 0
+              ? undefined
+              : {
+                  width: standing.width,
+                  height: lerp(standing.height, plan.hands[mine], under.blend),
+                  lateral: lerp(standing.lateral, plan.lateral, under.blend),
+                  // An arm reaching overhead has nothing spare to spend going forward, so
+                  // the standing hold's `forward` (ADR-0027) unwinds to zero as it rises.
+                  forward: lerp(standing.forward, 0, under.blend),
+                };
+          const coupleHold = archHold ?? standing;
           _ctx.hold = coupleHold;
+          _ctx.declaredHold = archHold !== undefined;
           // Reported from the same call `poseArms` poses from, so the markers cannot
           // point at a hold the render did not draw.
-          track.touch = touchingSide(_self, _partner, coupleHold);
+          track.touch = touchingSide(_self, _partner, coupleHold, archHold !== undefined);
           resolveExpression(ex, _ctx);
 
           for (const side of SIDES) {
@@ -571,6 +744,17 @@ export function DanceFloor({
               );
               head.scale.setScalar(ex.shape.head.radius / shape.head.radius);
             }
+
+            // 🔴 The shoulders, which nothing was moving. `shoulderY` is
+            // `bodyCenterY + height/2 + radius`, so a torso that changes height takes its
+            // shoulders with it — and the body mesh has been scaling and the head group
+            // following while the arms stayed at their mount-time height. Derived from the
+            // resolved shape, exactly as the head above is; ADR-0017's rule is that no
+            // driver *chooses* a shoulder, and this one is not choosing.
+            for (const side of SIDES) {
+              const shoulder = parts.shoulders[side].current;
+              if (shoulder) shoulder.position.y = ex.shoulderY;
+            }
           }
         });
 
@@ -589,8 +773,14 @@ export function DanceFloor({
             // Back out of the shoulder's frame into the rig's, so what is measured is
             // still what is on screen. The inverse of `elbowLocal`, and deliberately
             // spelled out rather than trusting the pose that was written.
+            // 🔴 The shoulder's **live** height, not the metrics', because an arch reshapes
+            // a torso and takes the shoulders with it. `me` here is the mount-time cast, and
+            // reading `restY` off it would report every arm at the height it would have had
+            // if nobody had grown — which is exactly the class of "measured the wrong shape"
+            // this read-back exists to prevent.
+            const shoulder = expressions[key]?.shoulders[side].current;
             _read.x = arm.position.x + SIGN[side] * me.restX;
-            _read.y = arm.position.y + me.restY;
+            _read.y = arm.position.y + (shoulder?.position.y ?? me.restY);
             _read.z = arm.position.z;
             _aim.copy(DOWN).applyQuaternion(arm.quaternion);
             _read.aimX = _aim.x;

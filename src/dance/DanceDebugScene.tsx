@@ -324,9 +324,20 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
       // A standing couple is not "hands free" — their hands are joined, they simply have
       // no *engine* grip, which is what every row below is measured against. Two panes
       // of the same instrument should not disagree about whether anyone is holding on.
-      el.textContent = report.dancers.some((d) => d.touch !== null)
-        ? "hands joined — a standing couple, no engine grip to track"
-        : "hands free";
+      // An arch is an engine grip, but it is posed as a *hold* rather than through the grip
+      // blend — so `holding` is false for it and it would otherwise read here as "hands
+      // free", the one wrong answer available. Which accommodation the pair drew is the
+      // thing to watch (see `arch.ts`), so it is what the line says.
+      const arching = report.dancers.find((d) => d.arch !== null);
+      const stretched = report.dancers
+        .filter((d) => d.bodyDelta !== 0)
+        .map((d) => `${d.key} ${d.bodyDelta > 0 ? "+" : ""}${d.bodyDelta.toFixed(3)}`)
+        .join(", ");
+      el.textContent = arching
+        ? `arch — ${arching.accommodation ?? "?"}${stretched === "" ? "" : ` (torso ${stretched})`}`
+        : report.dancers.some((d) => d.touch !== null)
+          ? "hands joined — a standing couple, no engine grip to track"
+          : "hands free";
       return;
     }
     track(spans.current, "separation", report.separation);

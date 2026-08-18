@@ -123,6 +123,26 @@ describe("resolveExpression", () => {
     expect(Math.abs(dy)).toBeLessThan(1e-9);
   });
 
+  it("🔴 reports the shoulders as well as the head, because a torso carries both", () => {
+    // A shoulder is `bodyCenterY + height/2 + radius`, so anything that changes a body's
+    // height moves the shoulders that hang off it. Only `headY` was being reported, so the
+    // body mesh scaled and the head group followed while the arms stayed at the height the
+    // shape had at mount — **every emote with a `bodyHeightDelta` has been detaching arms
+    // from torsos since the channel was wired up.** It took `arch.ts`, which changes a torso
+    // on purpose, for anybody to look at it.
+    const still = resolve(pose());
+    expect(still.shoulderY).toBeCloseTo(armMetrics(MYCO_DEFAULTS).restY, 12);
+
+    // Grown by `d`, both move by exactly `d/2` — a capsule grows about its own centre.
+    const d = 0.4;
+    const grown = resolve(pose({ bodyHeightDelta: d }));
+    expect(grown.shoulderY - still.shoulderY).toBeCloseTo(d / 2, 9);
+    expect(grown.headY - still.headY).toBeCloseTo(d / 2, 9);
+    // Same number, which is the point: they are one rigid assembly and were being drawn
+    // as two.
+    expect(grown.shoulderY - still.shoulderY).toBeCloseTo(grown.headY - still.headY, 12);
+  });
+
   it("drops an owned channel — a spin cannot reach a driven dancer", () => {
     const still = resolve(pose());
     const spinning = resolve(pose({ bodyDeltaRotY: 360 }));
@@ -130,6 +150,7 @@ describe("resolveExpression", () => {
     // Nothing a spin sets can survive: there is no field on the result to carry it.
     expect(spinning.shape).toEqual(still.shape);
     expect(spinning.headY).toBe(still.headY);
+    expect(spinning.shoulderY).toBe(still.shoulderY);
     expect(spinning.bodyDeltaY).toBe(still.bodyDeltaY);
     expect(spinning.headRotation).toEqual(still.headRotation);
     expect(spinning.silhouetteKept).toBe(still.silhouetteKept);

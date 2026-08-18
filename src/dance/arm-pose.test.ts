@@ -33,6 +33,7 @@ import {
   type ArmMetrics,
   type ArmPose,
   type Placement,
+  type TouchHold,
 } from "./arm-pose";
 import {
   EMBER_DEFAULTS,
@@ -585,6 +586,63 @@ describe("touch hands — a couple stands with inside hands joined", () => {
     expect(touchingSide(side(0), side(WIDTH * 2), HOLD)).toBeNull();
     // ...and a floor with no couple hold at all, which is how a facing pair is danced.
     expect(touchingSide(BEAU_AT, BELLE_AT, undefined)).toBeNull();
+  });
+
+  it("🔴 takes the figure's word for an arch, because the placements would say no", () => {
+    // square-one's `arch` spans (its ADR-0017) are a hold the **figure** imposes rather than
+    // one the placements reveal, and `declared` is the difference. It matters because a
+    // California Twirl's pair close to half their standing width and finish facing opposite
+    // ways: every proximity test below fails somewhere in the middle of a call whose hands
+    // never come apart, and a hold that let go there would be letting go for a reason that
+    // is about the renderer rather than the dance.
+    expect(touchingSide(side(0), side(-WIDTH / 2), HOLD)).toBeNull();
+    expect(touchingSide(side(0), side(-WIDTH / 2), HOLD, true)).toBe("right");
+    // Facing opposite ways — the Twirl's own exit — and still holding on.
+    expect(touchingSide(side(0), side(-WIDTH, Math.PI), HOLD, true)).toBe("right");
+    // **Which** hand is still read from the placements, though, because that stays true
+    // through a turn and a fixed answer would not.
+    expect(touchingSide(side(0), side(WIDTH), HOLD, true)).toBe("left");
+    // And a floor with no couple hold at all still joins nothing, declared or not.
+    expect(touchingSide(BEAU_AT, BELLE_AT, undefined, true)).toBeNull();
+  });
+
+  it("🔴 puts both inside hands on a raised arch, and lets them part when it is broken", () => {
+    // An arch is a `TouchHold` with a different height, not a different mechanism — so this
+    // is the standing pose machinery, told to hold higher. Asserted through `poseArms` and
+    // not through `arch.ts`, because the thing worth checking is that the hands actually get
+    // where the plan says.
+    const raised = (height: number): TouchHold => ({
+      width: WIDTH,
+      height,
+      lateral: 0,
+      // Nothing spare to spend going forward when the arm is overhead.
+      forward: 0,
+    });
+    /** Where a posed arm's hand centre ends up, in rig-local space. */
+    const handAt = (pose: ArmPose, m: ArmMetrics) => ({
+      y: pose.y + pose.aimY * m.forearmSpan,
+    });
+    const HIGH = 1.55;
+    const his = poseArms(
+      armPoses(), beau, belle, BEAU_AT, BELLE_AT, gripBlend(), undefined, raised(HIGH), true,
+    );
+    const hers = poseArms(
+      armPoses(), belle, beau, BELLE_AT, BEAU_AT, gripBlend(), undefined, raised(HIGH), true,
+    );
+    // Each dancer's inside hand: his right, her left. Both above their own shoulders, which
+    // is what makes this an arch rather than a handhold.
+    const hisHand = handAt(his.right, beau);
+    const hersHand = handAt(hers.left, belle);
+    expect(hisHand.y).toBeGreaterThan(beau.rigOriginY + beau.restY);
+    expect(Math.abs(hisHand.y - HIGH)).toBeLessThan(0.1);
+    expect(Math.abs(hersHand.y - HIGH)).toBeLessThan(0.1);
+
+    // The break: two different heights, one per dancer, and the hands are simply not in the
+    // same place any more. That is the whole of "the hold breaks" — a number, not a branch.
+    const low = poseArms(
+      armPoses(), beau, belle, BEAU_AT, BELLE_AT, gripBlend(), undefined, raised(1.2), true,
+    );
+    expect(handAt(low.right, beau).y).toBeLessThan(hisHand.y - 0.2);
   });
 
   it("carries the joined hands at the belle's waist, whatever it costs the beau", () => {

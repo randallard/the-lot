@@ -43,11 +43,13 @@ export const DEBUG_FIGURES: readonly DebugFigure[] = [
     call: "california-twirl",
     sequence: ["california-twirl", "california-twirl"],
   },
-  // The confirmed equivalence, danced. If the two calls really do land the couple in
-  // the same place, one of each is a zero too — and it looks different on the way.
+  // 🔴 The two calls walk the **identical** paths (square-one's ADR-0017): a Twirl is a
+  // Trade with the inside hands joined and raised. One of each is a zero, and until the
+  // arch is drawn the two halves of this figure are indistinguishable on screen — which
+  // is the honest state of it, and what makes this the figure to re-watch when it is.
   {
     id: "trade-twirl",
-    label: "Trade + Twirl (equivalence)",
+    label: "Trade + Twirl (same paths, different hands)",
     call: "partner-trade",
     sequence: ["partner-trade", "california-twirl"],
   },

@@ -491,13 +491,22 @@ export function insideSide(self: Placement, partner: Placement): "left" | "right
  *
  * A touch hold is not a grip and this is deliberately not `GripHand`: nothing here is
  * eased, nothing is owned, and the outside arm goes on doing whatever it was.
+ *
+ * `declared` skips the proximity question, for a hold the **figure** imposes rather than one
+ * the placements reveal — square-one's `arch` spans (its ADR-0017). It has to be skipped
+ * rather than loosened: a California Twirl's pair close to half their standing width and end
+ * up facing opposite ways, so {@link standingAsCouple} says "not a couple" for most of a call
+ * whose hands never come apart. Which hand is still read from the live placements, because
+ * that stays true through a turn and a fixed answer would not.
  */
 export function touchingSide(
   self: Placement,
   partner: Placement,
   hold: TouchHold | undefined,
+  declared = false,
 ): "left" | "right" | null {
   if (hold === undefined) return null;
+  if (declared) return insideSide(self, partner);
   return standingAsCouple(self, partner, hold.width) ? insideSide(self, partner) : null;
 }
 
@@ -1483,6 +1492,13 @@ export function poseArms(
    * draws. Absent means "not a couple", and nothing here joins any hands.
    */
   hold?: TouchHold,
+  /**
+   * Whether the **figure** says these two are holding hands, rather than their placements.
+   *
+   * Passed through to {@link touchingSide}. `false` — the default, and every use before the
+   * arch — asks the placements, which is what a standing couple's hold is decided from.
+   */
+  declared = false,
 ): ArmPoses {
   // The partner, in this dancer's local space: the direction their share of the gap
   // lies in, and half their offset is the pivot a grip is held over.
@@ -1497,7 +1513,7 @@ export function poseArms(
 
   // Standing hand in hand, when the pair are a couple rather than a facing pair. Only
   // the **inside** arm is claimed; the outside one goes on doing whatever it was.
-  const inside = touchingSide(self, partner, hold);
+  const inside = touchingSide(self, partner, hold, declared);
 
   for (const side of ["left", "right"] as const) {
     // `+x` is the anatomical left group — see `DancerArmRigs`.

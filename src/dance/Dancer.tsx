@@ -71,6 +71,28 @@ interface DancerProps {
 export interface DancerExpressionRigs {
   body: React.RefObject<THREE.Mesh | null>;
   head: React.RefObject<THREE.Group | null>;
+  /**
+   * The two **shoulder** groups — the outer group of each arm, which ADR-0017 pins to the
+   * body and hands to nobody.
+   *
+   * 🔴 **Handed out for one purpose only: keeping a shoulder attached to its own torso.**
+   * `shoulderY` is `bodyCenterY + height/2 + radius`, so anything that changes a body's
+   * height moves the shoulder it hangs from — and until now nothing moved it. The body mesh
+   * scaled and the head group followed `ex.headY`, while the arms stayed at the height the
+   * shape had at mount. Any emote with a `bodyHeightDelta` has been detaching arms from
+   * torsos since the channel was wired up; it took a figure that *deliberately* changes a
+   * torso ([`arch.ts`](arch.ts)) for anyone to look.
+   *
+   * ADR-0017's rule survives intact, because it was never "the shoulder does not move" — it
+   * was **"no driver may choose where a shoulder is"**. This is not a pose. It is the same
+   * derivation `Dancer` already does at mount, re-done against the shape the dancer is
+   * currently wearing, exactly as the head group is. A driver writing anything else here is
+   * writing a number it has no way to have computed.
+   */
+  shoulders: {
+    left: React.RefObject<THREE.Group | null>;
+    right: React.RefObject<THREE.Group | null>;
+  };
 }
 
 export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
@@ -153,12 +175,17 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
       {/* Anatomical RIGHT arm (at −x; facing is +z). Styling uses rot.left — the
           hand-pose names are viewer-mirrored.
 
-          Two groups, not one, per ADR-0017: the outer one is the **shoulder** and is
-          pinned to the body with no ref on it, so nothing can move it; the inner one is
-          the **elbow**, and it is the only thing a driver is handed. The undrawn upper
-          arm is the gap between them, and it is now a real, measurable span rather than
-          an assumption baked into a single origin. */}
-      <group position={[-pos.forearmX, pos.shoulderY, 0]}>
+          Two groups, not one, per ADR-0017: the outer one is the **shoulder** and the inner
+          one is the **elbow**. The undrawn upper arm is the gap between them, and it is a
+          real, measurable span rather than an assumption baked into a single origin.
+
+          🔴 The shoulder used to have no ref at all, so that nothing could move it. It has
+          one now, and it is handed to the *expression* rigs rather than to `arms` — see
+          `DancerExpressionRigs.shoulders`. The rule it was protecting is unchanged: no
+          driver chooses where a shoulder is. What the ref is for is the shoulder staying
+          attached to a torso whose height has changed, which is a derivation and not a
+          pose, and which nothing was doing. */}
+      <group ref={expression?.shoulders.right} position={[-pos.forearmX, pos.shoulderY, 0]}>
         <group ref={arms?.right} position={[0, elbowLocalY, 0]}>
           <mesh position={[0, forearmLocalY, 0]} castShadow>
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
@@ -172,7 +199,7 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
       </group>
 
       {/* Anatomical LEFT arm (at +x). */}
-      <group position={[pos.forearmX, pos.shoulderY, 0]}>
+      <group ref={expression?.shoulders.left} position={[pos.forearmX, pos.shoulderY, 0]}>
         <group ref={arms?.left} position={[0, elbowLocalY, 0]}>
           <mesh position={[0, forearmLocalY, 0]} castShadow>
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />

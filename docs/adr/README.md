@@ -116,6 +116,8 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0025](0025-the-joined-hands-hang-between-the-shoulders.md) | The joined hands hang halfway between the two inside shoulders | Superseded by ADR-0027 |
 | [0026](0026-a-hand-is-the-ellipsoid-that-is-drawn.md) | A hand is the ellipsoid that is drawn, not the sphere it is made from | Accepted |
 | [0027](0027-the-upper-arm-hangs-and-the-hands-come-forward.md) | The upper arm hangs, and the joined hands come forward | Accepted |
+| [0028](0028-an-arch-a-pair-cannot-make-is-accommodated-two-ways.md) | An arch a pair cannot make is accommodated two ways, drawn at random | Accepted |
+| [0029](0029-a-shoulder-follows-the-torso-it-hangs-from.md) | A shoulder follows the torso it hangs from | Accepted |
 
 ## Decisions this repo inherits
 

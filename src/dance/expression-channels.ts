@@ -120,6 +120,14 @@ export interface ExpressionContext {
    * then no hands are joined.
    */
   hold?: TouchHold | undefined;
+  /**
+   * Whether the **figure** says these two are holding hands, rather than their placements.
+   *
+   * `true` for square-one's `arch` spans, whose pair close to half their standing width and
+   * finish facing opposite ways — placements that `standingAsCouple` reads as "not a couple"
+   * for most of a call whose hands never come apart.
+   */
+  declaredHold?: boolean | undefined;
 }
 
 /**
@@ -136,6 +144,14 @@ export interface ResolvedExpression {
   shape: CharacterBodyShape;
   /** Head-sphere centre for {@link shape} — recomputed, because a grown body lifts it. */
   headY: number;
+  /**
+   * Shoulder height for {@link shape} — recomputed, for the same reason and it was missing.
+   *
+   * A grown body lifts the shoulders exactly as it lifts the head, and only the head was
+   * being told. See `DancerExpressionRigs.shoulders`: this is a derivation the driver writes
+   * onto the pinned shoulder groups, never a pose, and ADR-0017 is untouched by it.
+   */
+  shoulderY: number;
   /** The bob. */
   bodyDeltaY: number;
   /** Head turn in degrees — the emote's alone; a dancer does not wear caricature. */
@@ -149,6 +165,7 @@ export function resolvedExpression(shape: CharacterBodyShape): ResolvedExpressio
     arms: armPoses(),
     shape,
     headY: 0,
+    shoulderY: 0,
     bodyDeltaY: 0,
     headRotation: [0, 0, 0],
     silhouetteKept: 1,
@@ -213,7 +230,7 @@ export function resolveExpression(
   out: ResolvedExpression,
   ctx: ExpressionContext,
 ): ResolvedExpression {
-  const { pose, me, them, self, partner, blend, hold } = ctx;
+  const { pose, me, them, self, partner, blend, hold, declaredHold } = ctx;
 
   // limited — arms fold where they trespass, and a gripped hand is taken over entirely
   out.arms = poseArms(
@@ -225,6 +242,7 @@ export function resolveExpression(
     blend,
     proposeArms(_proposed, me, pose),
     hold,
+    declaredHold ?? false,
   );
 
   // limited — shape is clipped to this dancer's share of the live slack
@@ -241,7 +259,11 @@ export function resolveExpression(
   // Merged through the same helpers the player uses, so a dancer and a free-roaming
   // character resolve an emote's shape identically.
   out.shape = mergeAnimation(ctx.shape, clipSilhouette(_clipped, pose, kept));
-  out.headY = computePositions(out.shape, ctx.bodyCenterY).headY;
+  // Both from the same call: a body's height sets its head *and* its shoulders, and drawing
+  // one without the other is what detached every arm from every grown torso.
+  const positions = computePositions(out.shape, ctx.bodyCenterY);
+  out.headY = positions.headY;
+  out.shoulderY = positions.shoulderY;
 
   // free — straight through
   out.bodyDeltaY = pose.bodyDeltaY;
