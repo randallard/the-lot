@@ -1,11 +1,68 @@
 # Progress & Status
 
-_Last updated: 2026-08-18_
+_Last updated: 2026-08-19_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-18, latest) — ✅ THE ARCH IS DRAWN, AND WHEN THE BODIES CANNOT MAKE ONE
-THEY EITHER RESHAPE OR LET GO — DRAWN AT RANDOM PER EXECUTION.** Ryan: *"can we make the duck
+**▶ RIGHT NOW (2026-08-19) — ✅ THE ARCH'S PASS NEEDS A HAND'S ROOM BETWEEN TWO HEADS, AND IT
+HAS IT.** Ryan, on a break: *"the beau's hand clips through the belle's head — it shouldn't push
+into the beau's own head either though."*
+[ADR-0030](adr/0030-the-arch-clearance-is-measured-from-the-worse-accommodation.md). Journal
+*[the hand in the gap](journal/2026-08-19-8-the-hand-in-the-gap.md)*. **Committed — `9ce307e`
+here, `b3a02eb` in square-one — and still awaiting Ryan's verify.** **626 tests** here (unchanged
+— this is one measured number through an existing seam), **193** in square-one (from 176); lint 0
+errors, build clean.
+
+🔴 **The finding: the gap has a third thing in it.** Hands free, two dancers must clear each
+other. Hands joined and raised, there is a **joined hand up between their heads** — where a head is
+widest — belonging to neither of them, so neither one's width accounts for it. Against a couple
+standing **1.140** apart:
+
+| what has to fit through the gap at the pass | wants |
+|---|---|
+| two torsos, side by side | 0.520 |
+| two heads | 0.710 |
+| two heads with a joined hand between them | **1.084** |
+| what the figure delivered before this | 0.570 |
+
+`archClearance()` plans **both** accommodations, grows each dancer by that plan's own delta,
+measures each hand at its own height (`sideExtentAt` narrows a head toward its poles) and takes the
+worst — the figure is sized before the coin is flipped, and the **break** usually binds because its
+beau never gets his hand up. `DanceFloor` divides by the frame scale and passes it through the same
+seam `coupleWidth` uses. square-one's ADR-0018 bows the beau's arc out to meet it. **We measure;
+the engine chooses the path.**
+
+**Measured end to end.** Worst penetration 0.175 → none, both accommodations. In the reshape the
+beau's own head was grazing at 0.001 and now clears by **0.194**. Pass separation **0.570 → 1.314**,
+and the pair never come closer than the 1.140 they stand at.
+
+**▶ THE WATCH THIS CHUNK IS WAITING ON — `pnpm dev` → `#dance=two-twirls`.** 🔴 The beau's arc now
+peaks at **1.152× the couple's width** where it peaked at 0.5×, and he covers that ground in the
+**same 4 beats**. Whether he reads as *sprinting* is the one number a render decides, and no test
+can answer it.
+
+**And the second Twirl had lost the bow.** Ryan: *"it looks like the first california twirl is good
+but the second still has the smaller path."* Twirl #1 passed at 0.333 engine units, #2 at **0.167**
+— the bare radius. square-one's `reformCouple` dropped both clearances at the call boundary; fixed
+there (its ADR-0019), nothing changed here. 🔑 **Our own harness missed it because it walked one
+call.** Every number in it was right; Ryan was watching a **sequence**. Sibling of this month's
+recurring shape — *is the thing I measured the thing on screen?*
+
+🔴 **The hands-free `clearance` is deliberately still not passed.** The same seam would close the
+head overlap pinned since square-one's ADR-0014 (0.570 delivered against 0.710 wanted) and would
+also bow a Partner Trade Ryan has already watched and accepted. A look, not a number — flagged on
+`useDancePerformance`'s `archClearance` doc.
+
+**⚠️ Still owed, unchanged:** the **elbow watch** re-take. 🔴 The hold's `forward` is still **0.320**
+on the default cast, flagged on 2026-08-17 and untouched. 🔴 And **where the join sits** — the
+pair's midpoint bulges forward at the pass while the belle passes through the couple's centre, so
+she may not pass *under* the joined hands at all. Left alone on purpose until someone looks; the
+much wider arc makes it a better watch than it was.
+
+---
+
+**▶ 2026-08-18, and the premise this one is built on — ✅ THE ARCH IS DRAWN, AND WHEN THE BODIES
+CANNOT MAKE ONE THEY EITHER RESHAPE OR LET GO — DRAWN AT RANDOM PER EXECUTION.** Ryan: *"can we make the duck
 shrink the torso? actually I want two options that happen randomly each time a move like this is
 executed — sometimes the torsos grow/shrink each a little more than necessary to accommodate, and
 sometimes the arms just reach as far as they can and the hold breaks to accommodate."*
@@ -35,10 +92,11 @@ between the two inside shoulders like a standing hold — but the pair's midpoin
 quarter of the couple's width at the pass while the belle passes through the couple's *centre*, so
 she may not pass **under** the joined hands at all. Left alone on purpose until someone looks.
 
-**⚠️ Still owed, unchanged:** the **elbow watch** re-take, then the **clearance watch** — which now
+**⚠️ Owed at the time:** the **elbow watch** re-take, then the **clearance watch** — which now
 covers both couple calls at once, because after square-one's ADR-0017 they walk the same paths.
 And 🔴 the hold's `forward` is still **0.320** on the default cast, flagged on 2026-08-17 and
-untouched.
+untouched. *The clearance watch is what 2026-08-19 turned into ADR-0030; the current owed list is
+at the top of this file.*
 
 ---
 
