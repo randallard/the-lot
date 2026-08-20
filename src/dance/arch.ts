@@ -48,6 +48,7 @@
 
 import {
   armMetrics,
+  sideExtentAt,
   type ArmMetrics,
 } from "./arm-pose";
 import { SHAPE_BOUNDS, type CharacterBodyShape } from "../services/body-shapes";
@@ -274,4 +275,48 @@ function clampDeltas(
  */
 export function drawAccommodation(random: () => number = Math.random): Accommodation {
   return random() < 0.5 ? ARCH_RESHAPE : ARCH_BREAK;
+}
+
+/**
+ * How far apart this pair must stand to pass each other **under the arch** — the number
+ * square-one's `Couple.archClearance` wants, in world units (square-one ADR-0018).
+ *
+ * 🔴 **Strictly more than the room their bodies need**, and the reason is the whole finding.
+ * With hands free two dancers have to clear each other. With hands joined and raised there is a
+ * **joined hand in the gap as well**, at head height, belonging to neither of them — and a head
+ * is the widest thing either of them has. Ryan, watching a break: *"the beau's hand clips
+ * through the belle's head — it shouldn't push into the beau's own head either though."*
+ *
+ * Measured on the shipped cast: torsos want 0.520, heads want 0.710, and heads with a hand
+ * between them want **1.084**, against a couple who stand 1.140 apart. An arch very nearly
+ * forbids the pair to approach each other at all.
+ *
+ * **The worse of the two accommodations**, because the figure is sized before the coin is
+ * flipped and has to hold either way. A break is usually the binding one: its beau never gets
+ * his hand up, so it sits lower, where a head is wider.
+ */
+export function archClearance(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  beauShape: CharacterBodyShape,
+  belleShape: CharacterBodyShape,
+  width: number,
+): number {
+  const hand = Math.max(beau.handRadius, belle.handRadius);
+  let need = 0;
+  for (const mode of [ARCH_BREAK, ARCH_RESHAPE] as const) {
+    const plan = planArch(beau, belle, beauShape, belleShape, width, mode);
+    const b =
+      plan.bodyDeltas.beau === 0 ? beau : armMetrics(growBody(beauShape, plan.bodyDeltas.beau));
+    const l =
+      plan.bodyDeltas.belle === 0 ? belle : armMetrics(growBody(belleShape, plan.bodyDeltas.belle));
+    // Each hand sits at the pair's midpoint, so each must clear **both** bodies' cross-sections
+    // at its own height — half the separation each way. `sideExtentAt` narrows a head toward
+    // its poles, so a hand held high over a crown costs less than one held at eye level.
+    for (const height of [plan.hands.beau, plan.hands.belle]) {
+      const widest = Math.max(sideExtentAt(b.parts, height), sideExtentAt(l.parts, height));
+      need = Math.max(need, 2 * (widest + hand));
+    }
+  }
+  return need;
 }

@@ -50,6 +50,21 @@ export interface DancePerformanceOptions {
    * shoulders, so this is where that answer arrives.
    */
   readonly coupleWidth?: number;
+  /**
+   * How far apart the couple must be to pass each other **under a raised arch**, in engine
+   * units. Omitted leaves the engine's body-agnostic default, which is the arc's own radius.
+   *
+   * The second half of the same seam `coupleWidth` is. With hands free the two dancers have to
+   * clear each other; with hands joined and raised there is a **joined hand in the gap as
+   * well**, at head height, and the room that needs is a measurement only this side can take.
+   * `DanceFloor` takes it and the beau's arc bows out to meet it (square-one ADR-0018).
+   *
+   * 🔴 The *hands-free* clearance is deliberately **not** passed yet. The engine would bow a
+   * Partner Trade's arc out for it too — which would fix the head overlap pinned since
+   * ADR-0014 and would also change a figure Ryan has already watched and accepted. That is a
+   * look, not a number, and it is owed rather than taken.
+   */
+  readonly archClearance?: number;
   readonly bpm?: number;
   /** Restart from beat 0 when the call ends. The debug scene loops; the arc won't. */
   readonly loop?: boolean;
@@ -88,7 +103,15 @@ export interface DanceRuntime {
  * A's 180° rotation, which is the pair symmetry the specs guarantee.
  */
 export function useDancePerformance(options: DancePerformanceOptions): DanceRuntime {
-  const { call, sequence, coupleWidth, bpm = DEFAULT_BPM, loop = true, externallyDriven } = options;
+  const {
+    call,
+    sequence,
+    coupleWidth,
+    archClearance,
+    bpm = DEFAULT_BPM,
+    loop = true,
+    externallyDriven,
+  } = options;
 
   const motions = useMemo<Record<string, Motion>>(() => {
     if (sequence !== undefined && sequence.length > 0) {
@@ -98,13 +121,13 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
       return flattenSequence(
         danceCoupleSequence(
           sequence,
-          partnerUp("a", "b", undefined, undefined, coupleWidth),
+          partnerUp("a", "b", undefined, undefined, coupleWidth, undefined, archClearance),
         ),
       );
     }
     const { a, b } = applyCallToPair(call);
     return { a, b };
-  }, [call, sequence, coupleWidth]);
+  }, [call, sequence, coupleWidth, archClearance]);
 
   const beats = useMemo(
     () => Math.max(...Object.values(motions).map((m) => m.beats)),

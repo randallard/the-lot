@@ -64,6 +64,7 @@ import {
 import { COUPLE_WIDTH } from "square-one";
 import {
   ARCH_BREAK,
+  archClearance,
   drawAccommodation,
   growBody,
   planArch,
@@ -332,9 +333,25 @@ export function DanceFloor({
     [coupleWidthWorld, scale, shapes],
   );
 
+  /**
+   * How far apart the pair must pass **under an arch**, in engine units — the second half of
+   * the seam `coupleWidth` is (square-one ADR-0018).
+   *
+   * `undefined` for a floor with no couple, and for a cast this floor cannot resolve two shapes
+   * for: the engine's default is the arc's own radius, which is what everything did before.
+   */
+  const archClearanceEngine = useMemo(() => {
+    const a = shapes[0];
+    const b = shapes[1];
+    if (a === undefined || b === undefined || hold === undefined) return undefined;
+    const scaleNow = scale ?? scaleForGaps(clearanceGaps([...shapes]));
+    return archClearance(armMetrics(a), armMetrics(b), a, b, hold.width) / scaleNow;
+  }, [shapes, hold, scale]);
+
   const runtime = useDancePerformance({
     ...performanceOptions,
     coupleWidth: coupleWidthEngine,
+    ...(archClearanceEngine === undefined ? {} : { archClearance: archClearanceEngine }),
   });
   const keys = useMemo(() => Object.keys(runtime.motions), [runtime.motions]);
 
