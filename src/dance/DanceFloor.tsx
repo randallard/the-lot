@@ -62,15 +62,13 @@ import {
   type WorldPoint,
 } from "./frame";
 import { COUPLE_WIDTH } from "square-one";
+import { archClearance, planArch, type ArchPlan } from "./arch";
 import {
-  ARCH_BREAK,
-  archClearance,
+  BREAK,
   drawAccommodation,
   growBody,
-  planArch,
   type Accommodation,
-  type ArchPlan,
-} from "./arch";
+} from "./accommodation";
 import { useDancePerformance, type DancePerformanceOptions } from "./useDancePerformance";
 import type { AnimationController } from "../services/animation-controller";
 import { NEUTRAL_POSE } from "../services/emotes";
@@ -492,7 +490,7 @@ export function DanceFloor({
     plan: ArchPlan | null;
     /** 0 hands down and shapes unchanged, 1 fully into the arch. */
     blend: number;
-  }>({ span: null, accommodation: ARCH_BREAK, plan: null, blend: 0 });
+  }>({ span: null, accommodation: BREAK, plan: null, blend: 0 });
 
   // The only eased quantity in the arm channel: how far each hand is into its grip.
   const blends = useMemo(() => {

@@ -1,15 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  ARCH_BREAK,
-  ARCH_OVERSHOOT,
-  ARCH_RESHAPE,
-  archLateral,
-  crownOf,
-  drawAccommodation,
-  growBody,
-  planArch,
-  reachCeiling,
-} from "./arch";
+import { archLateral, crownOf, planArch, reachCeiling } from "./arch";
+import { BREAK, OVERSHOOT, RESHAPE, drawAccommodation, growBody } from "./accommodation";
 import { armMetrics, armPose, localHeight, touchHold, touchPose } from "./arm-pose";
 import {
   EMBER_DEFAULTS,
@@ -27,7 +18,7 @@ const width = touchHold(myco, ember).width;
 function plan(
   beau: CharacterBodyShape,
   belle: CharacterBodyShape,
-  accommodation: typeof ARCH_RESHAPE | typeof ARCH_BREAK,
+  accommodation: typeof RESHAPE | typeof BREAK,
   separation = width,
 ) {
   return planArch(
@@ -93,7 +84,7 @@ describe("🔴 the default cast cannot make an arch at all, and that is the prem
 
 describe("the reshape", () => {
   it("🔴 makes the arch, and both dancers keep hold", () => {
-    const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, ARCH_RESHAPE);
+    const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, RESHAPE);
     expect(p.gap).toBeCloseTo(0, 6);
     expect(p.hands.beau).toBeCloseTo(p.hands.belle, 6);
     // ...and the join really is above the head that has to pass under it.
@@ -105,7 +96,7 @@ describe("the reshape", () => {
     // Ryan: *"the torsos grow/shrink **each** a little more than necessary."* Equal and
     // opposite is also the split that buys the most per unit of visible deformation: the
     // beau's shoulder rising and the belle's crown dropping both count toward the same gap.
-    const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, ARCH_RESHAPE);
+    const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, RESHAPE);
     expect(p.bodyDeltas.beau).toBeGreaterThan(0);
     expect(p.bodyDeltas.belle).toBeCloseTo(-p.bodyDeltas.beau, 9);
   });
@@ -115,7 +106,7 @@ describe("the reshape", () => {
     // arm is the degenerate case of `touchPose`'s elbow solve — the circle of legal elbows
     // shrinks to a point and the pose falls through to `reachPose`'s preference constants.
     // Asserted as the thing that matters: the beau's elbow stays in his shoulder's plane.
-    const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, ARCH_RESHAPE);
+    const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, RESHAPE);
     const beau = armMetrics(growBody(MYCO_DEFAULTS, p.bodyDeltas.beau));
     const out = armPose();
     touchPose(out, beau, -1, -(width / 2), localHeight(beau, p.hands.beau), 0);
@@ -124,7 +115,7 @@ describe("the reshape", () => {
     // And the same solve at **zero** overshoot does not — which is why the constant is not
     // zero. Built here rather than taken from a plan, because there is no way to ask for a
     // reshape that does not overshoot, and there should not be.
-    const exactDelta = p.bodyDeltas.beau / (1 + ARCH_OVERSHOOT);
+    const exactDelta = p.bodyDeltas.beau / (1 + OVERSHOOT);
     const tight = armMetrics(growBody(MYCO_DEFAULTS, exactDelta));
     const tightBelle = armMetrics(growBody(EMBER_DEFAULTS, -exactDelta));
     const tightHeight = crownOf(tightBelle) + Math.max(myco.handRadius, ember.handRadius);
@@ -136,7 +127,7 @@ describe("the reshape", () => {
 
   it("changes nothing when the pair can already make the arch", () => {
     // Two Embers: tall, long-armed, and well clear of their own crowns. Nobody deforms.
-    const p = plan(EMBER_DEFAULTS, EMBER_DEFAULTS, ARCH_RESHAPE);
+    const p = plan(EMBER_DEFAULTS, EMBER_DEFAULTS, RESHAPE);
     expect(p.bodyDeltas.beau).toBeCloseTo(0, 9);
     expect(p.bodyDeltas.belle).toBeCloseTo(0, 9);
     expect(p.gap).toBeCloseTo(0, 9);
@@ -147,7 +138,7 @@ describe("the reshape", () => {
     // shrinking the belle lowers her crown *and* her shoulder by the same amount, so `d`
     // cancels out of her own constraint entirely. Myco's head is huge and his arms are
     // short; two Mycos reshape and still break, by a little.
-    const p = plan(MYCO_DEFAULTS, MYCO_DEFAULTS, ARCH_RESHAPE);
+    const p = plan(MYCO_DEFAULTS, MYCO_DEFAULTS, RESHAPE);
     expect(p.gap).toBeGreaterThan(0);
     // Small — he misses it by about a centimetre of world — but not nothing, and not hidden.
     expect(p.gap).toBeLessThan(0.05);
@@ -160,7 +151,7 @@ describe("the reshape", () => {
     // accommodation there is: he grows to 1.996 against a ceiling of 2.00, and she is
     // clipped at the 0.10 floor — which is why the two deltas here are *not* equal and
     // opposite, unlike every pair that is not up against a slider.
-    const p = plan(SPROUT_DEFAULTS, EMBER_DEFAULTS, ARCH_RESHAPE);
+    const p = plan(SPROUT_DEFAULTS, EMBER_DEFAULTS, RESHAPE);
     const beauHeight = SPROUT_DEFAULTS.body.height + p.bodyDeltas.beau;
     const belleHeight = EMBER_DEFAULTS.body.height + p.bodyDeltas.belle;
     expect(beauHeight).toBeLessThanOrEqual(SHAPE_BOUNDS.body.height.max);
@@ -171,7 +162,7 @@ describe("the reshape", () => {
 
 describe("the break", () => {
   it("🔴 deforms nobody and lets the hands come apart", () => {
-    const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, ARCH_BREAK);
+    const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, BREAK);
     expect(p.bodyDeltas.beau).toBe(0);
     expect(p.bodyDeltas.belle).toBe(0);
     expect(p.gap).toBeGreaterThan(0.5);
@@ -182,14 +173,14 @@ describe("the break", () => {
     // holds her hand up over her own head, the short one cannot follow, and she turns under
     // her own hand. That is a real thing mismatched dancers do, which is why it is one of
     // the two options rather than the error case.
-    const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, ARCH_BREAK);
+    const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, BREAK);
     expect(p.hands.belle).toBeCloseTo(p.height, 6);
     expect(p.hands.beau).toBeLessThan(p.height);
     expect(p.hands.beau).toBeCloseTo(reachCeiling(myco, width), 6);
   });
 
   it("does not break a hold the pair could have made anyway", () => {
-    const p = plan(EMBER_DEFAULTS, EMBER_DEFAULTS, ARCH_BREAK);
+    const p = plan(EMBER_DEFAULTS, EMBER_DEFAULTS, BREAK);
     expect(p.gap).toBeCloseTo(0, 9);
   });
 });
@@ -198,8 +189,8 @@ describe("the reshape and the break are different pictures of the same figure", 
   it("agree on where the arch wants to be before anybody accommodates", () => {
     // Both reach for the same target; they differ in what they are willing to do about not
     // getting there. The lateral is the same in both, because it is a fact about shoulders.
-    const a = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, ARCH_RESHAPE);
-    const b = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, ARCH_BREAK);
+    const a = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, RESHAPE);
+    const b = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, BREAK);
     expect(a.lateral).toBeCloseTo(b.lateral, 9);
     // The reshape's target is *lower*, because the belle's crown came down to meet it.
     expect(a.height).toBeLessThan(b.height);
@@ -208,15 +199,15 @@ describe("the reshape and the break are different pictures of the same figure", 
 
 describe("drawAccommodation", () => {
   it("is a coin flip, and neither side is the fallback", () => {
-    expect(drawAccommodation(() => 0)).toBe(ARCH_RESHAPE);
-    expect(drawAccommodation(() => 0.49)).toBe(ARCH_RESHAPE);
-    expect(drawAccommodation(() => 0.5)).toBe(ARCH_BREAK);
-    expect(drawAccommodation(() => 0.99)).toBe(ARCH_BREAK);
+    expect(drawAccommodation(() => 0)).toBe(RESHAPE);
+    expect(drawAccommodation(() => 0.49)).toBe(RESHAPE);
+    expect(drawAccommodation(() => 0.5)).toBe(BREAK);
+    expect(drawAccommodation(() => 0.99)).toBe(BREAK);
   });
 
   it("takes its randomness as an argument, so a test can be sure and a scene cannot", () => {
     const seen = new Set<string>();
     for (let i = 0; i < 200; i++) seen.add(drawAccommodation());
-    expect(seen).toEqual(new Set([ARCH_RESHAPE, ARCH_BREAK]));
+    expect(seen).toEqual(new Set([RESHAPE, BREAK]));
   });
 });

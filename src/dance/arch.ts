@@ -26,9 +26,9 @@
  * accommodate, and sometimes the arms just reach as far as they can and the hold breaks to
  * accommodate."*
  *
- * - {@link ARCH_RESHAPE} — the beau's torso grows and the belle's shrinks, each by half of
+ * - {@link RESHAPE} — the beau's torso grows and the belle's shrinks, each by half of
  *   what the gap needs and then a little more. Both dancers keep hold.
- * - {@link ARCH_BREAK} — nobody changes shape, both reach as far as they can, and the hands
+ * - {@link BREAK} — nobody changes shape, both reach as far as they can, and the hands
  *   come apart.
  *
  * **Neither is a failure mode.** They are two things dancers of mismatched size actually do,
@@ -51,33 +51,17 @@ import {
   sideExtentAt,
   type ArmMetrics,
 } from "./arm-pose";
-import { SHAPE_BOUNDS, type CharacterBodyShape } from "../services/body-shapes";
+import { type CharacterBodyShape } from "../services/body-shapes";
+import {
+  ACCOMMODATIONS,
+  OVERSHOOT,
+  RESHAPE,
+  growBody,
+  reshapeDeltas,
+  type Accommodation,
+  type BodyDeltas,
+} from "./accommodation";
 
-/** How a pair accommodates an arch their bodies cannot make. */
-export type Accommodation = typeof ARCH_RESHAPE | typeof ARCH_BREAK;
-
-/** Both torsos change — the beau's grows, the belle's shrinks — and the hold survives. */
-export const ARCH_RESHAPE = "reshape";
-/** Nobody changes shape, both arms reach their limit, and the hands come apart. */
-export const ARCH_BREAK = "break";
-
-/**
- * How far past the gap a reshape goes — Ryan's *"a little more than necessary"*.
- *
- * 🔑 **The overshoot is mechanical, not decorative, and that was a surprise.** Reshaping by
- * *exactly* the deficit lands both dancers at full stretch, and a fully straight arm is the
- * degenerate case of `touchPose`'s elbow solve: the circle of legal elbows shrinks to a
- * point, the in-plane solution stops existing, and the pose falls through to `reachPose`'s
- * preference constants — the ones ADR-0027 was written to stop relying on. Measured on the
- * default cast: at overshoot 0 the beau's elbow leaves his shoulder's plane; at 0.15 both
- * dancers solve in plane with the anatomy intact.
- *
- * So this is the one tuned number here, and what it buys is that nothing *else* is tuned.
- * A dial for Ryan. Measured: the default cast needs about **5%** to get the beau off the
- * boundary, and 15% is that rounded up far enough that a cast nobody has measured is not
- * sitting on it either.
- */
-export const ARCH_OVERSHOOT = 0.15;
 
 /**
  * How much daylight the joined hands keep above the crown of the head that passes beneath:
@@ -132,12 +116,6 @@ export function archLateral(beau: ArmMetrics, belle: ArmMetrics): number {
   return (beau.restX - belle.restX) / 2;
 }
 
-/** A body-height change, per dancer, in the units the shape editor's slider uses. */
-export interface BodyDeltas {
-  readonly beau: number;
-  readonly belle: number;
-}
-
 /** What an arch costs this pair, and what they do about it. */
 export interface ArchPlan {
   readonly accommodation: Accommodation;
@@ -150,7 +128,7 @@ export interface ArchPlan {
   readonly height: number;
   /** How far off the couple's midpoint, toward the belle. */
   readonly lateral: number;
-  /** Body-height changes to apply. Both zero under {@link ARCH_BREAK}. */
+  /** Body-height changes to apply. Both zero under {@link BREAK}. */
   readonly bodyDeltas: BodyDeltas;
   /**
    * Each dancer's own hand height — where they actually get to.
@@ -211,8 +189,8 @@ export function planArch(
 
   const deficit = Math.max(0, wanted - reachCeiling(beau, separation));
   const bodyDeltas =
-    accommodation === ARCH_RESHAPE
-      ? clampDeltas(beauShape, belleShape, deficit * (1 + ARCH_OVERSHOOT))
+    accommodation === RESHAPE
+      ? reshapeDeltas(beauShape, belleShape, deficit * (1 + OVERSHOOT))
       : { beau: 0, belle: 0 };
 
   // Re-measure whoever changed. Body height moves a shoulder and a crown by half of itself,
@@ -236,45 +214,6 @@ export function planArch(
     hands,
     gap: Math.abs(hands.beau - hands.belle),
   };
-}
-
-/**
- * Grow (or shrink) a body by `delta`, clamped to the shape editor's own bounds.
- *
- * The bounds are the editor's, deliberately: a dance may not put a dancer anywhere the
- * character sheet could not, or the reshape becomes a second, invisible definition of what a
- * body may be. A pair whose accommodation is clipped here simply breaks by more.
- */
-export function growBody(shape: CharacterBodyShape, delta: number): CharacterBodyShape {
-  const { min, max } = SHAPE_BOUNDS.body.height;
-  const height = Math.max(min, Math.min(max, shape.body.height + delta));
-  return { ...shape, body: { ...shape.body, height } };
-}
-
-/** The pair of deltas, each clipped to what its own body may actually become. */
-function clampDeltas(
-  beauShape: CharacterBodyShape,
-  belleShape: CharacterBodyShape,
-  d: number,
-): BodyDeltas {
-  return {
-    beau: growBody(beauShape, d).body.height - beauShape.body.height,
-    belle: growBody(belleShape, -d).body.height - belleShape.body.height,
-  };
-}
-
-/**
- * Draw an accommodation for one execution of the move.
- *
- * `random` is injected rather than reached for, so a test can say which one it wants and the
- * scene can still be a coin flip. Even odds: neither of these is the fallback.
- *
- * **Drawn per execution, not per frame and not per pair.** The same two dancers doing the
- * same call twice should not do the same thing twice — that is the whole point of it being
- * random — and a draw that moved mid-call would reshape a torso halfway through an arch.
- */
-export function drawAccommodation(random: () => number = Math.random): Accommodation {
-  return random() < 0.5 ? ARCH_RESHAPE : ARCH_BREAK;
 }
 
 /**
@@ -304,7 +243,7 @@ export function archClearance(
 ): number {
   const hand = Math.max(beau.handRadius, belle.handRadius);
   let need = 0;
-  for (const mode of [ARCH_BREAK, ARCH_RESHAPE] as const) {
+  for (const mode of ACCOMMODATIONS) {
     const plan = planArch(beau, belle, beauShape, belleShape, width, mode);
     const b =
       plan.bodyDeltas.beau === 0 ? beau : armMetrics(growBody(beauShape, plan.bodyDeltas.beau));

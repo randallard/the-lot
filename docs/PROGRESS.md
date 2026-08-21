@@ -4,8 +4,38 @@ _Last updated: 2026-08-21_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-21) — ✅ A PARTNER TRADE IS PASSED THE CLEARANCE ITS BODIES NEED, AND THE
-ARC IT WALKS IS FINALLY THE ARC THAT WAS SOLVED.** Ryan: *"I looked at `#dance=two-trades` and
+**▶ RIGHT NOW (2026-08-21, third chunk) — ✅ THE TWO STYLES OF ACCOMMODATION ARE NO LONGER THE
+ARCH'S.** Ryan: *"I want to make sure we remember the two different styles of accommodation for
+the reach in california twirl."*
+[ADR-0032](adr/0032-the-accommodation-belongs-to-the-hold-not-to-the-arch.md). **627 tests
+unchanged, lint 0 errors, typecheck clean — a pure refactor, and asserted as one.** 🔴 Held for
+Ryan's verify.
+
+🔑 **They were never about arches.** `reshape` / `break`, the even-odds per-execution draw, and the
+torso reasoning behind the reshape all answer *these two people cannot reach the thing the call
+says they are holding — what do they do?* That question belongs to a **hold**, and the arch was
+just the first one to ask it. All of it now lives in `accommodation.ts`; `arch.ts` keeps
+`planArch`, `archClearance`, `crownOf`, `reachCeiling`, `archLateral` and builds on top. The
+`ARCH_` prefix went with the move.
+
+🔑 **A hold added later must answer *which of these two* and keep the draw** — never a third
+silent fallback, and never one of them as the default. Neither is the fallback; they are two
+things dancers of mismatched size actually do.
+
+🔴 **The forearm hold still has no accommodation, and that is the next step.** `DanceFloor` finds
+the accommodation with `g.grip === "arch"`, so an Allemande Left's joined forearms get none —
+`gripPose` poses the hold and nothing asks whether two dancers of different arm lengths can reach
+it. It pairs with square-one v0.3.0's **`gripRadius`**, the field its ADR-0020 added that nothing
+supplies, and which is exactly the question *how far apart do two joined forearms hold this pair?*
+
+🔴 **And `fist-bump.ts`'s `gripHeight` still carries the deferred note** — *"past a big enough
+height difference the taller dancer does nearly all the accommodating."* ADR-0028 said that fact
+had arrived somewhere it could not be deferred. It is still deferred everywhere but the arch.
+
+---
+
+**▶ 2026-08-21, second chunk — ✅ A PARTNER TRADE IS PASSED THE CLEARANCE ITS BODIES NEED, AND
+THE ARC IT WALKS IS FINALLY THE ARC THAT WAS SOLVED.** Ryan: *"I looked at `#dance=two-trades` and
 it's still too tight — if we're generalizing correctly it should be like `#dance=two-twirls`."*
 [ADR-0031](adr/0031-the-hands-free-clearance-is-passed-too.md) here; square-one's ADR-0020,
 ADR-0021 and ADR-0022. Journal *[the Trade was the half that never got the
