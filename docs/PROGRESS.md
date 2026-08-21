@@ -10,8 +10,9 @@ it's still too tight — if we're generalizing correctly it should be like `#dan
 [ADR-0031](adr/0031-the-hands-free-clearance-is-passed-too.md) here; square-one's ADR-0020,
 ADR-0021 and ADR-0022. Journal *[the Trade was the half that never got the
 number](journal/2026-08-21-9-the-trade-was-the-half-that-never-got-the-number.md)*. **627 tests**
-here (from 626), **223** in square-one (from 193); lint 0 errors, build clean in both. 🔴 **Held
-for Ryan's verify — not committed.**
+here (from 626), **223** in square-one (from 193); lint 0 errors, build clean in both. **Landed —
+`dbfed4f` here, `8d436cd` in square-one (released as v0.3.0)** — and still awaiting Ryan's verify
+in the running scene.
 
 🔴 **Half of it was here: the number was measured, and never passed.** This module has computed
 `lateralClearance` since ADR-0012 and has passed the **arch** clearance since ADR-0030. The
