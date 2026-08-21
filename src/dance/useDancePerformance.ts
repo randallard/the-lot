@@ -59,12 +59,27 @@ export interface DancePerformanceOptions {
    * well**, at head height, and the room that needs is a measurement only this side can take.
    * `DanceFloor` takes it and the beau's arc bows out to meet it (square-one ADR-0018).
    *
-   * 🔴 The *hands-free* clearance is deliberately **not** passed yet. The engine would bow a
-   * Partner Trade's arc out for it too — which would fix the head overlap pinned since
-   * ADR-0014 and would also change a figure Ryan has already watched and accepted. That is a
-   * look, not a number, and it is owed rather than taken.
+   * 🔴 The hands-free clearance used to be withheld here. It is {@link clearance} now, and the
+   * note explaining why sits on that field.
    */
   readonly archClearance?: number;
+  /**
+   * How far apart the couple must be to pass each other **hands free**, in engine units —
+   * bodies and heads, `lateralClearance` over the two rigid silhouettes (ADR-0012). Omitted
+   * leaves the engine's body-agnostic default, which is the exchange arc's own radius.
+   *
+   * 🔴 **Withheld on purpose from 2026-08-19 to 2026-08-21, and no longer.** The mechanism to
+   * bow a hands-free Trade arrived with the arch's, and switching it on would change a figure
+   * Ryan had already watched and accepted — so it was owed as *a look, not a number*. He took
+   * the look: *"I looked at `#dance=two-trades` and it's still too tight — if we're
+   * generalizing correctly it should be like `#dance=two-twirls`."* See ADR-0031.
+   *
+   * The Trade and the Twirl are the **same paths** (square-one ADR-0017) and differ only in
+   * what is in the gap: two bodies, or two bodies with a joined hand up between their heads.
+   * Passing only the arch clearance meant only the Twirl bowed — the generalisation was half
+   * wired, and the two-trades scene is what that looks like.
+   */
+  readonly clearance?: number;
   readonly bpm?: number;
   /** Restart from beat 0 when the call ends. The debug scene loops; the arc won't. */
   readonly loop?: boolean;
@@ -108,6 +123,7 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
     sequence,
     coupleWidth,
     archClearance,
+    clearance,
     bpm = DEFAULT_BPM,
     loop = true,
     externallyDriven,
@@ -121,13 +137,15 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
       return flattenSequence(
         danceCoupleSequence(
           sequence,
-          partnerUp("a", "b", undefined, undefined, coupleWidth, undefined, archClearance),
+          // Positional, not the shape object square-one also accepts: the object form landed
+          // with ADR-0020 and this package's dependency still names a tag without it.
+          partnerUp("a", "b", undefined, undefined, coupleWidth, clearance, archClearance),
         ),
       );
     }
     const { a, b } = applyCallToPair(call);
     return { a, b };
-  }, [call, sequence, coupleWidth, archClearance]);
+  }, [call, sequence, coupleWidth, clearance, archClearance]);
 
   const beats = useMemo(
     () => Math.max(...Object.values(motions).map((m) => m.beats)),

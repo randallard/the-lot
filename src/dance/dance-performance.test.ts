@@ -12,6 +12,7 @@ import { renderHook } from "@testing-library/react";
 import type { CallName, DancerState } from "square-one";
 import { useDancePerformance } from "./useDancePerformance";
 import { armMetrics, touchHold } from "./arm-pose";
+import { archClearance } from "./arch";
 import { scaleForGaps } from "./frame";
 import {
   EMBER_DEFAULTS,
@@ -106,14 +107,41 @@ describe("the Partner Trade clears the bodies dancing it", () => {
     return { width: hold.width / scale, scale };
   }
 
-  /** The closest the two dancers get, in **world** units, over a whole sequence. */
+  /**
+   * The closest the two dancers get, in **world** units, over a whole sequence — driven
+   * exactly as `DanceFloor` drives it.
+   *
+   * 🔴 **Including the clearance, as of ADR-0031.** While this helper passed a width and
+   * nothing else it measured a figure the scene had stopped dancing, which is the one way a
+   * consumer-side collision check can be worse than none.
+   */
   function closestApproach(
     shapes: readonly CharacterBodyShape[],
     sequence: readonly CallName[],
   ): number {
     const { width, scale } = coupleWidthEngine(shapes);
+    const clearance = lateralClearance(rigidParts(shapes[0]!), rigidParts(shapes[1]!)) / scale;
+    // 🔴 The arch clearance too, and leaving it out is how the first draft of the
+    // Trade-versus-Twirl check below compared a Twirl with a Trade's own number and got two
+    // identical figures. A helper that drives the performance *almost* like the scene is a
+    // helper that measures a figure nobody dances.
+    const arch =
+      archClearance(
+        armMetrics(shapes[0]!),
+        armMetrics(shapes[1]!),
+        shapes[0]!,
+        shapes[1]!,
+        touchHold(armMetrics(shapes[0]!), armMetrics(shapes[1]!)).width,
+      ) / scale;
     const { result } = renderHook(() =>
-      useDancePerformance({ call: "partner-trade", sequence, coupleWidth: width, bpm: 60 }),
+      useDancePerformance({
+        call: "partner-trade",
+        sequence,
+        coupleWidth: width,
+        clearance,
+        archClearance: arch,
+        bpm: 60,
+      }),
     );
     let closest = Infinity;
     // 60 bpm, so one second is one beat; a fortieth of a beat is finer than any
@@ -134,59 +162,91 @@ describe("the Partner Trade clears the bodies dancing it", () => {
     // Two things were wrong and they compounded: the shape (square-one's ADR-0014) and the
     // couple's width being ignored entirely (its ADR-0015). Measured here, on the shipped
     // cast, the closest approach over two Trades went **0.34 → 0.55** world units against
-    // two torsos that need 0.52.
+    // two torsos that need 0.52 — and **→ 0.71** once the clearance was passed (ADR-0031).
     const shapes = [MYCO_DEFAULTS, EMBER_DEFAULTS];
     const torsos = shapes[0]!.body.radius + shapes[1]!.body.radius;
     const closest = closestApproach(shapes, ["partner-trade", "partner-trade"]);
     expect(closest).toBeGreaterThan(torsos);
   });
 
-  it("🔴 and on wide bodies it still does not, which is structural", () => {
-    // The finding, pinned rather than hidden. **A Trade's pass separation is half the
-    // couple's width, and the couple's width is set by the handhold** — two joined arms.
-    // So the wider the bodies get, the worse the pass is *relative* to them: `mixed` stands
-    // 1.070 apart and passes at 0.535 against torsos wanting 0.700.
+  it("🔴 reaches wide bodies' clearance too, which used to be pinned as structural", () => {
+    // 🔴 **This test used to assert the opposite, and the comment it carried was wrong about
+    // where the fix lived.** It read: *"No amount of work on this side fixes that. Either the
+    // beau's arc leaves the circle the couple stands on, or a Trade is a figure that wide
+    // bodies cannot dance at handholding distance. That is a decision about the figure and it
+    // is Ryan's."*
     //
-    // No amount of work on this side fixes that. Either the beau's arc leaves the circle the
-    // couple stands on, or a Trade is a figure that wide bodies cannot dance at handholding
-    // distance. That is a decision about the figure and it is Ryan's.
+    // The first branch is what happened. The arc leaves the circle — square-one's ADR-0016
+    // built the bow, ADR-0031 here finally passes it the hands-free number — and the measured
+    // reversal is large: `cast([0.6, 0.1])` went **0.535 → 0.891** against 0.894 wanted, and
+    // `cast([0.6, 0.6])` went **0.819 → 1.197** against 1.200. Both were below their torsos
+    // and are now above them.
     const cast = (radius: [number, number]): CharacterBodyShape[] => [
       { ...MYCO_DEFAULTS, body: { ...MYCO_DEFAULTS.body, radius: radius[0] } },
       { ...EMBER_DEFAULTS, body: { ...EMBER_DEFAULTS.body, radius: radius[1] } },
     ];
     for (const shapes of [cast([0.6, 0.1]), cast([0.6, 0.6])]) {
       const torsos = shapes[0]!.body.radius + shapes[1]!.body.radius;
-      expect(closestApproach(shapes, ["partner-trade"])).toBeLessThan(torsos);
+      const needed = lateralClearance(rigidParts(shapes[0]!), rigidParts(shapes[1]!));
+      const closest = closestApproach(shapes, ["partner-trade"]);
+      // Within half a percent of the full height-aware clearance, from 32% and 47% short.
+      //
+      // 🔴 **"Within", not "above", and the distinction is honest rather than pedantic.** The
+      // residual is the chord sag square-one's ADR-0022 bounded: the solver puts the *arc* on
+      // the wanted number and the dancers walk a polyline a hair inside it. It scales with the
+      // bowed radius, so the heaviest bows here are the worst cases — 0.32% on `cast([0.6,
+      // 0.1])` and 0.27% on `cast([0.6, 0.6])`, which is 0.003 world units of torso overlap on
+      // a pair standing 1.640 apart. A test that claimed strict clearance would be a test
+      // tuned to a sampling constant.
+      expect(closest).toBeGreaterThan(needed * 0.995);
+      expect(closest).toBeGreaterThan(torsos * 0.995);
+      // The reversal is what this test is really for: both of these were *below* their torsos.
+      expect(closest / torsos).toBeGreaterThan(1.2 * (0.535 / 0.7));
     }
   });
 
-  it("passes at half the couple's own width, which is where all of that comes from", () => {
-    // The one number the two tests above are both about, asserted directly so the reason is
-    // in the suite and not only in their comments.
+  it("🔴 no longer passes at half the couple's width — the bow is what took it off that", () => {
+    // The number the tests above used to be about. A Trade's pass separation *was* half the
+    // couple's width and the couple's width is set by the handhold, so the wider the bodies
+    // the worse the pass was relative to them. It is now the bodies' own clearance, and half
+    // the width is what a pair get only when they ask for nothing.
     const shapes = [MYCO_DEFAULTS, EMBER_DEFAULTS];
     const { width, scale } = coupleWidthEngine(shapes);
-    expect(closestApproach(shapes, ["partner-trade"])).toBeCloseTo((width / 2) * scale, 1);
+    const needed = lateralClearance(rigidParts(shapes[0]!), rigidParts(shapes[1]!));
+    expect(closestApproach(shapes, ["partner-trade"])).toBeGreaterThan((width / 2) * scale);
+    expect(closestApproach(shapes, ["partner-trade"])).toBeCloseTo(needed, 2);
   });
 
-  it("🔴 still does NOT clear the heads at the pass — the gap that is left", () => {
-    // Written as an assertion on the **size of the shortfall** rather than left out, because
-    // a gap nobody measures is a gap that gets forgotten. `lateralClearance` is ADR-0012's
-    // height-aware clearance over the rigid parts, which counts heads — and Myco's head is
-    // 0.49 where his torso is 0.30. It wants **0.71** and the pass gives 0.55.
+  it("🔴 clears the heads at the pass — the gap that used to be left", () => {
+    // 🔴 **The tripwire fired.** This test asserted the shortfall — `needed - closest` between
+    // 0.1 and 0.2 — and said of itself that it was written *"so this test fails loudly the day
+    // somebody fixes it properly."* That day was 2026-08-21.
     //
-    // Why it cannot be fixed on this side: the couple's width is set by the *handhold*, and
-    // at the pass the two dancers are half of it apart. Clearing two heads that want 0.71
-    // means the beau's arc going wider than the circle the couple stands on — which is
-    // exactly the "even farther out" Ryan was pushing back on when he asked for the belle's
-    // step. It is a decision about the figure, not a number to tune here.
+    // `lateralClearance` is ADR-0012's height-aware clearance over the rigid parts, which
+    // counts **heads** — and Myco's head is 0.49 where his torso is 0.30. It wants 0.710 and
+    // the pass gave 0.554; it now gives **0.709**, which is the wanted number less the chord
+    // sag square-one's ADR-0022 bounded at a fifth of a percent.
     const shapes = [MYCO_DEFAULTS, EMBER_DEFAULTS];
     const needed = lateralClearance(rigidParts(shapes[0]!), rigidParts(shapes[1]!));
     const closest = closestApproach(shapes, ["partner-trade"]);
-    expect(closest).toBeLessThan(needed);
-    // Pinned so the shortfall cannot quietly grow, and so this test fails loudly the day
-    // somebody fixes it properly.
-    expect(needed - closest).toBeGreaterThan(0.1);
-    expect(needed - closest).toBeLessThan(0.2);
+    expect(closest).toBeGreaterThan(needed * 0.998);
+    expect(closest).toBeLessThan(needed * 1.002);
+  });
+
+  it("🔴 bows less than a California Twirl does, out of the same two bodies", () => {
+    // The relationship Ryan's *"it should be like two-twirls"* is really about, and the one
+    // number that says the generalisation is right rather than merely on. Same pair, same
+    // paths (square-one ADR-0017) — what differs is what is in the gap. Hands free, two bodies
+    // must clear each other; hands joined and raised there is a **hand up between their heads**
+    // as well, so the Twirl asks for strictly more room and bows strictly further.
+    //
+    // A Trade that bowed *as far as* a Twirl would be the bug this looks like the fix for.
+    const shapes = [MYCO_DEFAULTS, EMBER_DEFAULTS];
+    const trade = closestApproach(shapes, ["partner-trade"]);
+    const twirl = closestApproach(shapes, ["california-twirl"]);
+    expect(twirl).toBeGreaterThan(trade);
+    // Measured: 0.709 against 1.085 on the shipped cast.
+    expect(twirl).toBeGreaterThan(trade * 1.4);
   });
 
   it("🔴 keeps the belle off the front, which is what buys the clearance", () => {

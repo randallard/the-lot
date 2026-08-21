@@ -348,9 +348,32 @@ export function DanceFloor({
     return archClearance(armMetrics(a), armMetrics(b), a, b, hold.width) / scaleNow;
   }, [shapes, hold, scale]);
 
+  /**
+   * How far apart the pair must pass **hands free**, in engine units — the third and last
+   * measurement across this seam (square-one ADR-0020, ADR-0031 here).
+   *
+   * The same instrument the frame scale uses: `lateralClearance` over the two rigid
+   * silhouettes, which is height-aware and counts **heads** — and a head is the widest thing
+   * most of this cast has. That is the whole difference between this and the torsos: Myco's
+   * head is 0.49 where his torso is 0.30.
+   *
+   * 🔴 **Not the same number as {@link archClearanceEngine}, and both are needed.** They are
+   * the same two bodies measured with different things in the gap, and square-one picks by the
+   * hold — a Trade reads this one, a Twirl reads that one. Passing only the arch clearance is
+   * what left `#dance=two-trades` tight while `#dance=two-twirls` bowed.
+   */
+  const clearanceEngine = useMemo(() => {
+    const a = shapes[0];
+    const b = shapes[1];
+    if (a === undefined || b === undefined) return undefined;
+    const scaleNow = scale ?? scaleForGaps(clearanceGaps([...shapes]));
+    return lateralClearance(rigidParts(a), rigidParts(b)) / scaleNow;
+  }, [shapes, scale]);
+
   const runtime = useDancePerformance({
     ...performanceOptions,
     coupleWidth: coupleWidthEngine,
+    ...(clearanceEngine === undefined ? {} : { clearance: clearanceEngine }),
     ...(archClearanceEngine === undefined ? {} : { archClearance: archClearanceEngine }),
   });
   const keys = useMemo(() => Object.keys(runtime.motions), [runtime.motions]);

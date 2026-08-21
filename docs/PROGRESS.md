@@ -1,11 +1,71 @@
 # Progress & Status
 
-_Last updated: 2026-08-19_
+_Last updated: 2026-08-21_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-19) — ✅ THE ARCH'S PASS NEEDS A HAND'S ROOM BETWEEN TWO HEADS, AND IT
-HAS IT.** Ryan, on a break: *"the beau's hand clips through the belle's head — it shouldn't push
+**▶ RIGHT NOW (2026-08-21) — ✅ A PARTNER TRADE IS PASSED THE CLEARANCE ITS BODIES NEED, AND THE
+ARC IT WALKS IS FINALLY THE ARC THAT WAS SOLVED.** Ryan: *"I looked at `#dance=two-trades` and
+it's still too tight — if we're generalizing correctly it should be like `#dance=two-twirls`."*
+[ADR-0031](adr/0031-the-hands-free-clearance-is-passed-too.md) here; square-one's ADR-0020,
+ADR-0021 and ADR-0022. Journal *[the Trade was the half that never got the
+number](journal/2026-08-21-9-the-trade-was-the-half-that-never-got-the-number.md)*. **627 tests**
+here (from 626), **223** in square-one (from 193); lint 0 errors, build clean in both. 🔴 **Held
+for Ryan's verify — not committed.**
+
+🔴 **Half of it was here: the number was measured, and never passed.** This module has computed
+`lateralClearance` since ADR-0012 and has passed the **arch** clearance since ADR-0030. The
+hands-free one was withheld on purpose — *"a look, not a number"* — and two days later the arch
+landed beside it, leaving two figures that walk the **same two paths** (square-one ADR-0017)
+bowing differently for a reason neither figure has. **A withheld number is a decision with an
+expiry date, and nothing in the code carries the date.**
+
+🔴 **The other half was in the engine, and it was older than the couple work.** square-one solves
+the beau's bow against the **arc**; the dancers walk a **polyline**, because `orbit` marked a
+waypoint every 45° and `sampleMotion` runs straight lines between them. The chords sag 7.6% of the
+radius inside the curve, so a Trade solved to exactly 0.710 delivered **0.670**. Fixed at the
+sampling — 7.5°, where the sag is under the engine's own rounding — rather than by bowing wider to
+hide it.
+
+| the Trade's closest approach, world units | |
+|---|---|
+| before, half the couple's width | 0.554 |
+| clearance passed, 45° sampling | 0.670 |
+| **clearance passed, 7.5° sampling** | **0.709** — against 0.710 wanted |
+
+🔑 **Every instrument in both repos was blind the same way.** They all pair the two dancers at
+their shared **waypoint beats**, and the sag lives strictly between those marks — so more tests of
+that kind would not have found it. The new guard runs `sampleMotion`, which is what a consumer
+uses. **Measure with the thing the consumer uses.**
+
+🔑 **The tripwire fired, and so did the finding it protected.** Three tests here asserted the
+shortfall; one said of itself it was written *"so this test fails loudly the day somebody fixes it
+properly."* The one worth recording claimed wide bodies were **structurally** unable to dance a
+Trade at handholding distance — *"no amount of work on this side fixes that… that is a decision
+about the figure and it is Ryan's."* Both halves were true, and the branch it named is what
+happened: `cast([0.6, 0.6])` went **0.819 → 1.197** against 1.200 wanted. A pinned finding that
+names the decision that would overturn it is worth more than a passing test.
+
+**▶ THE WATCH THIS CHUNK IS WAITING ON — `pnpm dev` → `#dance=two-trades`, then
+`#dance=two-twirls`.** 🔴 The Trade bows **less** than the Twirl, and it should: same bodies, but
+the Twirl has a joined hand up between two heads. The beau's path over the four beats runs
+**1.789** world with no bodies → **2.033** for a Trade → **3.387** for a Twirl. If the Trade now
+reads right, the generalisation is landed; if he reads as hurrying, that is the same sprint
+question two-twirls has carried since 08-19, at 14% rather than 89%.
+
+**⚠️ Owed.** (1) The watch above, both scenes. (2) 🔴 **The frame scale still derives from the
+engine's fixed lane** — `minScaleForGap` divides by a hand-copied `ENGINE_LANE_OFFSET` — so one
+wide pair still pushes the whole square apart in every call. square-one's ADR-0020 makes the pair
+calls able to hold their own accommodation instead; that is a separate change, a separate watch,
+and it needs a square-one **tag** first (this package's dependency is `#v0.2.0`). (3) Re-take the
+**elbow watch**. (4) 🔴 **Where the join sits** — the arch sits between the two inside shoulders
+while the belle passes through the couple's centre, so she may not pass *under* the joined hands;
+the wider arcs make this a better watch than it was. (5) 🔴 The hold's `forward` is still **0.320**
+on the default cast, flagged 2026-08-17 and untouched.
+
+---
+
+**▶ 2026-08-19 — ✅ THE ARCH'S PASS NEEDS A HAND'S ROOM BETWEEN TWO HEADS, AND IT HAS IT.** Ryan, on a break: *"the beau's hand clips through the belle's head — it shouldn't push
 into the beau's own head either though."*
 [ADR-0030](adr/0030-the-arch-clearance-is-measured-from-the-worse-accommodation.md). Journal
 *[the hand in the gap](journal/2026-08-19-8-the-hand-in-the-gap.md)*. **Committed — `9ce307e`
@@ -36,10 +96,10 @@ the engine chooses the path.**
 beau's own head was grazing at 0.001 and now clears by **0.194**. Pass separation **0.570 → 1.314**,
 and the pair never come closer than the 1.140 they stand at.
 
-**▶ THE WATCH THIS CHUNK IS WAITING ON — `pnpm dev` → `#dance=two-twirls`.** 🔴 The beau's arc now
-peaks at **1.152× the couple's width** where it peaked at 0.5×, and he covers that ground in the
-**same 4 beats**. Whether he reads as *sprinting* is the one number a render decides, and no test
-can answer it.
+**▶ The watch this chunk was waiting on — `#dance=two-twirls`.** 🔴 The beau's arc peaks at
+**1.152× the couple's width** where it peaked at 0.5×, in the same 4 beats. Whether he reads as
+*sprinting* is the one number a render decides. Still open, and now with a second subject — see
+the top of this file.
 
 **And the second Twirl had lost the bow.** Ryan: *"it looks like the first california twirl is good
 but the second still has the smaller path."* Twirl #1 passed at 0.333 engine units, #2 at **0.167**

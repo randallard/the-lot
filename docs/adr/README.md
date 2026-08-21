@@ -119,6 +119,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0028](0028-an-arch-a-pair-cannot-make-is-accommodated-two-ways.md) | An arch a pair cannot make is accommodated two ways, drawn at random | Accepted |
 | [0029](0029-a-shoulder-follows-the-torso-it-hangs-from.md) | A shoulder follows the torso it hangs from | Accepted |
 | [0030](0030-the-arch-clearance-is-measured-from-the-worse-accommodation.md) | The arch clearance is measured from the worse accommodation, and passed as a number | Accepted |
+| [0031](0031-the-hands-free-clearance-is-passed-too.md) | The hands-free clearance is passed too, so a Trade bows like a Twirl does | Accepted |
 
 ## Decisions this repo inherits
 
