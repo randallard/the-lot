@@ -4,7 +4,258 @@ _Last updated: 2026-08-22_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-22) — ✅ THE WATCH IS CLOSED. 🔴 AND THE ENGINE THIS RUNS ON IS NOT THE ONE
+**▶ RIGHT NOW (2026-08-22, eleventh chunk) — ▶ `#dance` PICKS ITS OWN CAST, AND IT FOUND A
+DEFECT ON ITS FIRST USE.** **665 tests, lint 0 errors, build clean, `docs-hygiene` clean.**
+🔴 **Held for Ryan's verify.**
+
+Every character the game has is selectable in either place — the four NPCs and **the player** —
+and the pairing was a hard-coded `[MYCO_DEFAULTS, EMBER_DEFAULTS]` until now.
+
+- 🔑 **Colours are positional and stay that way.** `DanceFloor` paints occupant 0 and occupant 1
+  from `DEBUG_COLORS`, never the character's own `bodyColor`, so the beau is the beau's colour
+  whoever is standing there. That is what makes a swap a *controlled* change: one thing moves, and
+  it is the body.
+- 🔑 **The size cast became a modifier rather than a cast.** `mixed` / `max` used to name Myco and
+  Ember and build whole shapes; they now override the **body radius** of whoever is selected, so
+  the frame-scale watch (ADR-0012) is available on every pairing instead of one.
+- 🔑 **One roster, two pickers.** `castRoster()` moved out of `ContactMoveBuilderModal` into
+  `config/npcs.ts` beside `NPC_CONFIGS`, with `PLAYER_ID`. The player is not an NPC and has no
+  config row, so every picker has to splice them in by hand — and a roster that disagrees between
+  two pickers is a bug you find by noticing a name is missing from one of them. 4 tests on it.
+- 🔴 **The scene now reads `getBodyShape`, not the authored constants**, so a body-editor edit
+  shows up on the dance floor. That is the point of a picker, and it is also the one way this scene
+  can disagree with a number quoted in an ADR — those were all measured on the *defaults*. With
+  nothing saved the two are identical. The hold readout is solved from the same shapes the floor
+  poses, so the panel still cannot disagree with the picture.
+- 🔑 **The player is a body shape like any other in here.** `Dancer` seats every occupant at
+  `NPC_BODY_CENTER_Y` and every dance measurement reads the same constant, so the rig-origin trap
+  `ArmMetrics.rigOriginY` warns about cannot be sprung inside `DanceFloor`. What the player brings
+  is proportions, which is what is being watched.
+
+**⚠️ THE WATCH — `pnpm dev`, `#dance=two-twirls`, then swap the dropdowns.** The beau should stay
+the beau's colour through every swap.
+
+1. 🔴 **Ember as beau with Myco is the one to judge** — the dearest reach on the cast at 0.310. Arms
+   should stretch into the hold and ease back out. On the **reshape** half of executions Ember also
+   shrinks while Myco grows (ADR-0042's higher aim), which is a bigger torso change than anything
+   on screen yesterday; on the **break** half neither changes. Watch two in a row.
+2. **Myco with Sprout** should reach a little (0.030) and dance a hand's width further apart than
+   they stand, holding on rather than letting go. 🔴 **And Sprout's torso should now stretch upward
+   from where it already sits** — it never stretched at all before, and now the whole change goes
+   into the top rather than half of it sinking into the floor.
+3. 🔴 **The default pair's join moved** — 1.901 → 1.972, since it now rises as far as the two of them
+   can lift it. Nothing else about them changed and the reshape still closes, but the picture is a
+   touch different from yesterday's accepted watch.
+
+✅ **THE PICKER'S FIRST FINDING IS FIXED — [ADR-0039](adr/0039-a-hand-is-charged-against-the-other-dancer.md).**
+Ryan, on being told Myco and Sprout would let go and stand wide: *"no, that doesn't make any sense…
+they should not have to stand wide."* He was right, and `archClearance` carried two conflations.
+
+🔑 **A hand was charged against its own owner.** `2 × max(sideExtentAt(beau, h), sideExtentAt(belle, h))`
+says every hand must clear **both** bodies. A joined hand hangs off a shoulder; it does not have to
+clear the dancer it is attached to. On Ember-as-beau with Myco the join sits at 1.640, level with
+**Ember's own head**, and the pair paid `2 × (0.434 + 0.110)` for Ember's hand clearing Ember.
+
+🔑 **And it measured from the couple's midpoint**, ignoring the join's lateral — ADR-0038's deferred
+promotion condition, now due. Each hand is charged against the *other* dancer, at its own height, its
+own lateral and its own hand's radius.
+
+🔴 **It corrects in both directions, which is the sign it was two bugs.** The default pair's reshape
+goes **0.193 → 0.281** (it had been *under*-charged — the join leans 0.050 toward the belle and
+nothing counted it) and the break goes **0.951 → 0.905**.
+
+🔴 **And ADR-0036's witness weakened with it.** The margined request was 1.046, over square-one's cap
+— the regression in one line. It is now **0.996**: a near miss. The decision stands on the margin
+already being in there three times, not on this pair overflowing, and the test says what is true with
+the history beside it. **A decision evidenced by one number is one correction away from looking
+unmotivated.**
+
+✅ **AND THE LAST RESORT IS NOW REACHING, NOT LETTING GO —
+[ADR-0040](adr/0040-a-pair-reach-before-they-let-go.md).** Ryan: *"can we have last resort be
+extending the upper arm?"* Measured against the head first, and the arm wins on every count.
+
+| lever | rescues | Myco/Sprout |
+|---|---|---|
+| head radius | 4 of 9 | **never** |
+| **upper arm** | **7 of 9** | **0.030** |
+
+🔑 **The arm buys reach one-for-one and distorts nothing that is drawn.** `handReach = spacing +
+forearm.height + handForearmGap + handRadius`, so extending by `e` adds exactly `e` and leaves
+`forearmSpan` — the part with a mesh on it — alone. What lengthens is the shoulder-to-elbow gap this
+cast does not render.
+
+🔑 **And it is the only lever that widens the couple**, because `touchHold` solves the standing
+width from how far two people reach across to each other. That is what answers a pair whose *bodies*
+will not pass at the width their handhold gave them — which a torso trade cannot, since it moves
+shoulders vertically.
+
+🔑 **The extension belongs to the pair, not the draw** — solved so **both** accommodations fit, so
+the couple stand in one place whichever way the coin lands and the per-execution difference stays in
+the torsos and the bow, where a watcher reads it as the dancers rather than the dance.
+
+**Myco with Sprout stand at 0.774 instead of 1.572** — a 5% widening where the old answer was 113%,
+and they keep hold. The cast now goes **11 dancing at their own width, 7 reaching, 2 letting go**,
+from 11 / 0 / 9.
+
+🔴 **The head lever is one-sided or it is worse than nothing**, and that is worth keeping: *trading*
+it costs more every time (0.086 → 0.097, 0.144 → 0.156, 0.175 → 0.187), because growing the beau's
+head widens the thing his partner's hand has to get past. The torso is the opposite — growing the
+beau helps there.
+
+✅ **AND THE JOIN NOW RISES — [ADR-0041](adr/0041-the-join-rises-as-far-as-the-pair-can-lift-it.md).
+NOBODY ON THE CAST LETS GO ANY MORE.** Ryan: *"yea allow the join to raise above belles crown."*
+
+`archLateral` has documented the arch as sitting *"above both crowns by construction… so there is no
+body to be inside of"* since it was written. 🔴 **That was an assertion the code did not maintain** —
+the join sat at the **belle's** crown plus headroom, which with Ember as beau is 1.640 against a head
+spanning 1.275 to 2.155. The joined hand and Myco's arm were inside it.
+
+**Three heights, and the answer is the middle one floored by the first:** `lo` = the belle's crown
+plus headroom, since she walks under it; `hi` = clear of the taller of them, where nobody's head is
+beside it; `both` = as high as the pair can actually get it. **It rises when it can and not
+otherwise**, which is why every pair who could already dance an arch still dances at their own width
+with no arm taken.
+
+🔑 **And it composes with the reach.** Lengthening the upper arm raises `both`, so a pair who could
+not lift the join clear of the tall one's head reach until they can. **Ember with Myco takes 0.310 of
+arm, lifts the join to 1.944, and holds on.**
+
+**The cast now goes 11 dancing at their own width, 9 reaching, 0 letting go** — from 11 / 0 / 9 this
+morning. ADR-0037 part 3 is still the terminal case and still reachable; nobody this cast can field
+reaches it.
+
+🔴 **Unconditionally raising the join to clear both crowns was tried first and rejected on
+measurement.** It charged the whole cast for two pairings — and put a **hairline break in the default
+pair's reshape**, because growing the beau to reach the join also raises his crown, so past the
+crossover he chases his own head and 0.009 is left over. A rule that makes the shipped figure worse
+to fix two edge pairings is the wrong rule; the suite now guards that pair explicitly.
+
+🔴 **ADR-0040's promotion condition fired within the hour, exactly as written.** Its counts (7 of 9,
+two letting go) stand as what was true when it was taken — an accepted ADR is not corrected in place,
+and ADR-0041 is the re-measurement it asked for.
+
+🔴 **Ember as beau costs 0.310 of upper arm — the dearest reach on the cast**, very nearly doubling a
+0.33 undrawn segment, and they widen 0.820 → 1.140. **If that reads as a limb stretching rather than
+a dancer reaching, that is the number to argue with**, and the answer would be to let the *reshape*
+work on the short dancer rather than buying it all with arm.
+
+✅ **AND IT IS DERIVED, NOT FITTED — CHECKED ON BODIES NOBODY HAS AUTHORED.** Ryan: *"these aren't
+static right? when new characters with different dimensions are added they will fall somewhere in
+between and be accommodated?"* Turned into an assertion rather than an answer.
+
+**8000 sizings over 4000 random pairs drawn across the whole of `SHAPE_BOUNDS`**, including
+combinations no designer would choose:
+
+| outcome | share |
+|---|---|
+| dance at their own width | **71%** |
+| reach | **28%** |
+| let go | **1%** |
+| **hand the engine a figure it cannot deliver** | **0** |
+
+🔑 **Every number the machinery uses is read off the two bodies** — crowns, reaches, side extents,
+the handhold's own width — and every lever is bounded by the **shape editor's** range rather than by
+anything the dance knows. Arm taken ran 0.01 to 1.33 with a median of 0.26, all inside the slider.
+A 300-pair deterministic version of the sweep is now in the suite, asserting the one invariant that
+matters — `wanted < width`, always — and that all three branches are still reachable, so it stays a
+test of the cascade rather than of its first case.
+
+✅ **AND THE RESHAPE HAS ITS SECOND AIM —
+[ADR-0042](adr/0042-the-reshape-aims-at-whichever-height-costs-less.md).** The gap the generality
+check turned up: `planArch` sized the torso trade from the **beau's** shortfall against the belle's
+crown, and a short-armed *belle* got no reshape at all — her two draws produced identical plans, so
+the coin was flipped and both faces were the same.
+
+🔑 **The cancellation is real geometry, not an omission.** Her constraint is `reachUp ≥ crownBelle +
+clear − shoulderBelle`, and `d` cancels: shrinking her lowers the target and her shoulder together.
+What was missing is a **second height worth aiming at** — ADR-0041's `hi`, clear of the taller of the
+two. Aiming there does have a lever, and it points the other way: **a taller beau is answered by a
+negative `d`**, where he shrinks and she grows, so his crown comes down to meet the reach she gains.
+
+🔴 **Aiming high whenever the beau is taller was implemented first and measured worse.** It cost
+three shipped pairings: Myco/Sprout and Ryan/Sprout went 0.030 of arm to 0.040, and **Ember/Sprout
+went from dancing comfortably to needing 0.190**. Chasing a clear join costs more deformation *and*
+more room than accepting the low join and letting the hold break.
+
+🔑 **So it is chosen, not applied** — ADR-0038's rule (*an accommodation has to beat the alternative
+it was chosen over*) applied to *which* reshape. **Five of the twenty shipped orderings take the
+higher aim**, and about one in five of 4000 random pairs. It cannot lose: the aim only touches a
+reshape, only when the alternative measured larger, and `LOW` wins ties.
+
+🔴 **It did not make Ember-as-beau cheaper, and that is worth being clear about.** They still take
+0.310 of arm, because `armDelta` is solved so *both* accommodations fit and the **break** sets that
+floor. What improves is the reshape half's picture — the join clears both heads instead of sitting
+in one.
+
+✅ **AND THE RESHAPED TORSO IS DRAWN AT LAST.** Ryan, watching Sprout grow: *"his head just pops
+up with his shoulders, leaving his body the same on the ground."*
+
+🔴 **The torso mesh's scale was dividing the resolved height by the *reshaped* height — the same
+number — so it came out exactly `1` for the whole of every reshape.** The head group and the
+shoulders follow model heights and were right; the body was the one part nothing moved. The divisor
+has to be the shape the **geometry was built from**, which is what `Dancer` is handed, not the shape
+the dancer is wearing. Live since the channel was wired up, and invisible because the two numbers
+were always equal at the moment anyone looked.
+
+🔑 **And a capsule is not a box.** Scaling Y by `h'/h` stretches the two hemispherical caps as well,
+so the mesh's top lands at `(h/2 + r)·h'/h` while every measurement puts the shoulders at
+`h'/2 + r` — radius **unscaled**. On Sprout grown by 0.735 that is **0.245** of torso standing proud
+of the arms hanging off it. `bodyMeshScale` scales by the ratio of *half-extents* instead, which
+puts the top and bottom exactly where `computePositions` says they are; the caps stretch with the
+barrel, which is what a stretching torso looks like and is why this is a scale rather than a
+geometry rebuilt every frame. Its own module, so it is testable without a renderer — 4 tests, one of
+which pins the drawn top to `shoulderY` across four deltas and two casts.
+
+✅ **AND A BODY NOW GROWS FROM WHERE IT STANDS —
+[ADR-0043](adr/0043-a-body-grows-from-where-it-stands.md).** Ryan: *"I really want the bottom to stay
+where it starts when the rest grows taller — same with all the characters, Ember's body when it
+shrinks should still start below the floor."*
+
+`computePositions` centres a body on `bodyCenterY`, so a height change of `d` moved the top up by
+`d/2` and the bottom **down** by `d/2` — a body growing in both directions from its middle, which is
+not what growing looks like. A dancer stands on something.
+
+🔑 **The second half of Ryan's sentence is what names the rule.** This is *not* "put everybody's feet
+on the ground" — the cast sits at wildly different heights (Myco's underside 0.05, Sprout's 0.25,
+Ember's **−0.425**) and that stays true. What must not happen is a body changing size and taking its
+own underside with it.
+
+🔑 **Done as a rig origin, not by re-centring the body.** `ArmMetrics.rigOriginY` already means *"the
+world Y of the group these local coordinates are measured in"*, and every height comparison in the
+dance goes through it. Teaching `computePositions` to anchor at the feet would put the offset in a
+function that has no idea what the dancer's *resting* height was.
+
+🔑 **`standingLift` takes the two shapes, not the delta** — `growBody` clamps to the editor's bounds,
+so what a caller asked for and what a body took differ whenever a slider runs out. Ember asked 0.735
+takes 0.59; lifting by half the *request* would float her off her own feet by 0.0725. The signature
+makes that unwritable.
+
+**And a reshape now buys twice as much.** The grower's shoulder rises `d/2` inside the rig with the
+rig rising `d/2` under it, so a pair close a gap at **`2d`** per unit of trade and `planArch` asks
+for half the deficit. **Every reshape costs half the deformation it used to**: Myco with Ember trades
+0.364 where it traded 0.729, and Sprout with Ember settles symmetrically at 1.037/0.673 where it used
+to be pinned against **both** ends of the slider.
+
+🔴 **No outcome changed** — still 11 dancing at their own width, 9 reaching, 0 letting go, identical
+arm deltas. What changed is how a body gets there. 🔴 **And the bounds test needed a new subject**,
+which is the honest signal of the above: Sprout with Ember was *the* example of a reshape clipping at
+the editor's floor and no longer clips at all.
+
+🔴 **Six in-repo call sites were measuring a reshaped dancer standing in the wrong place** — bare
+`armMetrics(growBody(...))`. `wearing()` is exported now so a test measures a dancer the way the
+dance does.
+
+🔴 **The real cause is still upstream and untouched.** `touchHold` never floors the couple's width at
+the room their bodies need to pass, so a short-armed pair is *born* too narrow and these two
+decisions widen them one call at a time. Flooring it would be a decision about what a couple's width
+is, beside ADR-0027.
+
+🔴 **Still first, and unchanged: the pin.** Deferred to end of day at Ryan's call — the tag bump,
+the pin bump and the push to `origin` go out together.
+
+---
+
+**▶ 2026-08-22, earlier — ✅ THE WATCH IS CLOSED. 🔴 AND THE ENGINE THIS RUNS ON IS NOT THE ONE
 IT PINS.** Ryan: *"I watched two twirls and it looks good with both the resize and the break
 accommodations."* That closes the tenth chunk's verify and every render watch in the effort.
 **Nothing on screen is waiting.** **637 tests**, lint 0 errors, build clean, `docs-hygiene` clean.

@@ -27,7 +27,8 @@
  * | **emote row** | Fires a one-shot emote *while* a call runs — the ADR-0010 arbitration this scene exists to watch. Arms fold where they trespass, a gripped hand ignores the emote outright, and a spin turns the head but must never turn a driven dancer's body: judge that on the **chest** dot, not the head dot. |
  * | **joint markers** | Black = the pair's midpoint, blue = elbows, red = hands — on whichever hand is in the partner's, an engine grip or a standing couple's touch hold. A held *grip* should look nailed to the black dot while the bodies breathe past it; a *touch hold* sits off it in **two** directions — `hold.lateral` (the hands hang between the two inside shoulders, not between the two bodies) and `hold.forward` (the upper arms hang, so the hands come out in front), both printed in the readout. The forward offset is a **plan view** question: from above, the dot the pair holds over and the dot their hands are on are visibly different points (ADR-0027). Off by default — a debugging aid, not part of the dance. |
  * | **follow drift** | Re-fits the frame to the dancers' centroid as the square migrates (square-one's ADR-0006 drift). |
- * | **bodies** | Swaps the cast between size extremes, to exercise the body-derived frame scale (ADR-0012). `mixed` and `max` must visibly grow the square while everyone still clears. |
+ * | **beau / belle** | Who is dancing, from every character the game has — the four NPCs and the player. Colours are **positional**: `DanceFloor` paints occupant 0 and occupant 1, so the beau stays the beau's colour whoever stands there, and a swap changes exactly one thing. The pair is what every clearance in the arch work is solved from, so this is how a figure gets watched on a body it was not fitted to: Myco with Sprout is where it first paid off: a mismatched pair is pushed to twice their handholding width by the arch sizing, which is a defect the shipped pairing could not show. Read live through `getBodyShape`, so a body-editor edit shows up here. |
+ * | **bodies** | Overrides the chosen pair's body radius to the SHAPE_BOUNDS extremes, to exercise the body-derived frame scale (ADR-0012). `mixed` and `max` must visibly grow the square while everyone still clears. A modifier on whoever is standing there, so the frame-scale watch is available on every pairing rather than only on Myco and Ember. |
  * | **contact readout** | Min–max of every tracked quantity since the current grip engaged, so drift shows as a spread rather than scrolling past. `separation` should breathe; everything else should be flat. Off by default, and **last in the column on purpose** — it is the one element whose height changes every frame, so nothing clickable sits below it. |
  *
  * The panel is **docked** rather than floating. It used to sit `position: absolute` over
@@ -47,27 +48,65 @@ import { DEFAULT_BPM } from "./useDancePerformance";
 import { DEBUG_FIGURES, danceSceneHash, type DebugFigure } from "./dance-route";
 import { armMetrics, sideExtentAt, touchHold, touchReach } from "./arm-pose";
 import {
-  MYCO_DEFAULTS,
-  EMBER_DEFAULTS,
+  getBodyShape,
   type CharacterBodyShape,
 } from "../services/body-shapes";
+import { castRoster } from "../config/npcs";
 
 function withBodyRadius(shape: CharacterBodyShape, radius: number): CharacterBodyShape {
   return { ...shape, body: { ...shape.body, radius } };
 }
 
-/**
- * Casts for exercising the body-derived frame scale at the SHAPE_BOUNDS
- * extremes. `default` leaves DanceFloor's own cast (lands on DEFAULT_SCALE);
- * the others must visibly grow the square while everyone still clears.
- */
-const SIZE_CASTS = {
-  default: undefined,
-  mixed: [withBodyRadius(MYCO_DEFAULTS, 0.6), withBodyRadius(EMBER_DEFAULTS, 0.1)],
-  max: [withBodyRadius(MYCO_DEFAULTS, 0.6), withBodyRadius(EMBER_DEFAULTS, 0.6)],
-} as const;
+type SizeCast = "default" | "mixed" | "max";
 
-type SizeCast = keyof typeof SIZE_CASTS;
+/**
+ * Body radii for exercising the body-derived frame scale at the SHAPE_BOUNDS extremes,
+ * as `[beau, belle]`. `default` dances the two chosen characters as they are authored
+ * (which on Myco/Ember lands on DEFAULT_SCALE); the others must visibly grow the square
+ * while everyone still clears.
+ *
+ * 🔑 **A size cast is a modifier on the chosen pair, not a cast of its own.** It used to
+ * name Myco and Ember directly, which meant the size extremes could only ever be watched
+ * on that one pairing — and the pairing is now a dropdown. Overriding one field of
+ * whoever is standing there keeps the frame-scale watch (ADR-0012) available on every
+ * pair the scene can put up.
+ */
+const BODY_RADII: Record<SizeCast, readonly [number, number] | undefined> = {
+  default: undefined,
+  mixed: [0.6, 0.1],
+  max: [0.6, 0.6],
+};
+
+/** Who stands where when the scene opens — the pair every measurement in the ADRs is quoted on. */
+const DEFAULT_CAST = { beau: "myco", belle: "ember" } as const;
+
+/** The beau and the belle, in the order `DanceFloor` reads them: `[0]` wears the engine's key `a`. */
+type CoupleShapes = readonly [CharacterBodyShape, CharacterBodyShape];
+
+/**
+ * The two dancers, as bodies.
+ *
+ * 🔴 **Read through {@link getBodyShape}, so this is the character as it exists** —
+ * body-editor edits included — rather than the authored constant. That is the point of a
+ * picker (the scene should dance the Myco the game draws), and it is also the one way
+ * this scene can now disagree with a number quoted in an ADR: those were measured on the
+ * *defaults*. With nothing saved the two are identical, and the hold readout below is
+ * solved from these same shapes, so the panel still cannot disagree with the picture.
+ *
+ * 🔑 **The player is a body shape like any other here.** `Dancer` seats every occupant at
+ * `NPC_BODY_CENTER_Y` and every measurement in the dance code reads the same constant, so
+ * the rig-origin trap `ArmMetrics.rigOriginY` warns about — the player's group sitting at
+ * a different world height from an NPC's — cannot be sprung inside `DanceFloor`. What the
+ * player brings is proportions, which is exactly what is being watched.
+ */
+function castShapes(beauId: string, belleId: string, sizes: SizeCast): CoupleShapes {
+  const radii = BODY_RADII[sizes];
+  const pick = (id: string, i: 0 | 1): CharacterBodyShape => {
+    const shape = getBodyShape(id);
+    return radii === undefined ? shape : withBodyRadius(shape, radii[i]);
+  };
+  return [pick(beauId, 0), pick(belleId, 1)];
+}
 
 /**
  * The couple's solved handhold for a cast, as text — the numbers behind what the
@@ -83,9 +122,9 @@ type SizeCast = keyof typeof SIZE_CASTS;
  * dancers share equally**; the fractions differ with the arms, and a shorter-armed dancer
  * spends more of themselves on the same distance.
  */
-function holdReadout(cast: readonly CharacterBodyShape[]): string {
-  const beau = armMetrics(cast[0] ?? MYCO_DEFAULTS);
-  const belle = armMetrics(cast[1] ?? EMBER_DEFAULTS);
+function holdReadout(cast: CoupleShapes): string {
+  const beau = armMetrics(cast[0]);
+  const belle = armMetrics(cast[1]);
   const hold = touchHold(beau, belle);
   const lines = [
     `stance   ${hold.width.toFixed(3)}  hands ${hold.height.toFixed(3)}`,
@@ -135,6 +174,16 @@ function track(spans: Map<string, Span>, name: string, value: number): void {
   seen.max = Math.max(seen.max, value);
 }
 
+/** The two cast dropdowns, styled to sit with the panel's light chrome rather than the
+ *  browser default, which is a full shade darker than everything around it. */
+const CAST_SELECT: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #999",
+  borderRadius: 4,
+  color: "#333",
+  padding: "3px 6px",
+};
+
 /** Width of the docked control column, in px. Wide enough for the emote row not to
  *  wrap and narrow enough to leave the floor the majority of the window. */
 const PANEL_WIDTH = 320;
@@ -160,6 +209,7 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
   const [bpm, setBpm] = useState(DEFAULT_BPM);
   const [drift, setDrift] = useState(false);
   const [sizes, setSizes] = useState<SizeCast>("default");
+  const [castIds, setCastIds] = useState<{ beau: string; belle: string }>({ ...DEFAULT_CAST });
   const [paused, setPaused] = useState(false);
   // Bumped to send the square home; `DanceFloor` reads the change, not the value.
   const [home, setHome] = useState(0);
@@ -171,6 +221,17 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
   // fire an emote at a chosen moment. It is for judging grip drift; that watch is
   // done, and it can be turned back on for the next one.
   const [readout, setReadout] = useState(false);
+
+  /**
+   * The two bodies on the floor. Memoised on the three things that choose them, because
+   * `DanceFloor` is keyed on the same three: a new array identity every render would be
+   * harmless to the render and misleading to read.
+   */
+  const cast = useMemo(
+    () => castShapes(castIds.beau, castIds.belle, sizes),
+    [castIds.beau, castIds.belle, sizes],
+  );
+  const castOptions = castRoster();
 
   // One expression layer per dancer, so an emote can be fired *while* a call runs —
   // the arbitration this scene exists to watch. Both dancers get the same emote:
@@ -484,9 +545,39 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
           <input type="checkbox" checked={drift} onChange={(e) => { setDrift(e.target.checked); }} />
           follow drift (re-fit frame to centroid)
         </label>
+        {/* Who is dancing. Colours stay positional — `DanceFloor` paints occupant 0 and
+            occupant 1, not Myco and Ember — so the beau is the same colour whoever is
+            standing there, and the two dropdowns read as two *places* rather than two
+            people. That is what makes swapping a body a controlled change. */}
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <label style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            beau
+            <select
+              value={castIds.beau}
+              onChange={(e) => { setCastIds((c) => ({ ...c, beau: e.target.value })); }}
+              style={CAST_SELECT}
+            >
+              {castOptions.map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            belle
+            <select
+              value={castIds.belle}
+              onChange={(e) => { setCastIds((c) => ({ ...c, belle: e.target.value })); }}
+              style={CAST_SELECT}
+            >
+              {castOptions.map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           bodies
-          {(Object.keys(SIZE_CASTS) as SizeCast[]).map((s) => (
+          {(Object.keys(BODY_RADII) as SizeCast[]).map((s) => (
             <button
               key={s}
               onClick={() => { setSizes(s); }}
@@ -521,7 +612,7 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
                 whiteSpace: "pre",
               }}
             >
-              {holdReadout(SIZE_CASTS[sizes] ?? [MYCO_DEFAULTS, EMBER_DEFAULTS])}
+              {holdReadout(cast)}
             </pre>
             <span style={{ color: "#666", fontSize: 11 }}>
               The standing couple, solved from the two bodies. The hands hang halfway
@@ -632,9 +723,10 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
         <arrowHelper args={[new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0.02, 0), 2.2, 0x3355cc]} />
 
         {/* Keyed on the cast: the frame (and its body-derived scale) is built
-            once per mount, so a new cast means a fresh DanceFloor. */}
+            once per mount, so a new cast means a fresh DanceFloor — which is now either
+            dancer being swapped as well as the size extreme being changed. */}
         <DanceFloor
-          key={sizes}
+          key={`${castIds.beau}|${castIds.belle}|${sizes}`}
           call={call}
           {...(figure.sequence === undefined ? {} : { sequence: figure.sequence })}
           bpm={bpm}
@@ -645,7 +737,7 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
           onBeat={onBeat}
           onArms={onArms}
           controllers={controllers}
-          {...(SIZE_CASTS[sizes] === undefined ? {} : { shapes: SIZE_CASTS[sizes] })}
+          shapes={cast}
         />
 
         {/* Joint markers: black = the pair's midpoint, blue = each elbow, red = each

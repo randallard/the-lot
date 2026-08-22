@@ -49,15 +49,26 @@
 import {
   armMetrics,
   sideExtentAt,
+  touchHold,
   type ArmMetrics,
 } from "./arm-pose";
-import { type CharacterBodyShape } from "../services/body-shapes";
+import {
+  lateralClearance,
+  rigidParts,
+  NPC_BODY_CENTER_Y,
+  SHAPE_BOUNDS,
+  type CharacterBodyShape,
+} from "../services/body-shapes";
+import { CLEARANCE_MARGIN } from "./frame";
 import {
   BREAK,
   OVERSHOOT,
   RESHAPE,
   growBody,
+  growUpperArm,
   reshapeDeltas,
+  standingLift,
+  UPPER_ARM_STEP,
   type Accommodation,
   type BodyDeltas,
 } from "./accommodation";
@@ -198,6 +209,100 @@ export interface ArchPlan {
 }
 
 /**
+ * This dancer as they are while wearing a reshape — the grown shape, measured from a rig lifted by
+ * {@link standingLift} so their feet stay where they were (ADR-0043).
+ *
+ * Returns the resting metrics untouched when there is no trade, which is every pair who can make
+ * the hold and every `BREAK`.
+ */
+export function wearing(rest: ArmMetrics, shape: CharacterBodyShape, delta: number): ArmMetrics {
+  if (delta === 0) return rest;
+  const grown = growBody(shape, delta);
+  return armMetrics(grown, NPC_BODY_CENTER_Y, standingLift(shape, grown));
+}
+
+/**
+ * What a reshape is trying to make reachable — the two heights worth aiming a torso trade at.
+ *
+ * - {@link LOW} — **the belle's crown plus headroom**, the least ambitious thing that works: she
+ *   has to walk under the join, so the hold has to survive at *that* height and no higher. Every
+ *   reshape aimed here until 2026-08-22.
+ * - {@link CLEAR} — **the taller dancer's crown plus headroom**, so the join comes out clear of
+ *   both of them ([ADR-0041](../../docs/adr/0041-the-join-rises-as-far-as-the-pair-can-lift-it.md)'s
+ *   `hi`). Costs more deformation and can cost the *figure* more room; it is the only aim that
+ *   gives a pair with a much taller **beau** a reshape worth drawing.
+ */
+export type ReshapeAim = typeof LOW | typeof CLEAR;
+export const LOW = "low";
+export const CLEAR = "clear";
+
+/**
+ * The signed torso trade a reshape takes — positive grows the beau and shrinks the belle.
+ *
+ * 🔑 **Whoever sets the height cannot reshape their own way up to it.** Growing a dancer raises
+ * their shoulder and their crown by the same `d/2`, so `d` cancels out of their own constraint
+ * entirely — a fact `planArch`'s algebra has recorded since it was written. The lever therefore
+ * belongs to the *other* dancer, and which one that is decides the **sign**: aiming at a taller
+ * beau's crown means a **negative** `d`, where he shrinks and she grows, so his crown comes down
+ * to meet the reach she is gaining.
+ *
+ * 🔴 **Under {@link LOW} a short-armed belle has no lever at all**, and that is geometry rather
+ * than an omission: the target is her own crown, so shrinking her lowers the target and her
+ * shoulder together. It is why her two draws used to produce identical plans.
+ */
+function reshapeDeficit(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  clear: number,
+  separation: number,
+  aim: ReshapeAim,
+): number {
+  const beauTaller = crownOf(beau) > crownOf(belle);
+  const high = aim === CLEAR && beauTaller;
+  const target = (high ? crownOf(beau) : crownOf(belle)) + clear;
+  const shortfall = Math.max(0, target - reachCeiling(high ? belle : beau, separation));
+  return high ? -shortfall : shortfall;
+}
+
+/**
+ * How high the joined hands go — **the lowest that clears the belle, allowed to rise as far as
+ * clearing the beau if the two of them can reach that high** (ADR-0041).
+ *
+ * Three heights, and the answer is the middle one clamped by the first:
+ *
+ * - **`lo` — the belle's crown plus headroom.** She walks under it, so it can never be lower;
+ *   this was the whole rule until 2026-08-22.
+ * - **`hi` — clear of the *taller* of them.** `archLateral` has always documented the arch as
+ *   sitting "above both crowns by construction… so there is no body to be inside of". That was
+ *   an assertion the code did not maintain: with a beau much taller than his partner, `lo` lands
+ *   level with **his own head**, and the joined hand — and her arm reaching it — is then inside
+ *   it. Ember as beau with Myco was 1.640 against a head spanning 1.275 to 2.155.
+ * - **`both` — as high as the pair can actually get it**, the lower of the two reaches. A join
+ *   nobody can hold is not a join; going above this is how you get a hold that breaks for no
+ *   reason a watcher could name.
+ *
+ * 🔑 **It rises when it can and not otherwise**, which is why every pair who could already dance
+ * an arch dances exactly the arch they danced before. Raising it unconditionally to `hi` was
+ * tried first and it charged the whole cast for two pairings — it even put a hairline break in
+ * the *default* pair's reshape, because growing the beau to reach the join also raises his crown,
+ * so above the crossover he chases his own head.
+ *
+ * 🔑 **And it composes with the reach** (ADR-0040): lengthening the upper arm raises `both`, so a
+ * pair who could not lift the join clear of the tall one's head can reach until they can.
+ */
+function archHeight(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  clear: number,
+  separation: number,
+): number {
+  const lo = crownOf(belle) + clear;
+  const hi = Math.max(crownOf(beau), crownOf(belle)) + clear;
+  const both = Math.min(reachCeiling(beau, separation), reachCeiling(belle, separation));
+  return Math.max(lo, Math.min(hi, both));
+}
+
+/**
  * Plan an arch for this pair at this separation.
  *
  * ## The algebra, which is short and does the whole job
@@ -238,25 +343,27 @@ export function planArch(
   belleShape: CharacterBodyShape,
   separation: number,
   accommodation: Accommodation,
+  aim: ReshapeAim = LOW,
 ): ArchPlan {
   const clear = headroom(beau, belle);
   const lateral = archLateral(beau, belle);
-  const wanted = crownOf(belle) + clear;
 
-  const deficit = Math.max(0, wanted - reachCeiling(beau, separation));
+  const deficit = reshapeDeficit(beau, belle, clear, separation, aim);
   const bodyDeltas =
     accommodation === RESHAPE
-      ? reshapeDeltas(beauShape, belleShape, deficit * (1 + OVERSHOOT))
+      // 🔑 **Half the deficit, because a trade of `d` now closes `2d`** (ADR-0043): each dancer
+      // moves `d/2` inside their own rig and their rig moves `d/2` under them.
+      ? reshapeDeltas(beauShape, belleShape, (deficit / 2) * (1 + OVERSHOOT))
       : { beau: 0, belle: 0 };
 
   // Re-measure whoever changed. Body height moves a shoulder and a crown by half of itself,
   // so this could be arithmetic — but `armMetrics` also re-derives `restX` from what is
   // beside the arm at its new height, and a shape that has grown is a shape this module has
   // no business half-measuring.
-  const b = bodyDeltas.beau === 0 ? beau : armMetrics(growBody(beauShape, bodyDeltas.beau));
-  const l = bodyDeltas.belle === 0 ? belle : armMetrics(growBody(belleShape, bodyDeltas.belle));
+  const b = wearing(beau, beauShape, bodyDeltas.beau);
+  const l = wearing(belle, belleShape, bodyDeltas.belle);
 
-  const height = crownOf(l) + clear;
+  const height = archHeight(b, l, clear, separation);
   // Where both of them are reaching. Whoever can span it arrives; whoever cannot stops
   // short along the line to it — across as well as up (ADR-0038).
   const target: HandPoint = { height, lateral };
@@ -302,6 +409,25 @@ export function planArch(
  *
  * A break is the binding one, and the reason is worth keeping: its beau never gets his hand up,
  * so the join sits lower, where a head is wider.
+ *
+ * ## Each hand is charged against the *other* dancer, from where it actually is
+ *
+ * 🔴 **Both halves of that sentence were wrong until 2026-08-22**, and both inflated the answer.
+ * It took `max(sideExtentAt(beau, h), sideExtentAt(belle, h))` and doubled it, which charges
+ * every hand against **both** bodies — including **its own owner's**. A joined hand hangs off a
+ * shoulder; it does not have to clear the dancer it is attached to. On Ember-as-beau with Myco
+ * the join sits at 1.640, level with **Ember's own head**, and the pair were charged
+ * `2 x (0.434 + 0.110)` for Ember's hand clearing Ember.
+ *
+ * 🔴 **And it measured from the couple's midpoint**, ignoring `plan.lateral` — flagged in
+ * ADR-0038's consequences and deferred there, because folding it in would have put two decisions
+ * in one file and because the term is *zero* on the shipped pairing. It is not zero on nine
+ * others. This one corrects in **both** directions: an off-centre join is further from one
+ * dancer and nearer the other, so the default pair's reshape goes **0.220 -> 0.320** (it had been
+ * under-charged) while their break goes **1.085 -> 1.032**.
+ *
+ * The pairing that found it could not be stood up until `#dance` grew a cast picker, which is
+ * the argument for the picker rather than for this function.
  */
 export function archClearance(
   beau: ArmMetrics,
@@ -310,20 +436,25 @@ export function archClearance(
   belleShape: CharacterBodyShape,
   width: number,
   accommodation: Accommodation,
+  aim: ReshapeAim = LOW,
 ): number {
-  const hand = Math.max(beau.handRadius, belle.handRadius);
-  const plan = planArch(beau, belle, beauShape, belleShape, width, accommodation);
-  const b =
-    plan.bodyDeltas.beau === 0 ? beau : armMetrics(growBody(beauShape, plan.bodyDeltas.beau));
-  const l =
-    plan.bodyDeltas.belle === 0 ? belle : armMetrics(growBody(belleShape, plan.bodyDeltas.belle));
+  const plan = planArch(beau, belle, beauShape, belleShape, width, accommodation, aim);
+  const b = wearing(beau, beauShape, plan.bodyDeltas.beau);
+  const l = wearing(belle, belleShape, plan.bodyDeltas.belle);
+
+  // One row per hand: whose hand it is, how big it is, whose body it has to get past, and
+  // which way its own lateral pushes the answer. `lateral` runs toward the belle, so a hand
+  // that leans her way is *closer* to her and *further* from him — hence the opposite signs.
+  const hands = [
+    { hand: plan.hands.beau, radius: b.handRadius, other: l.parts, sign: 1 },
+    { hand: plan.hands.belle, radius: l.handRadius, other: b.parts, sign: -1 },
+  ] as const;
+
   let need = 0;
-  // Each hand sits at the pair's midpoint, so each must clear **both** bodies' cross-sections
-  // at its own height — half the separation each way. `sideExtentAt` narrows a head toward
-  // its poles, so a hand held high over a crown costs less than one held at eye level.
-  for (const height of [plan.hands.beau.height, plan.hands.belle.height]) {
-    const widest = Math.max(sideExtentAt(b.parts, height), sideExtentAt(l.parts, height));
-    need = Math.max(need, 2 * (widest + hand));
+  for (const { hand, radius, other, sign } of hands) {
+    // The other dancer stands half a separation from the midpoint; the hand stands `lateral`
+    // from it. Solve `halfSeparation - sign * lateral >= extent + radius` for the separation.
+    need = Math.max(need, 2 * (sideExtentAt(other, hand.height) + radius + sign * hand.lateral));
   }
   return need;
 }
@@ -455,6 +586,23 @@ export interface ArchSizing {
   readonly wanted: number;
   /** How far apart the pair stand while dancing it, in world units. */
   readonly width: number;
+  /**
+   * How much undrawn upper arm both dancers take for this call — **the last resort**, `0` on
+   * every pair who did not need it (ADR-0040).
+   *
+   * A property of the *pair* rather than of the draw: it is solved so that **both**
+   * accommodations fit, so the couple stand in the same place whichever way the coin lands and
+   * only the torsos and the bow differ between two Twirls. A width that changed with the draw
+   * would put the per-execution difference in the one place a watcher reads as the floor
+   * plan.
+   */
+  readonly armDelta: number;
+  /**
+   * Which height this execution's reshape was aimed at (ADR-0042) — kept so the pose plans the
+   * same pair the figure was sized for. `LOW` unless aiming clear of a taller beau came out
+   * *cheaper*, which is the only condition under which it is taken.
+   */
+  readonly aim: ReshapeAim;
 }
 
 /**
@@ -475,9 +623,17 @@ export interface ArchSizing {
  *    the same two people.
  * 3. **Whether it fits at all.** A clearance at or above the couple's own width cannot be
  *    delivered at any bow (square-one ADR-0018) and is silently answered with the widest bow the
- *    figure has. When neither accommodation fits, the pair let go — and a pair who have let go
- *    are not held to a handhold's width, so they stand at **twice** the room they need, where the
- *    beau's arc delivers it on its own radius with no bow at all.
+ *    figure has.
+ * 4. **What to do when it does not** — and there are two answers, in order (ADR-0040):
+ *    - 🔑 **First they reach for it.** Both dancers lengthen the undrawn upper arm by the least
+ *      the editor's own slider allows them to, until the figure fits. It buys reach one-for-one
+ *      *and* widens the couple, because `touchHold` solves the standing width from how far the
+ *      two can reach across — so it is the only lever that answers a pair whose **bodies** will
+ *      not pass at the width their handhold gave them. Myco with Sprout costs **0.030**.
+ *    - **Only then do they let go.** A pair who have let go are not held to a handhold's width,
+ *      so they stand at **twice** the room they need, where the beau's arc delivers it on its
+ *      own radius with no bow at all (ADR-0037 part 3). On the shipped cast this is now reached
+ *      by two orderings out of twenty rather than nine.
  */
 export function sizeArch(
   beau: ArmMetrics,
@@ -488,24 +644,117 @@ export function sizeArch(
   bodies: number,
   drawn: Accommodation,
 ): ArchSizing {
-  const need = (mode: Accommodation): number => {
-    const plan = planArch(beau, belle, beauShape, belleShape, width, mode);
-    const b =
-      plan.bodyDeltas.beau === 0 ? beau : armMetrics(growBody(beauShape, plan.bodyDeltas.beau));
-    const l =
-      plan.bodyDeltas.belle === 0 ? belle : armMetrics(growBody(belleShape, plan.bodyDeltas.belle));
+  const aim = cheaperAim(beau, belle, beauShape, belleShape, width, bodies);
+  const base = archRoom(beau, belle, beauShape, belleShape, width, bodies, aim);
+
+  // 🔴 **Asked of both accommodations, not of the drawn one.** `armDelta` is a fact about the
+  // pair (see {@link ArchSizing.armDelta}), so the pair reach when *either* draw would need it —
+  // otherwise a Twirl that drew the cheaper accommodation would stand somewhere different from
+  // the one before it, which is the per-execution difference showing up in the floor plan.
+  if (base(RESHAPE) < width && base(BREAK) < width) {
+    return { accommodation: drawn, wanted: base(drawn), width, armDelta: 0, aim };
+  }
+
+  const reached = reachForIt(beauShape, belleShape);
+  if (reached !== null) {
+    return {
+      accommodation: drawn,
+      wanted: reached.room(drawn),
+      width: reached.width,
+      armDelta: reached.delta,
+      aim: reached.aim,
+    };
+  }
+
+  const broken = base(BREAK);
+  return { accommodation: BREAK, wanted: broken, width: 2 * broken, armDelta: 0, aim };
+}
+
+/**
+ * Which height to aim this pair's reshape at — **whichever asks the figure for less room**
+ * (ADR-0042).
+ *
+ * 🔑 **An accommodation has to beat the alternative it was chosen over.** That is ADR-0038's rule,
+ * learned from a reshape that was signed backwards and finished further apart than doing nothing,
+ * and it applies to *which* reshape just as much as to reshape-versus-break. Aiming clear of a
+ * taller beau buys a join above both crowns and costs a much larger torso trade; measured across
+ * the shipped cast it wins on some pairings and loses on others, and there is no rule shorter than
+ * asking.
+ *
+ * `LOW` on a tie, so a pair who gain nothing from the deformation do not wear it.
+ */
+function cheaperAim(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  beauShape: CharacterBodyShape,
+  belleShape: CharacterBodyShape,
+  width: number,
+  bodies: number,
+): ReshapeAim {
+  if (crownOf(beau) <= crownOf(belle)) return LOW;
+  const low = archRoom(beau, belle, beauShape, belleShape, width, bodies, LOW)(RESHAPE);
+  const clear = archRoom(beau, belle, beauShape, belleShape, width, bodies, CLEAR)(RESHAPE);
+  return clear < low ? CLEAR : LOW;
+}
+
+/** The room an arch needs for this pair at this width, per accommodation. */
+function archRoom(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  beauShape: CharacterBodyShape,
+  belleShape: CharacterBodyShape,
+  width: number,
+  bodies: number,
+  aim: ReshapeAim = LOW,
+): (mode: Accommodation) => number {
+  return (mode) => {
+    const plan = planArch(beau, belle, beauShape, belleShape, width, mode, aim);
+    const b = wearing(beau, beauShape, plan.bodyDeltas.beau);
+    const l = wearing(belle, belleShape, plan.bodyDeltas.belle);
     return Math.max(
-      // What must fit at each hand's own height (ADR-0018).
-      archClearance(beau, belle, beauShape, belleShape, width, mode),
+      // What must fit at each hand's own height (ADR-0018, ADR-0039).
+      archClearance(beau, belle, beauShape, belleShape, width, mode, aim),
       // What the arms holding those hands up sweep through on the way (ADR-0038).
       armSweepClearance(b, l, plan.hands),
       // And never less than two bodies passing hands-free (ADR-0037).
       bodies,
     );
   };
+}
 
-  const wanted = need(drawn);
-  if (wanted < width) return { accommodation: drawn, wanted, width };
-  const broken = need(BREAK);
-  return { accommodation: BREAK, wanted: broken, width: 2 * broken };
+/**
+ * The least upper arm, in the editor's own steps, that lets this pair dance an arch at the
+ * width it puts them at — **the last resort** (ADR-0040). `null` when no length within the
+ * shape editor's bounds is enough.
+ *
+ * Solved for **both** accommodations rather than the drawn one, so the pair stand in the same
+ * place whichever way the coin lands; see {@link ArchSizing.armDelta}.
+ */
+function reachForIt(
+  beauShape: CharacterBodyShape,
+  belleShape: CharacterBodyShape,
+): { delta: number; width: number; aim: ReshapeAim; room: (mode: Accommodation) => number } | null {
+  const { max } = SHAPE_BOUNDS.layout.upperArmSpacing;
+  const room = Math.max(
+    max - beauShape.layout.upperArmSpacing,
+    max - belleShape.layout.upperArmSpacing,
+  );
+  const steps = Math.round(room / UPPER_ARM_STEP);
+  for (let i = 1; i <= steps; i++) {
+    const delta = i * UPPER_ARM_STEP;
+    const bs = growUpperArm(beauShape, delta);
+    const ls = growUpperArm(belleShape, delta);
+    const bm = armMetrics(bs);
+    const lm = armMetrics(ls);
+    // 🔑 **The width is re-solved, not carried.** Longer arms reach further across, so the
+    // couple stand further apart — which is the half of this lever that answers a pair whose
+    // *bodies* will not pass at the width their handhold gave them.
+    const width = touchHold(bm, lm).width;
+    const bodies = CLEARANCE_MARGIN * lateralClearance(rigidParts(bs), rigidParts(ls));
+    // The aim is re-chosen on the longer arms: reaching moves what each one costs.
+    const aim = cheaperAim(bm, lm, bs, ls, width, bodies);
+    const at = archRoom(bm, lm, bs, ls, width, bodies, aim);
+    if (at(RESHAPE) < width && at(BREAK) < width) return { delta, width, aim, room: at };
+  }
+  return null;
 }

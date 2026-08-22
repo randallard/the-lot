@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { NPC_CONFIGS, getNpcById } from "./npcs";
+import { NPC_CONFIGS, getNpcById, castRoster, PLAYER_ID } from "./npcs";
 
 describe("NPC_CONFIGS", () => {
   it("has at least 3 NPCs configured", () => {
@@ -51,5 +51,31 @@ describe("getNpcById", () => {
     for (const npc of NPC_CONFIGS) {
       expect(getNpcById(npc.id)).toBe(npc);
     }
+  });
+});
+
+describe("castRoster", () => {
+  it("puts the player first, since they are not an NPC and have no config row", () => {
+    const roster = castRoster();
+    expect(roster[0]?.id).toBe(PLAYER_ID);
+  });
+
+  it("offers every configured NPC, in configured order", () => {
+    expect(castRoster().slice(1).map((e) => e.id)).toEqual(NPC_CONFIGS.map((n) => n.id));
+  });
+
+  it("labels each NPC with its display name", () => {
+    const roster = castRoster();
+    for (const npc of NPC_CONFIGS) {
+      expect(roster.find((e) => e.id === npc.id)?.label).toBe(npc.displayName);
+    }
+  });
+
+  // The defect a shared roster exists to rule out: a picker that offers an id nothing
+  // else can resolve. Every entry has to be addressable as a body shape.
+  it("has unique ids and a non-empty label on every entry", () => {
+    const roster = castRoster();
+    expect(new Set(roster.map((e) => e.id)).size).toBe(roster.length);
+    for (const e of roster) expect(e.label).toBeTruthy();
   });
 });

@@ -127,6 +127,11 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0036](0036-the-arch-clearance-carries-its-own-margin.md) | The arch clearance carries its own margin, and must stay inside the couple's width | Accepted |
 | [0037](0037-the-figure-is-sized-to-the-accommodation-drawn.md) | The figure is sized to the accommodation drawn, and a pair who let go are not held to a handhold's width | Accepted |
 | [0038](0038-the-arm-holding-the-arch-up-is-in-the-gap-too.md) | The arm holding the arch up is in the gap too, and each arm is swept to its own hand | Accepted |
+| [0039](0039-a-hand-is-charged-against-the-other-dancer.md) | A joined hand is charged against the other dancer only, and from where it actually is | Accepted |
+| [0040](0040-a-pair-reach-before-they-let-go.md) | A pair reach with the undrawn upper arm before they let go | Accepted |
+| [0041](0041-the-join-rises-as-far-as-the-pair-can-lift-it.md) | The join rises as far as the pair can lift it clear, and no further | Accepted |
+| [0042](0042-the-reshape-aims-at-whichever-height-costs-less.md) | The reshape aims at whichever height asks the figure for less room | Accepted |
+| [0043](0043-a-body-grows-from-where-it-stands.md) | A body grows from where it stands, and the rig carries the difference | Accepted |
 
 ## Decisions this repo inherits
 

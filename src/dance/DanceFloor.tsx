@@ -30,6 +30,7 @@ import {
   type DancerExpressionRigs,
   type DancerRig,
 } from "./Dancer";
+import { bodyMeshScale } from "./dancer-mesh";
 import {
   advanceGripBlend,
   armMetrics,
@@ -64,12 +65,14 @@ import {
   type WorldPoint,
 } from "./frame";
 import { COUPLE_WIDTH, type ShapeAt } from "square-one";
-import { planArch, sizeArch, type ArchPlan, type ArchSizing } from "./arch";
+import { LOW, planArch, sizeArch, type ArchPlan, type ArchSizing } from "./arch";
 import { pairGripRadius, planForearm, type ForearmPlan } from "./forearm-hold";
 import {
   BREAK,
   drawAccommodation,
   growBody,
+  growUpperArm,
+  standingLift,
   type Accommodation,
 } from "./accommodation";
 import { useDancePerformance, type DancePerformanceOptions } from "./useDancePerformance";
@@ -220,6 +223,35 @@ const DEFAULT_SHAPES = [MYCO_DEFAULTS, EMBER_DEFAULTS] as const;
 const DEBUG_COLORS = ["#e2725b", "#5b8ce2"] as const;
 
 const SIDES = ["left", "right"] as const;
+
+/**
+ * A dancer with the arch's upper-arm extension on, or the very same object when there is none
+ * — identity matters, because the callers use it to skip a per-frame `armMetrics`.
+ */
+function reached(
+  shape: CharacterBodyShape | undefined,
+  armDelta: number,
+): CharacterBodyShape | undefined {
+  if (shape === undefined || armDelta === 0) return shape;
+  return growUpperArm(shape, armDelta);
+}
+
+/**
+ * A dancer wearing both of an arch's shape changes: the torso trade that closes the pair's gap
+ * (ADR-0028) and the upper arm they reached with (ADR-0040).
+ *
+ * Returns the argument unchanged when neither applies, which is every pair who can simply make
+ * the hold — and every frame outside a hold — so the `armMetrics` above it is not paid for.
+ */
+function reshaped(
+  shape: CharacterBodyShape,
+  bodyDelta: number,
+  armDelta: number,
+): CharacterBodyShape {
+  if (bodyDelta === 0 && armDelta === 0) return shape;
+  const grown = bodyDelta === 0 ? shape : growBody(shape, bodyDelta);
+  return armDelta === 0 ? grown : growUpperArm(grown, armDelta);
+}
 
 /** Straight-line interpolation. Named because the arch uses it four times on one hold. */
 function lerp(from: number, to: number, t: number): number {
@@ -536,9 +568,15 @@ export function DanceFloor({
      * styles out of `arch.ts` was for (ADR-0033).
      */
     forearm: ForearmPlan | null;
+    /**
+     * The upper-arm extension this execution is dancing with — `0` unless `sizeArch` had to
+     * reach for it (ADR-0040). Eased in by `blend` like the reshape, and for the same reason:
+     * an arm that snapped to length would be a limb popping rather than a dancer stretching.
+     */
+    armDelta: number;
     /** 0 hands down and shapes unchanged, 1 fully into the hold. */
     blend: number;
-  }>({ span: null, accommodation: BREAK, plan: null, forearm: null, blend: 0 });
+  }>({ span: null, accommodation: BREAK, plan: null, forearm: null, armDelta: 0, blend: 0 });
 
   // The only eased quantity in the arm channel: how far each hand is into its grip.
   const blends = useMemo(() => {
@@ -670,14 +708,38 @@ export function DanceFloor({
             const chosen = archOrdinal < 0 ? undefined : arches[archOrdinal];
             under.accommodation =
               chosen === undefined || chosen === null ? drawAccommodation() : chosen.accommodation;
-            const beauM = metrics[0];
-            const belleM = metrics[1];
-            const beauS = occupantShapes[0];
-            const belleS = occupantShapes[1];
+            /*
+             * 🔴 **The arms this pair are dancing with, which are not always the ones they
+             * stand around in** (ADR-0040). When neither accommodation could be delivered at
+             * the couple's own width, `sizeArch` lengthened the undrawn upper arm until the
+             * figure fit — and it re-solved the couple's width on the longer arms, because
+             * that is half of what the lever buys. The plan has to be made on the same pair
+             * `sizeArch` sized the figure for, or the arms would pose for one body and the
+             * bow be built for another, which is ADR-0037's defect in a new costume.
+             *
+             * 🔴 **Which also fixes the let-go case, quietly, and it is worth saying out loud.**
+             * The plan used to be made at `hold.width` whatever `sizeArch` decided — so a pair
+             * standing at *twice* the room (ADR-0037 part 3) had their arms solved for a
+             * separation they were not standing at. `stood` is the width they actually dance
+             * at, in every branch.
+             */
+            under.armDelta = chosen == null ? 0 : chosen.armDelta;
+            const stood = chosen == null ? undefined : chosen.width;
+            const beauS = reached(occupantShapes[0], under.armDelta);
+            const belleS = reached(occupantShapes[1], under.armDelta);
+            const beauM = under.armDelta === 0 || !beauS ? metrics[0] : armMetrics(beauS);
+            const belleM = under.armDelta === 0 || !belleS ? metrics[1] : armMetrics(belleS);
             const pair = beauM && belleM && beauS && belleS;
             under.plan =
               pair && hold && heldSpan.grip === "arch"
-                ? planArch(beauM, belleM, beauS, belleS, hold.width, under.accommodation)
+                ? planArch(
+                    beauM, belleM, beauS, belleS,
+                    stood ?? hold.width,
+                    under.accommodation,
+                    // Same aim `sizeArch` chose (ADR-0042) — a reshape posed at one height while
+                    // the bow was built for another is the whole class of defect ADR-0037 closed.
+                    chosen == null ? LOW : chosen.aim,
+                  )
                 : null;
             under.forearm =
               pair && heldSpan.grip === "forearm"
@@ -736,10 +798,23 @@ export function DanceFloor({
           const deltas = plan?.bodyDeltas ?? under.forearm?.bodyDeltas ?? null;
           const myDelta = deltas === null ? 0 : deltas[mine] * under.blend;
           const theirDelta = deltas === null ? 0 : deltas[theirs] * under.blend;
-          const shape = myDelta === 0 ? baseShape : growBody(baseShape, myDelta);
-          const me = myDelta === 0 ? baseMe : armMetrics(shape);
+          // 🔑 **Both dancers take the same arm**, unlike the torso trade, which is signed.
+          // The reshape moves one *against* the other because it is closing a gap between
+          // them; the reach is the pair asking the same question of both their arms.
+          const armDelta = under.armDelta * under.blend;
+          const shape = reshaped(baseShape, myDelta, armDelta);
+          // 🔑 **A reshaped dancer stands on a lifted rig** (ADR-0043), so the bottom of the body
+          // stays put and the whole height change goes upward. `rigOriginY` is what that is for,
+          // and every height comparison in the dance already reads it.
+          const me =
+            shape === baseShape
+              ? baseMe
+              : armMetrics(shape, NPC_BODY_CENTER_Y, standingLift(baseShape, shape));
+          const theirShape = reshaped(partnerShape, theirDelta, armDelta);
           const them =
-            theirDelta === 0 ? baseThem : armMetrics(growBody(partnerShape, theirDelta));
+            theirShape === partnerShape
+              ? baseThem
+              : armMetrics(theirShape, NPC_BODY_CENTER_Y, standingLift(partnerShape, theirShape));
           track.bodyDelta = myDelta;
 
           const spans = runtime.motions[key]?.grips ?? [];
@@ -853,15 +928,24 @@ export function DanceFloor({
 
           const parts = expressions[key];
           if (parts) {
-            rig.position.y = ex.bodyDeltaY;
+            // The emote's jump, plus the lift that keeps a changed body standing on its own
+            // bottom (ADR-0043). Measured against the shape the geometry was **built** from, so
+            // it covers a reshape and an emote's `bodyHeightDelta` with one rule.
+            rig.position.y =
+              ex.bodyDeltaY + standingLift(baseShape, ex.shape);
 
             const body = parts.body.current;
             if (body) {
               body.rotation.x = deg2rad(ex.shape.body.leanX);
               body.rotation.z = deg2rad(ex.shape.body.leanZ);
-              const rs = ex.shape.body.radius / shape.body.radius;
-              const hs = ex.shape.body.height / shape.body.height;
-              body.scale.set(rs, hs, rs);
+              // 🔴 **Against `baseShape`, which is the shape the geometry was built from** — the
+              // one handed to `Dancer` — and *not* against the reshaped `shape` above. Dividing
+              // the resolved height by the reshaped height is dividing a number by itself: the
+              // scale came out `1` for the whole of every reshape, so a growing dancer's head and
+              // shoulders lifted off a torso that never moved. See `bodyMeshScale`, which also
+              // handles the capsule's caps.
+              const { radial, height } = bodyMeshScale(baseShape, ex.shape);
+              body.scale.set(radial, height, radial);
             }
 
             // The head *group* — sphere and facing marker — so the turn is visible.
@@ -879,7 +963,8 @@ export function DanceFloor({
                 deg2rad(ex.headRotation[1]),
                 deg2rad(ex.headRotation[2]),
               );
-              head.scale.setScalar(ex.shape.head.radius / shape.head.radius);
+              // Same rule as the torso: relative to the built geometry, not the worn shape.
+              head.scale.setScalar(ex.shape.head.radius / baseShape.head.radius);
             }
 
             // 🔴 The shoulders, which nothing was moving. `shoulderY` is

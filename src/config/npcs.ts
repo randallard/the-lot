@@ -202,3 +202,34 @@ Keep it short and enthusiastic. One or two words a lot of the time — "ooh!", "
 export function getNpcById(id: string): NpcConfig | undefined {
   return NPC_CONFIGS.find((npc) => npc.id === id);
 }
+
+/**
+ * The id the player's own character is stored and drawn under, everywhere a
+ * character is addressed by id — `getBodyShape`, the body editor, the cast roster.
+ * Spelled once here because it is not an NPC and so has no row in {@link NPC_CONFIGS},
+ * and a bare `"player"` in a comparison is the kind of literal that drifts.
+ */
+export const PLAYER_ID = "player";
+
+/** One selectable character: the id everything else keys off, and what to call it. */
+export interface CastEntry {
+  readonly id: string;
+  readonly label: string;
+}
+
+/**
+ * Every character the game can put on screen — **the player first**, then the NPCs in
+ * configured order.
+ *
+ * The player is not an NPC and has no `NpcConfig`, so any picker that offers "who is
+ * this" has to splice them in by hand. Two of them now do (the contact-move builder and
+ * the dance scene's beau/belle dropdowns), which is one more than a private helper
+ * should serve: a roster that disagrees between two pickers is a bug you find by
+ * noticing a name is missing from one of them.
+ */
+export function castRoster(): readonly CastEntry[] {
+  return [
+    { id: PLAYER_ID, label: "you" },
+    ...NPC_CONFIGS.map((n) => ({ id: n.id, label: n.displayName })),
+  ];
+}

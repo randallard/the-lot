@@ -42,7 +42,7 @@ import {
   PLAYER_BODY_CENTER_Y,
   getBodyShape,
 } from "../services/body-shapes";
-import { NPC_CONFIGS } from "../config/npcs";
+import { castRoster, PLAYER_ID, type CastEntry } from "../config/npcs";
 
 // ---------------------------------------------------------------------------
 // Styles — lifted from EmoteBuilderModal so the two editors read as one tool.
@@ -155,7 +155,7 @@ const OUT_OF_RANGE_LABELS = {
 interface EditorProps {
   move: ContactMove;
   cast: { A: CastMember; B: CastMember };
-  castOptions: { id: string; label: string }[];
+  castOptions: readonly CastEntry[];
   castIds: { A: string; B: string };
   onCast: (role: RoleId, id: string) => void;
   onSave: (m: ContactMove) => void;
@@ -533,13 +533,6 @@ export interface ContactMoveBuilderModalProps {
  * modal is not opened *for* a subject the way the body, arm-action and emote editors are.
  * Taking a `subjectId` would imply an ownership that does not exist.
  */
-function castRoster(): { id: string; label: string }[] {
-  return [
-    { id: "player", label: "you" },
-    ...NPC_CONFIGS.map((n) => ({ id: n.id, label: n.displayName })),
-  ];
-}
-
 export function ContactMoveBuilderModal({ onClose }: ContactMoveBuilderModalProps) {
   const [moves, setMoves] = useState<ContactMove[]>(() => getContactMoves());
   const [editing, setEditing] = useState<ContactMove | null>(null);
@@ -553,7 +546,7 @@ export function ContactMoveBuilderModal({ onClose }: ContactMoveBuilderModalProp
     // The player's rig measures from 0 and an NPC's from 0.5. Kept distinct rather than
     // normalised, because the contact height has to resolve across that difference — it
     // is the exact gap that put the two fists 0.75 apart in the game.
-    bodyCenterY: id === "player" ? PLAYER_BODY_CENTER_Y : NPC_BODY_CENTER_Y,
+    bodyCenterY: id === PLAYER_ID ? PLAYER_BODY_CENTER_Y : NPC_BODY_CENTER_Y,
     label: castOptions.find((o) => o.id === id)?.label ?? id,
   });
 

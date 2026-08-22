@@ -93,6 +93,69 @@ export function growBody(shape: CharacterBodyShape, delta: number): CharacterBod
 }
 
 /**
+ * How far a dancer's whole rig rises while wearing a body-height change — **half of it**, so the
+ * bottom of the body stays exactly where it started and the entire change goes *upward*
+ * (ADR-0043).
+ *
+ * `computePositions` builds a body as a capsule centred on `bodyCenterY`, so a height change of
+ * `d` moves its top up by `d/2` and its bottom **down** by `d/2`. That is a body growing in both
+ * directions from its middle, which is not what growing looks like: a dancer stands on something.
+ * Ryan: *"I really want the bottom to stay where it starts when the rest grows taller — same with
+ * all the characters, Ember's body when it shrinks should still start below the floor."*
+ *
+ * 🔑 **Expressed as a rig origin rather than by moving the body inside the rig**, because
+ * `ArmMetrics.rigOriginY` already exists for exactly this — "the world Y of the group these local
+ * coordinates are measured in" — and every height comparison in the dance already goes through it.
+ * The alternative, teaching `computePositions` to anchor at the feet, would put the offset in a
+ * function that has no idea what the dancer's *resting* height was, and would need the built shape
+ * threaded into every caller.
+ *
+ * 🔑 **And it doubles what a reshape buys.** The grower's shoulder rises by `d/2` inside the rig
+ * and the rig rises `d/2` under it; the shrinker's crown falls by the same twice over. A pair
+ * close a gap at **`2d`** per unit of trade where they used to close it at `d`, so the same
+ * accommodation now costs half the deformation.
+ *
+ * 🔴 **Takes the two shapes rather than the delta**, and that is not fussiness: `growBody` clamps
+ * to the editor's bounds, so the change a caller *asked* for and the change a body *took* are
+ * different numbers whenever a slider runs out. Lifting by the asked-for amount would float a
+ * clipped dancer off their own feet — which is the bug this signature makes unwritable. Same
+ * reason `bodyMeshScale` takes both.
+ *
+ * Ember, whose torso already starts 0.425 below the floor plane, keeps starting there.
+ */
+export function standingLift(built: CharacterBodyShape, worn: CharacterBodyShape): number {
+  const halfBuilt = built.body.height / 2 + built.body.radius;
+  const halfWorn = worn.body.height / 2 + worn.body.radius;
+  return halfWorn - halfBuilt;
+}
+
+/**
+ * Lengthen (or shorten) the undrawn upper arm, clamped to the shape editor's own bounds — the
+ * same contract as {@link growBody}, on the other lever a pair have.
+ *
+ * 🔑 **`handReach` moves one-for-one with it and nothing else does.** `computePositions` builds
+ * a dancer as `elbowY = bodyTop - upperArmSpacing` with the forearm, hand and gap hung below,
+ * so `handReach = spacing + forearm.height + handForearmGap + handRadius`: extending by `e`
+ * buys exactly `e` of reach, and `forearmSpan` — the part that is actually drawn — does not
+ * change at all. The visible cost is a longer gap between shoulder and elbow, which is the
+ * segment this cast does not render.
+ *
+ * 🔑 **And it is the only lever that widens the couple**, because `touchHold` solves the
+ * standing width from how far two people can reach across to each other. That is why it can
+ * answer a pair whose *bodies* will not pass at the width their handhold puts them at, which no
+ * amount of reshaping can (ADR-0040).
+ */
+export function growUpperArm(shape: CharacterBodyShape, delta: number): CharacterBodyShape {
+  const { min, max } = SHAPE_BOUNDS.layout.upperArmSpacing;
+  const upperArmSpacing = Math.max(min, Math.min(max, shape.layout.upperArmSpacing + delta));
+  return { ...shape, layout: { ...shape.layout, upperArmSpacing } };
+}
+
+/** The step the shape editor's own `upperArmSpacing` slider moves in. A dance may not put a
+ *  dancer at a length the character sheet could not. */
+export const UPPER_ARM_STEP = SHAPE_BOUNDS.layout.upperArmSpacing.step;
+
+/**
  * The pair of deltas for a reshape of `d`, each clipped to what its own body may actually
  * become — the beau up, the belle down.
  *
