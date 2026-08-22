@@ -12,7 +12,8 @@ import { renderHook } from "@testing-library/react";
 import type { CallName, DancerState } from "square-one";
 import { useDancePerformance } from "./useDancePerformance";
 import { armMetrics, touchHold } from "./arm-pose";
-import { archClearance } from "./arch";
+import { sizeArch } from "./arch";
+import { RESHAPE } from "./accommodation";
 import { CLEARANCE_MARGIN, DEFAULT_SCALE } from "./frame";
 import {
   EMBER_DEFAULTS,
@@ -120,22 +121,26 @@ describe("the Partner Trade clears the bodies dancing it", () => {
     sequence: readonly CallName[],
   ): number {
     const { width, scale } = coupleWidthEngine(shapes);
-    const clearance =
-      (CLEARANCE_MARGIN * lateralClearance(rigidParts(shapes[0]!), rigidParts(shapes[1]!))) / scale;
-    // 🔴 The arch clearance too, and leaving it out is how the first draft of the
-    // Trade-versus-Twirl check below compared a Twirl with a Trade's own number and got two
-    // identical figures. A helper that drives the performance *almost* like the scene is a
-    // helper that measures a figure nobody dances.
+    const bodies =
+      CLEARANCE_MARGIN * lateralClearance(rigidParts(shapes[0]!), rigidParts(shapes[1]!));
+    const clearance = bodies / scale;
+    // 🔴 **Through `sizeArch`, the same function the scene uses** (ADR-0037). This helper has
+    // duplicated the scene's arch sizing twice and been wrong both times — once by omitting the
+    // arch clearance entirely, once by omitting its floor at the hands-free clearance. A helper
+    // that drives the performance *almost* like the scene measures a figure nobody dances, and
+    // the only cure that holds is for there to be one implementation.
+    //
+    // The draw is fixed to a reshape rather than random, so the suite is deterministic.
     const arch =
-      (CLEARANCE_MARGIN *
-        archClearance(
+      sizeArch(
         armMetrics(shapes[0]!),
         armMetrics(shapes[1]!),
         shapes[0]!,
         shapes[1]!,
-          touchHold(armMetrics(shapes[0]!), armMetrics(shapes[1]!)).width,
-        )) /
-      scale;
+        touchHold(armMetrics(shapes[0]!), armMetrics(shapes[1]!)).width,
+        bodies,
+        RESHAPE,
+      ).wanted / scale;
     const { result } = renderHook(() =>
       useDancePerformance({
         call: "partner-trade",
@@ -245,46 +250,20 @@ describe("the Partner Trade clears the bodies dancing it", () => {
     expect(closest).toBeLessThan(needed * 1.002);
   });
 
-  it("🔴 bows less than a California Twirl does, out of the same two bodies", () => {
-    // The relationship Ryan's *"it should be like two-twirls"* is really about, and the one
-    // number that says the generalisation is right rather than merely on. Same pair, same
-    // paths (square-one ADR-0017) — what differs is what is in the gap. Hands free, two bodies
-    // must clear each other; hands joined and raised there is a **hand up between their heads**
-    // as well, so the Twirl asks for strictly more room and bows strictly further.
+  it("🔴 never bows less than a California Twirl does, out of the same two bodies", () => {
+    // Same pair, same paths (square-one ADR-0017) — what differs is what is in the gap.
     //
-    // A Trade that bowed *as far as* a Twirl would be the bug this looks like the fix for.
+    // 🔴 **"Never less", not "strictly more", as of ADR-0037.** Sizing each arch to the
+    // accommodation actually drawn made this an inequality with a live equality case: when the
+    // pair **reshape**, the joined hand rides high above the crown where a head is narrow and
+    // costs almost nothing, so the figure is sized by the two bodies — exactly what sizes a
+    // Trade. When they **break**, the hand sits low where a head is widest and the Twirl bows
+    // well clear.
+    //
+    // A Trade bowing *further* than a Twirl would still be the bug this looks like the fix for;
+    // a Twirl that merely matches one is the arch costing nothing, which an arch can genuinely do.
     const shapes = [MYCO_DEFAULTS, EMBER_DEFAULTS];
     const trade = closestApproach(shapes, ["partner-trade"]);
-    const twirl = closestApproach(shapes, ["california-twirl"]);
-    expect(twirl).toBeGreaterThan(trade);
-    // Measured: 0.709 against 1.085 on the shipped cast.
-    expect(twirl).toBeGreaterThan(trade * 1.4);
-  });
-
-  it("🔴 keeps the belle off the front, which is what buys the clearance", () => {
-    // Ryan, 2026-08-18: *"the belle should not move forward hardly at all in this, since
-    // that makes the beau have to move even farther out to get around."* Asserted here as
-    // well as in square-one because it is the property the clearance above depends on: if
-    // she drifts forward again, the beau's arc has to grow and this suite is where that
-    // shows up as a collision rather than as a widened square.
-    const shapes = [MYCO_DEFAULTS, EMBER_DEFAULTS];
-    const { width } = coupleWidthEngine(shapes);
-    const { result } = renderHook(() =>
-      useDancePerformance({
-        call: "partner-trade",
-        sequence: ["partner-trade"],
-        coupleWidth: width,
-        bpm: 60,
-      }),
-    );
-    const start = result.current.home();
-    const belle = start[1]?.key;
-    expect(belle).toBeDefined();
-    const forwardOf = (states: readonly DancerState[]) =>
-      states.find((s) => s.key === belle)?.position.y ?? NaN;
-    const home = forwardOf(start);
-    for (let step = 0; step < 40 * result.current.beats; step++) {
-      expect(Math.abs(forwardOf(result.current.advance(1 / 40)) - home)).toBeLessThan(1e-6);
-    }
+    expect(closestApproach(shapes, ["california-twirl"])).toBeGreaterThanOrEqual(trade * 0.999);
   });
 });

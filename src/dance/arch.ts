@@ -53,7 +53,7 @@ import {
 } from "./arm-pose";
 import { type CharacterBodyShape } from "../services/body-shapes";
 import {
-  ACCOMMODATIONS,
+  BREAK,
   OVERSHOOT,
   RESHAPE,
   growBody,
@@ -230,9 +230,14 @@ export function planArch(
  * between them want **1.084**, against a couple who stand 1.140 apart. An arch very nearly
  * forbids the pair to approach each other at all.
  *
- * **The worse of the two accommodations**, because the figure is sized before the coin is
- * flipped and has to hold either way. A break is usually the binding one: its beau never gets
- * his hand up, so it sits lower, where a head is wider.
+ * 🔴 **Per accommodation, as of [ADR-0037](../../docs/adr/0037-the-figure-is-sized-to-the-accommodation-drawn.md).**
+ * It used to take the **worse** of the two, because ADR-0030 sized the figure before the coin was
+ * flipped so it would hold either way. That cost more than it looked: on the default cast a
+ * reshape wants **0.193** of the couple's width and a break wants **0.951** — five times more —
+ * so every Twirl was danced with a bow for a break the pair had usually not drawn.
+ *
+ * A break is the binding one, and the reason is worth keeping: its beau never gets his hand up,
+ * so the join sits lower, where a head is wider.
  */
 export function archClearance(
   beau: ArmMetrics,
@@ -240,22 +245,96 @@ export function archClearance(
   beauShape: CharacterBodyShape,
   belleShape: CharacterBodyShape,
   width: number,
+  accommodation: Accommodation,
 ): number {
   const hand = Math.max(beau.handRadius, belle.handRadius);
+  const plan = planArch(beau, belle, beauShape, belleShape, width, accommodation);
+  const b =
+    plan.bodyDeltas.beau === 0 ? beau : armMetrics(growBody(beauShape, plan.bodyDeltas.beau));
+  const l =
+    plan.bodyDeltas.belle === 0 ? belle : armMetrics(growBody(belleShape, plan.bodyDeltas.belle));
   let need = 0;
-  for (const mode of ACCOMMODATIONS) {
-    const plan = planArch(beau, belle, beauShape, belleShape, width, mode);
-    const b =
-      plan.bodyDeltas.beau === 0 ? beau : armMetrics(growBody(beauShape, plan.bodyDeltas.beau));
-    const l =
-      plan.bodyDeltas.belle === 0 ? belle : armMetrics(growBody(belleShape, plan.bodyDeltas.belle));
-    // Each hand sits at the pair's midpoint, so each must clear **both** bodies' cross-sections
-    // at its own height — half the separation each way. `sideExtentAt` narrows a head toward
-    // its poles, so a hand held high over a crown costs less than one held at eye level.
-    for (const height of [plan.hands.beau, plan.hands.belle]) {
-      const widest = Math.max(sideExtentAt(b.parts, height), sideExtentAt(l.parts, height));
-      need = Math.max(need, 2 * (widest + hand));
-    }
+  // Each hand sits at the pair's midpoint, so each must clear **both** bodies' cross-sections
+  // at its own height — half the separation each way. `sideExtentAt` narrows a head toward
+  // its poles, so a hand held high over a crown costs less than one held at eye level.
+  for (const height of [plan.hands.beau, plan.hands.belle]) {
+    const widest = Math.max(sideExtentAt(b.parts, height), sideExtentAt(l.parts, height));
+    need = Math.max(need, 2 * (widest + hand));
   }
   return need;
+}
+
+/**
+ * Whether this pair can dance an arch at all under `accommodation` — **can the figure be given
+ * the room, at the width they are standing at?**
+ *
+ * square-one bows the beau's arc out to meet the clearance, and at both ends of the call the two
+ * are exactly the couple's width apart whatever the bow does in between, so a request **at or
+ * above that width cannot be delivered at any bow** (its ADR-0018). Asking anyway is not an
+ * error there: it is answered with the cap, the widest bow the figure has, which looks like a
+ * working figure danced by a sprinting beau.
+ *
+ * 🔴 **So the question has to be asked on this side, and it was not** until 2026-08-21. Myco with
+ * Sprout — an adult and a child — wants **1.62** of their handholding width under either
+ * accommodation, and had been silently capped since the field existed (ADR-0037).
+ */
+export function archFits(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  beauShape: CharacterBodyShape,
+  belleShape: CharacterBodyShape,
+  width: number,
+  accommodation: Accommodation,
+): boolean {
+  return archClearance(beau, belle, beauShape, belleShape, width, accommodation) < width;
+}
+
+/** What one execution of an arch call was drawn to do, and the room and width it needs. */
+export interface ArchSizing {
+  /** The accommodation the pair will dance — the draw, unless the draw cannot be delivered. */
+  readonly accommodation: Accommodation;
+  /** The clearance the figure has to deliver at the pass, in world units. */
+  readonly wanted: number;
+  /** How far apart the pair stand while dancing it, in world units. */
+  readonly width: number;
+}
+
+/**
+ * Size one execution of an arch call to the accommodation it drew (ADR-0037).
+ *
+ * 🔴 **Here rather than in `DanceFloor` because it has been duplicated into a test helper three
+ * times and been wrong there twice** — once by omitting the arch clearance entirely, once by
+ * omitting the floor below. A helper that drives the performance *almost* like the scene measures
+ * a figure nobody dances, and the only cure that holds is for there to be one implementation.
+ *
+ * Three things decide it:
+ *
+ * 1. **The draw.** A reshape and a break want very different room — 0.193 and 0.951 of the
+ *    couple's width on the shipped cast — because a reshape puts the joined hand high above the
+ *    crown where a head is narrow, and a break leaves it low where a head is widest.
+ * 2. **A floor at `bodies`**, the room the two of them need hands-free. A hold cannot make a pass
+ *    cheaper than no hold, and without this a reshaped Twirl passed *closer* than a Trade out of
+ *    the same two people.
+ * 3. **Whether it fits at all.** A clearance at or above the couple's own width cannot be
+ *    delivered at any bow (square-one ADR-0018) and is silently answered with the widest bow the
+ *    figure has. When neither accommodation fits, the pair let go — and a pair who have let go
+ *    are not held to a handhold's width, so they stand at **twice** the room they need, where the
+ *    beau's arc delivers it on its own radius with no bow at all.
+ */
+export function sizeArch(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  beauShape: CharacterBodyShape,
+  belleShape: CharacterBodyShape,
+  width: number,
+  bodies: number,
+  drawn: Accommodation,
+): ArchSizing {
+  const wanted = Math.max(archClearance(beau, belle, beauShape, belleShape, width, drawn), bodies);
+  if (wanted < width) return { accommodation: drawn, wanted, width };
+  const broken = Math.max(
+    archClearance(beau, belle, beauShape, belleShape, width, BREAK),
+    bodies,
+  );
+  return { accommodation: BREAK, wanted: broken, width: 2 * broken };
 }

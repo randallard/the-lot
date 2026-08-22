@@ -1,5 +1,5 @@
 # ADR-0030: The arch clearance is measured from the worse accommodation, and passed as a number
-- Status: Accepted
+- Status: **Superseded by [ADR-0037](0037-the-figure-is-sized-to-the-accommodation-drawn.md)** — the figure is sized to the accommodation actually drawn. Taking the worse of the two charged every reshaping pair for a break (0.951 of the couple's width against 0.193) and concealed a reshape clearance that was below what the bodies need.
 - Date: 2026-08-19
 - Deciders: Ryan, Claude
 

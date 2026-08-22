@@ -21,7 +21,7 @@
  * model is two-couple-safe by construction.
  */
 
-import { createRef, useMemo, useRef } from "react";
+import { useCallback, createRef, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import {
@@ -63,8 +63,8 @@ import {
   type DanceFrame,
   type WorldPoint,
 } from "./frame";
-import { COUPLE_WIDTH } from "square-one";
-import { archClearance, planArch, type ArchPlan } from "./arch";
+import { COUPLE_WIDTH, type ShapeAt } from "square-one";
+import { planArch, sizeArch, type ArchPlan, type ArchSizing } from "./arch";
 import { pairGripRadius, planForearm, type ForearmPlan } from "./forearm-hold";
 import {
   BREAK,
@@ -320,30 +320,48 @@ export function DanceFloor({
   );
 
   /**
-   * How far apart the pair must pass **under an arch**, in engine units — the second half of
-   * the seam `coupleWidth` is (square-one ADR-0018).
+   * The arch each execution is danced under — **drawn before the figure is built, and the figure
+   * sized to what was drawn** (ADR-0037).
    *
-   * `undefined` for a floor with no couple, and for a cast this floor cannot resolve two shapes
-   * for: the engine's default is the arc's own radius, which is what everything did before.
+   * One entry per call in the sequence: the accommodation this pair drew for it, the room that
+   * accommodation needs, and the width they stand at while dancing it.
+   *
+   * 🔴 **The draw used to happen in the frame loop, after the motions existed**, so the figure
+   * could only be sized to the *worse* of the two accommodations (ADR-0030) and the beau bowed
+   * for a break he had usually not drawn. On the default cast a reshape wants **0.193** of the
+   * couple's width and a break **0.951** — five times more, spent on every Twirl.
+   *
+   * 🔴 **And when neither fits, the hold cannot be kept.** square-one delivers a clearance at or
+   * above the couple's own width as its *cap* — the widest bow the figure has — because the two
+   * are exactly a width apart at both ends of the call whatever the bow does between (its
+   * ADR-0018). So the pair let go, and **a pair who have let go are not held to a handhold's
+   * width**: they stand at twice the room they need, where the arc's own radius delivers it with
+   * no bow at all (ADR-0014's relationship, used the other way round).
    */
-  const archClearanceEngine = useMemo(() => {
+  const arches = useMemo<readonly (ArchSizing | null)[]>(() => {
     const a = shapes[0];
     const b = shapes[1];
-    if (a === undefined || b === undefined || hold === undefined) return undefined;
-    const scaleNow = scale ?? DEFAULT_SCALE;
-    // 🔴 **No `CLEARANCE_MARGIN` here, unlike the hands-free clearance** (ADR-0036). This number
-    // already carries margin of its own three times over: `headroom` keeps a hand's width of
-    // daylight above the crown, `ARCH_OVERSHOOT` reshapes a little more than necessary, and
-    // `archClearance` takes the **worse** of the two accommodations. `lateralClearance` is a bare
-    // touching distance with none, which is what that margin is for.
-    //
-    // Multiplying it anyway took the request to **1.046 of the couple's own width**, and a
-    // clearance at or above the width cannot be delivered at all — the two dancers are exactly
-    // that far apart at both ends of the call whatever the bow does in between (square-one
-    // ADR-0018). The engine answered with its cap, the widest bow the figure has, and the beau
-    // went sprinting. It looked like a working figure.
-    return archClearance(armMetrics(a), armMetrics(b), a, b, hold.width) / scaleNow;
-  }, [shapes, hold, scale]);
+    const seq = performanceOptions.sequence;
+    if (a === undefined || b === undefined || hold === undefined || seq === undefined) return [];
+    const am = armMetrics(a);
+    const bm = armMetrics(b);
+    const bodies = CLEARANCE_MARGIN * lateralClearance(rigidParts(a), rigidParts(b));
+    return seq.map((call) =>
+      call === "california-twirl"
+        ? sizeArch(am, bm, a, b, hold.width, bodies, drawAccommodation())
+        : null,
+    );
+  }, [shapes, hold, performanceOptions.sequence]);
+
+  const shapeAt = useCallback<ShapeAt>(
+    (index) => {
+      const arch = arches[index];
+      if (arch === undefined || arch === null) return undefined;
+      const scaleNow = scale ?? DEFAULT_SCALE;
+      return { archClearance: arch.wanted / scaleNow, width: arch.width / scaleNow };
+    },
+    [arches, scale],
+  );
 
   /**
    * How far apart the pair must pass **hands free**, in engine units — the third and last
@@ -392,7 +410,7 @@ export function DanceFloor({
     ...performanceOptions,
     coupleWidth: coupleWidthEngine,
     ...(clearanceEngine === undefined ? {} : { clearance: clearanceEngine }),
-    ...(archClearanceEngine === undefined ? {} : { archClearance: archClearanceEngine }),
+    shapeAt,
     ...(gripRadiusEngine === undefined ? {} : { gripRadius: gripRadiusEngine }),
   });
   const keys = useMemo(() => Object.keys(runtime.motions), [runtime.motions]);
@@ -634,7 +652,24 @@ export function DanceFloor({
           const id = `${heldSpan.grip}:${String(heldSpan.from)}:${String(heldSpan.to)}`;
           if (under.span !== id) {
             under.span = id;
-            under.accommodation = drawAccommodation();
+            // 🔴 **The arch's accommodation is not drawn here** (ADR-0037). It was drawn before
+            // the figure was built, because the figure has to be sized to it — so this looks up
+            // the draw for *this* execution rather than making a second, independent one. Two
+            // draws would mean the beau bowing for one accommodation while his arms pose the
+            // other, which is the defect the whole change is about, wearing a subtler disguise.
+            //
+            // Matched by ordinal: each Twirl in the sequence contributes exactly one arch span,
+            // in order, so the n-th live arch span is the n-th call's draw. A forearm grip is
+            // still drawn here — nothing sizes a figure to it.
+            const archOrdinal =
+              archSpan === undefined
+                ? -1
+                : (runtime.motions[first ?? ""]?.grips ?? [])
+                    .filter((g) => g.grip === "arch")
+                    .findIndex((g) => g.from === archSpan.from && g.to === archSpan.to);
+            const chosen = archOrdinal < 0 ? undefined : arches[archOrdinal];
+            under.accommodation =
+              chosen === undefined || chosen === null ? drawAccommodation() : chosen.accommodation;
             const beauM = metrics[0];
             const belleM = metrics[1];
             const beauS = occupantShapes[0];

@@ -23,6 +23,7 @@ import {
   type DancerState,
   type Motion,
   type Performance,
+  type ShapeAt,
 } from "square-one";
 
 /** 120 bpm — the middle of normal patter tempo, and a round 2 beats/second. */
@@ -91,6 +92,15 @@ export interface DancePerformanceOptions {
    * Left — is danced by one. That is why `applyCallToPair` is now given a shape.
    */
   readonly gripRadius?: number;
+  /**
+   * A per-call shape override for a couple sequence — square-one's `ShapeAt` (its ADR-0025),
+   * forwarded straight through.
+   *
+   * This is how an accommodation drawn **per execution** reaches the figure for *that* execution.
+   * See `DanceFloor`, which draws them; the two must agree or the beau bows for a break the pair
+   * did not draw (ADR-0037).
+   */
+  readonly shapeAt?: ShapeAt;
   readonly bpm?: number;
   /** Restart from beat 0 when the call ends. The debug scene loops; the arc won't. */
   readonly loop?: boolean;
@@ -136,6 +146,7 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
     archClearance,
     clearance,
     gripRadius,
+    shapeAt,
     bpm = DEFAULT_BPM,
     loop = true,
     externallyDriven,
@@ -161,6 +172,7 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
             archClearance,
             gripRadius,
           ),
+          shapeAt,
         ),
       );
     }
@@ -184,7 +196,7 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
       ),
     );
     return { a, b };
-  }, [call, sequence, coupleWidth, clearance, archClearance, gripRadius]);
+  }, [call, sequence, coupleWidth, clearance, archClearance, gripRadius, shapeAt]);
 
   const beats = useMemo(
     () => Math.max(...Object.values(motions).map((m) => m.beats)),

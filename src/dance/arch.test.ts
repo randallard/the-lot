@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { archClearance, archLateral, crownOf, planArch, reachCeiling } from "./arch";
+import { archClearance, archFits, archLateral, crownOf, planArch, reachCeiling } from "./arch";
 import { CLEARANCE_MARGIN } from "./frame";
-import { BREAK, OVERSHOOT, RESHAPE, drawAccommodation, growBody } from "./accommodation";
+import {
+  ACCOMMODATIONS,
+  BREAK,
+  OVERSHOOT,
+  RESHAPE,
+  drawAccommodation,
+  growBody,
+} from "./accommodation";
 import { armMetrics, armPose, localHeight, touchHold, touchPose } from "./arm-pose";
 import {
   EMBER_DEFAULTS,
@@ -227,7 +234,17 @@ describe("the arch a couple asks for has to be one the figure can deliver", () =
     const a = armMetrics(MYCO_DEFAULTS);
     const b = armMetrics(EMBER_DEFAULTS);
     const width = touchHold(a, b).width;
-    expect(archClearance(a, b, MYCO_DEFAULTS, EMBER_DEFAULTS, width) / width).toBeLessThan(1);
+    // 🔴 **Both accommodations, and they are nothing like each other** (ADR-0037). The reshape
+    // wants a fifth of the couple's width and the break wants nearly all of it — which is why
+    // sizing every arch to the worse of the two made the beau bow for a break he had not drawn.
+    for (const mode of ACCOMMODATIONS) {
+      expect(archClearance(a, b, MYCO_DEFAULTS, EMBER_DEFAULTS, width, mode) / width, mode)
+        .toBeLessThan(1);
+    }
+    expect(archClearance(a, b, MYCO_DEFAULTS, EMBER_DEFAULTS, width, RESHAPE) / width)
+      .toBeCloseTo(0.193, 2);
+    expect(archClearance(a, b, MYCO_DEFAULTS, EMBER_DEFAULTS, width, BREAK) / width)
+      .toBeCloseTo(0.951, 2);
   });
 
   it("🔴 is NOT satisfiable for a mismatched pair, and has been capped in silence", () => {
@@ -252,11 +269,19 @@ describe("the arch a couple asks for has to be one the figure can deliver", () =
     const a = armMetrics(MYCO_DEFAULTS);
     const b = armMetrics(SPROUT_DEFAULTS);
     const width = touchHold(a, b).width;
-    const ratio = archClearance(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width) / width;
-    expect(ratio).toBeGreaterThan(1);
-    // Pinned so it cannot quietly grow, and so this fails loudly the day somebody fixes it.
-    expect(ratio).toBeGreaterThan(1.5);
-    expect(ratio).toBeLessThan(1.8);
+    // 🔴 **Neither accommodation fits, which is what makes this the terminal case.** A reshape
+    // that clips at the shape editor's bounds "simply breaks by more" (ADR-0028), so for a pair
+    // this mismatched both answers land on the same number.
+    for (const mode of ACCOMMODATIONS) {
+      const ratio = archClearance(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width, mode) / width;
+      expect(ratio, mode).toBeGreaterThan(1.5);
+      expect(ratio, mode).toBeLessThan(1.8);
+      expect(archFits(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width, mode), mode).toBe(false);
+    }
+    // So they let go and stand where the figure can clear them: twice the room they need, which
+    // is where the beau's arc delivers it on its own radius with no bow at all (ADR-0037).
+    const broken = archClearance(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width, BREAK);
+    expect(archFits(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, 2 * broken, BREAK)).toBe(true);
   });
 
   it("🔴 and is not multiplied by the clearance margin, which is what broke it", () => {
@@ -266,7 +291,7 @@ describe("the arch a couple asks for has to be one the figure can deliver", () =
     const a = armMetrics(MYCO_DEFAULTS);
     const b = armMetrics(EMBER_DEFAULTS);
     const width = touchHold(a, b).width;
-    const wanted = archClearance(a, b, MYCO_DEFAULTS, EMBER_DEFAULTS, width);
+    const wanted = archClearance(a, b, MYCO_DEFAULTS, EMBER_DEFAULTS, width, BREAK);
     expect(wanted / width).toBeCloseTo(0.951, 3);
     expect((CLEARANCE_MARGIN * wanted) / width).toBeGreaterThan(1);
   });

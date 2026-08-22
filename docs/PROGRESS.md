@@ -4,8 +4,57 @@ _Last updated: 2026-08-21_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-21, seventh chunk) — 🔴 THE CALIFORNIA TWIRL'S BEAU WAS SPRINTING, AND IT
-WAS THE MARGIN.** Ryan: *"most moves look great — almost all — all except california twirl … the
+**▶ RIGHT NOW (2026-08-21, eighth chunk) — ✅ THE FIGURE IS SIZED TO THE ACCOMMODATION DRAWN, AND
+A PAIR WHO LET GO ARE NOT HELD TO A HANDHOLD'S WIDTH.**
+[ADR-0037](adr/0037-the-figure-is-sized-to-the-accommodation-drawn.md), superseding ADR-0030.
+Ryan, on the pair who cannot make an arch at all: *"so do what we did with the california twirl —
+sometimes myco gets smaller and sprout gets bigger, and sometimes they just reach as far as
+possible but don't connect — **make this a rule**."* **630 tests, lint 0 errors, build clean.**
+🔴 Held for Ryan's verify.
+
+🔑 **The two accommodations want wildly different room, and the figure was always sized to the
+worse one.**
+
+| accommodation | room needed, as a fraction of the couple's width |
+|---|---|
+| **reshape** | **0.193** — the joined hand rides high above the crown, where a head is narrow |
+| **break** | **0.951** — the hand never gets up, so it sits low, where a head is widest |
+
+**Five times.** ADR-0030's reason was sound when written — the motions were built before the coin
+was flipped — and the fix was to flip the coin first. square-one's ADR-0025 adds a per-call shape
+override so each execution's figure follows its own draw, and the pose reads the same draw instead
+of making a second one.
+
+🔴 **That immediately exposed a live defect.** `archClearance` measures what must fit at the
+**hand's height**, and a reshape's hand costs almost nothing — so unfloored, a **reshaped Twirl
+passed closer than a Partner Trade** out of the same two people. **A hold cannot make a pass
+cheaper than no hold.** It was hidden because the break always bound: taking the worst of two
+answers conceals a wrong one.
+
+🔑 **And when neither fits, the pair let go — and are then not held to a handhold's width.** They
+stand at **twice** the room they need, which is exactly where the beau's arc delivers it **on its
+own radius with no bow at all** (square-one ADR-0014's relationship, used backwards).
+
+| pair | drew | dances | stands | ratio |
+|---|---|---|---|---|
+| myco/ember | reshape | reshape | 1.140 (handhold) | **0.685** — was 0.951 every time |
+| myco/ember | break | break | 1.140 (handhold) | 0.951 |
+| myco/sprout | either | **break** | **2.393 — let go, widened** | 0.500 |
+| ember/sprout | either | **break** | 1.160 — let go | 0.500 |
+
+🔴 **`sizeArch` exists because this logic had been copied into a test helper three times and was
+wrong there twice** — once omitting the arch clearance, once omitting its floor. There is one
+implementation now and the suite calls it.
+
+**⚠️ THE WATCH — `#dance=two-twirls`.** 🔴 The two Twirls should now look **different from each
+other**, which is what ADR-0028's per-execution draw has claimed since it was written and could
+not deliver. Half the time the beau bows markedly less than before. A cast with Sprout in it would
+show the let-go case, standing well wide — not currently in `#dance`.
+
+---
+
+**▶ 2026-08-21, seventh chunk — 🔴 THE CALIFORNIA TWIRL'S BEAU WAS SPRINTING, AND IT WAS THE
+MARGIN.** Ryan: *"most moves look great — almost all — all except california twirl … the
 beau is going way too far out now."*
 [ADR-0036](adr/0036-the-arch-clearance-carries-its-own-margin.md). **631 tests, lint 0 errors,
 build clean.** ✅ **WATCHED AND ACCEPTED** — *"that all looks good."* The beau's arc peak went

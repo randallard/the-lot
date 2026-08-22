@@ -118,13 +118,14 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0027](0027-the-upper-arm-hangs-and-the-hands-come-forward.md) | The upper arm hangs, and the joined hands come forward | Accepted |
 | [0028](0028-an-arch-a-pair-cannot-make-is-accommodated-two-ways.md) | An arch a pair cannot make is accommodated two ways, drawn at random | Accepted |
 | [0029](0029-a-shoulder-follows-the-torso-it-hangs-from.md) | A shoulder follows the torso it hangs from | Accepted |
-| [0030](0030-the-arch-clearance-is-measured-from-the-worse-accommodation.md) | The arch clearance is measured from the worse accommodation, and passed as a number | Accepted |
+| [0030](0030-the-arch-clearance-is-measured-from-the-worse-accommodation.md) | The arch clearance is measured from the worse accommodation, and passed as a number | Superseded by [0037](0037-the-figure-is-sized-to-the-accommodation-drawn.md) |
 | [0031](0031-the-hands-free-clearance-is-passed-too.md) | The hands-free clearance is passed too, so a Trade bows like a Twirl does | Accepted |
 | [0032](0032-the-accommodation-belongs-to-the-hold-not-to-the-arch.md) | The accommodation belongs to the hold, not to the arch | Accepted |
 | [0033](0033-the-forearm-hold-is-a-reach-a-pair-can-fail.md) | The forearm hold is a reach a pair can fail, and it gets the same two accommodations | Accepted |
 | [0034](0034-the-engine-relinks-itself-when-a-sibling-checkout-exists.md) | The engine re-links itself when a sibling checkout exists | Accepted |
 | [0035](0035-the-square-does-not-grow-for-its-widest-pair.md) | The square does not grow for its widest pair | Accepted |
 | [0036](0036-the-arch-clearance-carries-its-own-margin.md) | The arch clearance carries its own margin, and must stay inside the couple's width | Accepted |
+| [0037](0037-the-figure-is-sized-to-the-accommodation-drawn.md) | The figure is sized to the accommodation drawn, and a pair who let go are not held to a handhold's width | Accepted |
 
 ## Decisions this repo inherits
 
