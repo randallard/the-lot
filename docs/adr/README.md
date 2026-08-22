@@ -124,6 +124,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0033](0033-the-forearm-hold-is-a-reach-a-pair-can-fail.md) | The forearm hold is a reach a pair can fail, and it gets the same two accommodations | Accepted |
 | [0034](0034-the-engine-relinks-itself-when-a-sibling-checkout-exists.md) | The engine re-links itself when a sibling checkout exists | Accepted |
 | [0035](0035-the-square-does-not-grow-for-its-widest-pair.md) | The square does not grow for its widest pair | Accepted |
+| [0036](0036-the-arch-clearance-carries-its-own-margin.md) | The arch clearance carries its own margin, and must stay inside the couple's width | Accepted |
 
 ## Decisions this repo inherits
 

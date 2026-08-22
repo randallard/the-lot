@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { archLateral, crownOf, planArch, reachCeiling } from "./arch";
+import { archClearance, archLateral, crownOf, planArch, reachCeiling } from "./arch";
+import { CLEARANCE_MARGIN } from "./frame";
 import { BREAK, OVERSHOOT, RESHAPE, drawAccommodation, growBody } from "./accommodation";
 import { armMetrics, armPose, localHeight, touchHold, touchPose } from "./arm-pose";
 import {
@@ -209,5 +210,64 @@ describe("drawAccommodation", () => {
     const seen = new Set<string>();
     for (let i = 0; i < 200; i++) seen.add(drawAccommodation());
     expect(seen).toEqual(new Set([RESHAPE, BREAK]));
+  });
+});
+
+describe("the arch a couple asks for has to be one the figure can deliver", () => {
+  // 🔴 **The guard that was missing on 2026-08-21** (ADR-0036). square-one bows the beau's arc
+  // out to meet this number, and at both ends of the call the two dancers are exactly the
+  // couple's width apart whatever the bow does in between — so a clearance **at or above** that
+  // width cannot be delivered at all (its ADR-0018). The engine answers with its cap, the widest
+  // bow the figure has, and the result looks like a working figure with a sprinting beau.
+  //
+  // Nothing on either side of the seam said so. This is that, said.
+  it("🔴 is satisfiable for the pair the scene actually dances", () => {
+    // The default cast, which is what `#dance=two-twirls` shows and what ADR-0018 measured:
+    // 0.951 of the couple's width, *"inside the cap, only just"*.
+    const a = armMetrics(MYCO_DEFAULTS);
+    const b = armMetrics(EMBER_DEFAULTS);
+    const width = touchHold(a, b).width;
+    expect(archClearance(a, b, MYCO_DEFAULTS, EMBER_DEFAULTS, width) / width).toBeLessThan(1);
+  });
+
+  it("🔴 is NOT satisfiable for a mismatched pair, and has been capped in silence", () => {
+    // 🔴 **The finding this guard turned up on 2026-08-21**, written as an assertion on the size
+    // of the overshoot rather than left out, because a gap nobody measures is a gap that gets
+    // forgotten.
+    //
+    // ADR-0018 measured the arch clearance on **one** pairing and found it just inside the cap.
+    // Nobody checked the others. Myco with Sprout — an adult and a child — asks for **1.62 of
+    // the couple's own width**, and the two dancers are exactly that width apart at both ends of
+    // the call whatever the bow does in between, so it cannot be delivered at any bow. square-one
+    // answers with its cap and the figure looks like it works.
+    //
+    // The cause is structural rather than a tuning error: the couple's width comes from the
+    // **handhold**, so a short-armed pair stands narrow — while their two heads with a hand
+    // between them want just as much room as anyone's. The narrower the couple, the further out
+    // of reach the arch gets.
+    //
+    // 🔴 **What a pair should do about it is a decision, and it is Ryan's.** ADR-0028 answers
+    // this question for the *hold* — reshape or break — and says nothing about the *figure*.
+    // Standing wider for the call is the obvious candidate and it changes what a couple is.
+    const a = armMetrics(MYCO_DEFAULTS);
+    const b = armMetrics(SPROUT_DEFAULTS);
+    const width = touchHold(a, b).width;
+    const ratio = archClearance(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width) / width;
+    expect(ratio).toBeGreaterThan(1);
+    // Pinned so it cannot quietly grow, and so this fails loudly the day somebody fixes it.
+    expect(ratio).toBeGreaterThan(1.5);
+    expect(ratio).toBeLessThan(1.8);
+  });
+
+  it("🔴 and is not multiplied by the clearance margin, which is what broke it", () => {
+    // The regression in one line. On the shipped default pair the bare request is 0.951 of the
+    // couple's width — inside the cap, only just, exactly as ADR-0018 measured — and the same
+    // request times `CLEARANCE_MARGIN` is 1.046, outside it.
+    const a = armMetrics(MYCO_DEFAULTS);
+    const b = armMetrics(EMBER_DEFAULTS);
+    const width = touchHold(a, b).width;
+    const wanted = archClearance(a, b, MYCO_DEFAULTS, EMBER_DEFAULTS, width);
+    expect(wanted / width).toBeCloseTo(0.951, 3);
+    expect((CLEARANCE_MARGIN * wanted) / width).toBeGreaterThan(1);
   });
 });

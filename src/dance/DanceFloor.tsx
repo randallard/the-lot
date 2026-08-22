@@ -331,7 +331,18 @@ export function DanceFloor({
     const b = shapes[1];
     if (a === undefined || b === undefined || hold === undefined) return undefined;
     const scaleNow = scale ?? DEFAULT_SCALE;
-    return (CLEARANCE_MARGIN * archClearance(armMetrics(a), armMetrics(b), a, b, hold.width)) / scaleNow;
+    // 🔴 **No `CLEARANCE_MARGIN` here, unlike the hands-free clearance** (ADR-0036). This number
+    // already carries margin of its own three times over: `headroom` keeps a hand's width of
+    // daylight above the crown, `ARCH_OVERSHOOT` reshapes a little more than necessary, and
+    // `archClearance` takes the **worse** of the two accommodations. `lateralClearance` is a bare
+    // touching distance with none, which is what that margin is for.
+    //
+    // Multiplying it anyway took the request to **1.046 of the couple's own width**, and a
+    // clearance at or above the width cannot be delivered at all — the two dancers are exactly
+    // that far apart at both ends of the call whatever the bow does in between (square-one
+    // ADR-0018). The engine answered with its cap, the widest bow the figure has, and the beau
+    // went sprinting. It looked like a working figure.
+    return archClearance(armMetrics(a), armMetrics(b), a, b, hold.width) / scaleNow;
   }, [shapes, hold, scale]);
 
   /**

@@ -4,7 +4,43 @@ _Last updated: 2026-08-21_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-21, sixth chunk) — ✅ THE SQUARE NO LONGER GROWS FOR ITS WIDEST PAIR.**
+**▶ RIGHT NOW (2026-08-21, seventh chunk) — 🔴 THE CALIFORNIA TWIRL'S BEAU WAS SPRINTING, AND IT
+WAS THE MARGIN.** Ryan: *"most moves look great — almost all — all except california twirl … the
+beau is going way too far out now."*
+[ADR-0036](adr/0036-the-arch-clearance-carries-its-own-margin.md). **631 tests, lint 0 errors,
+build clean.**
+
+🔑 **ADR-0035 applied `CLEARANCE_MARGIN` to both clearances and the arch did not need one.**
+square-one bows the beau's arc to meet `archClearance`, and a request **at or above the couple's
+own width cannot be delivered at any bow** — the two are exactly that far apart at both ends of
+the call. The engine caps the bow there and returns it.
+
+| arch ÷ couple width | |
+|---|---|
+| what ADR-0018 measured and Ryan accepted | **0.951** — inside the cap, only just |
+| with the margin applied | **1.046** — outside: capped, maximum bow |
+
+🔴 **The ratio is scale-invariant, so the tighter square did not cause this.** The margin alone
+did, and 0.951 left so little headroom that 10% was more than enough to spend it.
+
+🔑 **The margin belongs to the measurement that lacks one.** `lateralClearance` is a bare touching
+distance. `archClearance` already carries margin three times over — `headroom`'s hand of daylight,
+`ARCH_OVERSHOOT`, and taking the **worse** of the two accommodations.
+
+🔴 **The guard found a second, older instance, still open.** Myco with Sprout wants **1.62** of
+their handholding width and has been **capped in silence since the field existed** — ADR-0018
+measured one pairing and nobody checked the rest. Structural: a couple's width comes from the
+handhold, so a short-armed pair stands narrow while two heads with a hand between them want as
+much room as anyone's. Fixing it means letting a couple stand wider for the call, which changes
+what a couple *is*. **Ryan's decision.**
+
+🔑 **An unsatisfiable clearance looks exactly like a working figure** — the sibling of ADR-0020's
+*"a shape a call does not read is silently ignored"*. Both are warned about at the fields
+themselves now.
+
+---
+
+**▶ 2026-08-21, sixth chunk — ✅ THE SQUARE NO LONGER GROWS FOR ITS WIDEST PAIR.**
 [ADR-0035](adr/0035-the-square-does-not-grow-for-its-widest-pair.md). **628 tests, lint 0 errors,
 build clean.** 🔴 **This is the one change today that moves everything on screen** — the watch
 below is the point of it.
