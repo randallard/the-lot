@@ -1,13 +1,58 @@
 # Progress & Status
 
-_Last updated: 2026-08-21_
+_Last updated: 2026-08-22_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-21, tenth chunk) — ✅ THE ARM IS SWEPT TO ITS OWN HAND, AND THE DEFAULT PAIR
+**▶ RIGHT NOW (2026-08-22) — ✅ THE WATCH IS CLOSED. 🔴 AND THE ENGINE THIS RUNS ON IS NOT THE ONE
+IT PINS.** Ryan: *"I watched two twirls and it looks good with both the resize and the break
+accommodations."* That closes the tenth chunk's verify and every render watch in the effort.
+**Nothing on screen is waiting.** **637 tests**, lint 0 errors, build clean, `docs-hygiene` clean.
+
+🔴 **`package.json` pins `github:randallard/square-one#v0.3.0`, and `src/dance/DanceFloor.tsx` and
+`src/dance/useDancePerformance.ts` both import `ShapeAt` — which square-one added in its ADR-0025,
+*after* that tag.** `git show v0.3.0:src/sequence.ts` has no mention of it. The suite is green here
+because [ADR-0034](adr/0034-the-engine-relinks-itself-when-a-sibling-checkout-exists.md) relinks
+the engine to the sibling checkout whenever one exists, and `link-engine` prints the mismatch on
+every install:
+
+```
+link-engine: linked → /home/ryankhetlyr/Development/square-one
+link-engine:   pinned github:randallard/square-one#v0.3.0  ·  local 0.3.0
+```
+
+**A fresh clone or CI resolves the pin and gets a package with no `ShapeAt` in it.** These 16
+unpushed commits have never been built against the pinned tarball.
+
+🔑 **The co-development link is doing exactly what it was built for, and that is what hid this.**
+On 08-21 the tag was validated end to end — the suite ran green against the *published* tarball
+rather than the symlink, deliberately. One chunk later the code moved past the tarball and the
+link covered the gap silently. **The convenience and the check are the same mechanism, so the
+check is only as good as the last time somebody turned the convenience off.** ADR-0034's promotion
+condition should become a gate: fail when the pinned version does not satisfy what the source
+imports, rather than trusting a line of install output.
+
+▶ **The fix is a square-one `0.4.0` and a pin bump here.** Its `main` is eight commits past v0.3.0
+with `turn-under` deleted (breaking) and `ShapeAt` added (additive). **Ryan pushes the tags.**
+
+**🔴 Open, after that:**
+
+1. **Should the beau's bow carry more of the difference between the two accommodations?** New, and
+   Ryan's to judge — see the tenth chunk below. 0.897 against 0.952.
+2. **To discuss:** the standing touch-hands handhold has no accommodation (the third hold, and its
+   hands meet *in front of* the pair rather than between them); `arm-turn`'s quarter-turn sampling;
+   the hold's `forward` still 0.320 on the default cast, flagged 2026-08-17.
+3. **`archClearance` measures from the couple's midpoint** — still open deliberately, see below.
+4. **Two couples in `#dance`** — planning ADR-0011's S2, and the real prerequisite for Star Thru.
+   `applyCallToPair` cannot express a formation change. ADR-0037's own promotion condition lands in
+   the same place: a call that legitimately changes the formation is not an accommodation.
+
+---
+
+**▶ 2026-08-21, tenth chunk — ✅ THE ARM IS SWEPT TO ITS OWN HAND, AND THE DEFAULT PAIR
 KEEP HOLD.** [ADR-0038](adr/0038-the-arm-holding-the-arch-up-is-in-the-gap-too.md) — the ADR the
 ninth chunk owed, now written, plus the two over-corrections it shipped with.
-**637 tests, lint 0 errors, build clean, `docs-hygiene` clean.** 🔴 Held for Ryan's verify.
+**637 tests, lint 0 errors, build clean, `docs-hygiene` clean.** ✅ **Watched and accepted 2026-08-22.**
 
 🔑 **Two things were wrong with the ninth chunk's sweep, and they pulled the same way.**
 
@@ -44,10 +89,10 @@ back toward its owner and lands slightly **higher**: 1.635 against 1.631.
 text plus a trailing sentence, which the status parser rejects. The reasoning already lives in
 ADR-0037's Context; the status line is plain again.
 
-**⚠️ THE WATCH — `#dance=two-twirls`.** The reshape side should have the belle's arm clear of the
-beau's head, and **neither** Twirl should show the pair standing at arm's length and beyond — half
-of all executions used to. Run here from a top-down camera the two bodies clear each other at the
-pass with room to spare; whether the arm reads clear of the head is the call that found this one.
+**✅ THE WATCH IS CLOSED — `#dance=two-twirls`.** Ryan, 2026-08-22: *"I watched two twirls and it
+looks good with both the resize and the break accommodations."* The belle's arm reads clear of the
+beau's head on the reshape side, and neither Twirl stands the pair at arm's length and beyond —
+half of all executions used to.
 
 🔴 **Still open, deliberately: `archClearance` measures from the couple's midpoint**, which is no
 longer where a broken hold's short hand is. Conservative on the term that binds (the tall
