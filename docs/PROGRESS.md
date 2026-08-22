@@ -30,9 +30,10 @@ the one they walked out — it must be the clearance and need be no more. *"Slid
 enough to step back"* is the same number from the other side, and `slide.distance` has been that
 clearance since square-one's ADR-0020.
 
-**⚠️ THE WATCH — `pnpm dev` → `#dance=dosado`.** 🔴 The walk is a fifth shorter and the pass is
-half as far past. Whether *"just enough to clear"* reads as tight-and-right or as cramped is the
-one number a render decides. Also still owed: **two-trades / two-twirls**.
+✅ **WATCHED AND ACCEPTED** — Ryan, `#dance=dosado`: *"dosado looks good."* The walk is a fifth
+shorter and the pass half as far past, and "just enough to clear" reads right. **Every pair call
+is now watched at its body-derived size**: Dosado, Pass Thru's lane, and Allemande Left's grip.
+🔴 Still owed: the **two-trades / two-twirls** watch, which is the couple calls' bow.
 
 ---
 
