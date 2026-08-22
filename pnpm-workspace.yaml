@@ -4,6 +4,7 @@
 # `pnpm install` from stopping on ERR_PNPM_IGNORED_BUILDS, in CI and locally.
 allowBuilds:
   esbuild: true
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/1cccea1d779f8394ed09642b2e0d566f0635a8f4: set this to true or false
   # square-one is consumed as a pinned git dependency (planning ADR-0006) and its
   # dist/ is gitignored, so pnpm must run its `prepare` (a plain `tsc`) after cloning.
   #
@@ -17,9 +18,15 @@ allowBuilds:
   #
   # So the maintenance burden the old comment denied is real: **this line changes on every
   # square-one tag**, and the hash is the tag's *commit*, not the tag object's own.
-  # `git rev-parse v0.3.0^{}` in square-one gives it.
-  square-one@https://codeload.github.com/randallard/square-one/tar.gz/1cccea1d779f8394ed09642b2e0d566f0635a8f4: true
-  square-one@https://codeload.github.com/randallard/square-one/tar.gz/660fe3324b801b86393620f9a97fb687639bc349: set this to true or false
+  # `git rev-parse v0.4.0^{}` in square-one gives it.
+  #
+  # 🔴 **One line, for the tag the pin names.** Two stale keys had accumulated here — v0.2.0's
+  # and v0.3.0's — and v0.2.0's carried pnpm's suggestion text (`set this to true or false`)
+  # verbatim as its *value*, which YAML reads as a string and pnpm ignores. Dead either way, and
+  # it survived two bumps because nothing fails when a key nobody fetches is wrong. A key that
+  # is not the current pin cannot be exercised, so keeping it only preserves the chance of a
+  # future edit landing on the wrong line.
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/1f0ee7ae83a3502b71e9159c646798599746bbe9: true
 
 # Age-gate new releases at the package manager. 1440 minutes (1 day) is pnpm's
 # own recommendation and its v11 default; stated explicitly rather than inherited

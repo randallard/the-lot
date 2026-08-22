@@ -250,8 +250,17 @@ the room their bodies need to pass, so a short-armed pair is *born* too narrow a
 decisions widen them one call at a time. Flooring it would be a decision about what a couple's width
 is, beside ADR-0027.
 
-🔴 **Still first, and unchanged: the pin.** Deferred to end of day at Ryan's call — the tag bump,
-the pin bump and the push to `origin` go out together.
+✅ **THE PIN IS MOVED AND THE TAG IS OUT.** square-one **v0.4.0** is on `origin`, the pin follows it,
+and the-lot was verified **against the published tarball** rather than the symlink —
+`SQUARE_ONE_NO_LINK=1`, then a real fetch of the v0.4.0 tarball: typecheck, 665 tests and the build
+all green with `ShapeAt` resolving out of `dist/sequence.d.ts`. That is the check this morning's
+finding said nobody had run since the pin went stale, and it is the one that closes it.
+
+🔴 **`allowBuilds` had two dead keys and one of them was pnpm's suggestion text pasted in as a
+value.** `square-one@…660fe332: set this to true or false` — v0.2.0's URL, carrying the literal
+instruction where a boolean goes. YAML reads it as a string and pnpm ignores it, so it survived two
+bumps: **nothing fails when a key nobody fetches is wrong.** One line now, for the tag the pin
+actually names.
 
 ---
 
