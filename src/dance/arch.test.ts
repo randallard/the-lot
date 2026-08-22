@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { archClearance, archFits, archLateral, crownOf, planArch, reachCeiling } from "./arch";
+import {
+  archClearance,
+  archFits,
+  archLateral,
+  armSweepClearance,
+  crownOf,
+  insideShoulderX,
+  planArch,
+  reachCeiling,
+  reachToward,
+  sizeArch,
+} from "./arch";
 import { CLEARANCE_MARGIN } from "./frame";
 import {
   ACCOMMODATIONS,
@@ -15,6 +26,8 @@ import {
   MYCO_DEFAULTS,
   SHAPE_BOUNDS,
   SPROUT_DEFAULTS,
+  lateralClearance,
+  rigidParts,
   type CharacterBodyShape,
 } from "../services/body-shapes";
 
@@ -94,7 +107,8 @@ describe("the reshape", () => {
   it("🔴 makes the arch, and both dancers keep hold", () => {
     const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, RESHAPE);
     expect(p.gap).toBeCloseTo(0, 6);
-    expect(p.hands.beau).toBeCloseTo(p.hands.belle, 6);
+    expect(p.hands.beau.height).toBeCloseTo(p.hands.belle.height, 6);
+    expect(p.hands.beau.lateral).toBeCloseTo(p.hands.belle.lateral, 6);
     // ...and the join really is above the head that has to pass under it.
     const belle = armMetrics(growBody(EMBER_DEFAULTS, p.bodyDeltas.belle));
     expect(p.height).toBeGreaterThan(crownOf(belle));
@@ -117,7 +131,7 @@ describe("the reshape", () => {
     const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, RESHAPE);
     const beau = armMetrics(growBody(MYCO_DEFAULTS, p.bodyDeltas.beau));
     const out = armPose();
-    touchPose(out, beau, -1, -(width / 2), localHeight(beau, p.hands.beau), 0);
+    touchPose(out, beau, -1, -(width / 2), localHeight(beau, p.hands.beau.height), 0);
     expect(out.x).toBeCloseTo(-beau.restX, 9);
 
     // And the same solve at **zero** overshoot does not — which is why the constant is not
@@ -182,9 +196,34 @@ describe("the break", () => {
     // her own hand. That is a real thing mismatched dancers do, which is why it is one of
     // the two options rather than the error case.
     const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, BREAK);
-    expect(p.hands.belle).toBeCloseTo(p.height, 6);
-    expect(p.hands.beau).toBeLessThan(p.height);
-    expect(p.hands.beau).toBeCloseTo(reachCeiling(myco, width), 6);
+    expect(p.hands.belle.height).toBeCloseTo(p.height, 6);
+    expect(p.hands.belle.lateral).toBeCloseTo(p.lateral, 6);
+    expect(p.hands.beau.height).toBeLessThan(p.height);
+  });
+
+  it("🔴 stops the short arm across as well as up", () => {
+    // ADR-0038. The hand used to be `reachCeiling` — the highest a hand can get **if it must
+    // arrive over the join** — which spends the whole shortfall on height and none of it on
+    // the across, leaving the hand hovering above a point the arm cannot span to. The figure
+    // was then sized for an arm that long, and the default pair let go rather than dance it.
+    const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, BREAK);
+    const shoulderX = insideShoulderX(myco, width, -1);
+    const shoulderY = myco.rigOriginY + myco.restY;
+
+    // Exactly his own arm from his own shoulder, and no further.
+    expect(
+      Math.hypot(p.hands.beau.lateral - shoulderX, p.hands.beau.height - shoulderY),
+    ).toBeCloseTo(myco.handReach, 9);
+
+    // Short of the join in *both* directions — which is what "the hands come apart" means
+    // for a hand that is also below it.
+    expect(p.hands.beau.lateral).toBeLessThan(p.lateral);
+    expect(p.hands.beau.height).toBeLessThan(p.height);
+
+    // 🔴 And **higher** than the old ceiling, not lower. `reachCeiling` pins the hand to the
+    // couple's midpoint; released from that, the arm comes back toward its owner and spends
+    // what it saves going up. The over-charge was never that the hand was too high.
+    expect(p.hands.beau.height).toBeGreaterThan(reachCeiling(myco, width));
   });
 
   it("does not break a hold the pair could have made anyway", () => {
@@ -292,7 +331,99 @@ describe("the arch a couple asks for has to be one the figure can deliver", () =
     const b = armMetrics(EMBER_DEFAULTS);
     const width = touchHold(a, b).width;
     const wanted = archClearance(a, b, MYCO_DEFAULTS, EMBER_DEFAULTS, width, BREAK);
-    expect(wanted / width).toBeCloseTo(0.951, 3);
+    expect(wanted / width).toBeCloseTo(0.952, 3);
     expect((CLEARANCE_MARGIN * wanted) / width).toBeGreaterThan(1);
+  });
+});
+
+describe("armSweepClearance — the arm holding the hand up is in the gap too", () => {
+  const beauShape = MYCO_DEFAULTS;
+  const belleShape = EMBER_DEFAULTS;
+  const bodies = CLEARANCE_MARGIN * lateralClearance(rigidParts(beauShape), rigidParts(belleShape));
+
+  /** The sweep for one accommodation, measured on the bodies that will dance it. */
+  function sweep(mode: typeof RESHAPE | typeof BREAK): number {
+    const p = plan(beauShape, belleShape, mode);
+    const b = armMetrics(growBody(beauShape, p.bodyDeltas.beau));
+    const l = armMetrics(growBody(belleShape, p.bodyDeltas.belle));
+    return armSweepClearance(b, l, p.hands);
+  }
+
+  it("🔴 costs more than the hands do under a reshape, which is the whole finding", () => {
+    // ADR-0038. A reshaped join rides clear above both crowns, so the cross-section at its
+    // height is literally zero and `archClearance` charges almost nothing — while the belle's
+    // arm runs from her shoulder up to it, straight past where the beau's head is. Ryan, on the
+    // two Twirls: *"now the short side is clipping the belle's arm into beau's head."*
+    const hands = archClearance(myco, ember, beauShape, belleShape, width, RESHAPE);
+    expect(sweep(RESHAPE)).toBeGreaterThan(hands);
+    expect(sweep(RESHAPE)).toBeGreaterThan(bodies);
+  });
+
+  it("🔴 does not charge a break for a reach nobody makes", () => {
+    // The over-correction this closes. Both arms used to be swept to the *join*, and under a
+    // break the short one never gets there — so the model charged the figure for an arm longer
+    // than its owner has, the request went past the couple's own handholding width, and the pair
+    // let go and stood twice as wide for a pass they could have danced holding on.
+    expect(sweep(BREAK)).toBeLessThan(width);
+    const sized = sizeArch(myco, ember, beauShape, belleShape, width, bodies, BREAK);
+    expect(sized.accommodation).toBe(BREAK);
+    expect(sized.width).toBeCloseTo(width, 9);
+  });
+
+  it("🔴 is symmetric under swapping the two dancers' sides", () => {
+    // The frame is the couple's, not each dancer's, because the first version mirrored into
+    // each dancer's own and carried the join's lateral across the flip without negating it —
+    // measuring the belle's arm reaching for a point on the wrong side of the midpoint. A pair
+    // of the same dancer has a lateral of zero and cannot see that; a mismatched pair can.
+    const p = plan(beauShape, belleShape, RESHAPE);
+    const b = armMetrics(growBody(beauShape, p.bodyDeltas.beau));
+    const l = armMetrics(growBody(belleShape, p.bodyDeltas.belle));
+    const mirrored = {
+      beau: { height: p.hands.belle.height, lateral: -p.hands.belle.lateral },
+      belle: { height: p.hands.beau.height, lateral: -p.hands.beau.lateral },
+    };
+    expect(armSweepClearance(l, b, mirrored)).toBeCloseTo(armSweepClearance(b, l, p.hands), 6);
+  });
+
+  it("charges more for a thicker arm, which is the quantity it is bisecting on", () => {
+    // The bisection is sound because the predicate is monotonic in the separation: pulling
+    // the pair apart moves every point of each arm away from the other dancer, and the hand
+    // each arm ends at is fixed relative to the couple. What that buys is asserted from the
+    // outside — a wider arm can only need more room, never less.
+    const p = plan(beauShape, belleShape, RESHAPE);
+    const b = armMetrics(growBody(beauShape, p.bodyDeltas.beau));
+    const l = armMetrics(growBody(belleShape, p.bodyDeltas.belle));
+    const thick = armMetrics({
+      ...belleShape,
+      forearm: {
+        ...belleShape.forearm,
+        topRadius: belleShape.forearm.topRadius * 2,
+        bottomRadius: belleShape.forearm.bottomRadius * 2,
+      },
+    });
+    expect(armSweepClearance(b, thick, p.hands)).toBeGreaterThan(
+      armSweepClearance(b, l, p.hands),
+    );
+  });
+});
+
+describe("reachToward", () => {
+  it("returns the target itself when the arm can span it", () => {
+    const shoulderX = insideShoulderX(ember, width, 1);
+    const target = { height: ember.rigOriginY + ember.restY + 0.1, lateral: shoulderX };
+    expect(reachToward(ember, shoulderX, target)).toEqual(target);
+  });
+
+  it("🔴 stops at exactly one arm's length, on the line to the target", () => {
+    const shoulderX = insideShoulderX(myco, width, -1);
+    const shoulderY = myco.rigOriginY + myco.restY;
+    const target = { height: shoulderY + 10, lateral: shoulderX + 10 };
+    const hand = reachToward(myco, shoulderX, target);
+    expect(Math.hypot(hand.lateral - shoulderX, hand.height - shoulderY)).toBeCloseTo(
+      myco.handReach,
+      9,
+    );
+    // On the line: equal parts of a 45° target.
+    expect(hand.lateral - shoulderX).toBeCloseTo(hand.height - shoulderY, 9);
   });
 });

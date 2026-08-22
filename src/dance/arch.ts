@@ -116,6 +116,62 @@ export function archLateral(beau: ArmMetrics, belle: ArmMetrics): number {
   return (beau.restX - belle.restX) / 2;
 }
 
+/**
+ * Where one dancer's inside hand actually gets to, in the couple's own plane: a height and
+ * an offset from the couple's midpoint, toward the belle.
+ *
+ * 🔴 **A height alone was not enough** (ADR-0038). A hold that survives puts both hands on
+ * the same point and the lateral is common to them, so it lived on the plan once. A hold
+ * that has *broken* does not: whoever falls short stops short **across** as well as up, and
+ * pretending their hand still arrives over the join charges the figure for a reach nobody
+ * makes.
+ */
+export interface HandPoint {
+  /** World height. */
+  readonly height: number;
+  /** Offset from the couple's midpoint, toward the belle. */
+  readonly lateral: number;
+}
+
+/**
+ * The x of a dancer's **inside** shoulder — the one the arch hangs from — for a couple
+ * `separation` apart, with the dancer on the `sign` side of the midpoint.
+ *
+ * `-1` is the beau's side and `+1` the belle's, matching {@link HandPoint.lateral}'s
+ * direction. Written once because every question in this module is asked in this frame, and
+ * mirroring it by hand is how a sign gets lost.
+ */
+export function insideShoulderX(m: ArmMetrics, separation: number, sign: -1 | 1): number {
+  return sign * (separation / 2 - m.restX);
+}
+
+/**
+ * As far toward `target` as this arm gets, from a shoulder at `shoulderX`.
+ *
+ * The target itself when it is within reach; otherwise `handReach` **along the direction to
+ * it**, which is what an arm at full stretch does and what {@link reachPose} already draws —
+ * a straight arm aimed at a point it cannot touch.
+ *
+ * 🔴 **Not {@link reachCeiling}**, which answers a different question: the highest a hand can
+ * get if it must arrive *over the join*. That is the right question while a hold is being
+ * planned — how high can this pair get their hands — and the wrong one once the answer is
+ * "not that high", because it spends the whole shortfall on height and none of it on the
+ * across, leaving the hand hovering above a spot the arm cannot span to.
+ */
+export function reachToward(
+  m: ArmMetrics,
+  shoulderX: number,
+  target: HandPoint,
+): HandPoint {
+  const shoulderY = m.rigOriginY + m.restY;
+  const dx = target.lateral - shoulderX;
+  const dy = target.height - shoulderY;
+  const d = Math.hypot(dx, dy);
+  if (d <= m.handReach || d < 1e-9) return target;
+  const f = m.handReach / d;
+  return { lateral: shoulderX + dx * f, height: shoulderY + dy * f };
+}
+
 /** What an arch costs this pair, and what they do about it. */
 export interface ArchPlan {
   readonly accommodation: Accommodation;
@@ -131,12 +187,12 @@ export interface ArchPlan {
   /** Body-height changes to apply. Both zero under {@link BREAK}. */
   readonly bodyDeltas: BodyDeltas;
   /**
-   * Each dancer's own hand height — where they actually get to.
+   * Each dancer's own hand — where they actually get to, height **and** lateral.
    *
-   * Equal to {@link height} for anyone who can reach it. **Different from each other is
-   * exactly what a broken hold is**, and the difference is what shows on screen.
+   * Equal to `{ height, lateral }` for anyone who can reach it. **Different from each other
+   * is exactly what a broken hold is**, and the difference is what shows on screen.
    */
-  readonly hands: { readonly beau: number; readonly belle: number };
+  readonly hands: { readonly beau: HandPoint; readonly belle: HandPoint };
   /** How far apart the two hands end up. `0` is a hold that survived. */
   readonly gap: number;
 }
@@ -201,9 +257,12 @@ export function planArch(
   const l = bodyDeltas.belle === 0 ? belle : armMetrics(growBody(belleShape, bodyDeltas.belle));
 
   const height = crownOf(l) + clear;
+  // Where both of them are reaching. Whoever can span it arrives; whoever cannot stops
+  // short along the line to it — across as well as up (ADR-0038).
+  const target: HandPoint = { height, lateral };
   const hands = {
-    beau: Math.min(height, reachCeiling(b, separation)),
-    belle: Math.min(height, reachCeiling(l, separation)),
+    beau: reachToward(b, insideShoulderX(b, separation, -1), target),
+    belle: reachToward(l, insideShoulderX(l, separation, 1), target),
   };
 
   return {
@@ -212,7 +271,12 @@ export function planArch(
     lateral,
     bodyDeltas,
     hands,
-    gap: Math.abs(hands.beau - hands.belle),
+    // The distance between the two hands, not the difference in their heights: a hand that
+    // stopped short came away from the join in two directions and the hold opened by both.
+    gap: Math.hypot(
+      hands.beau.lateral - hands.belle.lateral,
+      hands.beau.height - hands.belle.height,
+    ),
   };
 }
 
@@ -257,7 +321,7 @@ export function archClearance(
   // Each hand sits at the pair's midpoint, so each must clear **both** bodies' cross-sections
   // at its own height — half the separation each way. `sideExtentAt` narrows a head toward
   // its poles, so a hand held high over a crown costs less than one held at eye level.
-  for (const height of [plan.hands.beau, plan.hands.belle]) {
+  for (const height of [plan.hands.beau.height, plan.hands.belle.height]) {
     const widest = Math.max(sideExtentAt(b.parts, height), sideExtentAt(l.parts, height));
     need = Math.max(need, 2 * (widest + hand));
   }
@@ -292,7 +356,7 @@ export function archFits(
 /**
  * How far apart the pair must stand for each raised **arm** to clear the other dancer.
  *
- * 🔴 **The gap has a fourth thing in it** (ADR-0038). [ADR-0018](../../docs/adr/0018-the-arch-needs-a-hands-room-between-two-heads.md)
+ * 🔴 **The gap has a fourth thing in it** (ADR-0038). square-one's [ADR-0018](https://github.com/randallard/square-one/blob/main/docs/adr/0018-the-arch-needs-a-hands-room-between-two-heads.md)
  * found the third — a joined *hand* up between two heads — and measured the room needed **at the
  * hand's height**. That is the right question for a hand and the wrong one for the arm holding it
  * up: the hand is only the top of it.
@@ -316,25 +380,46 @@ export function archFits(
  * it is conservative in the wrong place. It would charge the reshape for room at a height where
  * nobody has a head, dragging it back up toward the break's number and undoing the difference
  * between the two accommodations that ADR-0037 exists to produce.
+ *
+ * ## Each arm ends at its own hand, not at the join
+ *
+ * 🔴 **The first version ran both arms to the join and over-charged the break by 0.196.** Under
+ * a break the hands *are* apart — ADR-0028's *"both arms reach as far as they can toward the same
+ * target, and the hands come apart"* — so whoever falls short stops short **across** as well as
+ * up, and an arm drawn to the join is an arm longer than its owner has. The over-charge tipped
+ * the default pair past their own handholding width, so they let go and stood twice as wide for a
+ * reach neither of them makes. {@link ArchPlan.hands} carries the two hand *positions*, and each
+ * arm is swept to its own.
  */
 export function armSweepClearance(
   beau: ArmMetrics,
   belle: ArmMetrics,
-  hands: { readonly beau: number; readonly belle: number },
-  lateral: number,
+  hands: { readonly beau: HandPoint; readonly belle: HandPoint },
 ): number {
-  /** Does `me`'s raised arm clear `them`, with the pair `s` apart, centre to centre? */
-  const fits = (me: ArmMetrics, them: ArmMetrics, joinY: number, s: number): boolean => {
-    // `me` at −s/2 and `them` at +s/2; the join sits between the two inside shoulders.
-    const meX = -s / 2;
-    const themX = s / 2;
-    const shoulderX = meX + me.restX; // the inside shoulder, toward the join
+  /**
+   * Does `me`'s raised arm clear `them`, with the pair `s` apart, centre to centre?
+   *
+   * `sign` says which side of the midpoint `me` stands on — `-1` for the beau, `+1` for the
+   * belle — and every quantity is written in the couple's own frame rather than mirrored into
+   * each dancer's. Mirroring is what the first version did, and it carried the join's lateral
+   * across the flip without negating it, so the belle's arm was measured reaching for a point
+   * on the wrong side of the midpoint.
+   */
+  const fits = (
+    me: ArmMetrics,
+    them: ArmMetrics,
+    hand: HandPoint,
+    sign: -1 | 1,
+    s: number,
+  ): boolean => {
+    const themX = -sign * (s / 2);
+    const shoulderX = insideShoulderX(me, s, sign);
     const shoulderY = me.rigOriginY + me.restY;
-    const span = joinY - shoulderY;
+    const span = hand.height - shoulderY;
     for (let i = 0; i <= ARM_SAMPLES; i++) {
       const t = i / ARM_SAMPLES;
       const h = shoulderY + span * t;
-      const armX = shoulderX + (lateral - shoulderX) * t;
+      const armX = shoulderX + (hand.lateral - shoulderX) * t;
       const reach = sideExtentAt(them.parts, h) + me.armHalfWidth;
       if (Math.abs(armX - themX) < reach) return false;
     }
@@ -342,7 +427,7 @@ export function armSweepClearance(
   };
 
   const both = (s: number): boolean =>
-    fits(beau, belle, hands.beau, s) && fits(belle, beau, hands.belle, s);
+    fits(beau, belle, hands.beau, -1, s) && fits(belle, beau, hands.belle, 1, s);
 
   // Bracket: zero never fits and something generous always does. The upper bound is two whole
   // bodies plus two arms, which is more than any pose can need.
@@ -413,7 +498,7 @@ export function sizeArch(
       // What must fit at each hand's own height (ADR-0018).
       archClearance(beau, belle, beauShape, belleShape, width, mode),
       // What the arms holding those hands up sweep through on the way (ADR-0038).
-      armSweepClearance(b, l, plan.hands, archLateral(b, l)),
+      armSweepClearance(b, l, plan.hands),
       // And never less than two bodies passing hands-free (ADR-0037).
       bodies,
     );

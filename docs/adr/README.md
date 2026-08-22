@@ -126,6 +126,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0035](0035-the-square-does-not-grow-for-its-widest-pair.md) | The square does not grow for its widest pair | Accepted |
 | [0036](0036-the-arch-clearance-carries-its-own-margin.md) | The arch clearance carries its own margin, and must stay inside the couple's width | Accepted |
 | [0037](0037-the-figure-is-sized-to-the-accommodation-drawn.md) | The figure is sized to the accommodation drawn, and a pair who let go are not held to a handhold's width | Accepted |
+| [0038](0038-the-arm-holding-the-arch-up-is-in-the-gap-too.md) | The arm holding the arch up is in the gap too, and each arm is swept to its own hand | Accepted |
 
 ## Decisions this repo inherits
 

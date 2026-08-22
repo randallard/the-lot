@@ -791,14 +791,20 @@ export function DanceFloor({
            *
            * It is the standing hold until an arch is declared, and then eases into it.
            *
-           * **One `TouchHold`, two heights.** Everything about an arch that differs from a
+           * **One `TouchHold`, two hands.** Everything about an arch that differs from a
            * standing handhold is already expressible here — it is higher, it is not carried
            * forward of the bodies, and it sits between the same two shoulders — so this is a
            * different hold rather than a different mechanism, and `poseArms` needs no branch
            * for it. The one thing that is new is that the two dancers may be given
-           * **different heights**: under a break each reaches their own ceiling, and hands
-           * that are not on the same plane are hands that have come apart. That is the whole
-           * of "the hold breaks", and it is a number rather than a special case.
+           * **different points**: under a break each gets as far toward the join as their own
+           * arm goes, and hands that are not on the same point are hands that have come apart.
+           * That is the whole of "the hold breaks", and it is a number rather than a special
+           * case.
+           *
+           * 🔴 **The lateral is per-dancer too, as of ADR-0038.** It was `plan.lateral` — the
+           * join — for both of them, which put a broken hold's short hand directly over a spot
+           * its arm could not span to, and the render stretched the arm to get it there. The
+           * same over-reach was being charged for in the figure's width.
            */
           const standing = performanceOptions.sequence === undefined ? undefined : hold;
           const archHold: TouchHold | undefined =
@@ -806,8 +812,8 @@ export function DanceFloor({
               ? undefined
               : {
                   width: standing.width,
-                  height: lerp(standing.height, plan.hands[mine], under.blend),
-                  lateral: lerp(standing.lateral, plan.lateral, under.blend),
+                  height: lerp(standing.height, plan.hands[mine].height, under.blend),
+                  lateral: lerp(standing.lateral, plan.hands[mine].lateral, under.blend),
                   // An arm reaching overhead has nothing spare to spend going forward, so
                   // the standing hold's `forward` (ADR-0027) unwinds to zero as it rises.
                   forward: lerp(standing.forward, 0, under.blend),

@@ -4,40 +4,79 @@ _Last updated: 2026-08-21_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-21, ninth chunk) — 🔴 THE GAP HAS A FOURTH THING IN IT: THE ARM.**
-Ryan, on the two Twirls: *"yeah they look different but now the short side is clipping the belle's
-arm into beau's head."* **630 tests, lint 0 errors, build clean.** 🔴 **Committed with a known
-over-correction — read the owed item before watching.** ADR-0038 is **not yet written**.
+**▶ RIGHT NOW (2026-08-21, tenth chunk) — ✅ THE ARM IS SWEPT TO ITS OWN HAND, AND THE DEFAULT PAIR
+KEEP HOLD.** [ADR-0038](adr/0038-the-arm-holding-the-arch-up-is-in-the-gap-too.md) — the ADR the
+ninth chunk owed, now written, plus the two over-corrections it shipped with.
+**637 tests, lint 0 errors, build clean, `docs-hygiene` clean.** 🔴 Held for Ryan's verify.
 
-🔑 **ADR-0018 found the third thing in the gap — a joined *hand* between two heads — and measured
-the room at the hand's height.** That is the right question for a hand and the wrong one for the
-arm holding it up. Under a reshape the join rides clear above both crowns, so the cross-section at
-its height is literally **zero** and the figure was sized by the bodies alone. The belle's arm runs
-from her shoulder up to that join, and on the way it passes exactly where his head is.
+🔑 **Two things were wrong with the ninth chunk's sweep, and they pulled the same way.**
+
+1. **A mirror lost a sign.** `armSweepClearance` flipped the problem into each dancer's own frame
+   and carried the join's lateral across without negating it, so the belle's arm was measured
+   reaching for a point on the **wrong side of the midpoint**. The reshape fell **1.055 → 1.023**
+   on that alone. A matched pair has a lateral of zero and cannot catch it; everything is written
+   in the couple's frame now, with a `-1`/`+1` side.
+2. **Both arms ran to the join, and under a break neither short one gets there.** The model
+   charged for an arm longer than its owner has. `reachToward` stops a hand at `handReach`
+   **along the line to the target** — short *across* as well as up — `ArchPlan.hands` carries a
+   point per dancer instead of a height, and `DanceFloor` poses to the same point.
+
+| myco/ember | hands need | arms need | bodies need | dances at | ÷ width |
+|---|---|---|---|---|---|
+| reshape | 0.220 | **1.023** | 0.781 | **1.140 — keeps hold** | 0.897 |
+| break | **1.085** | 1.032 | 0.781 | **1.140 — keeps hold** | 0.952 |
+
+🔴 **The break was standing at 2.368 and is back to 1.140.** Its arm cost went 1.184 → 1.032, back
+under `archClearance`, and 1.085 fits inside the couple's own width.
+
+🔴 **The cost, and it is Ryan's to judge: ADR-0037's two Twirls are much closer together again** —
+0.897 against 0.952, where ADR-0037 left them at 0.685 against 0.951. Honest rather than a
+regression: **the arm is in the gap under both accommodations and only the hand was ever cheap up
+there.** The draw still shows plainly in the reshaping torsos; it barely shows in the beau's bow.
+Wanting the bow to carry the difference again is a new question about what a reshape should cost.
+
+🔑 **`reachCeiling` is not deleted and should not be** — it answers *"how high can this hand get if
+it must arrive over the join"*, which is the right question while a hold is being **planned** and
+the wrong one once the answer is "not that high". Released from the midpoint, the short hand comes
+back toward its owner and lands slightly **higher**: 1.635 against 1.631.
+
+🔴 **`docs-hygiene` had been red since `cb6b1b4`** — ADR-0030's supersede note was written as bold
+text plus a trailing sentence, which the status parser rejects. The reasoning already lives in
+ADR-0037's Context; the status line is plain again.
+
+**⚠️ THE WATCH — `#dance=two-twirls`.** The reshape side should have the belle's arm clear of the
+beau's head, and **neither** Twirl should show the pair standing at arm's length and beyond — half
+of all executions used to. Run here from a top-down camera the two bodies clear each other at the
+pass with room to spare; whether the arm reads clear of the head is the call that found this one.
+
+🔴 **Still open, deliberately: `archClearance` measures from the couple's midpoint**, which is no
+longer where a broken hold's short hand is. Conservative on the term that binds (the tall
+partner's body at the low hand's height); the term it under-charges is the hand against its
+**own** body, which is zero on the shipped cast because a hand that falls short still ends above
+its owner's own crown. Folding it in would put two decisions in one ADR. Revisit on a cast where a
+short hand lands *beside* its owner's head.
+
+See [`journal/2026-08-21-11-the-arm-that-does-not-reach-the-join.md`](journal/2026-08-21-11-the-arm-that-does-not-reach-the-join.md).
+
+---
+
+**▶ 2026-08-21, ninth chunk — 🔴 THE GAP HAS A FOURTH THING IN IT: THE ARM.**
+Ryan, on the two Twirls: *"yeah they look different but now the short side is clipping the belle's
+arm into beau's head."* **630 tests, lint 0 errors, build clean.** ✅ **The over-correction this
+shipped with is closed by the tenth chunk above**, and ADR-0038 is written.
+
+🔑 **square-one's ADR-0018 found the third thing in the gap — a joined *hand* between two heads —
+and measured the room at the hand's height.** That is the right question for a hand and the wrong
+one for the arm holding it up. Under a reshape the join rides clear above both crowns, so the
+cross-section at its height is literally **zero** and the figure was sized by the bodies alone.
+The belle's arm runs from her shoulder up to that join, and on the way it passes exactly where his
+head is.
 
 🔑 **Solved, not measured, because the arm slopes** — it starts `restX` out at a shoulder and ends
-at the join between the two of them, so where it sits laterally depends on the height you ask
-about, and both endpoints move when the pair move apart. `armSweepClearance` bisects on the
-separation. The cheap version — "add the arm's width at the join's height" — is conservative in the
-wrong place and would have dragged the reshape back up to the break's number, undoing ADR-0037.
-
-| pair | drew | dances | stands | needs |
-|---|---|---|---|---|
-| myco/ember | reshape | reshape | 1.140 (handhold) | **1.055** — was 0.781, the clip |
-| myco/ember | break | **break** | 🔴 **2.368 — lets go** | 1.184 |
-
-🔴 **OWED, AND IT IS THE NEXT THING: the break is over-conservative.** The sweep assumes both arms
-reach the join. Under a break **they do not** — *"both arms reach as far as they can toward the
-same target, and the hands come apart"* (ADR-0028) — so each hand stops short **laterally** as well
-as vertically, and the model charges for a reach nobody makes. That tips the default pair's break
-past their handholding width, so they let go and stand **twice as wide**, which is very likely to
-look wrong on screen.
-
-`ArchPlan` already carries each dancer's own hand *height*; the fix is to give the sweep each
-dancer's own hand **position**, derived from `handReach` along the direction to the target.
-
-**⚠️ THE WATCH — `#dance=two-twirls`, with that caveat.** The reshape Twirl should have the belle's
-arm clear of the beau's head. The break Twirl will look **too wide** until the item above lands.
+at a hand between the two of them, so where it sits laterally depends on the height you ask about,
+and both endpoints move when the pair move apart. `armSweepClearance` bisects on the separation.
+The cheap version — "add the arm's width at the join's height" — is conservative in the wrong
+place and would have dragged the reshape back up to the break's number, undoing ADR-0037.
 
 ---
 
