@@ -69,6 +69,7 @@ import {
   type Mat3,
   type RigidPart,
 } from "../services/body-shapes";
+import { passingWidth } from "./frame";
 
 /** A point in world space. Mutable so the frame loop can reuse it. */
 export interface Vec3 {
@@ -948,7 +949,10 @@ function placeHold(
   const arms = beau.restX + belle.restX + 2 * Math.min(beauReach, belleReach);
   const bodies = Math.max(
     // Nothing of one dancer inside the other, at any height — heads included.
-    lateralClearance(beau.parts, belle.parts) + PERSONAL_SPACE,
+    // 🔑 **The same width the figure will need to walk them past each other** (ADR-0044).
+    // This used to add `PERSONAL_SPACE` where the figure multiplies by `CLEARANCE_MARGIN`, so a
+    // couple whose bodies want more than 0.600 apart stood closer than they could pass.
+    passingWidth(lateralClearance(beau.parts, belle.parts)),
     // And a corridor at the hold's own height wide enough to put the hands in.
     corridorWidth(beau, belle, height),
   );
@@ -1385,8 +1389,15 @@ export function upperArmStrain(pose: ArmPose, m: ArmMetrics, sign: number): numb
  * Daylight an arm keeps from the space its partner is entitled to, so it starts
  * folding before it would collide rather than at the moment it would.
  *
- * Deliberately the same 0.06 the default frame scale leaves between passing
- * bodies: tight, because real dancers brush.
+ * Tight, because real dancers brush.
+ *
+ * 🔴 **It used to say "deliberately the same 0.06 the default frame scale leaves between passing
+ * bodies", and that stopped being true without anybody editing the sentence.** The frame's margin
+ * is `CLEARANCE_MARGIN`, a **multiplier**; the two coincide only at a clearance of 0.600. The
+ * claim survived because nothing checks a comment — and it cost a real defect, because the
+ * couple's standing floor had been written from it (ADR-0044). That floor is
+ * {@link passingWidth} now. **This constant is an arm's business and only an arm's**: how much
+ * daylight a limb keeps before it folds, which is not a question about where two people stand.
  */
 export const PERSONAL_SPACE = 0.06;
 

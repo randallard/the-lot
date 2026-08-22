@@ -231,6 +231,12 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
     () => castShapes(castIds.beau, castIds.belle, sizes),
     [castIds.beau, castIds.belle, sizes],
   );
+  /** The stance the pair would take standing still — for the readout, which has to be able
+   *  to say *why* it thinks nobody is holding on. */
+  const stanceWidth = useMemo(
+    () => touchHold(armMetrics(cast[0]), armMetrics(cast[1])).width,
+    [cast],
+  );
   const castOptions = castRoster();
 
   // One expression layer per dancer, so an emote can be fired *while* a call runs —
@@ -398,7 +404,7 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
         ? `arch — ${arching.accommodation ?? "?"}${stretched === "" ? "" : ` (torso ${stretched})`}`
         : report.dancers.some((d) => d.touch !== null)
           ? "hands joined — a standing couple, no engine grip to track"
-          : "hands free";
+          : `hands free — standing ${report.separation.toFixed(3)} apart, stance wants ${stanceWidth.toFixed(3)}`;
       return;
     }
     track(spans.current, "separation", report.separation);
@@ -423,7 +429,7 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
     el.textContent = [...spans.current]
       .map(([name, s]) => `${name.padEnd(14)} ${fmt(s.min)} → ${fmt(s.max)}   ±${fmt((s.max - s.min) / 2)}`)
       .join("\n");
-  }, [markers, joints, paintMarkers]);
+  }, [markers, joints, paintMarkers, stanceWidth]);
 
   // The toggle itself, for the paused case: no pass is coming to act on it.
   useEffect(() => { paintMarkers(joints); }, [joints, paintMarkers]);
@@ -660,7 +666,10 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
                 whiteSpace: "pre",
               }}
             >
-              hands free
+              {/* 🔴 **Not "hands free."** This is what the pane says before a frame has
+                  written to it, and "hands free" is a *claim* — one that reads as an
+                  answer and outlives the moment nothing has been measured yet. */}
+              waiting for a frame…
             </pre>
             <span style={{ color: "#666", fontSize: 11 }}>
               min → max since the grip engaged. `separation` should breathe; everything

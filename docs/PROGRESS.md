@@ -4,9 +4,10 @@ _Last updated: 2026-08-22_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-22, eleventh chunk) — ▶ `#dance` PICKS ITS OWN CAST, AND IT FOUND A
-DEFECT ON ITS FIRST USE.** **665 tests, lint 0 errors, build clean, `docs-hygiene` clean.**
-🔴 **Held for Ryan's verify.**
+**▶ RIGHT NOW (2026-08-22, eleventh chunk) — ✅ WATCHED AND ACCEPTED. `#dance` PICKS ITS OWN CAST,
+AND IT FOUND SEVEN THINGS ON ITS FIRST DAY.** **708 tests, lint 0 errors, build clean,
+`docs-hygiene` clean.** Ryan, on the whole of it: *"ok I've reviewed — mark all as passed."*
+**Nothing is waiting on his eyes.**
 
 Every character the game has is selectable in either place — the four NPCs and **the player** —
 and the pairing was a hard-coded `[MYCO_DEFAULTS, EMBER_DEFAULTS]` until now.
@@ -32,20 +33,80 @@ and the pairing was a hard-coded `[MYCO_DEFAULTS, EMBER_DEFAULTS]` until now.
   `ArmMetrics.rigOriginY` warns about cannot be sprung inside `DanceFloor`. What the player brings
   is proportions, which is what is being watched.
 
-**⚠️ THE WATCH — `pnpm dev`, `#dance=two-twirls`, then swap the dropdowns.** The beau should stay
-the beau's colour through every swap.
+✅ **"GO HOME" LANDS ON THE STANDING COUPLE AGAIN.** Ryan: *"when I'm in california twirl and click
+'go home' they go to the arch, and 'go home' for the partner trade goes to hands down."*
 
-1. 🔴 **Ember as beau with Myco is the one to judge** — the dearest reach on the cast at 0.310. Arms
-   should stretch into the hold and ease back out. On the **reshape** half of executions Ember also
-   shrinks while Myco grows (ADR-0042's higher aim), which is a bigger torso change than anything
-   on screen yesterday; on the **break** half neither changes. Watch two in a row.
-2. **Myco with Sprout** should reach a little (0.030) and dance a hand's width further apart than
-   they stand, holding on rather than letting go. 🔴 **And Sprout's torso should now stretch upward
-   from where it already sits** — it never stretched at all before, and now the whole change goes
-   into the top rather than half of it sinking into the floor.
-3. 🔴 **The default pair's join moved** — 1.901 → 1.972, since it now rises as far as the two of them
-   can lift it. Nothing else about them changed and the reshape still closes, but the picture is a
-   touch different from yesterday's accepted watch.
+🔴 **square-one declares a Twirl's arch from beat 0** — `{"grip":"arch","from":0,"to":4}` — because
+the hands are joined and raised for the whole call. A home pass snaps the grip blend to its target,
+so "go home" landed *inside* the arch: the one pose the button exists to let you look at, replaced
+by the pose the call moves into. The blend targets **0** on a home pass now, which is what the pair
+actually are at the top of the loop — hands joined, low and forward (ADR-0027) — with the arch as
+the thing the first beats lift them into. It is the blend's own resting value on a fresh mount, so
+this is the home pass agreeing with the first frame of a performance rather than a new rule.
+
+🔴 **The Partner Trade was never broken, and the instrument was lying.** Measured at beat 0 after a
+home pass: `separation 1.1400` — exactly the stance — and `touches: ["right", "left"]`. The hands
+are joined. What said otherwise was the contact readout's **static JSX placeholder**, which read
+`hands free`: a *claim*, sitting there until a frame overwrites it, and indistinguishable from a
+measurement. It now reads `waiting for a frame…`, and the real "hands free" line reports the
+separation and the stance width beside it.
+
+🔑 **The lesson is the one the day keeps teaching, one layer out.** A comment that asserts an
+invariant nobody checks becomes false silently; a **placeholder that asserts an answer** does the
+same thing to whoever is looking at the screen. Both of us read that pane and believed it, and it
+cost most of an afternoon — including a false hypothesis about `standingAsCouple` that a test of the
+real pipeline later refuted outright (it returns **true** at beat 0, separation delta 0.0000).
+
+🔴 **And a browser tab that is not in the foreground runs no frames**, so the pane stays on its
+placeholder and every reading taken from it is stale. That is what made the first round of
+diagnosis unreliable; `requestAnimationFrame` count was the tell.
+
+✅ **AND THE "FLAKEY" HOLD WAS ONE NUMBER WITH TWO MEANINGS —
+[ADR-0045](adr/0045-a-couples-width-is-the-one-they-are-dancing-at.md).** Ryan: *"myco and ember
+look fine but not the player and ember … maybe we have too many states stacking here."*
+
+🔴 **Not stacked state, and not flakey — deterministic, on exactly five of twenty orderings.**
+`TouchHold.width` means *how far apart these two are standing*, and ADR-0040 gave it a second
+meaning: a pair who **reach** dance the call at `ArchSizing.width`, wider, while their resting
+handhold goes on reporting the narrower stance it was solved for. The floor placed them at one
+width and asked `standingAsCouple` about the other; past `TOUCH_TOLERANCE` the predicate says *"not
+a couple"*, the hold is never posed, and both dancers' arms hang.
+
+| lost the hold | reached | rests at | dances at |
+|---|---|---|---|
+| ember / myco · ember / ryan | 0.31 | 0.820 | 1.140 |
+| ember / player | 0.12 | 0.610 | 0.900 |
+| player / sprout · sprout / player | 0.09 · 0.06 | 0.473 | 0.676 · 0.656 |
+
+**The pairs whose reach stayed inside the tolerance kept it** — myco/sprout at 0.03 — which is
+exactly why it read as intermittent. *"Myco and sprout are kind of holding hands"* is 0.03 of arm
+being small enough to sneak under a 35% tolerance.
+
+🔑 **The hold is solved on the bodies dancing the call now**, so on a reaching pair its `width`
+equals `ArchSizing.width` **by construction** — `reachForIt` picked the extension *by* solving
+`touchHold` on those same lengthened arms. The stance, the figure and the engine's placement go back
+to being three readings of one number.
+
+🔴 **The happy-path test would pass without the fix**, so the guard is its counter-assertion: asking
+with the *resting* width loses exactly those five, and every one is a pair who reached.
+
+🔑 **Three of today's five findings are the same shape.** `PERSONAL_SPACE` claiming to be the
+frame's margin, `archLateral` claiming the arch sits above both crowns, and `TouchHold.width`
+claiming to be where the pair stand. **A name keeps its old meaning while the thing it names
+moves**, and nothing catches it — only asking the question on a case the old meaning cannot cover.
+Which on this cast means a pairing nobody could stand up until the picker existed.
+
+**✅ THE WATCH IS CLOSED — every item, accepted 2026-08-22.**
+
+1. ✅ **Ember as beau with Myco** — the dearest reach on the cast at 0.310, with the reshape half
+   also trading torsos hard (ADR-0042's higher aim). Accepted.
+2. ✅ **Myco with Sprout** — reaching 0.030, holding on rather than letting go, and **Sprout's
+   torso stretching upward from where it already sits** (ADR-0043).
+3. ✅ **The default pair's join at 1.972**, up from 1.901, now that it rises as far as the two of
+   them can lift it.
+4. ✅ **The cast picker itself** — the beau keeps the beau's colour through every swap, and every
+   pairing holds hands at beat 0 (ADR-0045).
+5. ✅ **"Go home" lands on the standing couple** in both figures.
 
 ✅ **THE PICKER'S FIRST FINDING IS FIXED — [ADR-0039](adr/0039-a-hand-is-charged-against-the-other-dancer.md).**
 Ryan, on being told Myco and Sprout would let go and stand wide: *"no, that doesn't make any sense…
@@ -245,10 +306,40 @@ the editor's floor and no longer clips at all.
 `armMetrics(growBody(...))`. `wearing()` is exported now so a test measures a dancer the way the
 dance does.
 
-🔴 **The real cause is still upstream and untouched.** `touchHold` never floors the couple's width at
-the room their bodies need to pass, so a short-armed pair is *born* too narrow and these two
-decisions widen them one call at a time. Flooring it would be a decision about what a couple's width
-is, beside ADR-0027.
+✅ **AND THE UPSTREAM CAUSE IS CLOSED —
+[ADR-0044](adr/0044-standing-and-passing-use-one-margin.md).** 🔴 **I had this wrong all day.**
+`touchHold` *does* floor the couple's width at the room their bodies need — `placeHold` has had
+`lateralClearance(...) + PERSONAL_SPACE` in its `bodies` term the whole time. The defect was
+narrower and more familiar: **two spellings of one rule.**
+
+| | formula | |
+|---|---|---|
+| **standing**, `placeHold` | `clearance + PERSONAL_SPACE` | +0.06, additive |
+| **passing**, the figure | `CLEARANCE_MARGIN × clearance` | ×1.1, multiplicative |
+
+They are equal at a clearance of exactly **0.600**, and above it the stance is the smaller number —
+so a pair stand closer than they can pass. 🔴 **And `PERSONAL_SPACE`'s own comment described the two
+as the same number** (*"deliberately the same 0.06 the default frame scale leaves between passing
+bodies"*), which was true when written and stopped being true when the frame's margin became a
+multiplier. The couple's standing floor had been written from that sentence. **Third time today a
+comment asserted an invariant the code had quietly stopped maintaining** — after `archLateral`'s
+"above both crowns by construction" and `gripHeight`'s note about the averaged hold.
+
+Ryan: *"ok do x1.1 everywhere."* One `passingWidth(clearance)` in `frame.ts`, called by both.
+`PERSONAL_SPACE` keeps its other two callers and loses this one — its job is *daylight a limb keeps
+before it folds*, which is not a question about where two people stand.
+
+🔴 **The honest cost of choosing the multiplier:** below the crossover it is the *smaller* margin, so
+Sprout with the player goes 0.490 → **0.473** and the smallest pairing on the cast keeps 0.043 of
+daylight where it kept 0.06. Myco with Sprout goes 0.737 → **0.745**; sixteen stances did not move at
+all. **If the small end ever looks cramped, the alternative to reach for is additive-everywhere, not
+a third constant** — that is written into the ADR rather than left as a shrug.
+
+**No outcome changed** — still 11 / 9 / 0 with the same arm deltas. What changed is where a couple
+stands before the arch asks them for anything, and **Myco with Sprout now stand on exactly what they
+need to pass**, so every unit of their reach is the arch's. Their overshoot went 1.62 → 1.07 →
+**1.05** across the day's three corrections, which is what a number looks like when three separate
+things were inflating it.
 
 ✅ **THE PIN IS MOVED AND THE TAG IS OUT.** square-one **v0.4.0** is on `origin`, the pin follows it,
 and the-lot was verified **against the published tarball** rather than the symlink —

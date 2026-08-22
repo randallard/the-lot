@@ -60,6 +60,25 @@ export const DEFAULT_SCALE = 2.2;
  */
 export const CLEARANCE_MARGIN = 1.1;
 
+/**
+ * How far apart two bodies must stand to pass each other — the bare clearance their silhouettes
+ * need, plus the margin over it.
+ *
+ * 🔴 **One spelling, because there were two and they disagreed** (ADR-0044). The figure asked for
+ * `CLEARANCE_MARGIN × clearance` while `placeHold`'s standing floor asked for `clearance +
+ * PERSONAL_SPACE`, and the two are equal only at a clearance of **0.600**. Above it a couple stood
+ * closer than they could pass — Myco with Sprout by 0.008 — and `PERSONAL_SPACE`'s own comment
+ * still described the pair of them as *"the same 0.06"*, which they were when it was written and
+ * stopped being when the margin became a multiplier.
+ *
+ * Standing and passing are the same question about the same two bodies. They get the same answer
+ * from the same function now, and a future change to the margin cannot reach one and miss the
+ * other.
+ */
+export function passingWidth(clearance: number): number {
+  return CLEARANCE_MARGIN * clearance;
+}
+
 export function makeFrame(
   origin: WorldPoint,
   scale: number = DEFAULT_SCALE,

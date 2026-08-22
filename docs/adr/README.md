@@ -132,6 +132,8 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0041](0041-the-join-rises-as-far-as-the-pair-can-lift-it.md) | The join rises as far as the pair can lift it clear, and no further | Accepted |
 | [0042](0042-the-reshape-aims-at-whichever-height-costs-less.md) | The reshape aims at whichever height asks the figure for less room | Accepted |
 | [0043](0043-a-body-grows-from-where-it-stands.md) | A body grows from where it stands, and the rig carries the difference | Accepted |
+| [0044](0044-standing-and-passing-use-one-margin.md) | Standing and passing ask the same function how far apart two bodies go | Accepted |
+| [0045](0045-a-couples-width-is-the-one-they-are-dancing-at.md) | A couple's width is the one they are dancing at, not the one they would rest at | Accepted |
 
 ## Decisions this repo inherits
 

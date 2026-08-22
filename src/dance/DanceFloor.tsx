@@ -58,7 +58,7 @@ import {
   facingToRotationY,
   makeFrame,
   refit,
-  CLEARANCE_MARGIN,
+  passingWidth,
   DEFAULT_SCALE,
   toWorld,
   type DanceFrame,
@@ -377,7 +377,7 @@ export function DanceFloor({
     if (a === undefined || b === undefined || hold === undefined || seq === undefined) return [];
     const am = armMetrics(a);
     const bm = armMetrics(b);
-    const bodies = CLEARANCE_MARGIN * lateralClearance(rigidParts(a), rigidParts(b));
+    const bodies = passingWidth(lateralClearance(rigidParts(a), rigidParts(b)));
     return seq.map((call) =>
       call === "california-twirl"
         ? sizeArch(am, bm, a, b, hold.width, bodies, drawAccommodation())
@@ -414,7 +414,7 @@ export function DanceFloor({
     const b = shapes[1];
     if (a === undefined || b === undefined) return undefined;
     const scaleNow = scale ?? DEFAULT_SCALE;
-    return (CLEARANCE_MARGIN * lateralClearance(rigidParts(a), rigidParts(b))) / scaleNow;
+    return passingWidth(lateralClearance(rigidParts(a), rigidParts(b))) / scaleNow;
   }, [shapes, scale]);
 
   /**
@@ -574,9 +574,22 @@ export function DanceFloor({
      * an arm that snapped to length would be a limb popping rather than a dancer stretching.
      */
     armDelta: number;
+    /**
+     * The couple's stance **on the bodies they are dancing this call with** — the resting
+     * `hold` when nobody reached, and the hold re-solved on the lengthened arms when they did
+     * (ADR-0045).
+     *
+     * 🔴 **`TouchHold.width` means "how far apart these two are standing", and ADR-0040 gave
+     * that number a second meaning without anybody noticing.** A reaching pair dance the call
+     * at `ArchSizing.width` while their resting handhold still reports the narrower stance —
+     * so `standingAsCouple`, asked whether they are a couple, compared where they *are*
+     * against where they would be if they had not reached, and said no. Five of the twenty
+     * shipped orderings lost the hold entirely at beat 0 on that alone.
+     */
+    stance: TouchHold | undefined;
     /** 0 hands down and shapes unchanged, 1 fully into the hold. */
     blend: number;
-  }>({ span: null, accommodation: BREAK, plan: null, forearm: null, armDelta: 0, blend: 0 });
+  }>({ span: null, accommodation: BREAK, plan: null, forearm: null, armDelta: 0, stance: undefined, blend: 0 });
 
   // The only eased quantity in the arm channel: how far each hand is into its grip.
   const blends = useMemo(() => {
@@ -730,6 +743,13 @@ export function DanceFloor({
             const beauM = under.armDelta === 0 || !beauS ? metrics[0] : armMetrics(beauS);
             const belleM = under.armDelta === 0 || !belleS ? metrics[1] : armMetrics(belleS);
             const pair = beauM && belleM && beauS && belleS;
+            // 🔑 **Solved on the bodies dancing the call, so its `width` is the width they are
+            // actually standing at** (ADR-0045). On a reaching pair this comes out equal to
+            // `ArchSizing.width` by construction — `reachForIt` chose the extension *by*
+            // solving `touchHold` on these same lengthened arms — so the stance, the figure and
+            // the engine's placement are three readings of one number again.
+            under.stance =
+              under.armDelta === 0 || !pair ? hold : touchHold(beauM, belleM);
             under.plan =
               pair && hold && heldSpan.grip === "arch"
                 ? planArch(
@@ -751,7 +771,25 @@ export function DanceFloor({
         // that never quite finishes moving, and it would be drawn every frame for as long
         // as the dancers stand still afterwards.
         {
-          const target = archSpan === undefined ? 0 : 1;
+          /*
+           * 🔴 **A home pass lands on the standing couple, whatever the figure's first beat
+           * declares.** "Go home" exists to give a *nameable* moment to judge, and the one it
+           * names is the standing couple — which, as the debug scene's own doc says, "only
+           * exists at the top of the loop, and at 120 bpm you cannot pause on it".
+           *
+           * square-one declares a California Twirl's arch from **beat 0** (`from: 0`), because
+           * the hands are joined and raised for the whole call. With the blend snapped to its
+           * target on a home pass, that put "go home" *inside* the arch — the one pose it was
+           * built to let you look at, replaced by the pose the call moves into. Ryan: *"when
+           * I'm in california twirl and click 'go home' they go to the arch."*
+           *
+           * Targeting **0** is what the couple actually are at the top of the loop: hands
+           * joined, low and forward (ADR-0027), with the arch as the thing the first beats
+           * *lift them into*. It is the blend's own resting value on a fresh mount, so this is
+           * the home pass agreeing with the first frame of a performance rather than a new
+           * rule.
+           */
+          const target = goingHome ? 0 : archSpan === undefined ? 0 : 1;
           const next = under.blend + (target - under.blend) * Math.min(1, Math.max(0, ease));
           under.blend = Math.abs(target - next) < 1e-3 ? target : next;
         }
@@ -881,7 +919,8 @@ export function DanceFloor({
            * its arm could not span to, and the render stretched the arm to get it there. The
            * same over-reach was being charged for in the figure's width.
            */
-          const standing = performanceOptions.sequence === undefined ? undefined : hold;
+          const standing =
+            performanceOptions.sequence === undefined ? undefined : (under.stance ?? hold);
           const archHold: TouchHold | undefined =
             standing === undefined || plan === null || under.blend <= 0
               ? undefined

@@ -14,7 +14,7 @@ import {
   reachToward,
   sizeArch,
 } from "./arch";
-import { CLEARANCE_MARGIN } from "./frame";
+import { CLEARANCE_MARGIN, passingWidth } from "./frame";
 import {
   ACCOMMODATIONS,
   BREAK,
@@ -323,11 +323,12 @@ describe("the arch a couple asks for has to be one the figure can deliver", () =
     // between them want just as much room as anyone's. The narrower the couple, the further out
     // of reach the arch gets.
     //
-    // 🔴 **The overshoot was 1.62 and is 1.07**, because the number was inflated by two
-    // conflations `archClearance` carried until 2026-08-22 — charging a hand against its own
-    // owner, and measuring from the couple's midpoint rather than the hand's own lateral. The
-    // finding survives the correction; its size does not, and the honest number is the one to
-    // reason from.
+    // 🔴 **The overshoot was 1.62, then 1.07, and is 1.05.** It was inflated by two conflations
+    // `archClearance` carried until 2026-08-22 — charging a hand against its own owner, and
+    // measuring from the couple's midpoint rather than the hand's own lateral — and then it fell
+    // again when the couple's standing width stopped being short of what they need to pass
+    // (ADR-0044). The finding survives every correction; its size does not, and the honest number
+    // is the one to reason from.
     const a = armMetrics(MYCO_DEFAULTS);
     const b = armMetrics(SPROUT_DEFAULTS);
     const width = touchHold(a, b).width;
@@ -337,18 +338,18 @@ describe("the arch a couple asks for has to be one the figure can deliver", () =
     for (const mode of ACCOMMODATIONS) {
       const ratio = archClearance(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width, mode) / width;
       expect(ratio, mode).toBeGreaterThan(1);
-      expect(ratio, mode).toBeCloseTo(1.066, 2);
+      expect(ratio, mode).toBeCloseTo(1.051, 2);
       expect(archFits(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width, mode), mode).toBe(false);
     }
-    // 🔴 **And no arch-side rule can rescue this pair, which is the part worth keeping.** Their
-    // two bodies want **more than their whole handholding width** to pass each other with hands
-    // free and no arch involved at all — so a Partner Trade fails for them on the same ground. The
-    // couple's width is derived from the handhold and never floored at the room the bodies need,
-    // and that is a decision about what a couple's width *is*, one level above this file.
+    // 🔴 **What is left is the arch's own doing, and that is the part worth keeping.** These two
+    // used to want *more than their whole handholding width* to pass each other with hands free
+    // and no arch involved — a Partner Thru failed for them on the same ground — because the
+    // stance was floored with an additive margin where the figure asked for a multiplicative one.
+    // ADR-0044 gave both the same function, and their stance now sits **exactly** on what they
+    // need to pass. Everything still over 1 here is the hand and the arm in the gap.
     expect(
-      (CLEARANCE_MARGIN * lateralClearance(rigidParts(MYCO_DEFAULTS), rigidParts(SPROUT_DEFAULTS)))
-        / width,
-    ).toBeGreaterThan(1);
+      passingWidth(lateralClearance(rigidParts(MYCO_DEFAULTS), rigidParts(SPROUT_DEFAULTS))) / width,
+    ).toBeCloseTo(1, 9);
     // So they let go and stand where the figure can clear them: twice the room they need, which
     // is where the beau's arc delivers it on its own radius with no bow at all (ADR-0037).
     const broken = archClearance(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width, BREAK);
@@ -503,13 +504,16 @@ describe("sizeArch reaches before it lets go", () => {
 
     expect(sized.armDelta).toBeCloseTo(0.03, 9);
     expect(sized.width).toBeCloseTo(0.774, 3);
+    // 🔑 They now *stand* at exactly what their bodies need to pass (ADR-0044), so every unit of
+    // this reach is the arch's — the hand and the arm in the gap — and none of it is the stance
+    // making up a shortfall it should never have had.
     // 🔑 **Holding on.** The old answer was `2 * wanted`; this is a hair over the width their
     // own longer arms put them at, which is what keeping the hold looks like as a number.
     expect(sized.wanted).toBeLessThan(sized.width);
     expect(sized.width).toBeLessThan(2 * sized.wanted);
-    // And it is a *small* widening rather than a shove: **5%** of where they already stood,
+    // And it is a *small* widening rather than a shove: **4%** of where they already stood,
     // against the 113% the old answer moved them.
-    expect(sized.width / w).toBeCloseTo(1.050, 3);
+    expect(sized.width / w).toBeCloseTo(1.039, 3);
   });
 
   it("🔴 the arm is the pair's, not the draw's, so they stand in one place either way", () => {
@@ -745,6 +749,25 @@ describe("🔴 the cascade is derived, not fitted to the cast it was found on", 
     expect(seen.own).toBeGreaterThan(0);
     expect(seen.reached).toBeGreaterThan(0);
     expect(seen.letGo).toBeGreaterThan(0);
+  });
+
+  it("🔴 never stands a couple closer than they can pass each other", () => {
+    // ADR-0044, and the invariant is the whole decision. `placeHold` floors the couple's stance at
+    // the room their bodies need; the figure asks for the same room when it walks them past each
+    // other. Those were two different formulas — `clearance + PERSONAL_SPACE` against
+    // `CLEARANCE_MARGIN × clearance` — equal only at a clearance of 0.600, and above it the
+    // stance was short. Myco with Sprout by 0.008, which is small and is also a couple standing
+    // somewhere they cannot dance.
+    //
+    // One function now, so this cannot come apart again without the test saying so.
+    for (let i = 0; i < 300; i++) {
+      const beauShape = randomBody();
+      const belleShape = randomBody();
+      const b = armMetrics(beauShape);
+      const l = armMetrics(belleShape);
+      const need = passingWidth(lateralClearance(rigidParts(beauShape), rigidParts(belleShape)));
+      expect(touchHold(b, l).width, `pair ${String(i)}`).toBeGreaterThanOrEqual(need - 1e-9);
+    }
   });
 
   it("never reaches past the length the shape editor would let a designer author", () => {

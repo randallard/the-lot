@@ -59,7 +59,7 @@ import {
   SHAPE_BOUNDS,
   type CharacterBodyShape,
 } from "../services/body-shapes";
-import { CLEARANCE_MARGIN } from "./frame";
+import { passingWidth } from "./frame";
 import {
   BREAK,
   OVERSHOOT,
@@ -750,7 +750,7 @@ function reachForIt(
     // couple stand further apart — which is the half of this lever that answers a pair whose
     // *bodies* will not pass at the width their handhold gave them.
     const width = touchHold(bm, lm).width;
-    const bodies = CLEARANCE_MARGIN * lateralClearance(rigidParts(bs), rigidParts(ls));
+    const bodies = passingWidth(lateralClearance(rigidParts(bs), rigidParts(ls)));
     // The aim is re-chosen on the longer arms: reaching moves what each one costs.
     const aim = cheaperAim(bm, lm, bs, ls, width, bodies);
     const at = archRoom(bm, lm, bs, ls, width, bodies, aim);
