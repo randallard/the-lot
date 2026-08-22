@@ -309,12 +309,17 @@ export function armMetrics(
  * geometry changes — but the player and an NPC differ by 0.75, which is what put a fist
  * bump's two fists at visibly different heights. See {@link ArmMetrics.rigOriginY}.
  *
- * Still a placeholder with a known failure mode, and still step 3 of the
- * dancer-size brief: past a big enough height difference the real rule is that the
- * *taller* dancer does nearly all the accommodating, because an adult can drop their
- * arm to a child's height and the child cannot raise theirs to the adult's. Mixed
- * casts are meant to make that visible rather than hide it. That is a separate problem
- * from the frame bug and is **not** fixed by it.
+ * 🔴 **The known failure mode has an owner now, and it is not this function** (ADR-0033).
+ * Past a big enough height difference the mean is a height one of them cannot reach at all —
+ * an adult can drop an arm to a child's height and the child cannot raise theirs to the
+ * adult's. On the shipped cast Ember's elbow rests 0.238 above the mean she shares with Myco
+ * and her upper arm will not reach down that far, and `gripPose` posed her there anyway.
+ *
+ * This still answers **where the hold wants to be**, which is the right question for it to
+ * answer and is unchanged. Whether the pair can get there, and what they do when they cannot,
+ * is `forearm-hold.ts`'s `planForearm` — the same two accommodations the arch uses, because
+ * they were never the arch's (ADR-0032). Callers that pose a forearm grip should take their
+ * height from a plan; this remains the input to one.
  */
 export function gripHeight(a: ArmMetrics, b: ArmMetrics): number {
   return (a.rigOriginY + a.elbowY + b.rigOriginY + b.elbowY) / 2;
@@ -1499,6 +1504,20 @@ export function poseArms(
    * arch — asks the placements, which is what a standing couple's hold is decided from.
    */
   declared = false,
+  /**
+   * The world height **this dancer's** joined forearm sits at, when a hold has been planned
+   * for the pair.
+   *
+   * Absent is {@link gripHeight}: the mean of the two resting elbows, which is right for a
+   * pair who can both reach it and asks the impossible of a mismatched one — the failure mode
+   * that function's own doc has carried since the fist bump. `forearm-hold.ts` plans it, and
+   * this is where the plan arrives (ADR-0033).
+   *
+   * 🔴 **Per dancer, and that is the point.** Under a break the two are given *different*
+   * heights, and two forearms that are not on the same plane are a hold that has come apart —
+   * the same trick the arch plays with `TouchHold`'s two heights, for the same reason.
+   */
+  forearmY?: number,
 ): ArmPoses {
   // The partner, in this dancer's local space: the direction their share of the gap
   // lies in, and half their offset is the pivot a grip is held over.
@@ -1588,10 +1607,10 @@ export function poseArms(
       localZ / 2,
       dirX,
       dirZ,
-      // `gripPose` writes a rig-local pose, so the shared world height has to come back
-      // into this dancer's frame. A no-op between two dancers (both rigs at 0) and not
-      // between a player and an NPC.
-      localHeight(me, gripHeight(me, them)),
+      // `gripPose` writes a rig-local pose, so the world height has to come back into this
+      // dancer's frame. A no-op between two dancers (both rigs at 0) and not between a
+      // player and an NPC.
+      localHeight(me, forearmY ?? gripHeight(me, them)),
     );
     blendPose(out[side], _free, _joined, joined);
   }

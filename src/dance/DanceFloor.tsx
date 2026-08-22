@@ -51,6 +51,7 @@ import {
   type TouchHold,
   touchHold,
   touchingSide,
+  gripHeight,
 } from "./arm-pose";
 import {
   facingToRotationY,
@@ -63,6 +64,7 @@ import {
 } from "./frame";
 import { COUPLE_WIDTH } from "square-one";
 import { archClearance, planArch, type ArchPlan } from "./arch";
+import { pairGripRadius, planForearm, type ForearmPlan } from "./forearm-hold";
 import {
   BREAK,
   drawAccommodation,
@@ -368,11 +370,33 @@ export function DanceFloor({
     return lateralClearance(rigidParts(a), rigidParts(b)) / scaleNow;
   }, [shapes, scale]);
 
+  /**
+   * How far from a joined forearm the pair's bodies stand, in engine units — the **arm**
+   * measurement square-one's ADR-0020 added and nothing supplied (ADR-0033).
+   *
+   * The last of the four across this seam, and the only one that is not a clearance. Nobody
+   * passes anybody in an arm turn: the two of them grip and walk a circle, and its radius is
+   * where their arms put them. Read out of the pose rather than invented — see
+   * `pairGripRadius`.
+   *
+   * 🔴 Unlike the clearances it is **not** floored by the engine (its ADR-0021): a grip is a
+   * placement, so short arms genuinely dance a tighter Allemande and a small number here is
+   * meant.
+   */
+  const gripRadiusEngine = useMemo(() => {
+    const a = shapes[0];
+    const b = shapes[1];
+    if (a === undefined || b === undefined) return undefined;
+    const scaleNow = scale ?? scaleForGaps(clearanceGaps([...shapes]));
+    return pairGripRadius(armMetrics(a), armMetrics(b)) / scaleNow;
+  }, [shapes, scale]);
+
   const runtime = useDancePerformance({
     ...performanceOptions,
     coupleWidth: coupleWidthEngine,
     ...(clearanceEngine === undefined ? {} : { clearance: clearanceEngine }),
     ...(archClearanceEngine === undefined ? {} : { archClearance: archClearanceEngine }),
+    ...(gripRadiusEngine === undefined ? {} : { gripRadius: gripRadiusEngine }),
   });
   const keys = useMemo(() => Object.keys(runtime.motions), [runtime.motions]);
 
@@ -488,9 +512,18 @@ export function DanceFloor({
     span: string | null;
     accommodation: Accommodation;
     plan: ArchPlan | null;
-    /** 0 hands down and shapes unchanged, 1 fully into the arch. */
+    /**
+     * The forearm hold's plan, when the live span is an arm turn rather than an arch.
+     *
+     * 🔴 **Both, on one ref, because a dancer is only ever in one hold.** The two plans
+     * share `bodyDeltas` and the draw, and the reshape machinery below reads that and does
+     * not care which hold asked for it — which is exactly what ADR-0032 moving the two
+     * styles out of `arch.ts` was for (ADR-0033).
+     */
+    forearm: ForearmPlan | null;
+    /** 0 hands down and shapes unchanged, 1 fully into the hold. */
     blend: number;
-  }>({ span: null, accommodation: BREAK, plan: null, blend: 0 });
+  }>({ span: null, accommodation: BREAK, plan: null, forearm: null, blend: 0 });
 
   // The only eased quantity in the arm channel: how far each hand is into its grip.
   const blends = useMemo(() => {
@@ -583,17 +616,25 @@ export function DanceFloor({
          * second execution and gets its own draw, which is the whole point of the draw.
          */
         const first = keys[0];
-        const archSpan =
+        // 🔴 **Either hold, not just the arch** (ADR-0033). A forearm grip is a reach a pair
+        // can fail to make exactly as an arch is — two dancers of very different height cannot
+        // both put an elbow on the mean of their elbows — and until this it was posed with no
+        // question asked. Found by the span, drawn per execution, planned once.
+        const heldSpan =
           first === undefined
             ? undefined
             : runtime.motions[first]?.grips.find(
-                (g) => g.grip === "arch" && beat >= g.from && beat <= g.to,
+                (g) =>
+                  (g.grip === "arch" || g.grip === "forearm") && beat >= g.from && beat <= g.to,
               );
+        const archSpan = heldSpan?.grip === "arch" ? heldSpan : undefined;
         const under = arch.current;
-        if (archSpan === undefined) {
+        if (heldSpan === undefined) {
           under.span = null;
         } else {
-          const id = `${String(archSpan.from)}:${String(archSpan.to)}`;
+          // The style is in the key, so a call that changed hold across the same beat range
+          // would be a second execution and get its own draw.
+          const id = `${heldSpan.grip}:${String(heldSpan.from)}:${String(heldSpan.to)}`;
           if (under.span !== id) {
             under.span = id;
             under.accommodation = drawAccommodation();
@@ -601,9 +642,14 @@ export function DanceFloor({
             const belleM = metrics[1];
             const beauS = occupantShapes[0];
             const belleS = occupantShapes[1];
+            const pair = beauM && belleM && beauS && belleS;
             under.plan =
-              beauM && belleM && beauS && belleS && hold
+              pair && hold && heldSpan.grip === "arch"
                 ? planArch(beauM, belleM, beauS, belleS, hold.width, under.accommodation)
+                : null;
+            under.forearm =
+              pair && heldSpan.grip === "forearm"
+                ? planForearm(beauM, belleM, beauS, belleS, under.accommodation)
                 : null;
           }
         }
@@ -653,8 +699,11 @@ export function DanceFloor({
           const plan = under.plan;
           const mine = i === 0 ? "beau" : "belle";
           const theirs = i === 0 ? "belle" : "beau";
-          const myDelta = plan === null ? 0 : plan.bodyDeltas[mine] * under.blend;
-          const theirDelta = plan === null ? 0 : plan.bodyDeltas[theirs] * under.blend;
+          // Whichever hold is live owns the reshape; they are mutually exclusive and both
+          // carry `bodyDeltas`, so this reads one field and stays indifferent to the style.
+          const deltas = plan?.bodyDeltas ?? under.forearm?.bodyDeltas ?? null;
+          const myDelta = deltas === null ? 0 : deltas[mine] * under.blend;
+          const theirDelta = deltas === null ? 0 : deltas[theirs] * under.blend;
           const shape = myDelta === 0 ? baseShape : growBody(baseShape, myDelta);
           const me = myDelta === 0 ? baseMe : armMetrics(shape);
           const them =
@@ -734,6 +783,18 @@ export function DanceFloor({
           const coupleHold = archHold ?? standing;
           _ctx.hold = coupleHold;
           _ctx.declaredHold = archHold !== undefined;
+          // The planned height for **this** dancer, eased in with the rest of the hold. Under
+          // a break the two get different numbers and the forearms finish on different planes,
+          // which is the hold coming apart — the same thing `archHold`'s two heights do.
+          const forearmPlan = under.forearm;
+          _ctx.forearmY =
+            forearmPlan === null
+              ? undefined
+              : lerp(
+                  gripHeight(baseMe, baseThem),
+                  mine === "beau" ? forearmPlan.beauY : forearmPlan.belleY,
+                  under.blend,
+                );
           // Reported from the same call `poseArms` poses from, so the markers cannot
           // point at a hold the render did not draw.
           track.touch = touchingSide(_self, _partner, coupleHold, archHold !== undefined);

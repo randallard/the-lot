@@ -5,10 +5,21 @@
 allowBuilds:
   esbuild: true
   # square-one is consumed as a pinned git dependency (planning ADR-0006) and its
-  # dist/ is gitignored, so pnpm must run its `prepare` (a plain `tsc`) after
-  # cloning. Keyed by package name rather than the tarball URL pnpm suggests —
-  # that URL embeds the commit hash and would need editing on every square-one tag.
-  square-one@https://codeload.github.com/randallard/square-one/tar.gz/660fe3324b801b86393620f9a97fb687639bc349: true
+  # dist/ is gitignored, so pnpm must run its `prepare` (a plain `tsc`) after cloning.
+  #
+  # 🔴 **Keyed by the tarball URL, and it has to be.** This comment used to claim the
+  # opposite — "keyed by package name rather than the tarball URL pnpm suggests, that URL
+  # embeds the commit hash and would need editing on every square-one tag" — while the
+  # line beneath it was the URL, with v0.2.0's hash in it. The comment described the
+  # intention and the key described what pnpm accepts, and nobody noticed because the
+  # local symlink meant pnpm never fetched the tarball. Bumping the pin to v0.3.0 fetched
+  # it and the install stopped; `square-one: true` was tried first and rejected.
+  #
+  # So the maintenance burden the old comment denied is real: **this line changes on every
+  # square-one tag**, and the hash is the tag's *commit*, not the tag object's own.
+  # `git rev-parse v0.3.0^{}` in square-one gives it.
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/1cccea1d779f8394ed09642b2e0d566f0635a8f4: true
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/660fe3324b801b86393620f9a97fb687639bc349: set this to true or false
 
 # Age-gate new releases at the package manager. 1440 minutes (1 day) is pnpm's
 # own recommendation and its v11 default; stated explicitly rather than inherited
@@ -59,8 +70,8 @@ overrides:
   # Found by osv-scanner and not by `pnpm audit`, because the audit job's
   # `--audit-level=high` filters them out while the OSV job fails on any severity.
   # A live demonstration that the two gates are not redundant.
-  "postcss@8": ">=8.5.23 <9"   # GHSA-fxqj-rqcc-2cmp
-  "undici@6": ">=6.28.0 <7"    # GHSA-8xcm-r25x-g524, -m8rv-5g2x-5cg5, -v3r7-h72x-cjcm
+  "postcss@8": ">=8.5.23 <9" # GHSA-fxqj-rqcc-2cmp
+  "undici@6": ">=6.28.0 <7" # GHSA-8xcm-r25x-g524, -m8rv-5g2x-5cg5, -v3r7-h72x-cjcm
 
 auditConfig:
   # Governs `pnpm audit` only. CI also runs osv-scanner, which reads its own ignores

@@ -128,6 +128,11 @@ export interface ExpressionContext {
    * for most of a call whose hands never come apart.
    */
   declaredHold?: boolean | undefined;
+  /**
+   * The world height this dancer's joined forearm sits at, when the pair's hold has been
+   * planned. Passed straight through to `poseArms` — see there (ADR-0033).
+   */
+  forearmY?: number | undefined;
 }
 
 /**
@@ -230,7 +235,7 @@ export function resolveExpression(
   out: ResolvedExpression,
   ctx: ExpressionContext,
 ): ResolvedExpression {
-  const { pose, me, them, self, partner, blend, hold, declaredHold } = ctx;
+  const { pose, me, them, self, partner, blend, hold, declaredHold, forearmY } = ctx;
 
   // limited — arms fold where they trespass, and a gripped hand is taken over entirely
   out.arms = poseArms(
@@ -243,6 +248,7 @@ export function resolveExpression(
     proposeArms(_proposed, me, pose),
     hold,
     declaredHold ?? false,
+    forearmY,
   );
 
   // limited — shape is clipped to this dancer's share of the live slack

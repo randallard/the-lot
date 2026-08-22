@@ -14,9 +14,11 @@ import { useCallback, useMemo, useRef } from "react";
 import {
   applyCallToPair,
   createPerformance,
+  DEFAULT_PAIR_SHAPE,
   danceCoupleSequence,
   flattenSequence,
   partnerUp,
+  shapeOf,
   type CallName,
   type DancerState,
   type Motion,
@@ -80,6 +82,15 @@ export interface DancePerformanceOptions {
    * wired, and the two-trades scene is what that looks like.
    */
   readonly clearance?: number;
+  /**
+   * How far from a joined forearm the pair's bodies stand, in engine units — the **arm**
+   * measurement, and the only one across this seam that is not a clearance (square-one
+   * ADR-0020, ADR-0033 here).
+   *
+   * Reaches a **facing pair** as well as a couple, because the call that reads it — Allemande
+   * Left — is danced by one. That is why `applyCallToPair` is now given a shape.
+   */
+  readonly gripRadius?: number;
   readonly bpm?: number;
   /** Restart from beat 0 when the call ends. The debug scene loops; the arc won't. */
   readonly loop?: boolean;
@@ -124,6 +135,7 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
     coupleWidth,
     archClearance,
     clearance,
+    gripRadius,
     bpm = DEFAULT_BPM,
     loop = true,
     externallyDriven,
@@ -139,13 +151,29 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
           sequence,
           // Positional, not the shape object square-one also accepts: the object form landed
           // with ADR-0020 and this package's dependency still names a tag without it.
-          partnerUp("a", "b", undefined, undefined, coupleWidth, clearance, archClearance),
+          partnerUp(
+            "a",
+            "b",
+            undefined,
+            undefined,
+            coupleWidth,
+            clearance,
+            archClearance,
+            gripRadius,
+          ),
         ),
       );
     }
-    const { a, b } = applyCallToPair(call);
+    // 🔴 The facing-pair path takes a shape too, as of square-one v0.3.0. Allemande Left is
+    // the call that reads `gripRadius` and a facing pair is who dances it, so passing bodies
+    // only down the couple path would have left the one call the measurement exists for
+    // still gripping at the body-agnostic radius.
+    const { a, b } = applyCallToPair(
+      call,
+      shapeOf(gripRadius === undefined ? {} : { gripRadius }, DEFAULT_PAIR_SHAPE),
+    );
     return { a, b };
-  }, [call, sequence, coupleWidth, clearance, archClearance]);
+  }, [call, sequence, coupleWidth, clearance, archClearance, gripRadius]);
 
   const beats = useMemo(
     () => Math.max(...Object.values(motions).map((m) => m.beats)),

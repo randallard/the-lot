@@ -34,8 +34,8 @@ importers:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
       square-one:
-        specifier: github:randallard/square-one#v0.2.0
-        version: https://codeload.github.com/randallard/square-one/tar.gz/660fe3324b801b86393620f9a97fb687639bc349
+        specifier: github:randallard/square-one#v0.3.0
+        version: https://codeload.github.com/randallard/square-one/tar.gz/1cccea1d779f8394ed09642b2e0d566f0635a8f4
       three:
         specifier: ^0.183.2
         version: 0.183.2
@@ -1197,6 +1197,7 @@ packages:
   eslint@9.39.5:
     resolution: {integrity: sha512-DgZS62aPLXKlnxILS/AYCoRvHaZeXceIzlXPkkGGzJWSow1aEk0lbTlxUSlyjC8jcaKxAdOnTDz+o1JFSBsyjw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+    deprecated: This version is no longer supported. Please see https://eslint.org/version-support for other options.
     hasBin: true
     peerDependencies:
       jiti: '*'
@@ -1863,9 +1864,9 @@ packages:
   spdx-satisfies@6.0.0:
     resolution: {integrity: sha512-oOWQocnRbFVtBnBITfFgzjhnOklHossTvI+6C1hB2slvp3HgTsfru5wuo8HY2rQpwSm5JuIhNzIuqOfR5IuojQ==}
 
-  square-one@https://codeload.github.com/randallard/square-one/tar.gz/660fe3324b801b86393620f9a97fb687639bc349:
-    resolution: {gitHosted: true, integrity: sha512-LaiP/CYv47tnQXmKdysckkqGaWIWP5hzqT3HqvmlJfdCyeYH+tm11t/Rqy2QJiNCza4AMuMCejExMQ/TcPpR1A==, tarball: https://codeload.github.com/randallard/square-one/tar.gz/660fe3324b801b86393620f9a97fb687639bc349}
-    version: 0.2.0
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/1cccea1d779f8394ed09642b2e0d566f0635a8f4:
+    resolution: {gitHosted: true, integrity: sha512-KJER4MaR+AH5533al/u+DvknB9UhkDnLBCV9Fleaw5duSw/7x7FMkUiH2xA4twv+KcB98wK6h3no/971M4/EtA==, tarball: https://codeload.github.com/randallard/square-one/tar.gz/1cccea1d779f8394ed09642b2e0d566f0635a8f4}
+    version: 0.3.0
     engines: {node: '>=22'}
 
   ssri@13.0.1:
@@ -4035,7 +4036,7 @@ snapshots:
       spdx-expression-parse: 3.0.1
       spdx-ranges: 2.1.1
 
-  square-one@https://codeload.github.com/randallard/square-one/tar.gz/660fe3324b801b86393620f9a97fb687639bc349: {}
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/1cccea1d779f8394ed09642b2e0d566f0635a8f4: {}
 
   ssri@13.0.1:
     dependencies:

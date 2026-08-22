@@ -4,8 +4,65 @@ _Last updated: 2026-08-21_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-21, third chunk) — ✅ THE TWO STYLES OF ACCOMMODATION ARE NO LONGER THE
-ARCH'S.** Ryan: *"I want to make sure we remember the two different styles of accommodation for
+**▶ RIGHT NOW (2026-08-21, fourth chunk) — ✅ THE FOREARM HOLD IS A REACH A PAIR CAN FAIL, AND
+IT NOW GETS THE SAME TWO ACCOMMODATIONS.** Plus the pin bump to square-one **v0.3.0** and the
+last measurement across that seam. [ADR-0033](adr/0033-the-forearm-hold-is-a-reach-a-pair-can-fail.md).
+**637 tests** (from 627), lint 0 errors, build clean. 🔴 Held for Ryan's verify.
+
+🔴 **The finding: two of the three shipped pairings cannot make the hold they were being posed
+in.** A joined forearm lies horizontal at one shared height, so each dancer's elbow has to be
+*at* it — and the elbow hangs off the shoulder on an upper arm of fixed length. `gripHeight`
+averages the two resting elbows and `gripPose` put both forearms there, with nothing asking.
+
+| pair | elbows | mean | shortfall | break gap → reshape gap |
+|---|---|---|---|---|
+| Myco / Ember | 0.620, 1.095 | 0.857 | **0.238** | 0.238 → **0.036** |
+| Ember / Sprout | 1.095, 0.650 | 0.873 | **0.222** | 0.245 → **0.033** |
+| Myco / Sprout | 0.620, 0.650 | 0.635 | 0.015 | 0.015 → 0.002 |
+
+🔑 **The reshape has a property here the arch's version cannot claim.** Growing the *lower*
+dancer by `d` and shrinking the higher by `d` moves their elbows `±d/2`, closing both gaps to
+the mean **and leaving the mean exactly where it was** — the hold is made reachable without
+being relocated.
+
+🔴 **The first implementation was inverted and looked fine.** Signed by whose *shortfall* was
+larger rather than by whose *elbow was lower*, it grew the taller dancer and drove her elbow
+further from the line: **0.511** apart where a break gave 0.238. Pinned now by a test asserting
+a reshape never finishes further apart than a break — **an accommodation has to beat the
+alternative it was chosen over, and nothing in the suite was comparing them.**
+
+🔑 **`gripRadius` is supplied at last** — square-one's ADR-0020 added it and nothing fed it. Read
+out of the pose rather than invented, and it comes out **smaller** than the engine's own
+`ORBIT_RADIUS` on every shipped pairing (0.205–0.274 engine against 0.300). That is ADR-0021's
+one unfloored measurement doing real work: this cast dances a tighter Allemande than the
+body-agnostic figure, and flooring it would draw one they cannot reach. `applyCallToPair` takes
+a shape now too, because Allemande Left is danced by a *facing pair* and passing bodies only
+down the couple path would have missed the one call the measurement exists for.
+
+🔴 **The `allowBuilds` comment in `pnpm-workspace.yaml` was wrong, and had been.** It claimed the
+entry was keyed by package name *"rather than the tarball URL pnpm suggests — that URL embeds the
+commit hash and would need editing on every square-one tag"*, while the line beneath it was the
+URL with v0.2.0's hash. The local symlink meant pnpm never fetched the tarball, so nobody found
+out. Bumping the pin fetched it and the install stopped; `square-one: true` was tried and
+rejected. **This line changes on every square-one tag** — the comment says so now.
+
+🔑 **The suite ran green against the published tarball**, not the symlink, which is the tag
+validated end to end.
+
+**⚠️ Owed.** (1) 🔴 **`#dance=allemande-left` has never been watched with a reshape on.** A torso
+easing half a unit through an arm turn may read as accommodation or as a dancer inflating — a
+look, not a number, and the first time either accommodation has been applied to anything but an
+arch. (2) The **two-trades / two-twirls** watch from the chunk below. (3) 🔴 **The local
+co-development symlink is gone** — `pnpm install` replaced `node_modules/square-one -> ../square-one`
+with the fetched tarball, so square-one edits no longer show up here until it is re-linked or
+re-tagged. (4) 🔴 **The standing touch-hands handhold is the third hold and still has no
+accommodation**; its hands meet in front of the pair rather than between them, so it is a third
+plan and not a third caller of these two. (5) Re-take the **elbow watch**. (6) 🔴 **Where the
+join sits**. (7) 🔴 The hold's `forward` is still **0.320** on the default cast.
+
+---
+
+**▶ 2026-08-21, third chunk — ✅ THE TWO STYLES OF ACCOMMODATION ARE NO LONGER THE ARCH'S.** Ryan: *"I want to make sure we remember the two different styles of accommodation for
 the reach in california twirl."*
 [ADR-0032](adr/0032-the-accommodation-belongs-to-the-hold-not-to-the-arch.md). **627 tests
 unchanged, lint 0 errors, typecheck clean — a pure refactor, and asserted as one.** 🔴 Held for
