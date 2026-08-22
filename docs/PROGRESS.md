@@ -4,8 +4,40 @@ _Last updated: 2026-08-21_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-21, fourth chunk) — ✅ THE FOREARM HOLD IS A REACH A PAIR CAN FAIL, AND
-IT NOW GETS THE SAME TWO ACCOMMODATIONS.** Plus the pin bump to square-one **v0.3.0** and the
+**▶ RIGHT NOW (2026-08-21, fifth chunk) — ✅ ALLEMANDE LEFT WATCHED AND ACCEPTED; THE DOSADO
+PASSED BY TOO FAR.** Ryan: *"checked allemande left — looks good"*, then *"dosado pass by too far
+though — should watch body / head size and pass by just enough to clear and slide to the right far
+enough to step back."* **637 tests, lint 0 errors, build clean.** 🔴 Held for Ryan's verify.
+
+✅ **The forearm accommodation is watched.** ADR-0033's reshape/break on an arm turn — the first
+time either style had been applied to anything but an arch — reads right. That watch is closed.
+
+🔴 **Two causes for the Dosado, and one of them was here.** The facing-pair path passed only
+`gripRadius`, so a Dosado and a Pass Thru — which a *facing pair* dances, never a couple — were
+still sized at the body-agnostic figure. `useDancePerformance` passes `clearance` down that path
+now too. The couple path has had it since ADR-0031; this is the same omission one formation over.
+
+🔴 **The other was square-one's, and older:** `pass` walked a flat **0.80** that nobody could
+derive, so the pair finished **1.562 world units** past each other against the **0.710** their
+heads and torsos take to clear. Fixed in its
+[ADR-0023](https://github.com/randallard/square-one/blob/main/docs/adr/0023-a-pass-walks-just-far-enough-to-clear.md)
+— `lane` and `close` now walk `(separation + clearance) / 2`. **2.083 → 1.692 world walked,
+1.562 → 0.781 past.**
+
+🔑 **The distance is forced by the beat after it.** During the `slide` the two dancers **swap
+lanes**, each crossing the other's `x`, so nothing lateral holds them apart and the whole gap is
+the one they walked out — it must be the clearance and need be no more. *"Slide to the right far
+enough to step back"* is the same number from the other side, and `slide.distance` has been that
+clearance since square-one's ADR-0020.
+
+**⚠️ THE WATCH — `pnpm dev` → `#dance=dosado`.** 🔴 The walk is a fifth shorter and the pass is
+half as far past. Whether *"just enough to clear"* reads as tight-and-right or as cramped is the
+one number a render decides. Also still owed: **two-trades / two-twirls**.
+
+---
+
+**▶ 2026-08-21, fourth chunk — ✅ THE FOREARM HOLD IS A REACH A PAIR CAN FAIL, AND IT NOW GETS
+THE SAME TWO ACCOMMODATIONS.** ✅ **Watched and accepted** — see the top of this file. Plus the pin bump to square-one **v0.3.0** and the
 last measurement across that seam. [ADR-0033](adr/0033-the-forearm-hold-is-a-reach-a-pair-can-fail.md).
 Journal *[the hold nobody asked about](journal/2026-08-21-10-the-hold-nobody-asked-about.md)*.
 **637 tests** (from 627), lint 0 errors, build clean. **Landed — `5b21918`.** 🔴 Still awaiting
@@ -51,10 +83,7 @@ rejected. **This line changes on every square-one tag** — the comment says so 
 🔑 **The suite ran green against the published tarball**, not the symlink, which is the tag
 validated end to end.
 
-**⚠️ Owed.** (1) 🔴 **`#dance=allemande-left` has never been watched with a reshape on.** A torso
-easing half a unit through an arm turn may read as accommodation or as a dancer inflating — a
-look, not a number, and the first time either accommodation has been applied to anything but an
-arch. (2) The **two-trades / two-twirls** watch from the chunk below. (3) ✅ **The co-development link fixed properly** —
+**⚠️ Owed.** (1) ✅ **`#dance=allemande-left` watched and accepted** — *"looks good"*. (2) The **two-trades / two-twirls** watch from the chunk below. (3) ✅ **The co-development link fixed properly** —
 [ADR-0034](adr/0034-the-engine-relinks-itself-when-a-sibling-checkout-exists.md).
 `scripts/link-engine.mjs` re-links `node_modules/square-one` to `../square-one` when that checkout
 exists and does nothing when it does not, so CI is untouched. Run from `dev`, `build`, `test` and

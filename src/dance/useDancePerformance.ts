@@ -170,7 +170,18 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
     // still gripping at the body-agnostic radius.
     const { a, b } = applyCallToPair(
       call,
-      shapeOf(gripRadius === undefined ? {} : { gripRadius }, DEFAULT_PAIR_SHAPE),
+      // 🔴 **The clearance belongs here too, and leaving it out was a real gap.** A Dosado and
+      // a Pass Thru are danced by a *facing pair*, so the couple path never reaches them — and
+      // square-one's ADR-0023 makes both the lane they pass in **and how far they walk past
+      // each other** come from this number. Passing only `gripRadius` sized the one call that
+      // reads it and left the other two at the body-agnostic figure.
+      shapeOf(
+        {
+          ...(clearance === undefined ? {} : { clearance }),
+          ...(gripRadius === undefined ? {} : { gripRadius }),
+        },
+        DEFAULT_PAIR_SHAPE,
+      ),
     );
     return { a, b };
   }, [call, sequence, coupleWidth, clearance, archClearance, gripRadius]);
