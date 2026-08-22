@@ -7,7 +7,9 @@ _Last updated: 2026-08-21_
 **▶ RIGHT NOW (2026-08-21, fourth chunk) — ✅ THE FOREARM HOLD IS A REACH A PAIR CAN FAIL, AND
 IT NOW GETS THE SAME TWO ACCOMMODATIONS.** Plus the pin bump to square-one **v0.3.0** and the
 last measurement across that seam. [ADR-0033](adr/0033-the-forearm-hold-is-a-reach-a-pair-can-fail.md).
-**637 tests** (from 627), lint 0 errors, build clean. 🔴 Held for Ryan's verify.
+Journal *[the hold nobody asked about](journal/2026-08-21-10-the-hold-nobody-asked-about.md)*.
+**637 tests** (from 627), lint 0 errors, build clean. **Landed — `5b21918`.** 🔴 Still awaiting
+Ryan's verify in the running scene.
 
 🔴 **The finding: two of the three shipped pairings cannot make the hold they were being posed
 in.** A joined forearm lies horizontal at one shared height, so each dancer's elbow has to be
@@ -52,10 +54,10 @@ validated end to end.
 **⚠️ Owed.** (1) 🔴 **`#dance=allemande-left` has never been watched with a reshape on.** A torso
 easing half a unit through an arm turn may read as accommodation or as a dancer inflating — a
 look, not a number, and the first time either accommodation has been applied to anything but an
-arch. (2) The **two-trades / two-twirls** watch from the chunk below. (3) 🔴 **The local
-co-development symlink is gone** — `pnpm install` replaced `node_modules/square-one -> ../square-one`
-with the fetched tarball, so square-one edits no longer show up here until it is re-linked or
-re-tagged. (4) 🔴 **The standing touch-hands handhold is the third hold and still has no
+arch. (2) The **two-trades / two-twirls** watch from the chunk below. (3) 🔴 **The co-development symlink is hand-restored.** `pnpm install` replaced
+`node_modules/square-one -> ../square-one` with the fetched tarball; it has been symlinked back so
+local square-one edits show up, but the **next `pnpm install` will undo that again**. If this
+becomes a nuisance it wants a real answer (a `link:` override or a workspace) rather than a habit. (4) 🔴 **The standing touch-hands handhold is the third hold and still has no
 accommodation**; its hands meet in front of the pair rather than between them, so it is a third
 plan and not a third caller of these two. (5) Re-take the **elbow watch**. (6) 🔴 **Where the
 join sits**. (7) 🔴 The hold's `forward` is still **0.320** on the default cast.
