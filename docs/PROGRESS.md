@@ -4,8 +4,50 @@ _Last updated: 2026-08-21_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-21, fifth chunk) — ✅ ALLEMANDE LEFT WATCHED AND ACCEPTED; THE DOSADO
-PASSED BY TOO FAR.** Ryan: *"checked allemande left — looks good"*, then *"dosado pass by too far
+**▶ RIGHT NOW (2026-08-21, sixth chunk) — ✅ THE SQUARE NO LONGER GROWS FOR ITS WIDEST PAIR.**
+[ADR-0035](adr/0035-the-square-does-not-grow-for-its-widest-pair.md). **628 tests, lint 0 errors,
+build clean.** 🔴 **This is the one change today that moves everything on screen** — the watch
+below is the point of it.
+
+🔑 **The floor was carrying a second copy of the accommodation.** `scaleForGaps` grew the whole
+frame until square-one's fixed lane happened to fit the widest pair — *"the neediest pair sets the
+spacing for everyone, even in moves that don't involve them"*, in `frame.ts`'s own words. It was
+the only lever available while the engine's figures were fixed. square-one's ADR-0020 and ADR-0023
+ended that this morning, and the floor kept doing it anyway.
+
+`scaleForGaps`, `minScaleForGap`, `minScaleForPair`, `minScaleFor` and the hand-copied
+`ENGINE_LANE_OFFSET` are **deleted**. `SCALE_MARGIN` survives as **`CLEARANCE_MARGIN`** — the
+rename is the decision in miniature: it was never about scale, it was about `lateralClearance`
+returning the distance at which nothing *touches*.
+
+| | before | after |
+|---|---|---|
+| facing pair stands | 2.603 world | **2.200** |
+| pass opens to | 0.781 world | **0.781** — unchanged |
+| clearance in engine units | 0.273 (**below** the figure's 0.3, so floored and inert) | **0.355** — the lane genuinely widens |
+| `gripRadius` in engine units | 0.274 (below `ORBIT_RADIUS`) | **0.324** (above it) |
+
+🔑 **The engine's body measurements finally bind.** At the old scale the cast's clearance divided
+to *below* the figure's own, so ADR-0021 floored it and the lane never moved — the seam had been
+open for a day and doing nothing.
+
+🔴 **`gripRadius` flipped sign**, and its test now asserts the opposite of what it did this
+morning. Nothing about the arms changed; the frame did. **The number was never a fact about the
+cast alone**, which is exactly why ADR-0021 refuses to clamp it in either direction.
+
+🔴 **Two calibrated thresholds rotted, and both were world distances.** The arm-geometry "breathes
+at the bodies" range fell 0.46 → 0.387 against a flat `0.4`, with the property unchanged. Both are
+expressed against `DEFAULT_SCALE` now. **A test that hard-codes a world distance is pinned to a
+frame it does not name.**
+
+**⚠️ THE WATCH — everything.** 🔴 The square is 15% tighter and every figure in it should deliver
+the same daylight it did before. `#dance=dosado`, `#dance=two-trades`, `#dance=two-twirls`,
+`#dance=allemande-left` — all four were accepted at the old scale and all four have moved.
+
+---
+
+**▶ 2026-08-21, fifth chunk — ✅ ALLEMANDE LEFT WATCHED AND ACCEPTED; THE DOSADO PASSED BY TOO
+FAR.** Ryan: *"checked allemande left — looks good"*, then *"dosado pass by too far
 though — should watch body / head size and pass by just enough to clear and slide to the right far
 enough to step back."* **637 tests, lint 0 errors, build clean.** 🔴 Held for Ryan's verify.
 
@@ -84,17 +126,27 @@ rejected. **This line changes on every square-one tag** — the comment says so 
 🔑 **The suite ran green against the published tarball**, not the symlink, which is the tag
 validated end to end.
 
-**⚠️ Owed.** (1) ✅ **`#dance=allemande-left` watched and accepted** — *"looks good"*. (2) The **two-trades / two-twirls** watch from the chunk below. (3) ✅ **The co-development link fixed properly** —
-[ADR-0034](adr/0034-the-engine-relinks-itself-when-a-sibling-checkout-exists.md).
-`scripts/link-engine.mjs` re-links `node_modules/square-one` to `../square-one` when that checkout
-exists and does nothing when it does not, so CI is untouched. Run from `dev`, `build`, `test` and
-`postinstall` — **`postinstall` alone does not hold**, because pnpm answers *"Already up to date"*
-and runs no lifecycle script when it thinks nothing changed, which is exactly the state a stale
-link is in. `SQUARE_ONE_NO_LINK=1 pnpm test` is the "check me against the published tag" command.
-🔴 Local and CI now install differently on purpose, which is the thing to stay uneasy about. (4) 🔴 **The standing touch-hands handhold is the third hold and still has no
-accommodation**; its hands meet in front of the pair rather than between them, so it is a third
-plan and not a third caller of these two. (5) Re-take the **elbow watch**. (6) 🔴 **Where the
-join sits**. (7) 🔴 The hold's `forward` is still **0.320** on the default cast.
+**⚠️ Owed — reconciled 2026-08-21.** 🔴 This list had drifted: three of its entries were already
+done. Ryan asked for the short list and four of thirteen items across the three repos turned out to
+be finished. A stale backlog costs more than an empty one, because it is read as the current state.
+
+**✅ Closed today** — every render watch (`#dance=two-trades`, `#dance=two-twirls`, the elbow
+watch, and **where the join sits**: all *"looks good"*), the Allemande Left accommodation watch,
+the Dosado, the co-development link ([ADR-0034](adr/0034-the-engine-relinks-itself-when-a-sibling-checkout-exists.md)),
+and both engine-side measurements now crossing the seam.
+
+**🔴 Still open here:**
+
+1. ✅ **The frame-scale hack is retired** — ADR-0035, at the top of this file. Wants the render
+   watch named there.
+2. **The standing touch-hands handhold has no accommodation.** Third hold; its hands meet *in
+   front of* the pair rather than between them, so it is a third plan and not a third caller of
+   ADR-0032's two. To discuss.
+3. **The hold's `forward` is still 0.320** on the default cast — flagged 2026-08-17 and untouched
+   through six chunks. To discuss.
+4. 🔴 **Local and CI install differently on purpose** (ADR-0034). `SQUARE_ONE_NO_LINK=1 pnpm test`
+   is the command that checks this repo against the published tag; a bug that only reproduces
+   there will not reproduce locally.
 
 ---
 

@@ -123,6 +123,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0032](0032-the-accommodation-belongs-to-the-hold-not-to-the-arch.md) | The accommodation belongs to the hold, not to the arch | Accepted |
 | [0033](0033-the-forearm-hold-is-a-reach-a-pair-can-fail.md) | The forearm hold is a reach a pair can fail, and it gets the same two accommodations | Accepted |
 | [0034](0034-the-engine-relinks-itself-when-a-sibling-checkout-exists.md) | The engine re-links itself when a sibling checkout exists | Accepted |
+| [0035](0035-the-square-does-not-grow-for-its-widest-pair.md) | The square does not grow for its widest pair | Accepted |
 
 ## Decisions this repo inherits
 

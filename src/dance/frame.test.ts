@@ -1,15 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SCALE,
-  SCALE_MARGIN,
+  CLEARANCE_MARGIN,
   facingToRotationY,
-  minScaleFor,
-  minScaleForGap,
-  minScaleForPair,
   makeFrame,
   refit,
   rotationYToFacing,
-  scaleForGaps,
   toEngine,
   toWorld,
 } from "./frame";
@@ -95,61 +91,30 @@ describe("drift re-fitting", () => {
   });
 });
 
-describe("scale floor for passing dancers", () => {
-  // The engine's collision tests work in engine units and cannot see this: it only
-  // exists once abstract dancers acquire a body radius.
-  const BODY_RADIUS = 0.3; // services/body-shapes defaults
+describe("the square no longer sizes itself to its widest pair (ADR-0035)", () => {
+  // 🔴 **This block replaces five tests of machinery that is gone.** `minScaleFor`,
+  // `minScaleForPair`, `minScaleForGap` and `scaleForGaps` grew the whole floor until the
+  // engine's fixed lane happened to equal the widest pair's clearance — *"whole-square
+  // breathing done coarsely,"* in this module's own words, *"the neediest pair sets the
+  // spacing for everyone, even in moves that don't involve them."*
+  //
+  // The figures carry their own accommodation now (square-one ADR-0020, ADR-0023), so the
+  // square sits at one scale and a wide pair widens the call they are in. What is left to
+  // assert is the margin, which is the only part of that arithmetic that survived — moved
+  // from the floor to the measurement it qualifies.
 
-  it("derives the scale below which passing dancers intersect", () => {
-    expect(minScaleFor(BODY_RADIUS)).toBeCloseTo(2, 9);
+  it("keeps a margin over the bare clearance, because touching is not clearing", () => {
+    // `lateralClearance` returns the distance at which nothing *touches*, which is the
+    // distance at which everything touches. Real dancers brush shoulders on a Pass Thru, so
+    // tight is right and zero is wrong.
+    expect(CLEARANCE_MARGIN).toBeGreaterThan(1);
+    expect(CLEARANCE_MARGIN).toBeLessThan(1.25);
   });
 
-  it("the default scale clears it", () => {
-    expect(DEFAULT_SCALE).toBeGreaterThan(minScaleFor(BODY_RADIUS));
-  });
-
-  it("at the default scale a Pass Thru lane gap exceeds a body diameter", () => {
-    // Passing dancers sit 2 x lane offset apart in engine units.
-    const gap = 2 * 0.15 * DEFAULT_SCALE;
-    expect(gap).toBeGreaterThan(2 * BODY_RADIUS);
-  });
-
-  it("clearance is a pair property: one wide dancer breaks the default scale", () => {
-    // A single SHAPE_BOUNDS-max dancer (0.6) in an otherwise-default square.
-    expect(minScaleForPair(0.3, 0.6)).toBeCloseTo(3, 9);
-    expect(DEFAULT_SCALE).toBeLessThan(minScaleForPair(0.3, 0.6));
-  });
-
-  it("minScaleFor is the symmetric pair case", () => {
-    expect(minScaleFor(0.45)).toBeCloseTo(minScaleForPair(0.45, 0.45), 9);
-  });
-});
-
-describe("clearance-derived square scale", () => {
-  it("pairs that fit the default lane gap dance at the default scale", () => {
-    // Two default bodies need 0.6 — exactly the old body-diameter floor.
-    expect(scaleForGaps([0.6, 0.5, 0.6])).toBe(DEFAULT_SCALE);
-  });
-
-  it("never shrinks below the default — small dancers get room, not a cramped square", () => {
-    expect(scaleForGaps([0.2, 0.2])).toBe(DEFAULT_SCALE);
-  });
-
-  it("grows for the neediest pair present, keeping the default's margin", () => {
-    // A pair needing 1.2 world units (two SHAPE_BOUNDS-max bodies) touches at 4.0.
-    expect(scaleForGaps([0.6, 1.2, 0.7])).toBeCloseTo(SCALE_MARGIN * 4, 9);
-    expect(scaleForGaps([0.6, 1.2, 0.7])).toBeGreaterThan(minScaleForGap(1.2));
-  });
-
-  it("no pairs — a lone dancer or empty floor — is just the default", () => {
-    expect(scaleForGaps([])).toBe(DEFAULT_SCALE);
-  });
-
-  it("minScaleForPair is the disc special case of minScaleForGap", () => {
-    expect(minScaleForPair(0.3, 0.6)).toBeCloseTo(minScaleForGap(0.9), 9);
-  });
-
-  it("the margin constant is exactly what the default scale carries over its floor", () => {
-    expect(SCALE_MARGIN).toBeCloseTo(DEFAULT_SCALE / minScaleFor(0.3), 9);
+  it("has one scale, and it does not depend on anybody's body", () => {
+    // The whole point: the floor is a floor. A consumer may still override it per square,
+    // which is what the `scale` prop is for.
+    expect(DEFAULT_SCALE).toBe(2.2);
+    expect(makeFrame({ x: 0, z: 0 }).scale).toBe(DEFAULT_SCALE);
   });
 });

@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 import { applyCallToPair, createPerformance, type CallName } from "square-one";
-import { facingToRotationY, makeFrame, scaleForGaps, toWorld } from "./frame";
+import { DEFAULT_SCALE, facingToRotationY, makeFrame, toWorld } from "./frame";
 import {
   advanceGripBlend,
   armMetrics,
@@ -33,8 +33,6 @@ import {
 import {
   EMBER_DEFAULTS,
   MYCO_DEFAULTS,
-  lateralClearance,
-  rigidParts,
   type CharacterBodyShape,
 } from "../services/body-shapes";
 
@@ -44,7 +42,6 @@ const SIDES = ["left", "right"] as const;
 /** The debug scene's cast, and deliberately a mixed pair: squat Myco and tall Ember. */
 const CAST: readonly [CharacterBodyShape, CharacterBodyShape] = [MYCO_DEFAULTS, EMBER_DEFAULTS];
 const METRICS = CAST.map((s) => armMetrics(s)) as [ArmMetrics, ArmMetrics];
-const GAP = lateralClearance(rigidParts(CAST[0]), rigidParts(CAST[1]));
 
 interface Arm {
   readonly dancer: 0 | 1;
@@ -82,7 +79,7 @@ function wideOpen(m: ArmMetrics): ArmPoses {
 
 /** One beat's worth of both dancers' arms, in world space. */
 function armsAt(call: CallName, beat: number, yaw = 0.4, emoting = false): Arm[] {
-  const frame = makeFrame({ x: 0, z: 0 }, scaleForGaps([GAP]), yaw);
+  const frame = makeFrame({ x: 0, z: 0 }, DEFAULT_SCALE, yaw);
   const motions = applyCallToPair(call);
   const perf = createPerformance({ motions: { a: motions.a, b: motions.b } });
   perf.tick(beat);
@@ -323,8 +320,14 @@ describe("a forearm grip, over the whole Allemande", () => {
   it("breathes at the bodies, not at the grip", () => {
     // The premise the test above depends on: the pair's own separation does change
     // materially over the same span the grip holds constant.
+    // 🔴 **Scaled to the frame as of ADR-0035.** This was a flat `0.4`, calibrated when the
+    // square grew itself to its widest pair and stood 2.603 world units across. The floor is one
+    // scale now, the square is 15% tighter, and every world distance in it shrank with it — the
+    // measured range went 0.46 to 0.387 without the property changing at all. Expressed against
+    // `DEFAULT_SCALE` so it cannot rot the same way twice.
+    const BREATH = 0.15 * DEFAULT_SCALE;
     const separations = gripped.map(({ beat }) => pairSeparation("allemande-left", beat));
-    expect(Math.max(...separations) - Math.min(...separations)).toBeGreaterThan(0.4);
+    expect(Math.max(...separations) - Math.min(...separations)).toBeGreaterThan(BREATH);
   });
 });
 
@@ -334,7 +337,7 @@ function unit(v: Vec3): Vec3 {
 }
 
 function pairSeparation(call: CallName, beat: number): number {
-  const frame = makeFrame({ x: 0, z: 0 }, scaleForGaps([GAP]), 0.4);
+  const frame = makeFrame({ x: 0, z: 0 }, DEFAULT_SCALE, 0.4);
   const motions = applyCallToPair(call);
   const perf = createPerformance({ motions: { a: motions.a, b: motions.b } });
   perf.tick(beat);
@@ -344,7 +347,7 @@ function pairSeparation(call: CallName, beat: number): number {
 }
 
 function pairCentre(call: CallName, beat: number): { x: number; z: number } {
-  const frame = makeFrame({ x: 0, z: 0 }, scaleForGaps([GAP]), 0.4);
+  const frame = makeFrame({ x: 0, z: 0 }, DEFAULT_SCALE, 0.4);
   const motions = applyCallToPair(call);
   const perf = createPerformance({ motions: { a: motions.a, b: motions.b } });
   perf.tick(beat);
@@ -376,7 +379,7 @@ describe("driven frame by frame", () => {
   }
 
   function replay(call: CallName, fps = 60, bpm = 120): Held[] {
-    const frame = makeFrame({ x: 0, z: 0 }, scaleForGaps([GAP]), 0.4);
+    const frame = makeFrame({ x: 0, z: 0 }, DEFAULT_SCALE, 0.4);
     const motions = applyCallToPair(call);
     const perf = createPerformance({ motions: { a: motions.a, b: motions.b } });
     const dt = 1 / fps;
@@ -466,8 +469,9 @@ describe("driven frame by frame", () => {
   });
 
   it("breathes at the bodies over the same frames", () => {
+    // Same rescaling as its sibling above — see the note there (ADR-0035).
     const seps = held.map((f) => f.separation);
-    expect(Math.max(...seps) - Math.min(...seps)).toBeGreaterThan(0.4);
+    expect(Math.max(...seps) - Math.min(...seps)).toBeGreaterThan(0.15 * DEFAULT_SCALE);
   });
 });
 

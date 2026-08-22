@@ -57,7 +57,8 @@ import {
   facingToRotationY,
   makeFrame,
   refit,
-  scaleForGaps,
+  CLEARANCE_MARGIN,
+  DEFAULT_SCALE,
   toWorld,
   type DanceFrame,
   type WorldPoint,
@@ -269,21 +270,6 @@ function readPlacement(out: Placement, rig: THREE.Group): void {
   out.yaw = rig.rotation.y;
 }
 
-/** Every pair's height-aware side-by-side clearance (ADR-0012) — the lane
- *  arithmetic's input, and the arm tuck's proximity yardstick. */
-function clearanceGaps(shapes: readonly CharacterBodyShape[]): number[] {
-  const parts = shapes.map((s) => rigidParts(s));
-  const gaps: number[] = [];
-  for (let i = 0; i < parts.length; i++) {
-    for (let j = i + 1; j < parts.length; j++) {
-      const a = parts[i];
-      const b = parts[j];
-      if (a && b) gaps.push(lateralClearance(a, b));
-    }
-  }
-  return gaps;
-}
-
 export function DanceFloor({
   origin = { x: 0, z: 0 },
   scale,
@@ -326,10 +312,10 @@ export function DanceFloor({
   }, [shapes]);
 
   const coupleWidthWorld =
-    hold?.width ?? COUPLE_WIDTH * (scale ?? scaleForGaps(clearanceGaps([...shapes])));
+    hold?.width ?? COUPLE_WIDTH * (scale ?? DEFAULT_SCALE);
 
   const coupleWidthEngine = useMemo(
-    () => coupleWidthWorld / (scale ?? scaleForGaps(clearanceGaps([...shapes]))),
+    () => coupleWidthWorld / (scale ?? DEFAULT_SCALE),
     [coupleWidthWorld, scale, shapes],
   );
 
@@ -344,8 +330,8 @@ export function DanceFloor({
     const a = shapes[0];
     const b = shapes[1];
     if (a === undefined || b === undefined || hold === undefined) return undefined;
-    const scaleNow = scale ?? scaleForGaps(clearanceGaps([...shapes]));
-    return archClearance(armMetrics(a), armMetrics(b), a, b, hold.width) / scaleNow;
+    const scaleNow = scale ?? DEFAULT_SCALE;
+    return (CLEARANCE_MARGIN * archClearance(armMetrics(a), armMetrics(b), a, b, hold.width)) / scaleNow;
   }, [shapes, hold, scale]);
 
   /**
@@ -366,8 +352,8 @@ export function DanceFloor({
     const a = shapes[0];
     const b = shapes[1];
     if (a === undefined || b === undefined) return undefined;
-    const scaleNow = scale ?? scaleForGaps(clearanceGaps([...shapes]));
-    return lateralClearance(rigidParts(a), rigidParts(b)) / scaleNow;
+    const scaleNow = scale ?? DEFAULT_SCALE;
+    return (CLEARANCE_MARGIN * lateralClearance(rigidParts(a), rigidParts(b))) / scaleNow;
   }, [shapes, scale]);
 
   /**
@@ -387,7 +373,7 @@ export function DanceFloor({
     const a = shapes[0];
     const b = shapes[1];
     if (a === undefined || b === undefined) return undefined;
-    const scaleNow = scale ?? scaleForGaps(clearanceGaps([...shapes]));
+    const scaleNow = scale ?? DEFAULT_SCALE;
     return pairGripRadius(armMetrics(a), armMetrics(b)) / scaleNow;
   }, [shapes, scale]);
 
@@ -421,10 +407,10 @@ export function DanceFloor({
     [occupantShapes],
   );
 
-  // The pairwise clearances that set the square's spacing. The arm envelope no
-  // longer reads them: it splits the pair's *live* separation by body radius, which
-  // resolves to the same bound at the closest pass and relaxes as they part.
-  const gaps = useMemo(() => clearanceGaps(occupantShapes), [occupantShapes]);
+  // 🔴 **Nothing sets the square's spacing from the bodies any more** (ADR-0035). The pairwise
+  // clearances used to grow the whole floor until the engine's fixed lane happened to fit the
+  // widest pair; the figures carry their own accommodation now, so the square sits at
+  // `DEFAULT_SCALE` and a wide pair widens the call they are in rather than everybody's.
 
   // Resting silhouettes, for the ADR-0010 `limited` shape channels. Same shape of
   // model as the arms and for the same reason: the square's spacing was derived from
@@ -542,7 +528,7 @@ export function DanceFloor({
     [keys, tracked],
   );
 
-  const frameRef = useRef<DanceFrame>(makeFrame(origin, scale ?? scaleForGaps(gaps), yaw));
+  const frameRef = useRef<DanceFrame>(makeFrame(origin, scale ?? DEFAULT_SCALE, yaw));
 
   /**
    * The couple's standing width **in world units**, when this floor is dancing a couple.

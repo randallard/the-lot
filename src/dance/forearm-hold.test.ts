@@ -17,13 +17,11 @@ import {
   planForearm,
 } from "./forearm-hold";
 import { ACCOMMODATIONS, BREAK, RESHAPE } from "./accommodation";
-import { scaleForGaps } from "./frame";
+import { DEFAULT_SCALE } from "./frame";
 import {
   EMBER_DEFAULTS,
   MYCO_DEFAULTS,
   SPROUT_DEFAULTS,
-  lateralClearance,
-  rigidParts,
   type CharacterBodyShape,
 } from "../services/body-shapes";
 
@@ -140,17 +138,26 @@ describe("the two accommodations, applied to a forearm hold", () => {
 });
 
 describe("the grip radius square-one asks for", () => {
-  it("🔴 is a placement, and is smaller than the engine's own default on this cast", () => {
+  it("🔴 is a placement — it is whatever the arms say, above or below the default", () => {
     // square-one's ADR-0021 makes `gripRadius` the one measurement it does **not** floor: a
-    // clearance is room a figure must find, a grip is where two people's arms actually put
-    // them. This cast's arms ask for less than `ORBIT_RADIUS`, and the whole point is that
-    // they get it — a floored version would draw an Allemande the pair cannot reach.
+    // clearance is room a figure must find, a grip is where two people's arms actually put them.
+    //
+    // 🔴 **This test used to assert it came out *smaller* than `ORBIT_RADIUS`, and now it comes
+    // out larger.** Nothing about the arms changed — the frame did. While the square grew itself
+    // to its widest pair it stood 2.603 world units across and the same arms divided to 0.274
+    // engine; at the single scale of ADR-0035 they divide to 0.324. The number was never a fact
+    // about the cast on its own, which is exactly why it must not be clamped in *either*
+    // direction: a floor would have hidden the first case and a ceiling would hide this one.
     for (const [name, A, B] of PAIRS) {
-      const scale = scaleForGaps([lateralClearance(rigidParts(A), rigidParts(B))]);
-      const engine = pairGripRadius(armMetrics(A), armMetrics(B)) / scale;
+      const world = pairGripRadius(armMetrics(A), armMetrics(B));
+      const engine = world / DEFAULT_SCALE;
+      expect(engine, name).toBeCloseTo(world / DEFAULT_SCALE, 12);
       expect(engine, name).toBeGreaterThan(0);
-      expect(engine, name).toBeLessThan(ORBIT_RADIUS);
     }
+    // On the shipped default pair it is now above the body-agnostic figure, and it is delivered
+    // rather than clamped to it.
+    const myco = pairGripRadius(armMetrics(MYCO_DEFAULTS), armMetrics(EMBER_DEFAULTS));
+    expect(myco / DEFAULT_SCALE).toBeGreaterThan(ORBIT_RADIUS);
   });
 
   it("🔴 is the mean of two dancers who genuinely stand at different distances", () => {
