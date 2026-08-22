@@ -8,7 +8,13 @@ _Last updated: 2026-08-21_
 WAS THE MARGIN.** Ryan: *"most moves look great — almost all — all except california twirl … the
 beau is going way too far out now."*
 [ADR-0036](adr/0036-the-arch-clearance-carries-its-own-margin.md). **631 tests, lint 0 errors,
-build clean.**
+build clean.** ✅ **WATCHED AND ACCEPTED** — *"that all looks good."* The beau's arc peak went
+**0.855 → 0.657** world against a couple standing 1.140 apart, and his path over the four beats
+**4.366 → 3.371**.
+
+✅ **And that closes ADR-0035's watch too, which was "everything".** Every figure has now been
+seen and accepted **at the single scale**: the Dosado, both Trades, both Twirls, Trade-plus-Twirl,
+and Allemande Left with its accommodation. Nothing on screen is waiting on Ryan.
 
 🔑 **ADR-0035 applied `CLEARANCE_MARGIN` to both clearances and the arch did not need one.**
 square-one bows the beau's arc to meet `archClearance`, and a request **at or above the couple's
@@ -76,9 +82,8 @@ at the bodies" range fell 0.46 → 0.387 against a flat `0.4`, with the property
 expressed against `DEFAULT_SCALE` now. **A test that hard-codes a world distance is pinned to a
 frame it does not name.**
 
-**⚠️ THE WATCH — everything.** 🔴 The square is 15% tighter and every figure in it should deliver
-the same daylight it did before. `#dance=dosado`, `#dance=two-trades`, `#dance=two-twirls`,
-`#dance=allemande-left` — all four were accepted at the old scale and all four have moved.
+✅ **WATCHED AND ACCEPTED**, after ADR-0036 fixed the one figure this chunk broke. Every scene
+re-checked at the single scale.
 
 ---
 
