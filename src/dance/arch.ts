@@ -289,6 +289,79 @@ export function archFits(
   return archClearance(beau, belle, beauShape, belleShape, width, accommodation) < width;
 }
 
+/**
+ * How far apart the pair must stand for each raised **arm** to clear the other dancer.
+ *
+ * 🔴 **The gap has a fourth thing in it** (ADR-0038). [ADR-0018](../../docs/adr/0018-the-arch-needs-a-hands-room-between-two-heads.md)
+ * found the third — a joined *hand* up between two heads — and measured the room needed **at the
+ * hand's height**. That is the right question for a hand and the wrong one for the arm holding it
+ * up: the hand is only the top of it.
+ *
+ * Under a reshape the join rides clear above both crowns, so the cross-section at its height is
+ * literally **zero** and the figure was sized by the bodies alone. Ryan, watching the two Twirls
+ * that produced: *"now the short side is clipping the belle's arm into beau's head."* Her arm runs
+ * from her shoulder up to that join, and on the way it passes exactly where his head is.
+ *
+ * ## Why this is solved and not measured
+ *
+ * The arm **slopes**: it starts at a shoulder, `restX` out from its owner's midline, and ends at
+ * the join between the two of them. So where it sits laterally depends on the height you ask
+ * about — and both of its endpoints move when the pair move apart. Sampling a fixed pose would
+ * answer for a separation nobody is standing at.
+ *
+ * So it is bisected on the separation, like square-one's bow: monotonic, because pulling the two
+ * apart moves every point of each arm away from the other dancer.
+ *
+ * 🔴 **Not simply "add the arm's width at the join's height"** — that was the cheap version, and
+ * it is conservative in the wrong place. It would charge the reshape for room at a height where
+ * nobody has a head, dragging it back up toward the break's number and undoing the difference
+ * between the two accommodations that ADR-0037 exists to produce.
+ */
+export function armSweepClearance(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  hands: { readonly beau: number; readonly belle: number },
+  lateral: number,
+): number {
+  /** Does `me`'s raised arm clear `them`, with the pair `s` apart, centre to centre? */
+  const fits = (me: ArmMetrics, them: ArmMetrics, joinY: number, s: number): boolean => {
+    // `me` at −s/2 and `them` at +s/2; the join sits between the two inside shoulders.
+    const meX = -s / 2;
+    const themX = s / 2;
+    const shoulderX = meX + me.restX; // the inside shoulder, toward the join
+    const shoulderY = me.rigOriginY + me.restY;
+    const span = joinY - shoulderY;
+    for (let i = 0; i <= ARM_SAMPLES; i++) {
+      const t = i / ARM_SAMPLES;
+      const h = shoulderY + span * t;
+      const armX = shoulderX + (lateral - shoulderX) * t;
+      const reach = sideExtentAt(them.parts, h) + me.armHalfWidth;
+      if (Math.abs(armX - themX) < reach) return false;
+    }
+    return true;
+  };
+
+  const both = (s: number): boolean =>
+    fits(beau, belle, hands.beau, s) && fits(belle, beau, hands.belle, s);
+
+  // Bracket: zero never fits and something generous always does. The upper bound is two whole
+  // bodies plus two arms, which is more than any pose can need.
+  let hi = 2 * (beau.restX + belle.restX + beau.armHalfWidth + belle.armHalfWidth) + 2;
+  if (!both(hi)) return hi;
+  let lo = 0;
+  for (let i = 0; i < ARM_BISECTION_STEPS; i++) {
+    const mid = (lo + hi) / 2;
+    if (both(mid)) hi = mid;
+    else lo = mid;
+  }
+  return hi;
+}
+
+/** How finely each arm is sampled along its length. */
+const ARM_SAMPLES = 48;
+/** Enough to land the separation well inside a millimetre of scene. */
+const ARM_BISECTION_STEPS = 40;
+
 /** What one execution of an arch call was drawn to do, and the room and width it needs. */
 export interface ArchSizing {
   /** The accommodation the pair will dance — the draw, unless the draw cannot be delivered. */
@@ -330,11 +403,24 @@ export function sizeArch(
   bodies: number,
   drawn: Accommodation,
 ): ArchSizing {
-  const wanted = Math.max(archClearance(beau, belle, beauShape, belleShape, width, drawn), bodies);
+  const need = (mode: Accommodation): number => {
+    const plan = planArch(beau, belle, beauShape, belleShape, width, mode);
+    const b =
+      plan.bodyDeltas.beau === 0 ? beau : armMetrics(growBody(beauShape, plan.bodyDeltas.beau));
+    const l =
+      plan.bodyDeltas.belle === 0 ? belle : armMetrics(growBody(belleShape, plan.bodyDeltas.belle));
+    return Math.max(
+      // What must fit at each hand's own height (ADR-0018).
+      archClearance(beau, belle, beauShape, belleShape, width, mode),
+      // What the arms holding those hands up sweep through on the way (ADR-0038).
+      armSweepClearance(b, l, plan.hands, archLateral(b, l)),
+      // And never less than two bodies passing hands-free (ADR-0037).
+      bodies,
+    );
+  };
+
+  const wanted = need(drawn);
   if (wanted < width) return { accommodation: drawn, wanted, width };
-  const broken = Math.max(
-    archClearance(beau, belle, beauShape, belleShape, width, BREAK),
-    bodies,
-  );
+  const broken = need(BREAK);
   return { accommodation: BREAK, wanted: broken, width: 2 * broken };
 }

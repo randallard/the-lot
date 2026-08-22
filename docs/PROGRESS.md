@@ -4,8 +4,45 @@ _Last updated: 2026-08-21_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-21, eighth chunk) — ✅ THE FIGURE IS SIZED TO THE ACCOMMODATION DRAWN, AND
-A PAIR WHO LET GO ARE NOT HELD TO A HANDHOLD'S WIDTH.**
+**▶ RIGHT NOW (2026-08-21, ninth chunk) — 🔴 THE GAP HAS A FOURTH THING IN IT: THE ARM.**
+Ryan, on the two Twirls: *"yeah they look different but now the short side is clipping the belle's
+arm into beau's head."* **630 tests, lint 0 errors, build clean.** 🔴 **Committed with a known
+over-correction — read the owed item before watching.** ADR-0038 is **not yet written**.
+
+🔑 **ADR-0018 found the third thing in the gap — a joined *hand* between two heads — and measured
+the room at the hand's height.** That is the right question for a hand and the wrong one for the
+arm holding it up. Under a reshape the join rides clear above both crowns, so the cross-section at
+its height is literally **zero** and the figure was sized by the bodies alone. The belle's arm runs
+from her shoulder up to that join, and on the way it passes exactly where his head is.
+
+🔑 **Solved, not measured, because the arm slopes** — it starts `restX` out at a shoulder and ends
+at the join between the two of them, so where it sits laterally depends on the height you ask
+about, and both endpoints move when the pair move apart. `armSweepClearance` bisects on the
+separation. The cheap version — "add the arm's width at the join's height" — is conservative in the
+wrong place and would have dragged the reshape back up to the break's number, undoing ADR-0037.
+
+| pair | drew | dances | stands | needs |
+|---|---|---|---|---|
+| myco/ember | reshape | reshape | 1.140 (handhold) | **1.055** — was 0.781, the clip |
+| myco/ember | break | **break** | 🔴 **2.368 — lets go** | 1.184 |
+
+🔴 **OWED, AND IT IS THE NEXT THING: the break is over-conservative.** The sweep assumes both arms
+reach the join. Under a break **they do not** — *"both arms reach as far as they can toward the
+same target, and the hands come apart"* (ADR-0028) — so each hand stops short **laterally** as well
+as vertically, and the model charges for a reach nobody makes. That tips the default pair's break
+past their handholding width, so they let go and stand **twice as wide**, which is very likely to
+look wrong on screen.
+
+`ArchPlan` already carries each dancer's own hand *height*; the fix is to give the sweep each
+dancer's own hand **position**, derived from `handReach` along the direction to the target.
+
+**⚠️ THE WATCH — `#dance=two-twirls`, with that caveat.** The reshape Twirl should have the belle's
+arm clear of the beau's head. The break Twirl will look **too wide** until the item above lands.
+
+---
+
+**▶ 2026-08-21, eighth chunk — ✅ THE FIGURE IS SIZED TO THE ACCOMMODATION DRAWN, AND A PAIR WHO
+LET GO ARE NOT HELD TO A HANDHOLD'S WIDTH.**
 [ADR-0037](adr/0037-the-figure-is-sized-to-the-accommodation-drawn.md), superseding ADR-0030.
 Ryan, on the pair who cannot make an arch at all: *"so do what we did with the california twirl —
 sometimes myco gets smaller and sprout gets bigger, and sometimes they just reach as far as
