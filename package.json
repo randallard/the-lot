@@ -5,13 +5,15 @@
   "type": "module",
   "packageManager": "pnpm@11.5.3",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "link:engine": "node scripts/link-engine.mjs",
+    "dev": "node scripts/link-engine.mjs && vite",
+    "build": "node scripts/link-engine.mjs && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest",
+    "test": "node scripts/link-engine.mjs && vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage --run"
+    "test:coverage": "node scripts/link-engine.mjs && vitest --coverage --run",
+    "postinstall": "node scripts/link-engine.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

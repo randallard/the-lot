@@ -122,6 +122,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0031](0031-the-hands-free-clearance-is-passed-too.md) | The hands-free clearance is passed too, so a Trade bows like a Twirl does | Accepted |
 | [0032](0032-the-accommodation-belongs-to-the-hold-not-to-the-arch.md) | The accommodation belongs to the hold, not to the arch | Accepted |
 | [0033](0033-the-forearm-hold-is-a-reach-a-pair-can-fail.md) | The forearm hold is a reach a pair can fail, and it gets the same two accommodations | Accepted |
+| [0034](0034-the-engine-relinks-itself-when-a-sibling-checkout-exists.md) | The engine re-links itself when a sibling checkout exists | Accepted |
 
 ## Decisions this repo inherits
 

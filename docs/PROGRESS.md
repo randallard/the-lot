@@ -54,10 +54,14 @@ validated end to end.
 **⚠️ Owed.** (1) 🔴 **`#dance=allemande-left` has never been watched with a reshape on.** A torso
 easing half a unit through an arm turn may read as accommodation or as a dancer inflating — a
 look, not a number, and the first time either accommodation has been applied to anything but an
-arch. (2) The **two-trades / two-twirls** watch from the chunk below. (3) 🔴 **The co-development symlink is hand-restored.** `pnpm install` replaced
-`node_modules/square-one -> ../square-one` with the fetched tarball; it has been symlinked back so
-local square-one edits show up, but the **next `pnpm install` will undo that again**. If this
-becomes a nuisance it wants a real answer (a `link:` override or a workspace) rather than a habit. (4) 🔴 **The standing touch-hands handhold is the third hold and still has no
+arch. (2) The **two-trades / two-twirls** watch from the chunk below. (3) ✅ **The co-development link fixed properly** —
+[ADR-0034](adr/0034-the-engine-relinks-itself-when-a-sibling-checkout-exists.md).
+`scripts/link-engine.mjs` re-links `node_modules/square-one` to `../square-one` when that checkout
+exists and does nothing when it does not, so CI is untouched. Run from `dev`, `build`, `test` and
+`postinstall` — **`postinstall` alone does not hold**, because pnpm answers *"Already up to date"*
+and runs no lifecycle script when it thinks nothing changed, which is exactly the state a stale
+link is in. `SQUARE_ONE_NO_LINK=1 pnpm test` is the "check me against the published tag" command.
+🔴 Local and CI now install differently on purpose, which is the thing to stay uneasy about. (4) 🔴 **The standing touch-hands handhold is the third hold and still has no
 accommodation**; its hands meet in front of the pair rather than between them, so it is a third
 plan and not a third caller of these two. (5) Re-take the **elbow watch**. (6) 🔴 **Where the
 join sits**. (7) 🔴 The hold's `forward` is still **0.320** on the default cast.
