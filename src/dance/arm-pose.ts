@@ -639,7 +639,7 @@ function handDrop(m: ArmMetrics, height: number, lift: number): number {
  * A hanging upper arm puts the elbow directly below the shoulder, at `elbowY`, with no
  * freedom left in it. From there the forearm is a fixed length reaching a hand that is
  * already committed to a lateral offset (`across`, ADR-0027's shoulder midpoint) and a
- * height (`handY`, the belle's waist plus this dancer's own palm). One axis is left, and the
+ * height (`handY`, the aimed hold plus this dancer's own palm). One axis is left, and the
  * leftover length goes into it: **forward**.
  *
  * Zero when the arm has nothing spare, which is the honest answer rather than a special
@@ -769,20 +769,24 @@ function corridorWidth(beau: ArmMetrics, belle: ArmMetrics, height: number): num
  * Solve a couple's handhold from the two bodies — the whole of what "touch hands" means
  * geometrically, in one pass, with nothing tuned.
  *
- * **Height: the belle's waist, and the beau lives with it.** Ryan, 2026-08-16 and again on
- * 2026-08-17 after watching it: *"the gent's job is to make the belle's job easier, even if
- * she's taller — so if a dancer chooses that side then they need to be the ones to pay
- * attention to the belle's comfortable hand position at the belle's waist — even if it looks
- * awkward — maintain opinionation that way."*
+ * **Height: the taller dancer's waist** (ADR-0046). Not a preference between the two of them
+ * — the taller dancer is the one who *runs out of arm*, because they are reaching **down** to
+ * a hold and a shoulder cannot follow it. Aim at their waist and they do not have to; the
+ * shorter dancer lifts instead, which they have room for, because an arm going up is not
+ * folding back on itself. That is what two people of different heights do — the hold sits
+ * where the tall one can carry it and the short one reaches up to meet it.
  *
- * This is a **dance** opinion, not a geometric one, and it is the reason the rule is not
- * symmetric. It costs something real and the cost is the point: on the debug cast the belle
- * is the taller dancer, so her waist (0.713) is nearly the beau's own *shoulder* height
- * (0.950), and his forearm comes out around 80° off vertical — nearly horizontal, reaching
- * across. Splitting the difference (the lower of the two waists) hangs both forearms neatly
- * at 16° and was briefly implemented here on exactly that reasoning. It was the wrong call:
- * it makes the picture tidier by quietly reassigning the accommodation to whoever is shorter,
- * and the beau's side is the side that carries it.
+ * It is **symmetric in the pair by construction**, which is the property the rule it replaces
+ * did not have. The belle's waist (ADR-0025 through ADR-0027, from Ryan on 2026-08-16: *"the
+ * gent's job is to make the belle's job easier, even if she's taller"*) read correctly for a
+ * long time because it is *identical* to this rule whenever the belle happens to be the taller
+ * — which is the shipped pairing. Where she was not, the same two bodies got a different hold
+ * depending on which of them was called beau: Ember and Myco held hands at 0.713 one way round
+ * and 0.557 the other, with Ember at 100% of her reach and no hands in front at all.
+ *
+ * The lower of the two waists — the other tidy-looking answer, briefly implemented here in
+ * 2026-08 — is worse than either: it aims at the *reachable* dancer and strands the one who
+ * cannot follow, and it strains 14 of the cast's 20 orderings against this rule's 8.
  *
  * It is a band rather than a point only because an arm has a length: no dancer
  * can put their inside hand lower than it hangs, or higher than they can lift it, and
@@ -813,8 +817,9 @@ function corridorWidth(beau: ArmMetrics, belle: ArmMetrics, height: number): num
  * **Lateral: halfway between the two inside shoulders.** Ryan, 2026-08-18, looking at the
  * standing couple: *"they can move to the horizontal middle between the dancer's shoulders —
  * vertical level should be at the belle's waist — the body / head disproportion might affect
- * this but that's the general rule."* So the height keeps its opinion and the lateral loses
- * one: it is a landmark rather than a preference about whose arm does the work. On the
+ * this but that's the general rule."* The lateral is a landmark rather than a preference about
+ * whose arm does the work — and as of ADR-0046 the height is a landmark too, so neither of the
+ * hold's two in-plane numbers picks a side any more. On the
  * default cast that moves the hold from 0.210 toward the belle — which is her inside shoulder
  * exactly, the previous rule's answer — to **0.050**, and both dancers reach the same 0.160
  * across.
@@ -835,8 +840,23 @@ function corridorWidth(beau: ArmMetrics, belle: ArmMetrics, height: number): num
  * numbers or their hands are not on each other, which is why this is solved once by the
  * caller and handed to both.
  */
-export function touchHold(beau: ArmMetrics, belle: ArmMetrics): TouchHold {
-  const target = belle.rigOriginY + belle.waistY;
+export function touchHold(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  /**
+   * The height the hold *aims* at before both dancers' reach clamps it — the **taller
+   * dancer's waist** by default (ADR-0046), which is the rule as written.
+   *
+   * The higher of the two waists *is* the taller dancer's, not a proxy for it: `waistY` is a
+   * fixed fraction of shoulder height ({@link computePositions}), so it is monotone in stature
+   * and `Math.max` picks the same dancer "taller" would.
+   *
+   * A parameter so the alternatives can be measured through the real solver rather than
+   * approximated beside it: the height is the input to a fixed point, and a candidate evaluated
+   * any other way is a candidate for a different function.
+   */
+  target: number = Math.max(beau.rigOriginY + beau.waistY, belle.rigOriginY + belle.waistY),
+): TouchHold {
 
   // Everything below the height is a function *of* the height, and the height turns out to
   // be a function of them back — three ways round, now:
@@ -876,8 +896,8 @@ export function touchHold(beau: ArmMetrics, belle: ArmMetrics): TouchHold {
 }
 
 /**
- * The belle's waist, clamped into the height both of them can actually reach **given how
- * far sideways each of them already has to go**.
+ * The aimed height — the taller dancer's waist (ADR-0046) — clamped into the height both of
+ * them can actually reach **given how far sideways each of them already has to go**.
  *
  * The sideways part is why this takes `across`. An arm's reach is a sphere, not a plumb
  * line: a hand that is already 0.02 out to the side has less than its full length left to
@@ -1224,7 +1244,7 @@ export function touchReach(m: ArmMetrics, hold: TouchHold, isBeau: boolean): num
  * Falls back to {@link reachPose} where the shoulder's plane cannot hold the elbow at all:
  * out of arm's reach, or a hand far enough out to the side that the elbow circle lies clear
  * of the plane. Both of the default cast's dancers stay in the plane; SPROUT reaching a tall
- * belle's waist at 100% of her own arm does not. That split is the right way round, and the
+ * hold at 100% of her own arm does not. That split is the right way round, and the
  * opposite of how the swing constants were tuned: **the straighter the arm, the smaller the
  * elbow's circle**, so a nearly straight arm gives a preference almost nothing to get wrong,
  * while the folded arms — where it had everything to get wrong, and did — are the ones that

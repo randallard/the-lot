@@ -115,7 +115,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0024](0024-the-dance-hangs-an-arm-outside-its-own-body.md) | The dance hangs an arm outside its own body, whatever the editor says | Accepted |
 | [0025](0025-the-joined-hands-hang-between-the-shoulders.md) | The joined hands hang halfway between the two inside shoulders | Superseded by ADR-0027 |
 | [0026](0026-a-hand-is-the-ellipsoid-that-is-drawn.md) | A hand is the ellipsoid that is drawn, not the sphere it is made from | Accepted |
-| [0027](0027-the-upper-arm-hangs-and-the-hands-come-forward.md) | The upper arm hangs, and the joined hands come forward | Accepted |
+| [0027](0027-the-upper-arm-hangs-and-the-hands-come-forward.md) | The upper arm hangs, and the joined hands come forward | Superseded by [0046](0046-the-hold-is-carried-at-the-taller-dancers-waist.md) |
 | [0028](0028-an-arch-a-pair-cannot-make-is-accommodated-two-ways.md) | An arch a pair cannot make is accommodated two ways, drawn at random | Accepted |
 | [0029](0029-a-shoulder-follows-the-torso-it-hangs-from.md) | A shoulder follows the torso it hangs from | Accepted |
 | [0030](0030-the-arch-clearance-is-measured-from-the-worse-accommodation.md) | The arch clearance is measured from the worse accommodation, and passed as a number | Superseded by [0037](0037-the-figure-is-sized-to-the-accommodation-drawn.md) |
@@ -134,6 +134,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0043](0043-a-body-grows-from-where-it-stands.md) | A body grows from where it stands, and the rig carries the difference | Accepted |
 | [0044](0044-standing-and-passing-use-one-margin.md) | Standing and passing ask the same function how far apart two bodies go | Accepted |
 | [0045](0045-a-couples-width-is-the-one-they-are-dancing-at.md) | A couple's width is the one they are dancing at, not the one they would rest at | Accepted |
+| [0046](0046-the-hold-is-carried-at-the-taller-dancers-waist.md) | The joined hands are carried at the taller dancer's waist | Accepted |
 
 ## Decisions this repo inherits
 

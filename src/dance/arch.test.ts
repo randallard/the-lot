@@ -13,6 +13,7 @@ import {
   reachCeiling,
   reachToward,
   sizeArch,
+  type ReshapeAim,
 } from "./arch";
 import { CLEARANCE_MARGIN, passingWidth } from "./frame";
 import {
@@ -307,51 +308,61 @@ describe("the arch a couple asks for has to be one the figure can deliver", () =
       .toBeCloseTo(0.905, 2);
   });
 
-  it("🔴 is NOT satisfiable for a mismatched pair, and has been capped in silence", () => {
-    // 🔴 **The finding this guard turned up on 2026-08-21**, written as an assertion on the size
-    // of the overshoot rather than left out, because a gap nobody measures is a gap that gets
-    // forgotten.
+  it("✅ is satisfiable for the mismatched pair it was NOT satisfiable for, since ADR-0046", () => {
+    // 🔴→✅ **The finding this guard was written for on 2026-08-21, and the correction that
+    // closed it on 2026-08-22.** It is kept as a passing test rather than deleted, because the
+    // *cause* is the interesting part and a closed finding with no witness is a finding that
+    // comes back.
     //
     // ADR-0018 measured the arch clearance on **one** pairing and found it just inside the cap.
-    // Nobody checked the others. Myco with Sprout — an adult and a child — cannot be given the
-    // room at the width their handhold puts them at, and the two dancers are exactly that width
-    // apart at both ends of the call whatever the bow does in between. square-one answers with
-    // its cap and the figure looks like it works.
+    // Nobody checked the others. Myco with Sprout — an adult and a child — could not be given
+    // the room at the width their handhold put them at, and the two dancers are exactly that
+    // width apart at both ends of the call whatever the bow does in between. square-one answers
+    // with its cap and the figure looked like it worked.
     //
-    // The cause is structural rather than a tuning error: the couple's width comes from the
-    // **handhold**, so a short-armed pair stands narrow — while their two heads with a hand
-    // between them want just as much room as anyone's. The narrower the couple, the further out
-    // of reach the arch gets.
+    // The cause was structural rather than a tuning error, and the structure is what moved: the
+    // couple's width comes from the **handhold**, so a pair with no arm to spare stand narrow —
+    // while their two heads with a hand between them want just as much room as anyone's. The
+    // narrower the couple, the further out of reach the arch gets.
     //
-    // 🔴 **The overshoot was 1.62, then 1.07, and is 1.05.** It was inflated by two conflations
-    // `archClearance` carried until 2026-08-22 — charging a hand against its own owner, and
-    // measuring from the couple's midpoint rather than the hand's own lateral — and then it fell
-    // again when the couple's standing width stopped being short of what they need to pass
-    // (ADR-0044). The finding survives every correction; its size does not, and the honest number
-    // is the one to reason from.
+    // 🔑 **What was eating their arms was the aim, not their bodies.** Under the belle's waist
+    // this pair held hands at 0.403 — *below the child's waist*, because the child was the
+    // belle — so both of them spent nearly the whole of their reach getting a hand down there
+    // and had almost none left to spend going across. ADR-0046 aims at the taller dancer's
+    // waist, 0.475; the child lifts to meet it, which she has room for, and the arm that
+    // frees up goes sideways. **Their standing width goes 0.745 → 1.057** and the arch that
+    // did not fit fits with room to spare.
+    //
+    // 🔴 **The overshoot was 1.62, then 1.07, then 1.05, and is now 0.60.** The first two falls
+    // were corrections to `archClearance` itself (charging a hand against its own owner, and
+    // measuring from the couple's midpoint rather than the hand's own lateral); the third was
+    // ADR-0044; this one is the aim. The finding survived every correction until the one that
+    // addressed what actually caused it.
     const a = armMetrics(MYCO_DEFAULTS);
     const b = armMetrics(SPROUT_DEFAULTS);
     const width = touchHold(a, b).width;
-    // 🔴 **Neither accommodation fits, which is what makes this the terminal case.** A reshape
-    // that clips at the shape editor's bounds "simply breaks by more" (ADR-0028), so for a pair
-    // this mismatched both answers land on the same number.
+    expect(width).toBeCloseTo(1.057, 3);
+    // Both accommodations fit, and by the same number: a reshape that clips at the shape
+    // editor's bounds "simply breaks by more" (ADR-0028), so for a pair this mismatched the two
+    // answers still land together — they just land under 1 now instead of over it.
     for (const mode of ACCOMMODATIONS) {
       const ratio = archClearance(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width, mode) / width;
-      expect(ratio, mode).toBeGreaterThan(1);
-      expect(ratio, mode).toBeCloseTo(1.051, 2);
-      expect(archFits(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width, mode), mode).toBe(false);
+      expect(ratio, mode).toBeLessThan(1);
+      expect(ratio, mode).toBeCloseTo(0.599, 2);
+      expect(archFits(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width, mode), mode).toBe(true);
     }
-    // 🔴 **What is left is the arch's own doing, and that is the part worth keeping.** These two
-    // used to want *more than their whole handholding width* to pass each other with hands free
-    // and no arch involved — a Partner Thru failed for them on the same ground — because the
-    // stance was floored with an additive margin where the figure asked for a multiplicative one.
-    // ADR-0044 gave both the same function, and their stance now sits **exactly** on what they
-    // need to pass. Everything still over 1 here is the hand and the arm in the gap.
-    expect(
-      passingWidth(lateralClearance(rigidParts(MYCO_DEFAULTS), rigidParts(SPROUT_DEFAULTS))) / width,
-    ).toBeCloseTo(1, 9);
-    // So they let go and stand where the figure can clear them: twice the room they need, which
-    // is where the beau's arc delivers it on its own radius with no bow at all (ADR-0037).
+    // 🔑 **And the stance is no longer pinned to the floor.** Under the old aim these two stood
+    // at *exactly* what their bodies need to pass (ADR-0044) — the floor was doing all the work
+    // and the handhold none — which is what left nothing over for the arch. Now the hold itself
+    // puts them comfortably outside it.
+    const passing = passingWidth(
+      lateralClearance(rigidParts(MYCO_DEFAULTS), rigidParts(SPROUT_DEFAULTS)),
+    );
+    expect(passing / width).toBeCloseTo(0.705, 3);
+    // 🔴 **The cost, stated rather than left implied.** 1.057 is arm's length for the child —
+    // she is at 100% of her reach standing there, and the pair look further apart than an adult
+    // and a child holding hands would. That is a *watch* question rather than a solver one, and
+    // it is the honest price of not asking her to reach below her own hanging hand.
     const broken = archClearance(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width, BREAK);
     expect(archFits(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, 2 * broken, BREAK)).toBe(true);
   });
@@ -495,25 +506,26 @@ describe("sizeArch reaches before it lets go", () => {
     }
   });
 
-  it("🔴 reaches for it rather than letting go — Myco and Sprout keep hold", () => {
-    // The pairing that started this. Before ADR-0040 they let go and stood at 1.572, more than
-    // twice their handholding width, for a call an adult and a child dance without thinking
-    // about it. Ryan: *"they should not have to stand wide."*
+  it("✅ does not have to reach at all any more — Myco and Sprout just dance it", () => {
+    // The pairing that started all of this, at the end of three decisions about it.
+    //
+    // Before ADR-0040 they let go and stood at 1.572, more than twice their handholding width,
+    // for a call an adult and a child dance without thinking about it. Ryan: *"they should not
+    // have to stand wide."* ADR-0040 had them buy 0.030 of upper arm instead and hold on at
+    // 0.774. ADR-0046 removed the reason they were short: aiming the hold at the taller
+    // dancer's waist instead of the belle's stopped asking the child to put her hand below
+    // where it hangs, and the arm that freed up went sideways.
     const { b, l, w, bodies } = room(MYCO_DEFAULTS, SPROUT_DEFAULTS);
     const sized = sizeArch(b, l, MYCO_DEFAULTS, SPROUT_DEFAULTS, w, bodies, RESHAPE);
 
-    expect(sized.armDelta).toBeCloseTo(0.03, 9);
-    expect(sized.width).toBeCloseTo(0.774, 3);
-    // 🔑 They now *stand* at exactly what their bodies need to pass (ADR-0044), so every unit of
-    // this reach is the arch's — the hand and the arm in the gap — and none of it is the stance
-    // making up a shortfall it should never have had.
-    // 🔑 **Holding on.** The old answer was `2 * wanted`; this is a hair over the width their
-    // own longer arms put them at, which is what keeping the hold looks like as a number.
+    // 🔑 **The last resort is not reached.** No lengthened arm, and they dance at the width
+    // their own handhold puts them at — the same three readings of one number ADR-0045 wanted.
+    expect(sized.armDelta).toBe(0);
+    expect(sized.width).toBeCloseTo(w, 9);
+    expect(sized.width).toBeCloseTo(1.057, 3);
+    // Still holding on, and now with room over rather than a hair to spare.
     expect(sized.wanted).toBeLessThan(sized.width);
     expect(sized.width).toBeLessThan(2 * sized.wanted);
-    // And it is a *small* widening rather than a shove: **4%** of where they already stood,
-    // against the 113% the old answer moved them.
-    expect(sized.width / w).toBeCloseTo(1.039, 3);
   });
 
   it("🔴 the arm is the pair's, not the draw's, so they stand in one place either way", () => {
@@ -832,11 +844,39 @@ describe("the reshape aims at whichever height asks the figure for less", () => 
     ] as const) {
       const { b, l, w, bodies } = room(beauShape, belleShape);
       const sized = sizeArch(b, l, beauShape, belleShape, w, bodies, RESHAPE);
-      const low = archClearance(b, l, beauShape, belleShape, w, RESHAPE, LOW);
-      const chosen = archClearance(b, l, beauShape, belleShape, w, RESHAPE, sized.aim);
-      expect(chosen, `${sized.aim} vs low`).toBeLessThanOrEqual(low + 1e-9);
+      expect(archRoomAt(beauShape, belleShape, sized.aim), `${sized.aim} vs low`)
+        .toBeLessThanOrEqual(archRoomAt(beauShape, belleShape, LOW) + 1e-9);
     }
   });
+
+  /**
+   * What `cheaperAim` actually minimises: **the room the figure has to find**, which is the
+   * worse of the two hands' clearance and the two arms' sweep (ADR-0038), not the hands alone.
+   *
+   * 🔑 The distinction was invisible until ADR-0046 and is not a technicality. Asserting on
+   * `archClearance` by itself passed for as long as the hands were the binding term on every
+   * pairing tried — and then Myco with Sprout stood 0.31 wider, the hands stopped binding, and
+   * the *sweep* became what the aim was buying: aiming clear costs those two 0.699 of hand
+   * clearance against LOW's 0.633, and saves 0.767 → 0.699 of arm sweep, which is the trade
+   * `cheaperAim` is there to make. A test that reads one term of a `max` is testing a
+   * coincidence.
+   */
+  const archRoomAt = (
+    beauShape: CharacterBodyShape,
+    belleShape: CharacterBodyShape,
+    aim: ReshapeAim,
+  ) => {
+    const { b, l, w } = room(beauShape, belleShape);
+    const plan = planArch(b, l, beauShape, belleShape, w, RESHAPE, aim);
+    return Math.max(
+      archClearance(b, l, beauShape, belleShape, w, RESHAPE, aim),
+      armSweepClearance(
+        wearing(b, beauShape, plan.bodyDeltas.beau),
+        wearing(l, belleShape, plan.bodyDeltas.belle),
+        plan.hands,
+      ),
+    );
+  };
 
   it("leaves a taller belle exactly where she was — the aim only exists for a taller beau", () => {
     // The default pair and every pairing like it. `cheaperAim` returns LOW without evaluating
@@ -848,7 +888,7 @@ describe("the reshape aims at whichever height asks the figure for less", () => 
     ).toEqual(planArch(b, l, MYCO_DEFAULTS, EMBER_DEFAULTS, w, RESHAPE, LOW).bodyDeltas);
   });
 
-  it("🔴 and the higher aim really is worth having — five of the twenty shipped orderings take it", () => {
+  it("🔴 and the higher aim really is worth having — seven of the twenty shipped orderings take it", () => {
     // Measured rather than assumed, because a lever nothing ever pulls is dead code wearing a
     // decision. Over 4000 random pairs across the whole shape range it wins about one in five.
     const cast = [PLAYER_DEFAULTS, MYCO_DEFAULTS, EMBER_DEFAULTS, RYAN_DEFAULTS, SPROUT_DEFAULTS];
@@ -860,6 +900,6 @@ describe("the reshape aims at whichever height asks the figure for less", () => 
         if (sizeArch(b, l, beauShape, belleShape, w, bodies, RESHAPE).aim === CLEAR) taken++;
       }
     }
-    expect(taken).toBe(5);
+    expect(taken).toBe(7);
   });
 });

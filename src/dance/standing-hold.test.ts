@@ -23,6 +23,12 @@ import { RESHAPE, growUpperArm } from "./accommodation";
  * with Ryan, and the player with Sprout both ways. Ryan: *"player and ember are not [holding
  * hands] at all … maybe we have too many states stacking here."*
  *
+ * **Down to two of the twenty since ADR-0046**, and not because the seam got any safer: aiming
+ * the hold at the taller dancer's waist gave three of those five pairs enough arm to stop
+ * reaching, so there is no longer a second width for them to disagree about. The remaining two
+ * are the player with Sprout, both ways round. The distinction is what is pinned here, not the
+ * head count.
+ *
  * Driven through square-one rather than asserted on the geometry, because the bug was in the
  * *seam* — three readings of one width that had silently become three numbers.
  */
@@ -109,12 +115,19 @@ describe("🔴 a couple is holding hands at beat 0, whoever they are", () => {
     expect(r.stanceWidth).toBeCloseTo(r.separation, 6);
   });
 
-  it("🔴 and asking with the RESTING width instead loses the hold on five orderings", () => {
+  it("🔴 and asking with the RESTING width instead loses the hold on the orderings that reach", () => {
     // The counter-assertion, because the happy path above passes with or without the fix — it
     // measures the geometry, and the defect was in which number the *floor* handed the
     // predicate. This pins the distinction itself: the two widths differ, and using the one
     // that describes where the pair would be standing if they had not reached is what dropped
-    // the hold. Ember with the player, with Myco and with Ryan; the player with Sprout, both ways.
+    // the hold.
+    //
+    // It was five orderings when ADR-0045 was written — Ember with the player, with Myco and
+    // with Ryan; the player with Sprout, both ways. ADR-0046 took the three Ember orderings off
+    // the list by making the hold reachable enough that they no longer buy any arm (her width
+    // with Myco and with Ryan is capped by their shoulders, not by their reach, so the 0.31 they
+    // still spend on the *arch* buys no extra width and the two readings agree). The player with
+    // Sprout is what is left, and it is the same defect.
     const lost: string[] = [];
     for (const [beauName, beauShape] of CAST) {
       for (const [belleName, belleShape] of CAST) {
@@ -123,9 +136,7 @@ describe("🔴 a couple is holding hands at beat 0, whoever they are", () => {
         if (!r.joinedIfAskedResting) lost.push(`${beauName}/${belleName}`);
       }
     }
-    expect(lost.sort()).toEqual([
-      "ember/myco", "ember/player", "ember/ryan", "player/sprout", "sprout/player",
-    ]);
+    expect(lost.sort()).toEqual(["player/sprout", "sprout/player"]);
     // Every one of them is a pair who reached — that is the whole mechanism.
     for (const name of lost) {
       const [bn, ln] = name.split("/");

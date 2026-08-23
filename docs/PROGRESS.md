@@ -4,7 +4,144 @@ _Last updated: 2026-08-22_
 
 ## Status / next
 
-**▶ RIGHT NOW (2026-08-22, eleventh chunk) — ✅ WATCHED AND ACCEPTED. `#dance` PICKS ITS OWN CAST,
+> ### ▶ PICK UP HERE — 2026-08-23
+>
+> **The working tree is UNCOMMITTED and that is deliberate.** ADR-0046 is written and implemented;
+> the poses it changes have not been looked at yet. `git status` should show 8 modified files and
+> 2 new docs (`docs/adr/0046-*`, `docs/journal/2026-08-22-12-*`). **Do not commit before the watch**
+> — Ryan verifies locally first in this repo.
+>
+> 1. **Run the gates**, which were all green when this was written: `npx vitest run` (**710
+>    passing**), `npx tsc -b`, `npm run lint` (0 errors, 25 pre-existing warnings),
+>    `python3 scripts/docs-hygiene.py`.
+> 2. **Run the watch** — `#dance` with the cast picker. The four items are in the chunk below,
+>    under **⏳ WHAT TO WATCH**. Item 2 is a real question for Ryan, not a checkbox.
+> 3. **If accepted:** commit the tree, and per the journal convention land the journal entry in a
+>    follow-up commit that names the work commit's hash (the entry does not carry one yet).
+> 4. **If item 2 is rejected** — Myco/Sprout at 1.057 reading as too far apart — the dial is the
+>    couple's **width** rule in `placeHold`, `width = max(bodies, min(shoulders, arms))`, *not*
+>    ADR-0046's aim. See the residue section below, which prices that same lever.
+>
+> **The next decision, already measured and deliberately not taken:** the strained residue is
+> **four orderings, not eight**, and the lever is the width rule rather than a new accommodation.
+> Everything needed to resume that is in the residue section of this chunk and in the postscript of
+> [the journal entry](journal/2026-08-22-12-the-belle-was-a-label-not-a-body.md). It was left
+> undecided because every option moves the poses the watch is about.
+
+**▶ RIGHT NOW (2026-08-22, twelfth chunk) — ⏳ NEEDS A WATCH. THE HOLD IS AIMED AT THE TALLER
+DANCER'S WAIST, NOT THE BELLE'S — [ADR-0046](adr/0046-the-hold-is-carried-at-the-taller-dancers-waist.md),
+superseding ADR-0027.** **710 tests, lint 0 errors, `tsc` clean, `docs-hygiene` clean.**
+
+Ryan, on two screenshots of the same pair with the roles swapped: one read right, its mirror did
+not. Myco with Ember — hands at 0.713, forward 0.320, nobody past 79% of their reach. **Ember with
+Myco — hands at 0.557, forward 0.000, Ember at 100%.** Same two bodies, a hold 0.156 lower, and the
+forward offset ADR-0027 was written to add gone entirely.
+
+🔴 **The belle's waist is a *role*, and a role is not a body.** That is the whole defect. It read
+correctly for six days because on the shipped pairing the belle **is** the taller dancer — where
+the two rules are identical. Where she was not, the hold moved because somebody had been handed a
+different label.
+
+🔑 **The taller dancer is the one who runs out of arm**, because they are reaching *down* and a
+shoulder cannot follow a hand down. Aim at their waist and they do not have to; the shorter dancer
+lifts instead, which they have room for, because an arm going up is not folding back on itself.
+That is what two people of different heights actually do.
+
+**All four candidates were run through the real solver**, not approximated beside it — `touchHold`
+took an optional `target` so a candidate height goes through the same fixed point the shipped one
+does. Over the 20 orderings the five bodies can make:
+
+| aim | someone at 100% | no forward at all | worst role-swap shift |
+|---|---|---|---|
+| the belle's waist (before) | 12/20 | 12/20 | 0.156 |
+| the shorter dancer's waist | 14/20 | 14/20 | 0.102 |
+| the mean of the two | 9/20 | 10/20 | 0.078 |
+| **the taller dancer's waist** | **8/20** | **8/20** | **0.045** |
+
+**12 of the 20 are byte-identical** — every one where the belle already was the taller, the pose
+Ryan called right included. The four Ember-as-beau orderings are the win: 0.557 / 0.000 / 100% →
+0.713 / 0.078–0.288 / 85–90%. The three watched debug casts do not move at all.
+
+✅ **AND IT CLOSED ADR-0018's TERMINAL CASE, WHICH IS THE PART NOBODY EXPECTED.** Myco with
+Sprout — an adult and a child — could not be given room for an arch at the width their handhold put
+them at. The overshoot was 1.62, then 1.07, then 1.05 after three separate corrections to
+`archClearance` and the stance floor. **It is 0.60 now and the arch fits.**
+
+🔑 **The cause was the aim, and the lever was the *width*.** These two held hands at 0.403 — *below
+the child's own waist*, because the child was the belle — so both spent nearly their whole reach
+getting a hand down there and had none left to spend going across. **Their standing width goes
+0.745 → 1.057.** Ember with Sprout 0.560 → 0.860; Ember with the player 0.610 → 0.900.
+
+✅ **Three of the nine orderings that had to buy upper arm for an arch no longer do**, and a fourth
+buys far less: Ember/player 0.12 → 0, Myco/Sprout and Ryan/Sprout 0.03 → 0, player/Sprout
+0.09 → 0.01. Ember with Myco and with Ryan still need 0.31, unchanged. **ADR-0045's five lost
+orderings become two** (the player with Sprout, both ways) — not because the seam got safer, but
+because three of the five stopped reaching and so no longer have two widths to disagree about.
+
+🔴 **A test was reading one term of a `max`, and only this change could find it.** ADR-0042's "the
+reshape aims at whichever height costs less" was asserted on `archClearance` alone — one of the
+three things `archRoom` maximises. It held for as long as the hands were the binding term
+everywhere it was tried. With Myco and Sprout standing 0.31 wider the **arm sweep** becomes what
+the aim buys: aiming clear costs 0.633 → 0.699 of hand clearance and saves 0.767 → 0.699 of sweep.
+`cheaperAim` was right; the test was pinning a coincidence, and now asserts the quantity actually
+minimised. **The higher aim is taken by 7 of 20 orderings now, up from 5.**
+
+**⏳ WHAT TO WATCH — `#dance`, and this one has a specific question.**
+
+1. ⏳ **Ember as beau, with anyone.** The four poses this was written for. Hands at her waist,
+   visibly forward of both bodies, and her arm no longer straight.
+2. 🔴 **Myco with Sprout, and Ryan with Sprout — the cost.** They stand at **1.057** now instead of
+   0.774, which is arm's length for the child: she is at 100% of her reach there. It is what their
+   arms allow at a hold she can actually make, and it is more room than an adult and a child
+   holding hands would take. **If it reads as too far apart, the dial is the couple's width rule
+   — "the wider shoulders plus daylight, capped by reach" — not this aim.**
+3. ⏳ **Myco with Ember, and every pairing where the belle is taller.** These must be *unchanged*.
+   Byte-identical is what the tests say; the watch is that the screen agrees.
+4. ⏳ **A california twirl for Myco and Sprout**, which now fits without either of them buying arm.
+
+**⏳ AND THE RESIDUE WAS MEASURED BEFORE ANYTHING WAS DECIDED ABOUT IT.** 8 of 20 orderings still
+have somebody at 100%. That is a symptom, and the cause turned out to be sharper than the count.
+
+🔴 **The correspondence is exact across all twenty.** An ordering is strained **iff** its `forward`
+is zero **iff** at least one dancer's elbow leaves the shoulder's own x-plane — which is
+`touchPose` falling through to `reachPose`, the preference-constant path ADR-0027 was written to
+retire. On the other twelve both elbows sit at exactly `sign * restX`, to the bit. **So the residue
+is not eight uncomfortable poses; it is eight poses not being posed by the anatomy**, and the
+dancer it happens to is always the one at 100% — the player in three, Sprout in five. Nobody is
+genuinely over: the worst overshoot is **1.2e-5**, the fixed point's own residue.
+
+**It is three problems, not one:**
+
+| | orderings | what caps them | narrowing the stance 0.05 buys |
+|---|---|---|---|
+| **across-bound** | player/myco, player/ryan, myco/sprout, ryan/sprout | the `arms` term | **0.080–0.096 of forward** |
+| **bodies-floored** | player/sprout, sprout/player, sprout/myco | the `bodies` floor, at exactly the arm's limit | nothing — they cannot legally stand closer |
+| **drop-bound** | sprout/ryan | the hold is at Sprout's own hanging limit | 0.010 |
+
+🔑 **The across-bound four are cheap, and the width rule is what is declining to fix them.**
+`width = min(shoulders, arms)` stands the pair at *exactly* their reach by construction — it
+maximises the one axis that leaves nothing over for the other two. Length taken off `across` comes
+back as `forward` under a square root, so 0.05 of stance buys nearly 0.1 of hands-in-front.
+
+🔴 **Extension alone cannot fix the Sprout-with-an-adult pairs.** `growUpperArm` un-strains
+player/myco and player/ryan at **+0.07**, player/sprout at **+0.03**, sprout/player at **+0.09** —
+and finds **no length within the editor's bounds** for myco/sprout, ryan/sprout, sprout/myco or
+sprout/ryan. Same cause: every unit of arm bought raises `arms`, and `min(shoulders, arms)` spends
+it immediately on standing the pair wider. Extension only wins where it lifts `arms` clear *past*
+`shoulders` — a discontinuous win, not a gradual one.
+
+**And one of the three groups may not be a defect at all.** The drop-bound and bodies-floored cases
+are a child holding an adult's hand with her arm hanging straight down, which is what a child's arm
+does — and a hand at the bottom of a hanging arm has no forward offset available. ADR-0027's own
+words: *"honest degradation: no spare arm, no hands in front."*
+
+**⏳ So the accommodation question is four orderings, not eight, and the first lever to price is the
+couple's width rule rather than a new accommodation.** Deliberately not decided: every option here
+moves poses that are waiting on the watch above.
+
+---
+
+**(2026-08-22, eleventh chunk) — ✅ WATCHED AND ACCEPTED. `#dance` PICKS ITS OWN CAST,
 AND IT FOUND SEVEN THINGS ON ITS FIRST DAY.** **708 tests, lint 0 errors, build clean,
 `docs-hygiene` clean.** Ryan, on the whole of it: *"ok I've reviewed — mark all as passed."*
 **Nothing is waiting on his eyes.**

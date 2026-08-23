@@ -337,9 +337,10 @@ export function DanceFloor({
     const b = shapes[1];
     if (a === undefined || b === undefined) return undefined;
     // `shapes[0]` wears the key `a`, which `useDancePerformance` makes the **beau**. The
-    // hold is not symmetric in the pair — its height is the belle's waist and its lateral
-    // offset is signed toward her — so the order matters here in a way the width alone
-    // never did.
+    // hold is still not symmetric in the pair — its lateral offset is signed toward the belle,
+    // and the reach clamps resolve per role — so the order matters here in a way the width
+    // alone never did. Less than it used to: since ADR-0046 the *height* no longer depends on
+    // which of them is called beau.
     return touchHold(armMetrics(a), armMetrics(b));
   }, [shapes]);
 

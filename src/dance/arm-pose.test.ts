@@ -38,6 +38,7 @@ import {
 import {
   EMBER_DEFAULTS,
   MYCO_DEFAULTS,
+  PLAYER_DEFAULTS,
   RYAN_DEFAULTS,
   SPROUT_DEFAULTS,
   computePositions,
@@ -645,39 +646,108 @@ describe("touch hands — a couple stands with inside hands joined", () => {
     expect(handAt(low.right, beau).y).toBeLessThan(hisHand.y - 0.2);
   });
 
-  it("carries the joined hands at the belle's waist, whatever it costs the beau", () => {
-    // Ryan, 2026-08-17: "the gent's job is to make the belle's job easier, even if she's
-    // taller … they need to be the ones to pay attention to the belle's comfortable hand
-    // position at the belle's waist — even if it looks awkward — maintain opinionation that
-    // way." One body sets the height and it is always hers.
-    expect(HOLD.height).toBeCloseTo(belle.rigOriginY + belle.waistY, 12);
-    // The cost, asserted rather than left implied: this belle is the taller dancer, so the
-    // hold sits well above the beau's own waist and most of the way to his shoulder. Taking
-    // the *lower* waist instead would hang both forearms neatly and is not the rule.
+  it("carries the joined hands at the TALLER dancer's waist, whatever it costs the shorter", () => {
+    // ADR-0046. The taller dancer is the one reaching *down*, and a shoulder cannot follow a
+    // hand down — so the hold is put where they can carry it and the shorter dancer lifts to
+    // meet it, which is the direction an arm has room in.
+    const tallerWaist = Math.max(
+      beau.rigOriginY + beau.waistY,
+      belle.rigOriginY + belle.waistY,
+    );
+    expect(HOLD.height).toBeCloseTo(tallerWaist, 12);
+    // The cost, asserted rather than left implied: on this cast the belle is the taller, so
+    // the hold sits well above the beau's own waist and most of the way to his shoulder.
+    // Taking the *lower* waist instead would hang both forearms neatly and is not the rule —
+    // it aims at the dancer who could have followed either way and strands the one who could
+    // not (14 of the cast's 20 orderings at full stretch, against this rule's 8).
     expect(HOLD.height).toBeGreaterThan(beau.rigOriginY + beau.waistY);
     expect(HOLD.height).toBeGreaterThan(0.7 * (beau.rigOriginY + beau.restY));
   });
 
+  it("🔑 and gets there by the same road whichever of them is called beau", () => {
+    // The property the belle's-waist rule did not have, and the whole reason ADR-0046 exists:
+    // the *aim* is a fact about the two bodies, not about the roles they were handed. These
+    // two used to hold hands at 0.713 one way round and 0.557 the other — same pair, same
+    // floor, a hold that jumped 0.156 when they swapped sides — with Ember at 100% of her
+    // reach and no hands in front of her at all.
+    expect(touchHold(belle, beau).height).toBeCloseTo(HOLD.height, 12);
+    // 🔴 **Not a symmetry claim about the whole hold.** The aim is symmetric; the reach clamp
+    // below is not, because it is the *beau* whose palm goes underneath. Where his arm cannot
+    // hang that low the hold still rises for him and not for her — see the Sprout case below,
+    // which is the widest that gap gets across the cast (0.045, against 0.156 before).
+  });
+
   it("raises them only where an arm cannot reach that low at all", () => {
-    // The other arrangement of the same two bodies: EMBER as the beau, whose palm is
-    // underneath, so her hand has to get below the contact. The lower waist — Myco's, 0.475
-    // — is past the end of Ember's arm however the pair stand, since width only ever *adds*
-    // to a reach, so the hold rises to exactly where her arm hangs straight.
-    // Reachability, not comfort: the comfort ceiling this replaces left the permitted band
-    // for this pair empty, which is what "this pairing cannot hold hands" was built on.
+    // 🔑 **Sprout as the beau** — the pairing this still happens on, since ADR-0046 moved the
+    // aim to the taller dancer's waist and 18 of the cast's 20 orderings now land on it
+    // exactly. Here the aim is Myco's waist, 0.475, and Sprout is a child: her palm goes
+    // underneath, and her hand hangs at 0.500 with the arm dead straight. It does not get
+    // down to 0.475 however the pair stand, since width only ever *adds* to a reach, so the
+    // hold rises to where her arm actually reaches.
     //
-    // "Below the contact" is the **drawn** hand's rise, not `handRadius` — her arm hangs
-    // dead vertical here, which is the one case where the two used to agree by accident and
-    // now agrees by construction.
-    const swapped = touchHold(belle, beau);
-    expect(swapped.height).toBeCloseTo(
-      belle.rigOriginY +
-        belle.restY -
-        belle.handReach +
-        handRiseAlongUp(belle, "right", 0, -1, 0),
-      12,
-    );
-    expect(swapped.height).toBeGreaterThan(beau.rigOriginY + beau.waistY);
+    // Reachability, not comfort: the comfort ceiling this replaces left the permitted band
+    // for Myco + Ember empty, which is what "this pairing cannot hold hands" was built on.
+    //
+    // "Below the contact" is the **drawn** hand's rise, not `handRadius`.
+    const child = armMetrics(SPROUT_DEFAULTS);
+    const adult = armMetrics(MYCO_DEFAULTS);
+    const aim = Math.max(child.rigOriginY + child.waistY, adult.rigOriginY + adult.waistY);
+    const hanging =
+      child.rigOriginY +
+      child.restY -
+      child.handReach +
+      handRiseAlongUp(child, "right", 0, -1, 0);
+
+    // The *reason* it rises: her hanging hand is above the height the pair are aiming at.
+    expect(hanging).toBeGreaterThan(aim);
+
+    const raised = touchHold(child, adult);
+    expect(raised.height).toBeGreaterThan(aim);
+    // Her free-hang is the floor, and the hold sits a whisker above it rather than on it —
+    // the whisker is the arm she also has to spend going *across* to him, which a floor cut
+    // from the vertical alone cannot see.
+    expect(raised.height).toBeGreaterThanOrEqual(hanging);
+    expect(raised.height).toBeCloseTo(hanging, 2);
+  });
+
+  it("🔑 and the aim binds on every ordering where both arms can make it", () => {
+    // The counterpart, cast-wide: raising is the exception now rather than the rule.
+    //
+    // 🔑 **On the shipped bodies the band only ever pushes the hold *up*.** No ordering of the
+    // five comes out below the taller dancer's waist, which is what makes "the taller dancer's
+    // waist" a description of the shipped pose and not just of the number that goes into it.
+    //
+    // Only of the shipped bodies, deliberately: the band has a ceiling as well as a floor, and
+    // on the debug scene's widened casts it binds. `mixed reversed` — a 0.6-radius Ember beside
+    // a 0.1-radius Myco — holds at 0.653 against an aim of 0.713, because a torso that wide
+    // spends so much arm going *across* that neither of them can lift a hand to her waist. That
+    // is reachability doing its job, not the aim being overruled.
+    const cast = [PLAYER_DEFAULTS, MYCO_DEFAULTS, EMBER_DEFAULTS, RYAN_DEFAULTS, SPROUT_DEFAULTS];
+    let onTheAim = 0;
+    const raised: string[] = [];
+    for (const beauShape of cast) {
+      for (const belleShape of cast) {
+        if (beauShape === belleShape) continue;
+        const b = armMetrics(beauShape);
+        const l = armMetrics(belleShape);
+        const aim = Math.max(b.rigOriginY + b.waistY, l.rigOriginY + l.waistY);
+        const hold = touchHold(b, l);
+        expect(hold.height).toBeGreaterThanOrEqual(aim - 1e-12);
+        if (Math.abs(hold.height - aim) < 1e-12) onTheAim++;
+        // "Raised" meaning a viewer could see it — 1e-4 of a body is not a raise.
+        if (hold.height - aim > 1e-4) raised.push(`${b.restY.toFixed(3)}/${l.restY.toFixed(3)}`);
+      }
+    }
+    expect(onTheAim).toBe(14);
+    // 🔑 **And every visible raise is Sprout as the beau** — the only dancer short enough that
+    // her hanging hand (0.500) cannot get down to a grown partner's waist (0.475). The other
+    // four are the player's, at 1e-5: his arm is *just* long enough, and what eats the margin
+    // is the length he also spends going across, which a floor cut from the vertical cannot
+    // see. Three visible raises, 0.025 to 0.045 — against the 0.156 the belle's-waist rule
+    // moved this same cast by when two dancers merely swapped roles.
+    expect(raised).toHaveLength(3);
+    const sprout = armMetrics(SPROUT_DEFAULTS);
+    for (const r of raised) expect(r.split("/")[0]).toBe(sprout.restY.toFixed(3));
   });
 
   it("🔴 asks neither dancer to reach past the end of their own arm", () => {

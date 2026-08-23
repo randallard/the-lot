@@ -1,5 +1,5 @@
 # ADR-0027: The upper arm hangs, and the joined hands come forward
-- Status: Accepted
+- Status: Superseded by [ADR-0046](0046-the-hold-is-carried-at-the-taller-dancers-waist.md)
 - Date: 2026-08-18
 - Deciders: Ryan, Claude
 
