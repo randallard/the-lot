@@ -71,7 +71,7 @@ import {
   BREAK,
   drawAccommodation,
   growBody,
-  growUpperArm,
+  growForearm,
   standingLift,
   type Accommodation,
 } from "./accommodation";
@@ -225,7 +225,7 @@ const DEBUG_COLORS = ["#e2725b", "#5b8ce2"] as const;
 const SIDES = ["left", "right"] as const;
 
 /**
- * A dancer with the arch's upper-arm extension on, or the very same object when there is none
+ * A dancer with the arch's forearm extension on, or the very same object when there is none
  * — identity matters, because the callers use it to skip a per-frame `armMetrics`.
  */
 function reached(
@@ -233,12 +233,12 @@ function reached(
   armDelta: number,
 ): CharacterBodyShape | undefined {
   if (shape === undefined || armDelta === 0) return shape;
-  return growUpperArm(shape, armDelta);
+  return growForearm(shape, armDelta);
 }
 
 /**
  * A dancer wearing both of an arch's shape changes: the torso trade that closes the pair's gap
- * (ADR-0028) and the upper arm they reached with (ADR-0040).
+ * (ADR-0028) and the forearm they reached with (ADR-0040, as superseded).
  *
  * Returns the argument unchanged when neither applies, which is every pair who can simply make
  * the hold — and every frame outside a hold — so the `armMetrics` above it is not paid for.
@@ -250,7 +250,7 @@ function reshaped(
 ): CharacterBodyShape {
   if (bodyDelta === 0 && armDelta === 0) return shape;
   const grown = bodyDelta === 0 ? shape : growBody(shape, bodyDelta);
-  return armDelta === 0 ? grown : growUpperArm(grown, armDelta);
+  return armDelta === 0 ? grown : growForearm(grown, armDelta);
 }
 
 /** Straight-line interpolation. Named because the arch uses it four times on one hold. */
@@ -932,6 +932,10 @@ export function DanceFloor({
                   // An arm reaching overhead has nothing spare to spend going forward, so
                   // the standing hold's `forward` (ADR-0027) unwinds to zero as it rises.
                   forward: lerp(standing.forward, 0, under.blend),
+                  // The arms are where the stance put them; raising the hold does not move
+                  // a shoulder (ADR-0049).
+                  insideBeau: standing.insideBeau,
+                  insideBelle: standing.insideBelle,
                 };
           const coupleHold = archHold ?? standing;
           _ctx.hold = coupleHold;
@@ -953,6 +957,23 @@ export function DanceFloor({
           track.touch = touchingSide(_self, _partner, coupleHold, archHold !== undefined);
           resolveExpression(ex, _ctx);
 
+          /**
+           * Where each shoulder hangs this frame (ADR-0049). The **inside** arm of a couple
+           * is tucked in to whatever room the stance left; every other arm keeps the
+           * authored `restX`.
+           *
+           * 🔑 **The same number the hold was solved against.** `poseArms` poses the held arm
+           * from `hold.insideBeau`/`insideBelle`, so the shoulder the rig draws has to be the
+           * one the pose was measured from, or the undrawn upper arm comes out the wrong
+           * length — ADR-0017's span reported as drift by the read-back below.
+           */
+          const shoulderX = (side: "left" | "right"): number =>
+            coupleHold !== undefined && side === track.touch
+              ? side === "right"
+                ? coupleHold.insideBeau
+                : coupleHold.insideBelle
+              : me.restX;
+
           for (const side of SIDES) {
             const arm = arms[side].current;
             if (!arm) continue;
@@ -960,7 +981,7 @@ export function DanceFloor({
             // The pose names the elbow in rig space; the group it goes on hangs inside
             // a shoulder pinned at `(±restX, restY, 0)`. ADR-0017 — and `+x` is the
             // anatomical **left** shoulder here, which is what `SIGN` carries.
-            elbowLocal(_elbow, pose, me, SIGN[side]);
+            elbowLocal(_elbow, pose, me, SIGN[side], shoulderX(side));
             arm.position.set(_elbow.x, _elbow.y, _elbow.z);
             _aim.set(pose.aimX, pose.aimY, pose.aimZ);
             arm.quaternion.setFromUnitVectors(DOWN, _aim);
@@ -1015,7 +1036,13 @@ export function DanceFloor({
             // driver *chooses* a shoulder, and this one is not choosing.
             for (const side of SIDES) {
               const shoulder = parts.shoulders[side].current;
-              if (shoulder) shoulder.position.y = ex.shoulderY;
+              if (!shoulder) continue;
+              shoulder.position.y = ex.shoulderY;
+              // 🔴 And sideways, for the same reason (ADR-0049): a dancer whose arms are
+              // authored wider than the couple is standing draws them in, or the inside
+              // shoulder hangs over the partner and the forearm through their hand. Still
+              // not a driver *choosing* a shoulder — it is derived from the solved stance.
+              shoulder.position.x = SIGN[side] * shoulderX(side);
             }
           }
         });
@@ -1041,7 +1068,8 @@ export function DanceFloor({
             // if nobody had grown — which is exactly the class of "measured the wrong shape"
             // this read-back exists to prevent.
             const shoulder = expressions[key]?.shoulders[side].current;
-            _read.x = arm.position.x + SIGN[side] * me.restX;
+            _read.x =
+              arm.position.x + (shoulder?.position.x ?? SIGN[side] * me.restX);
             _read.y = arm.position.y + (shoulder?.position.y ?? me.restY);
             _read.z = arm.position.z;
             _aim.copy(DOWN).applyQuaternion(arm.quaternion);

@@ -65,10 +65,10 @@ import {
   OVERSHOOT,
   RESHAPE,
   growBody,
-  growUpperArm,
+  growForearm,
   reshapeDeltas,
   standingLift,
-  UPPER_ARM_STEP,
+  FOREARM_STEP,
   type Accommodation,
   type BodyDeltas,
 } from "./accommodation";
@@ -734,21 +734,21 @@ function reachForIt(
   beauShape: CharacterBodyShape,
   belleShape: CharacterBodyShape,
 ): { delta: number; width: number; aim: ReshapeAim; room: (mode: Accommodation) => number } | null {
-  const { max } = SHAPE_BOUNDS.layout.upperArmSpacing;
-  const room = Math.max(
-    max - beauShape.layout.upperArmSpacing,
-    max - belleShape.layout.upperArmSpacing,
-  );
-  const steps = Math.round(room / UPPER_ARM_STEP);
+  const { max } = SHAPE_BOUNDS.forearm.height;
+  const room = Math.max(max - beauShape.forearm.height, max - belleShape.forearm.height);
+  const steps = Math.round(room / FOREARM_STEP);
   for (let i = 1; i <= steps; i++) {
-    const delta = i * UPPER_ARM_STEP;
-    const bs = growUpperArm(beauShape, delta);
-    const ls = growUpperArm(belleShape, delta);
+    const delta = i * FOREARM_STEP;
+    const bs = growForearm(beauShape, delta);
+    const ls = growForearm(belleShape, delta);
     const bm = armMetrics(bs);
     const lm = armMetrics(ls);
-    // 🔑 **The width is re-solved, not carried.** Longer arms reach further across, so the
-    // couple stand further apart — which is the half of this lever that answers a pair whose
-    // *bodies* will not pass at the width their handhold gave them.
+    // 🔑 **The width is re-solved, not carried.** A longer *forearm* reaches further across,
+    // so the couple stand further apart — which is the half of this lever that answers a pair
+    // whose *bodies* will not pass at the width their handhold gave them. It has to be the
+    // forearm: the stance is capped by the sideways reach an elbow can make while still hanging
+    // in the shoulder's own plane, and that is not monotone in the upper arm (see
+    // {@link growForearm}).
     const width = touchHold(bm, lm).width;
     const bodies = passingWidth(lateralClearance(rigidParts(bs), rigidParts(ls)));
     // The aim is re-chosen on the longer arms: reaching moves what each one costs.

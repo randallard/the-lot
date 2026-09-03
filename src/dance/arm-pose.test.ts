@@ -618,6 +618,10 @@ describe("touch hands — a couple stands with inside hands joined", () => {
       lateral: 0,
       // Nothing spare to spend going forward when the arm is overhead.
       forward: 0,
+      // Raising the hold does not move a shoulder — these are the standing stance's own
+      // (ADR-0049), which is what the pair are still standing at.
+      insideBeau: HOLD.insideBeau,
+      insideBelle: HOLD.insideBelle,
     });
     /** Where a posed arm's hand centre ends up, in rig-local space. */
     const handAt = (pose: ArmPose, m: ArmMetrics) => ({
@@ -707,7 +711,9 @@ describe("touch hands — a couple stands with inside hands joined", () => {
     // the whisker is the arm she also has to spend going *across* to him, which a floor cut
     // from the vertical alone cannot see.
     expect(raised.height).toBeGreaterThanOrEqual(hanging);
-    expect(raised.height).toBeCloseTo(hanging, 2);
+    // The whisker grew when her inside arm was tucked in (ADR-0049): a shoulder pulled toward
+    // the midline has *further* to reach across, and across is what the whisker is made of.
+    expect(raised.height - hanging).toBeLessThan(0.01);
   });
 
   it("🔑 and the aim binds on every ordering where both arms can make it", () => {
@@ -738,16 +744,17 @@ describe("touch hands — a couple stands with inside hands joined", () => {
         if (hold.height - aim > 1e-4) raised.push(`${b.restY.toFixed(3)}/${l.restY.toFixed(3)}`);
       }
     }
-    expect(onTheAim).toBe(14);
-    // 🔑 **And every visible raise is Sprout as the beau** — the only dancer short enough that
-    // her hanging hand (0.500) cannot get down to a grown partner's waist (0.475). The other
-    // four are the player's, at 1e-5: his arm is *just* long enough, and what eats the margin
-    // is the length he also spends going across, which a floor cut from the vertical cannot
-    // see. Three visible raises, 0.025 to 0.045 — against the 0.156 the belle's-waist rule
-    // moved this same cast by when two dancers merely swapped roles.
-    expect(raised).toHaveLength(3);
+    expect(onTheAim).toBe(16);
+    // 🔑 **And every visible raise has Sprout in it** — the only dancer short enough that her
+    // hanging hand (0.500) cannot get down to a grown partner's waist (0.475), whichever role
+    // she is standing in. It was three raises and all of them had her as the *beau*; tucking
+    // the inside arm (ADR-0049) added `player/sprout`, because a shoulder pulled toward the
+    // midline spends more arm going across and so has less left to reach down with. Still the
+    // same dancer, and still small — against the 0.156 the belle's-waist rule moved this cast
+    // by when two dancers merely swapped roles.
+    expect(raised).toHaveLength(4);
     const sprout = armMetrics(SPROUT_DEFAULTS);
-    for (const r of raised) expect(r.split("/")[0]).toBe(sprout.restY.toFixed(3));
+    for (const r of raised) expect(r.split("/")).toContain(sprout.restY.toFixed(3));
   });
 
   it("🔴 asks neither dancer to reach past the end of their own arm", () => {

@@ -130,30 +130,38 @@ export function standingLift(built: CharacterBodyShape, worn: CharacterBodyShape
 }
 
 /**
- * Lengthen (or shorten) the undrawn upper arm, clamped to the shape editor's own bounds — the
- * same contract as {@link growBody}, on the other lever a pair have.
+ * Lengthen (or shorten) the forearm, clamped to the shape editor's own bounds — the same
+ * contract as {@link growBody}, on the other lever a pair have.
  *
- * 🔑 **`handReach` moves one-for-one with it and nothing else does.** `computePositions` builds
- * a dancer as `elbowY = bodyTop - upperArmSpacing` with the forearm, hand and gap hung below,
- * so `handReach = spacing + forearm.height + handForearmGap + handRadius`: extending by `e`
- * buys exactly `e` of reach, and `forearmSpan` — the part that is actually drawn — does not
- * change at all. The visible cost is a longer gap between shoulder and elbow, which is the
- * segment this cast does not render.
+ * 🔑 **`forearmSpan` moves one-for-one with it and `elbowReach` does not move at all.**
+ * `computePositions` builds a dancer as `elbowY = bodyTop - upperArmSpacing` with the forearm,
+ * hand and gap hung below it, so lengthening the forearm by `e` pushes the wrist and hand down
+ * by `e`, buys exactly `e` of `handReach`, and leaves the shoulder and elbow where they were.
  *
- * 🔑 **And it is the only lever that widens the couple**, because `touchHold` solves the
- * standing width from how far two people can reach across to each other. That is why it can
- * answer a pair whose *bodies* will not pass at the width their handhold puts them at, which no
- * amount of reshaping can (ADR-0040).
+ * 🔑 **And it is the only lever that widens the couple**, because {@link touchHold} solves the
+ * standing width from how far two people can reach *across* to each other, and across is the
+ * axis a forearm buys.
+ *
+ * 🔴 **It has to be the forearm, and it used to be the upper arm (ADR-0040, superseded).** The
+ * couple's stance is capped by how far each dancer can reach sideways **with the elbow still
+ * hanging in the shoulder's own plane**, which is `sqrt(forearmSpan² − (r − elbowReach)²)`.
+ * That rises with the forearm always, and it is *not* monotone in the upper arm: a longer
+ * humerus moves the elbow circle away from the hand and can cost sideways span outright. Buying
+ * `upperArmSpacing` therefore made a pair stand **narrower** past a threshold — non-monotone and
+ * discontinuous — and `reachForIt` searched it assuming the opposite.
+ *
+ * The cost is that this segment **is drawn**, which the upper arm was not. That is the price of
+ * the lever telling the truth, and it is visible on exactly the pairs who have to reach.
  */
-export function growUpperArm(shape: CharacterBodyShape, delta: number): CharacterBodyShape {
-  const { min, max } = SHAPE_BOUNDS.layout.upperArmSpacing;
-  const upperArmSpacing = Math.max(min, Math.min(max, shape.layout.upperArmSpacing + delta));
-  return { ...shape, layout: { ...shape.layout, upperArmSpacing } };
+export function growForearm(shape: CharacterBodyShape, delta: number): CharacterBodyShape {
+  const { min, max } = SHAPE_BOUNDS.forearm.height;
+  const height = Math.max(min, Math.min(max, shape.forearm.height + delta));
+  return { ...shape, forearm: { ...shape.forearm, height } };
 }
 
-/** The step the shape editor's own `upperArmSpacing` slider moves in. A dance may not put a
+/** The step the shape editor's own `forearm.height` slider moves in. A dance may not put a
  *  dancer at a length the character sheet could not. */
-export const UPPER_ARM_STEP = SHAPE_BOUNDS.layout.upperArmSpacing.step;
+export const FOREARM_STEP = SHAPE_BOUNDS.forearm.height.step;
 
 /**
  * The pair of deltas for a reshape of `d`, each clipped to what its own body may actually

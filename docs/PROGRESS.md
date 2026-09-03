@@ -1,32 +1,98 @@
 # Progress & Status
 
-_Last updated: 2026-08-22_
+_Last updated: 2026-09-02_
 
 ## Status / next
 
-> ### ▶ PICK UP HERE — 2026-08-23
+> ### ▶ PICK UP HERE — 2026-09-02 (evening)
 >
-> **The working tree is UNCOMMITTED and that is deliberate.** ADR-0046 is written and implemented;
-> the poses it changes have not been looked at yet. `git status` should show 8 modified files and
-> 2 new docs (`docs/adr/0046-*`, `docs/journal/2026-08-22-12-*`). **Do not commit before the watch**
-> — Ryan verifies locally first in this repo.
+> **The tree is UNCOMMITTED and exactly 1 test of 710 fails, on purpose.** `tsc` clean, lint 0
+> errors (25 pre-existing warnings), `docs-hygiene` clean. **Do not commit before the watch.**
 >
-> 1. **Run the gates**, which were all green when this was written: `npx vitest run` (**710
->    passing**), `npx tsc -b`, `npm run lint` (0 errors, 25 pre-existing warnings),
->    `python3 scripts/docs-hygiene.py`.
-> 2. **Run the watch** — `#dance` with the cast picker. The four items are in the chunk below,
->    under **⏳ WHAT TO WATCH**. Item 2 is a real question for Ryan, not a checkbox.
-> 3. **If accepted:** commit the tree, and per the journal convention land the journal entry in a
->    follow-up commit that names the work commit's hash (the entry does not carry one yet).
-> 4. **If item 2 is rejected** — Myco/Sprout at 1.057 reading as too far apart — the dial is the
->    couple's **width** rule in `placeHold`, `width = max(bodies, min(shoulders, arms))`, *not*
->    ADR-0046's aim. See the residue section below, which prices that same lever.
+> **Three ADRs are written, implemented and accepted: 0047, 0048, 0049.** The stance is cut from
+> an arm that can make the hold; the reach buys forearm; and the inside arm hangs from where the
+> stance left room. The story is in
+> [the journal entry](journal/2026-09-02-1-the-width-rule-was-measuring-a-straight-arm.md),
+> postscript included.
 >
-> **The next decision, already measured and deliberately not taken:** the strained residue is
-> **four orderings, not eight**, and the lever is the width rule rather than a new accommodation.
-> Everything needed to resume that is in the residue section of this chunk and in the postscript of
-> [the journal entry](journal/2026-08-22-12-the-belle-was-a-label-not-a-body.md). It was left
-> undecided because every option moves the poses the watch is about.
+> 1. ⏳ **RUN THE WATCH — `#dance`, and the one to look at is `sprout/myco` on a Partner Trade
+>    with *go home*.** That is the pairing Ryan's *"the arms are through the hand"* came from.
+>    Myco's inside shoulder was 0.0875 past the couple's midpoint; it is 0.037 now, floored by
+>    his own chest. **The list is under ⏳ WHAT TO WATCH below.**
+> 2. 🔴 **ONE TEST IS LEFT FAILING AS A FINDING** — a pre-existing `NaN` in `archRoom(BREAK)`
+>    that ADR-0048's lower ceiling made reachable. Described under ⏳ LEFT FAILING. Do not
+>    re-pin it green.
+> 3. ⏳ **THEN THE CALIFORNIA TWIRL ARM DEFECT** — still untouched, and now the only thing left
+>    from 2026-08-23. The belle's down arm appears to swap sides mid-figure instead of turning
+>    under the arch. Ryan's report and screenshots are in the effort's `PROGRESS.md`.
+> 4. **If the watch passes:** commit, then land the journal entry in a follow-up commit naming
+>    the work commit's hash.
+>
+> 📌 `00686d8` (ADR-0046) is backed up to `data` but **still unpushed to `origin`**.
+
+**▶ RIGHT NOW (2026-09-02) — ⏳ NEEDS A WATCH. THREE DECISIONS: THE STANCE, THE REACH, AND WHERE
+AN ARM HANGS.** **709 of 710 passing, 1 failing deliberately.**
+
+🔑 **[ADR-0047](adr/0047-a-couple-stands-at-the-width-they-can-still-make-the-hold-at.md) — the
+stance is cut from an arm that can make the hold.** `arms` came from the span at *full extension*,
+so `min(shoulders, arms)` stood a couple at a width only a dead-straight arm can span — and a
+straight arm reaching sideways cannot keep its elbow in the shoulder's own plane, so `touchPose`
+fell through to `reachPose`. It now uses `sqrt(fore² − (r − upper)²)`, which is `touchPose`'s own
+success condition solved for that axis, **verified against the real `touchPose` 20/20 before
+anything changed**. Strained orderings **8/20 → 4/20**.
+
+🔴 **[ADR-0048](adr/0048-a-pair-reach-with-the-forearm.md) — the reach buys forearm, and the
+forearm is drawn.** ADR-0040 bought upper arm on the assumption that longer arms stand a couple
+wider; ADR-0047 makes that false and non-monotone. Ember/Myco and Ember/Ryan had lost the hold
+outright. **This trades an invisible accommodation for a visible one** — the cost Ryan accepted,
+and item 1 of the watch he has already passed.
+
+🔴 **[ADR-0049](adr/0049-the-inside-arm-hangs-from-where-the-stance-left-room.md) — the arm gives
+way, not the couple.** `restX` is authored and can be wider than the couple is standing:
+`forearmXOffset` 0.46 against a torso radius of 0.30. The `shoulders` term is the width a handhold
+needs to keep the joined hands clear of the wider shoulder, but it enters as a **cap**, so when
+`bodies` or `arms` decides the stance the inside shoulder crosses the midpoint and hangs over the
+partner — Myco's at **−0.0875**, with his forearm through Sprout's hand. The inside arm is now
+tucked to `max(tuckFloorX, min(restX, width/2 − daylight))`.
+
+| | before | now |
+|---|---|---|
+| myco/sprout — Myco's inside shoulder | over the midline | **clear, −0.051** |
+| sprout/myco — overhang | 0.087 | **0.037** (floored by his own chest) |
+| orderings with a shoulder past the midpoint | **8/20** | **4/20** |
+| myco/sprout stance | 1.057 → 0.972 | **0.922** |
+
+**⏳ WHAT TO WATCH — `#dance`.**
+
+1. 🔴 **`sprout/myco`, Partner Trade, *go home*** — the pairing the report came from. The arms
+   should no longer cross into each other. It is *better*, not perfect: 0.037 of Myco's shoulder
+   is still over the line and cannot come further without going inside his own chest.
+2. 🔴 **`sprout/ryan` is the worst residual at 0.097, and the tuck made that one worse** — a
+   tucked shoulder lowers `arms`, which stands the pair closer, which leaves less room again.
+   Worth looking at specifically, because it is the case against this ADR.
+3. ⏳ **`myco/sprout` at 0.922**, down from 0.972 — the width Ryan already passed, moved again.
+4. ⏳ **Every pairing with Ember as belle must be unchanged** — those four already stood at their
+   `shoulders` term, so nothing tucks. These are the ones Ryan reported as looking right.
+5. ⏳ **Ember as beau with anyone** — still open from ADR-0046, never looked at.
+
+**⏳ LEFT FAILING — one test, deliberately.**
+
+🔴 **`arch.test.ts` — *"is bounded, and lets go when no arm within the sheet is left to take."***
+With both forearms at the editor's ceiling, `archRoom(BREAK)` returns **NaN** and `sizeArch`
+reports a NaN width. **The defect is pre-existing** — the same bodies give a finite `wanted` on
+the revision before ADR-0048, because `reachForIt` always found a step and the terminal path was
+never entered. The forearm tops out at 0.60 where the upper arm ran to 1.00, so the bound bites
+sooner and the latent path is now reachable. Re-pinning it green would hide a NaN.
+
+⏳ **And one guard has gone thin, which is a finding rather than a fix.** ADR-0045's
+counter-assertion — *"asking with the RESTING width loses the hold on the orderings that reach"* —
+went **empty** under ADR-0047 and came back with exactly **one** ordering (`sprout/ryan`) under
+ADR-0049. The mechanism is still real: seven orderings dance at a width different from their
+resting one, by up to 0.20. But the list is now a cast fact, not a rule. **If it empties again,
+pin the mechanism — that the two widths differ — rather than deleting the test or widening a
+tolerance until something fails.**
+
+---
 
 **▶ RIGHT NOW (2026-08-22, twelfth chunk) — ⏳ NEEDS A WATCH. THE HOLD IS AIMED AT THE TALLER
 DANCER'S WAIST, NOT THE BELLE'S — [ADR-0046](adr/0046-the-hold-is-carried-at-the-taller-dancers-waist.md),

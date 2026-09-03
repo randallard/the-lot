@@ -21,10 +21,10 @@ import {
   BREAK,
   OVERSHOOT,
   RESHAPE,
-  UPPER_ARM_STEP,
+  FOREARM_STEP,
   drawAccommodation,
   growBody,
-  growUpperArm,
+  growForearm,
 } from "./accommodation";
 import { armMetrics, armPose, localHeight, touchHold, touchPose } from "./arm-pose";
 import {
@@ -330,25 +330,32 @@ describe("the arch a couple asks for has to be one the figure can deliver", () =
     // belle — so both of them spent nearly the whole of their reach getting a hand down there
     // and had almost none left to spend going across. ADR-0046 aims at the taller dancer's
     // waist, 0.475; the child lifts to meet it, which she has room for, and the arm that
-    // frees up goes sideways. **Their standing width goes 0.745 → 1.057** and the arch that
+    // frees up goes sideways. **Their standing width goes 0.745 → 0.922** and the arch that
     // did not fit fits with room to spare.
     //
-    // 🔴 **The overshoot was 1.62, then 1.07, then 1.05, and is now 0.60.** The first two falls
-    // were corrections to `archClearance` itself (charging a hand against its own owner, and
-    // measuring from the couple's midpoint rather than the hand's own lateral); the third was
-    // ADR-0044; this one is the aim. The finding survived every correction until the one that
-    // addressed what actually caused it.
+    // 🔑 **0.922, not the 1.057 ADR-0046 first produced.** Two corrections took it there. The
+    // stance is cut from the reach that keeps an elbow in its own shoulder's plane rather than
+    // from the straight arm (ADR-0047), which took it to 0.972; and the wider dancer's inside
+    // arm is tucked in to the room the stance left (ADR-0049), which lowers `arms` again
+    // because the shoulders doing the reaching are closer together.
+    //
+    // 🔴 **The overshoot was 1.62, then 1.07, then 1.05, then 0.60, and is now 0.76.** The first
+    // two falls were corrections to `archClearance` itself (charging a hand against its own
+    // owner, and measuring from the couple's midpoint rather than the hand's own lateral); the
+    // third was ADR-0044; the fourth was the aim. The *rises* since are the pair standing
+    // closer, which costs the arch room back — the price of her not being at full stretch and
+    // of his shoulder not hanging over her.
     const a = armMetrics(MYCO_DEFAULTS);
     const b = armMetrics(SPROUT_DEFAULTS);
     const width = touchHold(a, b).width;
-    expect(width).toBeCloseTo(1.057, 3);
+    expect(width).toBeCloseTo(0.922, 3);
     // Both accommodations fit, and by the same number: a reshape that clips at the shape
     // editor's bounds "simply breaks by more" (ADR-0028), so for a pair this mismatched the two
     // answers still land together — they just land under 1 now instead of over it.
     for (const mode of ACCOMMODATIONS) {
       const ratio = archClearance(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width, mode) / width;
       expect(ratio, mode).toBeLessThan(1);
-      expect(ratio, mode).toBeCloseTo(0.599, 2);
+      expect(ratio, mode).toBeCloseTo(0.761, 2);
       expect(archFits(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width, mode), mode).toBe(true);
     }
     // 🔑 **And the stance is no longer pinned to the floor.** Under the old aim these two stood
@@ -358,11 +365,12 @@ describe("the arch a couple asks for has to be one the figure can deliver", () =
     const passing = passingWidth(
       lateralClearance(rigidParts(MYCO_DEFAULTS), rigidParts(SPROUT_DEFAULTS)),
     );
-    expect(passing / width).toBeCloseTo(0.705, 3);
-    // 🔴 **The cost, stated rather than left implied.** 1.057 is arm's length for the child —
-    // she is at 100% of her reach standing there, and the pair look further apart than an adult
-    // and a child holding hands would. That is a *watch* question rather than a solver one, and
-    // it is the honest price of not asking her to reach below her own hanging hand.
+    expect(passing / width).toBeCloseTo(0.808, 3);
+    // 🔑 **And the child is no longer at full stretch.** At 1.057 she stood at 100% of her
+    // reach and Ryan read the pair as too far apart (2026-09-02); at 0.922 she is at 91%, with
+    // her elbow hanging in her own shoulder's plane instead of her arm being straight. The
+    // floor still does less of the work than it did under the old aim, which is the point
+    // below — the hold puts them outside it rather than being pinned to it.
     const broken = archClearance(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, width, BREAK);
     expect(archFits(a, b, MYCO_DEFAULTS, SPROUT_DEFAULTS, 2 * broken, BREAK)).toBe(true);
   });
@@ -522,7 +530,7 @@ describe("sizeArch reaches before it lets go", () => {
     // their own handhold puts them at — the same three readings of one number ADR-0045 wanted.
     expect(sized.armDelta).toBe(0);
     expect(sized.width).toBeCloseTo(w, 9);
-    expect(sized.width).toBeCloseTo(1.057, 3);
+    expect(sized.width).toBeCloseTo(0.922, 3);
     // Still holding on, and now with room over rather than a hair to spare.
     expect(sized.wanted).toBeLessThan(sized.width);
     expect(sized.width).toBeLessThan(2 * sized.wanted);
@@ -546,25 +554,25 @@ describe("sizeArch reaches before it lets go", () => {
   it("lands on the shape editor's own step, because a dance may not out-reach the sheet", () => {
     const { b, l, w, bodies } = room(MYCO_DEFAULTS, SPROUT_DEFAULTS);
     const { armDelta } = sizeArch(b, l, MYCO_DEFAULTS, SPROUT_DEFAULTS, w, bodies, BREAK);
-    expect(Math.round(armDelta / UPPER_ARM_STEP) * UPPER_ARM_STEP).toBeCloseTo(armDelta, 9);
-    const max = SHAPE_BOUNDS.layout.upperArmSpacing.max;
-    expect(growUpperArm(SPROUT_DEFAULTS, armDelta).layout.upperArmSpacing).toBeLessThanOrEqual(max);
+    expect(Math.round(armDelta / FOREARM_STEP) * FOREARM_STEP).toBeCloseTo(armDelta, 9);
+    const max = SHAPE_BOUNDS.forearm.height.max;
+    expect(growForearm(SPROUT_DEFAULTS, armDelta).forearm.height).toBeLessThanOrEqual(max);
   });
 
   it("🔴 is bounded, and lets go when no arm within the sheet is left to take", () => {
     // ADR-0037 part 3 is still the terminal case, and it is reachable — just not by anyone on
-    // the shipped cast any more (ADR-0041). Asserted on a pair whose upper arms are already at
+    // the shipped cast any more (ADR-0041). Asserted on a pair whose forearms are already at
     // the shape editor's ceiling, so there is nothing to reach with: that is the *bound* this
     // test is about, and picking a pairing to fail instead would make it a test of the cast.
-    const max = SHAPE_BOUNDS.layout.upperArmSpacing.max;
-    // Arms already at the ceiling, and a head at the editor's widest — nothing left to reach
-    // with, and enough head in the gap that the room could not be found anyway.
-    const beauShape = growUpperArm(
+    const max = SHAPE_BOUNDS.forearm.height.max;
+    // Forearms already at the ceiling, and a head at the editor's widest — nothing left to
+    // reach with, and enough head in the gap that the room could not be found anyway.
+    const beauShape = growForearm(
       { ...EMBER_DEFAULTS, head: { ...EMBER_DEFAULTS.head, radius: SHAPE_BOUNDS.head.radius.max } },
       max,
     );
-    const belleShape = growUpperArm(SPROUT_DEFAULTS, max);
-    expect(beauShape.layout.upperArmSpacing).toBe(max);
+    const belleShape = growForearm(SPROUT_DEFAULTS, max);
+    expect(beauShape.forearm.height).toBe(max);
     const { b, l, w, bodies } = room(beauShape, belleShape);
     const sized = sizeArch(b, l, beauShape, belleShape, w, bodies, RESHAPE);
     expect(sized.armDelta).toBe(0);
@@ -637,8 +645,8 @@ describe("archHeight — the join rises when the pair can lift it clear", () => 
     expect(at(EMBER_DEFAULTS, MYCO_DEFAULTS).plan.height).toBeCloseTo(1.64, 2);
 
     const sized = sizeArch(base.b, base.l, EMBER_DEFAULTS, MYCO_DEFAULTS, base.w, base.bodies, RESHAPE);
-    const beauShape = growUpperArm(EMBER_DEFAULTS, sized.armDelta);
-    const belleShape = growUpperArm(MYCO_DEFAULTS, sized.armDelta);
+    const beauShape = growForearm(EMBER_DEFAULTS, sized.armDelta);
+    const belleShape = growForearm(MYCO_DEFAULTS, sized.armDelta);
     const reached = planArch(
       armMetrics(beauShape), armMetrics(belleShape), beauShape, belleShape, sized.width, RESHAPE,
     );
@@ -786,7 +794,7 @@ describe("🔴 the cascade is derived, not fitted to the cast it was found on", 
     // The dance accommodates the body; it does not get to invent one. Same contract `growBody`
     // states for the torso — *"a dance may not put a dancer anywhere the character sheet could
     // not"* — and the reason a reach can run out and the pair have to let go instead.
-    const { max } = SHAPE_BOUNDS.layout.upperArmSpacing;
+    const { max } = SHAPE_BOUNDS.forearm.height;
     for (let i = 0; i < 120; i++) {
       const beauShape = randomBody();
       const belleShape = randomBody();
@@ -797,7 +805,7 @@ describe("🔴 the cascade is derived, not fitted to the cast it was found on", 
       const { armDelta } = sizeArch(b, l, beauShape, belleShape, w, bodies, RESHAPE);
       if (armDelta === 0) continue;
       for (const shape of [beauShape, belleShape]) {
-        expect(growUpperArm(shape, armDelta).layout.upperArmSpacing).toBeLessThanOrEqual(max);
+        expect(growForearm(shape, armDelta).forearm.height).toBeLessThanOrEqual(max);
       }
     }
   });
@@ -888,9 +896,13 @@ describe("the reshape aims at whichever height asks the figure for less", () => 
     ).toEqual(planArch(b, l, MYCO_DEFAULTS, EMBER_DEFAULTS, w, RESHAPE, LOW).bodyDeltas);
   });
 
-  it("🔴 and the higher aim really is worth having — seven of the twenty shipped orderings take it", () => {
+  it("🔴 and the higher aim really is worth having — five of the twenty shipped orderings take it", () => {
     // Measured rather than assumed, because a lever nothing ever pulls is dead code wearing a
     // decision. Over 4000 random pairs across the whole shape range it wins about one in five.
+    //
+    // Seven when ADR-0046 was written, five since ADR-0049: tucking the inside arm stands the
+    // narrow couples a little closer, and on two of them the low aim became the cheaper one
+    // again. The lever is still pulled, which is what this asserts.
     const cast = [PLAYER_DEFAULTS, MYCO_DEFAULTS, EMBER_DEFAULTS, RYAN_DEFAULTS, SPROUT_DEFAULTS];
     let taken = 0;
     for (const beauShape of cast) {
@@ -900,6 +912,6 @@ describe("the reshape aims at whichever height asks the figure for less", () => 
         if (sizeArch(b, l, beauShape, belleShape, w, bodies, RESHAPE).aim === CLEAR) taken++;
       }
     }
-    expect(taken).toBe(7);
+    expect(taken).toBe(5);
   });
 });

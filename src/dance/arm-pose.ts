@@ -162,6 +162,12 @@ export interface ArmMetrics {
   readonly handPose: HandPoseName;
   /** `|x|` of the arm group at rest — the shoulder's offset from the midline. */
   readonly restX: number;
+  /**
+   * The narrowest this arm may hang: its own body's half-width beside the arm, plus the
+   * arm's own. The floor {@link tuckedRestX} clamps against, and the reason a tuck is not
+   * always enough — an arm pulled in past this is an arm inside its owner's chest.
+   */
+  readonly tuckFloorX: number;
   /** Height of the group's pivot: the shoulder. */
   readonly restY: number;
   /** Group origin → elbow, along the aim. The upper arm that isn't drawn. */
@@ -276,6 +282,7 @@ export function armMetrics(
     rigOriginY,
     handPose,
     restX: Math.max(pos.forearmX, bodyBeside + armHalfWidth),
+    tuckFloorX: bodyBeside + armHalfWidth,
     restY: pos.shoulderY,
     elbowReach: pos.upperArmLength,
     handReach,
@@ -561,6 +568,17 @@ export interface TouchHold {
    * back to take up the slack, which is what an elbow is for.
    */
   readonly forward: number;
+  /**
+   * Where each dancer's **inside arm** hangs at this stance — their `restX`, tucked in to
+   * whatever room the couple's width left (ADR-0049, {@link tuckedRestX}).
+   *
+   * Reported rather than re-derived because the render, the arch and the readout all have
+   * to pose the same arm the solve did: a shoulder placed from the authored `restX` while
+   * the hold was solved from a tucked one is the two-numbers-for-one-thing defect that
+   * ADR-0045 was written about.
+   */
+  readonly insideBeau: number;
+  readonly insideBelle: number;
 }
 
 /**
@@ -677,6 +695,8 @@ function settleTouch(
   handX: number,
   handZ: number,
   height: number,
+  /** Where the inside arm hangs at this stance (ADR-0049). */
+  restX: number = m.restX,
 ): number {
   const sign = isBeau ? -1 : 1;
   let lift = palmOffset(m, isBeau, 0, -1, 0);
@@ -685,13 +705,13 @@ function settleTouch(
   // for a body that misbehaves, not for the ones we have. Cheap enough to spend: this is a
   // handful of multiply-adds and two square roots per pass.
   for (let pass = 0; pass < 16; pass++) {
-    touchPose(out, m, sign, handX, localHeight(m, height + lift), handZ);
+    touchPose(out, m, sign, handX, localHeight(m, height + lift), handZ, restX);
     const next = palmOffset(m, isBeau, out.aimX, out.aimY, out.aimZ);
     const settled = Math.abs(next - lift) < 1e-12;
     lift = next;
     if (settled) break;
   }
-  touchPose(out, m, sign, handX, localHeight(m, height + lift), handZ);
+  touchPose(out, m, sign, handX, localHeight(m, height + lift), handZ, restX);
   return lift;
 }
 
@@ -711,20 +731,40 @@ function touchLifts(
   acrossBeau: number,
   acrossBelle: number,
   forward: number,
+  insideBeau: number,
+  insideBelle: number,
 ): { beau: number; belle: number } {
   return {
-    beau: settleTouch(_settle, beau, true, -(acrossBeau + beau.restX), forward, height),
-    belle: settleTouch(_settle, belle, false, acrossBelle + belle.restX, forward, height),
+    beau: settleTouch(_settle, beau, true, -(acrossBeau + insideBeau), forward, height, insideBeau),
+    belle: settleTouch(_settle, belle, false, acrossBelle + insideBelle, forward, height, insideBelle),
   };
 }
 
 /**
- * The horizontal distance from shoulder to hand left over once the drop is paid for, at
- * `f` of this dancer's reach. Zero when the drop alone uses the whole arm.
+ * How far sideways this dancer's hand can go, at in-plane distance `drop` from the shoulder,
+ * **with the elbow still hanging in the shoulder's own plane**.
+ *
+ * 🔑 **This is {@link touchPose}'s own success condition, solved for the sideways axis.** With
+ * the elbow pinned to `x = sign · restX` it lies on a circle of radius `elbowReach` in the
+ * shoulder's (y, z) plane, so the hands the arm can reach form a torus about that circle: the
+ * closest point of the circle to a hand `drop` away in-plane is `|drop − elbowReach|` off, and
+ * whatever the forearm has left over after paying that is what may be spent going across.
+ * `touchPose` falls through to {@link reachPose} exactly when this returns less than the
+ * `across` it is asked for.
+ *
+ * 🔴 **The straight-arm span is the wrong number here and was the defect.** `sqrt(handReach² −
+ * drop²)` is what an arm reaches at **full extension**, and a straight arm reaching sideways
+ * cannot keep its elbow in the shoulder's plane — so a stance cut from it stood the couple at a
+ * width that made the hold it was standing them at impossible to pose. Every ordering that came
+ * out strained was one of those, and none of them was genuinely over their arm.
+ *
+ * Zero when the forearm cannot cover the in-plane gap at all, which is the honest answer: there
+ * is no sideways reach to be had with the elbow where an elbow goes.
  */
-function spanAt(m: ArmMetrics, drop: number, f: number): number {
-  const r = f * m.handReach;
-  return r > Math.abs(drop) ? Math.sqrt(r * r - drop * drop) : 0;
+function touchSpanAt(m: ArmMetrics, drop: number): number {
+  const gap = Math.abs(drop) - m.elbowReach;
+  const fore = m.forearmSpan;
+  return fore > Math.abs(gap) ? Math.sqrt(fore * fore - gap * gap) : 0;
 }
 
 /**
@@ -742,6 +782,32 @@ function spanAt(m: ArmMetrics, drop: number, f: number): number {
  */
 function handDaylight(a: ArmMetrics, b: ArmMetrics): number {
   return Math.max(a.handRadius, b.handRadius);
+}
+
+/**
+ * Where this dancer's **inside arm** actually hangs, once the couple are standing: their
+ * own `restX`, pulled in far enough that the shoulder stays a hand's daylight on their own
+ * side of the couple's midpoint (ADR-0049).
+ *
+ * 🔴 **`restX` is authored, and it can be wider than the couple.** `forearmXOffset` runs to
+ * 0.46 on the broad bodies against a torso radius of 0.30, so an arm hangs well outside its
+ * own chest by design. Stand that dancer closer than {@link placeHold}'s `shoulders` term
+ * asks for — which happens whenever the *bodies* floor or the pair's reach decides the
+ * stance instead — and the inside shoulder ends up **past the midpoint, over the partner**,
+ * with the forearm hanging down through the partner's hand. Myco with Sprout stands at
+ * 0.745 while his shoulders alone span 0.92.
+ *
+ * 🔑 **So the arm gives way, not the couple.** The stance is already answering to the
+ * bodies and to reach; widening it to suit a shoulder would undo both. This is the same
+ * daylight number the `shoulders` term uses, applied to the arm instead of to the stance.
+ *
+ * **Clamped, not moved freely.** An arm cannot come in past its own body
+ * ({@link ArmMetrics.tuckFloorX}); where the floor is wider than the room, the floor wins
+ * and the shoulder still overhangs — honest degradation, and the dancer it happens to is
+ * the one whose arms were authored widest.
+ */
+export function tuckedRestX(m: ArmMetrics, width: number, clear: number): number {
+  return Math.max(m.tuckFloorX, Math.min(m.restX, width / 2 - clear));
 }
 
 /**
@@ -874,25 +940,39 @@ export function touchHold(
   let forward = 0;
   let lifts = { beau: palmOffset(beau, true, 0, -1, 0), belle: palmOffset(belle, false, 0, -1, 0) };
   let height = bandedHeight(beau, belle, target, acrossBeau, acrossBelle, lifts, forward);
-  let solved = placeHold(beau, belle, height, lifts, forward);
+  let inside = { beau: beau.restX, belle: belle.restX };
+  let solved = placeHold(beau, belle, height, lifts, forward, inside);
   for (let pass = 0; pass < 12; pass++) {
     acrossBeau = solved.acrossBeau;
     acrossBelle = solved.acrossBelle;
-    const nextLifts = touchLifts(beau, belle, height, acrossBeau, acrossBelle, solved.forward);
+    const nextLifts = touchLifts(
+      beau, belle, height, acrossBeau, acrossBelle, solved.forward,
+      solved.insideBeau, solved.insideBelle,
+    );
     const next = bandedHeight(beau, belle, target, acrossBeau, acrossBelle, nextLifts, solved.forward);
     const settled =
       Math.abs(next - height) < 1e-12 &&
       Math.abs(solved.forward - forward) < 1e-12 &&
       Math.abs(nextLifts.beau - lifts.beau) < 1e-12 &&
-      Math.abs(nextLifts.belle - lifts.belle) < 1e-12;
+      Math.abs(nextLifts.belle - lifts.belle) < 1e-12 &&
+      Math.abs(solved.insideBeau - inside.beau) < 1e-12 &&
+      Math.abs(solved.insideBelle - inside.belle) < 1e-12;
     lifts = nextLifts;
     height = next;
     forward = solved.forward;
-    solved = placeHold(beau, belle, height, lifts, forward);
+    inside = { beau: solved.insideBeau, belle: solved.insideBelle };
+    solved = placeHold(beau, belle, height, lifts, forward, inside);
     if (settled) break;
   }
 
-  return { width: solved.width, height, lateral: solved.lateral, forward: solved.forward };
+  return {
+    width: solved.width,
+    height,
+    lateral: solved.lateral,
+    forward: solved.forward,
+    insideBeau: solved.insideBeau,
+    insideBelle: solved.insideBelle,
+  };
 }
 
 /**
@@ -945,6 +1025,9 @@ interface PlacedHold {
   readonly forward: number;
   readonly acrossBeau: number;
   readonly acrossBelle: number;
+  /** Where each inside arm hangs at this stance (ADR-0049) — `restX`, tucked. */
+  readonly insideBeau: number;
+  readonly insideBelle: number;
 }
 
 function placeHold(
@@ -953,6 +1036,17 @@ function placeHold(
   height: number,
   lifts: { beau: number; belle: number },
   forward: number,
+  /**
+   * Where the inside arms hung on the previous pass (ADR-0049), seeded with the authored
+   * `restX`.
+   *
+   * 🔴 **The tuck has to be inside the fixed point, not after it.** `arms` is *"as far apart
+   * as the pair can stand and still meet in the middle"*, and it is measured from the inside
+   * shoulders — so a stance solved from the authored shoulders and then handed a tucked one
+   * is a stance the tucked arms cannot make. It over-reached by 0.14% before this argument
+   * existed, which is exactly the class of error `bandedHeight` takes `across` for.
+   */
+  inside: { beau: number; belle: number } = { beau: beau.restX, belle: belle.restX },
 ): PlacedHold {
   // Vertical and forward both come out of the same reach, so the stance sees them as one
   // number: what is left over is what may be spent going sideways.
@@ -963,10 +1057,10 @@ function placeHold(
   // pair can stand and still **meet in the middle** of the daylight between their inside
   // shoulders, which is as far as the *shorter* of the two inside arms can go, twice;
   // `bodies` is the closest the pair can stand at all.
-  const beauReach = spanAt(beau, beauDrop, 1);
-  const belleReach = spanAt(belle, belleDrop, 1);
+  const beauReach = touchSpanAt(beau, beauDrop);
+  const belleReach = touchSpanAt(belle, belleDrop);
   const shoulders = 2 * (Math.max(beau.restX, belle.restX) + handDaylight(beau, belle));
-  const arms = beau.restX + belle.restX + 2 * Math.min(beauReach, belleReach);
+  const arms = inside.beau + inside.belle + 2 * Math.min(beauReach, belleReach);
   const bodies = Math.max(
     // Nothing of one dancer inside the other, at any height — heads included.
     // 🔑 **The same width the figure will need to walk them past each other** (ADR-0044).
@@ -990,7 +1084,16 @@ function placeHold(
   // on `width` at all — both shoulders move with the stance, so the middle between them
   // stays the middle — and it is the one point at which the two dancers reach the *same
   // distance* across, so neither of them can be handed the other's share of the daylight.
-  const preferred = (beau.restX - belle.restX) / 2;
+  // 🔑 **The arms are placed after the stance, not before it** (ADR-0049). Everything above
+  // decides how far apart the pair stand; `restX` is authored and can be wider than the
+  // answer, so the inside arm is pulled in to whatever room the stance actually left. The
+  // `shoulders` term above is still the width a handhold *asks* for — this is what happens
+  // when the bodies or the reach refuse it.
+  const clear = handDaylight(beau, belle);
+  const insideBeau = tuckedRestX(beau, width, clear);
+  const insideBelle = tuckedRestX(belle, width, clear);
+
+  const preferred = (insideBeau - insideBelle) / 2;
 
   // **And then the bodies get the last word.** Everything above is a preference about
   // whose arm does the work, computed from shoulders and reach — none of which knows
@@ -1001,13 +1104,12 @@ function placeHold(
   //
   // The clamp is the accommodation, and it outranks the preference on purpose: a hold
   // inside a dancer is not a hold, and no opinion about which dancer reaches can buy one.
-  const clear = handDaylight(beau, belle);
   const floorX = -width / 2 + sideExtentAt(beau.parts, height) + clear;
   const ceilX = width / 2 - sideExtentAt(belle.parts, height) - clear;
   const lateral = Math.max(floorX, Math.min(ceilX, preferred));
 
-  const acrossBeau = width / 2 + lateral - beau.restX;
-  const acrossBelle = width / 2 - lateral - belle.restX;
+  const acrossBeau = width / 2 + lateral - insideBeau;
+  const acrossBelle = width / 2 - lateral - insideBelle;
 
   return {
     width,
@@ -1022,6 +1124,8 @@ function placeHold(
     ),
     acrossBeau,
     acrossBelle,
+    insideBeau,
+    insideBelle,
   };
 }
 
@@ -1091,8 +1195,10 @@ export function reachPose(
   handX: number,
   handY: number,
   handZ: number,
+  /** Where this arm hangs from — {@link tuckedRestX} inside a couple, `restX` otherwise. */
+  restX: number = m.restX,
 ): ArmPose {
-  const sx = sign * m.restX;
+  const sx = sign * restX;
   const sy = m.restY;
   const upper = m.elbowReach;
   const fore = m.forearmSpan;
@@ -1204,16 +1310,18 @@ export function reachPose(
  * behind a plausible-looking 100%.
  */
 export function touchReach(m: ArmMetrics, hold: TouchHold, isBeau: boolean): number {
-  const across = hold.width / 2 + (isBeau ? hold.lateral : -hold.lateral) - m.restX;
+  const inside = isBeau ? hold.insideBeau : hold.insideBelle;
+  const across = hold.width / 2 + (isBeau ? hold.lateral : -hold.lateral) - inside;
   // Settled rather than assumed, so the readout is the arm the render poses and not an
   // arm whose hand is a sphere. Needs no partner: `across` is already in `hold`.
   const lift = settleTouch(
     _settle,
     m,
     isBeau,
-    (isBeau ? -1 : 1) * (across + m.restX),
+    (isBeau ? -1 : 1) * (across + inside),
     hold.forward,
     hold.height,
+    inside,
   );
   return (
     Math.hypot(across, handDrop(m, hold.height, lift), hold.forward) / m.handReach
@@ -1257,8 +1365,10 @@ export function touchPose(
   handX: number,
   handY: number,
   handZ: number,
+  /** Where this arm hangs from — {@link tuckedRestX} inside a couple, `restX` otherwise. */
+  restX: number = m.restX,
 ): ArmPose {
-  const sx = sign * m.restX;
+  const sx = sign * restX;
   const sy = m.restY;
   const upper = m.elbowReach;
   const fore = m.forearmSpan;
@@ -1267,16 +1377,16 @@ export function touchPose(
   const ay = handY - sy;
   const az = handZ;
   const d = Math.hypot(ax, ay, az);
-  if (d < 1e-9 || d >= upper + fore) return reachPose(out, m, sign, handX, handY, handZ);
+  if (d < 1e-9 || d >= upper + fore) return reachPose(out, m, sign, handX, handY, handZ, restX);
 
   // The elbow lies on both spheres, so its offset `e` from the shoulder satisfies
   // `a·e = (d² + upper² − fore²)/2` and `|e| = upper`. Pinning `e.x` to zero leaves a
   // line and a circle in the dancer's own (y, z) plane.
   const k = (d * d + upper * upper - fore * fore) / 2;
   const r = Math.hypot(ay, az);
-  if (r < 1e-9) return reachPose(out, m, sign, handX, handY, handZ);
+  if (r < 1e-9) return reachPose(out, m, sign, handX, handY, handZ, restX);
   const along = k / r;
-  if (Math.abs(along) >= upper) return reachPose(out, m, sign, handX, handY, handZ);
+  if (Math.abs(along) >= upper) return reachPose(out, m, sign, handX, handY, handZ, restX);
   const off = Math.sqrt(upper * upper - along * along);
 
   // `n` points from the shoulder toward the hand within the plane; `p` is perpendicular to
@@ -1376,8 +1486,15 @@ export function shoulderOf(out: Vec3, m: ArmMetrics, sign: number): Vec3 {
  * and measured wrong, and an unnamed subtraction at a call site is where the last one
  * hid.
  */
-export function elbowLocal(out: Vec3, pose: ArmPose, m: ArmMetrics, sign: number): Vec3 {
-  out.x = pose.x - sign * m.restX;
+export function elbowLocal(
+  out: Vec3,
+  pose: ArmPose,
+  m: ArmMetrics,
+  sign: number,
+  /** Where the shoulder group sits — {@link tuckedRestX} inside a couple (ADR-0049). */
+  restX: number = m.restX,
+): Vec3 {
+  out.x = pose.x - sign * restX;
   out.y = pose.y - m.restY;
   out.z = pose.z;
   return out;
@@ -1623,6 +1740,10 @@ export function poseArms(
           localX / 2 + offset * dirX,
           localZ / 2 + offset * dirZ + hold.forward,
           hold.height,
+          // The arm hangs from where the stance left room (ADR-0049), which is the shoulder
+          // the hold was solved against. Posing from the authored `restX` here would put the
+          // elbow a tuck's width out from the shoulder the render is about to draw.
+          beau ? hold.insideBeau : hold.insideBelle,
         );
         continue;
       }

@@ -1,5 +1,5 @@
 # ADR-0040: A pair reach with the undrawn upper arm before they let go
-- Status: Accepted
+- Status: Superseded by [ADR-0048](0048-a-pair-reach-with-the-forearm.md)
 - Date: 2026-08-22
 - Deciders: Ryan, Claude
 - Extends: [ADR-0028](0028-an-arch-a-pair-cannot-make-is-accommodated-two-ways.md), [ADR-0037](0037-the-figure-is-sized-to-the-accommodation-drawn.md)

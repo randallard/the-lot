@@ -9,7 +9,7 @@ import {
 import { passingWidth, makeFrame, toWorld, facingToRotationY, DEFAULT_SCALE } from "./frame";
 import { pairGripRadius } from "./forearm-hold";
 import { sizeArch } from "./arch";
-import { RESHAPE, growUpperArm } from "./accommodation";
+import { RESHAPE, growForearm } from "./accommodation";
 
 /**
  * The couple is holding hands at beat 0 — for every pairing the cast can field, in both
@@ -59,8 +59,8 @@ function atBeatZero(
     sized.armDelta === 0
       ? resting
       : touchHold(
-          armMetrics(growUpperArm(beauShape, sized.armDelta)),
-          armMetrics(growUpperArm(belleShape, sized.armDelta)),
+          armMetrics(growForearm(beauShape, sized.armDelta)),
+          armMetrics(growForearm(belleShape, sized.armDelta)),
         );
 
   const isArch = sequence[0] === "california-twirl";
@@ -126,8 +126,16 @@ describe("🔴 a couple is holding hands at beat 0, whoever they are", () => {
     // with Ryan; the player with Sprout, both ways. ADR-0046 took the three Ember orderings off
     // the list by making the hold reachable enough that they no longer buy any arm (her width
     // with Myco and with Ryan is capped by their shoulders, not by their reach, so the 0.31 they
-    // still spend on the *arch* buys no extra width and the two readings agree). The player with
-    // Sprout is what is left, and it is the same defect.
+    // still spend on the *arch* buys no extra width and the two readings agree).
+    //
+    // 🔴 **And it is down to one, which is worth saying plainly: this guard nearly stopped
+    // guarding anything.** ADR-0047 took the player/Sprout pair off the list too, and for a
+    // stretch the list was *empty* — the mechanism still real (seven orderings dance at a width
+    // different from their resting one) but no difference large enough to cross
+    // `standingAsCouple`'s tolerance on this cast. ADR-0049's tuck put `sprout/ryan` back over
+    // it. A list this thin is a cast fact, not a strengthening of the rule, and if it empties
+    // again the honest move is to pin the *mechanism* — that the two widths differ — rather
+    // than to delete the test or to widen the tolerance until something fails.
     const lost: string[] = [];
     for (const [beauName, beauShape] of CAST) {
       for (const [belleName, belleShape] of CAST) {
@@ -136,7 +144,7 @@ describe("🔴 a couple is holding hands at beat 0, whoever they are", () => {
         if (!r.joinedIfAskedResting) lost.push(`${beauName}/${belleName}`);
       }
     }
-    expect(lost.sort()).toEqual(["player/sprout", "sprout/player"]);
+    expect(lost.sort()).toEqual(["sprout/ryan"]);
     // Every one of them is a pair who reached — that is the whole mechanism.
     for (const name of lost) {
       const [bn, ln] = name.split("/");
