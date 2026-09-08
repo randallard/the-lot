@@ -1,10 +1,76 @@
 # Progress & Status
 
-_Last updated: 2026-09-02_
+_Last updated: 2026-09-07 (evening)_
 
 ## Status / next
 
-> ### ▶ PICK UP HERE — 2026-09-02 (evening)
+> ### ▶ PICK UP HERE — 2026-09-08
+>
+> **Yesterday was one thread: the standing couple's handhold, found, decided twice, and fixed.**
+> Three ADRs, five journal entries, and a new `#review` route. 753 tests, **746 passing**, `tsc`
+> clean, lint 0 errors (25 pre-existing warnings), `docs-hygiene` clean.
+>
+> 📌 **The docs are committed; the SOURCE is not.** Deliberate — `docs/` is the part that cannot
+> be regenerated, and the code is waiting on your eyes (item 1 below). So `git status` will show
+> a working tree full of `src/dance/` changes that this document already describes as done. They
+> are done; they are just unreviewed.
+>
+> #### Where things stand
+>
+> ✅ **The handhold is fixed.** [ADR-0052](adr/0052-a-palm-turns-on-its-forearm-before-the-wrist-bends.md)
+> — a palm rolls level on its own forearm and bends across it only for the remainder, clamped.
+> **40 of 40 palms meet face on** (was 2); the centre gap is **1.0× the flat-palm ideal on every
+> pairing** (was 3.0–6.5×). [ADR-0051](adr/0051-a-couple-stands-staggered-by-the-angle-the-palm-needs.md)
+> (the couple stagger) is **superseded and no longer needed** — its promotion condition was
+> tested and closed by the remeasure.
+>
+> ✅ **`#review` exists.** [ADR-0050](adr/0050-a-pose-is-reviewed-at-a-named-beat-not-a-caught-one.md)
+> — every figure, at every named step, on all 20 ordered pairings: **520 cells**, each a URL,
+> each scored 0–4 with a note. Verified in the browser. **Nothing has been rated.**
+>
+> #### Do these, in this order
+>
+> 1. ⏳ **LOOK AT THE HANDHOLD.** `#review=california-twirl/stand/*`. The numbers say it is
+>    fixed; **no human eye has been on it.** I confirmed the renderer runs and the pose changed
+>    but could not resolve the palms at screenshot resolution.
+> 2. 🔴 **RULE ON SIX MOVED PINS — I re-pinned none, because they encode your decisions.** Four
+>    are improvements (19/20 orderings hold at the aimed height, up from 16; Sprout's hanging
+>    hand reaches 0.461 not 0.475 so the hold no longer rises for her; no ordering loses the hold
+>    at the resting width, `sprout/ryan` used to). One is a **1.8e-6** overshoot against a `1e-9`
+>    assertion — a *converged* fixed point, inside the 1.2e-5 this repo has accepted. And one
+>    wants a look: 🔴 **Myco/Sprout's couple width is 0.829, down from 0.922** (`arch.test.ts`
+>    ×2). Narrower may be right — your 08-22 watch asked whether 1.057 read *too far apart* — but
+>    0.922 was reasoned.
+> 3. 🔴 **The pre-existing arch failure is NOT the `NaN` older notes call it.** It is
+>    `arch.test.ts`'s terminal case asserting `BREAK` and getting `RESHAPE`. Confirmed by
+>    stashing on 2026-09-07.
+> 4. ⏳ **THEN THE 08-23 CALIFORNIA TWIRL ARM-SWAP** — still open, and it now has a wrist to turn
+>    under with, which is exactly what your report asked for. Addressed at
+>    `#review=california-twirl/under-arch/*`.
+> 5. ⏳ **THEN RATE.** 520 cells, none done. Export with `copy chart (md)` into
+>    `work/square-dance-planning/pose-review-chart.md` — localStorage is one laptop.
+>
+> #### Two things to know before you start
+>
+> ⚠️ **A blank canvas means a hidden window, not a broken scene.** Chromium suspends
+> `requestAnimationFrame` outright when its window is occluded or on another workspace.
+>
+> 📌 **A discrepancy found and deliberately not chased:** `armMetrics.handMap.right` is the map
+> `Dancer` draws on the mesh in the ***left*** forearm group — hand-pose naming is
+> viewer-mirrored. Nothing observable turns on it today, and the renderer solves from each mesh's
+> own map, so the picture is right regardless. Its own question.
+>
+> #### The story, if you want it
+>
+> [The route](journal/2026-09-07-1-a-moment-you-have-to-catch-is-a-moment-you-cannot-track.md) ·
+> [what using it found](journal/2026-09-07-2-the-route-works-and-using-it-found-two-things.md) ·
+> [the palms meet on their rims](journal/2026-09-07-3-there-is-no-wrist-and-the-palms-meet-on-their-rims.md) ·
+> [90° wasn't right](journal/2026-09-07-4-ninety-degrees-didnt-seem-right-and-it-wasnt.md) ·
+> [the wrist landed](journal/2026-09-07-5-the-wrist-landed-and-the-stagger-is-not-needed.md)
+>
+> ---
+>
+> ### ▶ PREVIOUS — 2026-09-02 (evening)
 >
 > **The tree is UNCOMMITTED and exactly 1 test of 710 fails, on purpose.** `tsc` clean, lint 0
 > errors (25 pre-existing warnings), `docs-hygiene` clean. **Do not commit before the watch.**

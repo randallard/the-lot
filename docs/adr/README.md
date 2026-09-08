@@ -138,6 +138,9 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0047](0047-a-couple-stands-at-the-width-they-can-still-make-the-hold-at.md) | A couple stands at the width they can still make the hold at | Accepted |
 | [0048](0048-a-pair-reach-with-the-forearm.md) | A pair reach with the forearm, and it is drawn | Accepted |
 | [0049](0049-the-inside-arm-hangs-from-where-the-stance-left-room.md) | The inside arm hangs from where the stance left room | Accepted |
+| [0050](0050-a-pose-is-reviewed-at-a-named-beat-not-a-caught-one.md) | A pose is reviewed at a named beat, not a caught one | Accepted |
+| [0051](0051-a-couple-stands-staggered-by-the-angle-the-palm-needs.md) | A couple stands staggered, by the angle the palm needs | Superseded by ADR-0052 |
+| [0052](0052-a-palm-turns-on-its-forearm-before-the-wrist-bends.md) | A palm turns on its forearm before the wrist bends | Accepted |
 
 ## Decisions this repo inherits
 
