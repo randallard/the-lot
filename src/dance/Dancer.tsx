@@ -44,6 +44,20 @@ export type DancerRig = React.RefObject<THREE.Group | null>;
 export interface DancerArmRigs {
   left: DancerRig;
   right: DancerRig;
+  /**
+   * The two hand meshes, so a driver can turn a wrist (ADR-0052).
+   *
+   * 🔑 **Unlike the shoulder, this one is a pose and belongs to a driver.** Where a palm
+   * faces is decided by where the forearm points, and only the code holding the hold knows
+   * that — the authored `hand.rotation` below is the hand's *rest* orientation and the wrist
+   * turns it from there, so both are needed and neither replaces the other.
+   *
+   * ⚠️ **Viewer-mirrored, like the hand-pose naming.** The mesh inside the `right` forearm
+   * group is drawn with `handRotations(...).left`, and vice versa. A driver turning one of
+   * these must solve from *that mesh's own* drawn map, not from the map of the same-named
+   * side.
+   */
+  hands: { left: React.RefObject<THREE.Mesh | null>; right: React.RefObject<THREE.Mesh | null> };
 }
 
 interface DancerProps {
@@ -191,7 +205,7 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
             <meshStandardMaterial color={COLOR} />
           </mesh>
-          <mesh position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.left}>
+          <mesh ref={arms?.hands.right} position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.left}>
             <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
             <meshStandardMaterial color={COLOR} />
           </mesh>
@@ -205,7 +219,7 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
             <meshStandardMaterial color={COLOR} />
           </mesh>
-          <mesh position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.right}>
+          <mesh ref={arms?.hands.left} position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.right}>
             <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
             <meshStandardMaterial color={COLOR} />
           </mesh>

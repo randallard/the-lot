@@ -4,9 +4,42 @@ _Last updated: 2026-09-12_
 
 ## Status / next
 
-> ### ▶ PICK UP HERE — 2026-09-12
+> ### ▶ PICK UP HERE — 2026-09-12 (two tweaks from Ryan)
 >
-> **The review matrix grew a diagonal.** Ryan asked for identity pairings — `you → you`,
+> 🔴 **Tweak 2 — the Twirl's ending position had the arch still up, and the step text told you to
+> expect that.** Ryan: *"the ending position is always hands back down in a normal handhold."*
+> Fixed in the **engine**: a hold is now released by the **dance** rather than by the block
+> ([its ADR-0026](https://github.com/randallard/square-one/blob/main/docs/adr/0026-the-dance-releases-a-hold-not-the-block.md))
+> — spans merge across a boundary that continues the hold, and only a span live at the final beat
+> is released. [journal](journal/2026-09-12-2-the-arch-was-still-up-at-the-end.md)
+>
+> ⏳ **`#dance`'s `2×` should now be one continuous arch** with no dip at the join — worth a look.
+> A looping sequence gets a release every lap (the set arrives, settles, lifts again); if that
+> reads wrong the fix is **ours**, because this repo is what knows it is looping.
+>
+> ✅ **`DanceFloor` needed no change.** Arch blend 0 already lerps back to the *standing hold* —
+> hands joined low and forward (ADR-0027), not hands free — so the release lowers the couple into
+> the ordinary handhold on its own. Only the review catalog was wrong: the `end` step's `watch`
+> said *"mirror of `arch-up`"*, which rated the defect as correct.
+>
+> ✅ **THE PIN IS MOVED — `square-one#v0.5.0`** (`6e1d3e5`, tag on `origin`), and validated the way
+> it never had been: with the co-development symlink **out of the way**, pointed at the fetched
+> tarball, **755 tests / the same 7 failing**, `tsc` clean, lint 0 errors. CI will see what we see.
+>
+> 🔴 **`pnpm-workspace.yaml`'s `allowBuilds` key changes on every square-one tag** (keyed by tarball
+> URL — `git rev-parse v<tag>^{}`). The install stops with `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`
+> until it is updated. Its own comment warns about this and it still cost a cycle.
+>
+> 📌 **`src/` and this pin bump are UNCOMMITTED together, on purpose.** Committing the pin alone
+> would leave a red tree — the old `review-steps.test.ts` fails against v0.5.0 — so the two belong
+> in one commit, and that commit waits on your eyes (item 1).
+>
+> **Look at it first: `#review=california-twirl/end/*`.** The engine is linked and its `dist` is
+> rebuilt, so the scene shows the new ending now.
+>
+> ---
+>
+> **Tweak 1 — the review matrix grew a diagonal.** Ryan asked for identity pairings — `you → you`,
 > `Myco → Myco` — and they are in: `reviewPairings()` is now the full 5 × 5, **25 pairings and
 > 650 cells**, with the five identity rows bold in the exported chart as the control the mixed
 > rows are read against.
@@ -22,7 +55,7 @@ _Last updated: 2026-09-12_
 > control removes the **size** confound and nothing else — read it as a symmetry check and you
 > will file ADR-0052 working as a defect.
 >
-> 754 tests, **the same 7 failing**, none of them here · `tsc` clean · docs-hygiene clean.
+> 755 tests, **the same 7 failing**, none of them here · `tsc` clean · docs-hygiene clean.
 > 📌 **`src/` is still uncommitted** — same deliberate state as 09-08 below, and now with the
 > pairing change in it. **The sweep has still not started, and it is 650 cells long.**
 >

@@ -129,6 +129,24 @@ export interface DanceRuntime {
    * stays where it is put.
    */
   readonly home: () => readonly DancerState[];
+  /**
+   * Stand the square at an **arbitrary** beat of whatever it is dancing, and return that
+   * state. {@link home} is this at 0.
+   *
+   * Sound for the same reason `home` is, and the reason is worth stating rather than
+   * assuming: with the coefficients off, a dancer's state is a pure function of the beat
+   * — `stateOf` samples the motions at `beat` and nothing else, and `lag` is
+   * unconditionally 0 because "with the dials off a dancer is never behind". So a fresh
+   * performance jumped straight to beat *b* is byte-identical to one ticked there sixty
+   * times, and one jump is the honest way to ask for a moment.
+   *
+   * 🔴 **That stops being true the day a coefficient is switched on.** A pursuit model
+   * accumulates: where a dancer is at beat 6 will then depend on how they got there, and
+   * this becomes a lie that still returns plausible numbers. The fix that day is to tick
+   * a fresh performance forward in small steps rather than to jump — same signature, same
+   * callers, and it is only affordable because the review's poses are short figures.
+   */
+  readonly poseAt: (beat: number) => readonly DancerState[];
 }
 
 /**
@@ -239,5 +257,23 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
     return perf.sample();
   }, [makePerformance]);
 
-  return { advance, motions, beats, beat, home };
+  const poseAt = useCallback(
+    (target: number): readonly DancerState[] => {
+      const perf = makePerformance();
+      perfRef.current = perf;
+      // Clamped to the figure, because a review step names a beat and a figure's length is
+      // data: a step written for a 4-beat call that ends up on a 2-beat one should land on
+      // the end of it rather than off the end of it. `sampleMotion` already holds the last
+      // waypoint past the end, so this is belt-and-braces — and it keeps `beat()`, which the
+      // readout prints, from reporting a beat the figure does not have.
+      const clamped = Math.max(0, Math.min(target, perf.totalBeats));
+      // `tick` rather than `sample`, so the performance's own clock lands on the beat too:
+      // the arch span lookup in `DanceFloor` reads `runtime.beat()`, and a seek whose clock
+      // stayed at 0 would pose the bodies at beat 2 and ask the hands about beat 0.
+      return clamped === 0 ? perf.sample() : perf.tick(clamped);
+    },
+    [makePerformance],
+  );
+
+  return { advance, motions, beats, beat, home, poseAt };
 }

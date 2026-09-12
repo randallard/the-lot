@@ -65,6 +65,7 @@ import {
   type WorldPoint,
 } from "./frame";
 import { COUPLE_WIDTH, type ShapeAt } from "square-one";
+import { wristRotation } from "./wrist";
 import { LOW, planArch, sizeArch, type ArchPlan, type ArchSizing } from "./arch";
 import { pairGripRadius, planForearm, type ForearmPlan } from "./forearm-hold";
 import {
@@ -88,6 +89,8 @@ import {
   MYCO_DEFAULTS,
   EMBER_DEFAULTS,
   NPC_BODY_CENTER_Y,
+  handDrawnMap,
+  handRotations,
   deg2rad,
   lateralClearance,
   rigidParts,
@@ -120,6 +123,30 @@ interface DanceFloorProps extends DancePerformanceOptions {
    * reading this control exists to prevent.
    */
   home?: number;
+  /**
+   * Cut to a **named beat** of whatever is being danced, and hold there: bump `token` and
+   * the next frame stands everyone at `beat`. The review route's step addressing.
+   *
+   * 🔑 **Not the same pass as `home`, and the difference is the arch.** Both are cuts —
+   * no time passes, nothing eases, every blend lands on its target in one frame. But
+   * `home` deliberately forces the arch *down*, because square-one declares a California
+   * Twirl's arch from `from: 0` and "go home" exists to show the standing couple
+   * underneath it. A seek must not do that: a step that names beat 2 of a Twirl is asking
+   * for the belle under a **raised** arch, and forcing the blend to 0 there would answer
+   * a question nobody asked and answer it wrongly-but-plausibly. So a seek snaps the
+   * blend to whatever the beat itself declares, which is the ordinary rule.
+   *
+   * A token-and-value pair rather than a bare number, because the same beat can be asked
+   * for twice in a row — step back and forward again — and a bare `beat` prop would see
+   * no change and write nothing.
+   *
+   * `arch` is how a seek asks for the *other* pose at a beat the arch covers. `declared`
+   * (the default) is the ordinary rule: raised iff the beat is inside an arch span.
+   * `down` forces it flat, which is the standing couple `home` produces — and having it
+   * here as a **named request** rather than as a side effect of pressing a button is what
+   * lets the review ask for both poses at beat 0 and say which is which.
+   */
+  seek?: { readonly token: number; readonly beat: number; readonly arch?: "declared" | "down" };
   /**
    * Called every frame with the performance clock, paused or not. Runs inside
    * the frame loop — write to refs or the DOM directly, never set React state.
@@ -274,6 +301,17 @@ const _elbow = vec3();
 const _self: Placement = { x: 0, z: 0, yaw: 0 };
 const _partner: Placement = { x: 0, z: 0, yaw: 0 };
 const _aim = new THREE.Vector3();
+/** Scratch for the wrist (ADR-0052). Frame-loop code allocates nothing; this is that rule. */
+const _m3 = new THREE.Matrix3();
+const _m4 = new THREE.Matrix4();
+const _q = new THREE.Quaternion();
+const _e = new THREE.Euler();
+/**
+ * Which drawn hand sits inside which forearm group — **the mirror**, and it is here rather
+ * than inline so the one place it matters names it. `Dancer` puts `handRotations(...).left`
+ * on the mesh in the `right` group; hand-pose naming is viewer-mirrored, like the eye editor.
+ */
+const MIRRORED = { left: "right", right: "left" } as const;
 
 /**
  * The resolver's input, mutated per dancer per frame rather than rebuilt.
@@ -310,6 +348,7 @@ export function DanceFloor({
   followDrift = false,
   paused = false,
   home = 0,
+  seek,
   onBeat,
   onArms,
   controllers,
@@ -503,7 +542,12 @@ export function DanceFloor({
   // One pair of arm rigs per dancer, mirroring the body rigs.
   const armRigs = useMemo(() => {
     const map: Record<string, DancerArmRigs> = {};
-    for (const key of keys) map[key] = { left: createRef(), right: createRef() };
+    for (const key of keys)
+      map[key] = {
+        left: createRef(),
+        right: createRef(),
+        hands: { left: createRef(), right: createRef() },
+      };
     return map;
   }, [keys]);
 
@@ -624,6 +668,18 @@ export function DanceFloor({
 
   /** The last `home` token this floor acted on, so one bump means one pass. */
   const homeSeen = useRef(home);
+  /**
+   * The same, for `seek` — but starting at `null` rather than at the current token, and
+   * that difference is load-bearing.
+   *
+   * 🔴 **A floor that mounts paused runs no pass at all**, so it would stand its dancers
+   * wherever the rigs were built and never pose them. `home` can start level with its
+   * prop because an unpaused floor poses itself on the first advance; a seeking floor is
+   * paused by definition — that is what a seek is for — so a fresh mount has to count as
+   * never having seen the token. The review remounts this floor on every change of cast,
+   * which is every third cell, and without this those cells come up unposed.
+   */
+  const seekSeen = useRef<number | null>(null);
 
   useFrame((state, delta) => {
     // A home request outranks the pause — it is the one thing that must move the
@@ -632,12 +688,24 @@ export function DanceFloor({
     const goingHome = home !== homeSeen.current;
     homeSeen.current = home;
 
-    if (goingHome || !paused) {
+    // A seek is the same kind of event and is consumed the same way. Both can be pending
+    // on the same frame only if a caller bumps both, which no caller does; `home` is
+    // checked first so that pairing would resolve to the pose with the stronger claim to
+    // being a *named* moment.
+    const seekTo = seek !== undefined && seek.token !== seekSeen.current ? seek.beat : null;
+    if (seek !== undefined) seekSeen.current = seek.token;
+    const seeking = !goingHome && seekTo !== null;
+
+    if (goingHome || seeking || !paused) {
       // Guard against tab-restore producing an enormous delta and teleporting the
       // square across the floor. Going home takes no time at all: the whole point is
-      // to land on beat 0 rather than to travel there.
-      const dt = goingHome ? 0 : Math.min(delta, 0.1);
-      const states = goingHome ? runtime.home() : runtime.advance(dt);
+      // to land on beat 0 rather than to travel there. Neither does a seek.
+      const dt = goingHome || seeking ? 0 : Math.min(delta, 0.1);
+      const states = goingHome
+        ? runtime.home()
+        : seeking && seekTo !== null
+          ? runtime.poseAt(seekTo)
+          : runtime.advance(dt);
 
       for (const state of states) {
         const rig = rigs[state.key]?.current;
@@ -671,8 +739,10 @@ export function DanceFloor({
         // A home pass eases nothing. Arriving at beat 0 is a cut rather than a move,
         // and `ease` from a zero `dt` would be 0 — which leaves the grip blend exactly
         // where the interrupted move left it, so hands the figure's first beat does not
-        // join would still be drawn holding.
-        const ease = goingHome ? 1 : Math.min(1, dt * 10);
+        // join would still be drawn holding. A seek is a cut for the same reason: it
+        // lands on a *named* moment, and a moment half-blended out of the previous one
+        // is not the moment that was named.
+        const ease = goingHome || seeking ? 1 : Math.min(1, dt * 10);
 
         /*
          * The arch (square-one's ADR-0017), resolved for the **pair** before either dancer
@@ -789,8 +859,23 @@ export function DanceFloor({
            * *lift them into*. It is the blend's own resting value on a fresh mount, so this is
            * the home pass agreeing with the first frame of a performance rather than a new
            * rule.
+           *
+           * 🔑 **A seek is explicitly not that**, and the review route depends on the
+           * difference. `go home` asks for the pose *underneath* the figure's first beat;
+           * a seek asks for the pose *at* a beat, and at beat 2 of a Twirl that pose is
+           * the belle under a raised arch. So a seek takes the ordinary target — the one
+           * the span declares — and only the ease is shared between the two passes. The
+           * review catalog gets the home pose back by **asking for it by name**: its
+           * `stand` step seeks beat 0 with `arch: "down"`, and every other step takes the
+           * declared answer. Naming it beats reusing the `home` event, which would make
+           * the two poses at beat 0 depend on which prop the caller happened to bump.
            */
-          const target = goingHome ? 0 : archSpan === undefined ? 0 : 1;
+          const target =
+            goingHome || (seeking && seek?.arch === "down")
+              ? 0
+              : archSpan === undefined
+                ? 0
+                : 1;
           const next = under.blend + (target - under.blend) * Math.min(1, Math.max(0, ease));
           under.blend = Math.abs(target - next) < 1e-3 ? target : next;
         }
@@ -985,6 +1070,36 @@ export function DanceFloor({
             arm.position.set(_elbow.x, _elbow.y, _elbow.z);
             _aim.set(pose.aimX, pose.aimY, pose.aimZ);
             arm.quaternion.setFromUnitVectors(DOWN, _aim);
+
+            /*
+             * The wrist (ADR-0052): roll the palm level on its own forearm, bend across it
+             * for the remainder, clamp at what a wrist does.
+             *
+             * 🔑 **Solved from the mesh's own drawn map**, which on this side is the
+             * *mirrored* one — the hand inside the `right` forearm group wears
+             * `handRotations(...).left`. Reading the same-named map instead would turn the
+             * two mirrored characters' hands by the wrong roll, and every other character's
+             * by exactly the right one, which is the kind of defect that hides for weeks.
+             *
+             * Composed onto the authored rotation rather than replacing it: the authored
+             * value is the hand's rest pose and its character (Ember's `[-23,45,-14]` is why
+             * her palm sits 74° off her forearm rather than 90°), and the wrist turns it from
+             * there.
+             */
+            const hand = arms.hands[side].current;
+            if (hand) {
+              const drawn = MIRRORED[side];
+              const map = handDrawnMap(ex.shape.hand.open, drawn);
+              _m3.fromArray(wristRotation(map, pose.aimX, pose.aimY, pose.aimZ));
+              // `fromArray` reads column-major and the wrist is row-major, so this is the
+              // transpose — the inverse rotation. Transposing back is one call and beats
+              // shipping a second matrix convention into this file.
+              _m4.setFromMatrix3(_m3).transpose();
+              _q.setFromRotationMatrix(_m4);
+              const r = handRotations(ex.shape.hand.open)[drawn];
+              _e.set(r[0], r[1], r[2]);
+              hand.quaternion.setFromEuler(_e).premultiply(_q);
+            }
           }
 
           const parts = expressions[key];

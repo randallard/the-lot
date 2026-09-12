@@ -70,6 +70,7 @@ import {
   type RigidPart,
 } from "../services/body-shapes";
 import { passingWidth } from "./frame";
+import { palmMap } from "./wrist";
 
 /** A point in world space. Mutable so the frame loop can reuse it. */
 export interface Vec3 {
@@ -610,7 +611,13 @@ export function handRiseAlongUp(
   aimY: number,
   aimZ: number,
 ): number {
-  const h = m.handMap[side];
+  // 🔴 **The hand as *turned*, not as authored** (ADR-0052). The rise decides where a palm
+  // surface sits, and since the wrist landed, where a palm faces is a property of the pose:
+  // a hand that has rolled its flat face level rises by its thickness, and the same hand
+  // unturned rises by its width. Reading `m.handMap` here instead would be the identical
+  // mistake `handRadius` used to make one level down — a number that describes a hand nobody
+  // is drawing.
+  const h = palmMap(m.handMap[side], aimX, aimY, aimZ);
   const dx = aimX;
   const dy = -aimY;
   const dz = aimZ;
@@ -674,6 +681,34 @@ function relaxedForward(m: ArmMetrics, across: number, handY: number): number {
 const _settle = armPose();
 
 /**
+ * Where one dancer's inside hand ends up on a hold, as a **lift off the contact plane and
+ * the direction the forearm is pointing** — {@link settleTouch}'s answer, for callers
+ * outside this module.
+ *
+ * Exists because those two numbers are the whole of whether a handhold reads as one. The
+ * lift says how far the hand centre sits from the contact (`hold.height + lift`, signed so
+ * the beau's is below and the belle's above), and the aim says which way the palm is facing
+ * — because there is no wrist, so the hand's orientation is the forearm's. A measurement
+ * that took only the lift would report two palms tangent and say nothing about whether they
+ * are tangent *face to face* or edge to edge.
+ *
+ * Same solve as the render's, not a second one beside it: `hold-metrics.ts` measures what
+ * the scene draws or it measures nothing.
+ */
+export function touchLift(
+  m: ArmMetrics,
+  isBeau: boolean,
+  handX: number,
+  handZ: number,
+  height: number,
+  restX: number,
+): { lift: number; aimX: number; aimY: number; aimZ: number } {
+  const out = armPose();
+  const lift = settleTouch(out, m, isBeau, handX, handZ, height, restX);
+  return { lift, aimX: out.aimX, aimY: out.aimY, aimZ: out.aimZ };
+}
+
+/**
  * Settle one dancer's inside arm onto a hold: writes the pose, returns the lift — how far
  * their own hand centre ended up from the contact plane.
  *
@@ -700,16 +735,24 @@ function settleTouch(
 ): number {
   const sign = isBeau ? -1 : 1;
   let lift = palmOffset(m, isBeau, 0, -1, 0);
-  // Linear, at roughly a factor of ten a pass on every cast in the repo, from a first guess
-  // that is out by about 0.04 — so a dozen passes is machine precision and the cap is there
-  // for a body that misbehaves, not for the ones we have. Cheap enough to spend: this is a
-  // handful of multiply-adds and two square roots per pass.
-  for (let pass = 0; pass < 16; pass++) {
+  // Linear, and since the wrist landed it is *faster* — most hands settle in two passes,
+  // because a palm that has rolled level barely moves its own centre when the aim shifts.
+  //
+  // 🔴 **Safeguarded, because two hands do not settle at all without it.** ADR-0052's clamp
+  // puts a kink in this map: below the wrist's limit the palm comes flat and the rise is a
+  // thickness, above it the rise grows with whatever is left over. A hand sitting on that
+  // boundary — `you/sprout` and `sprout/you`, the two whose forearms hang nearest vertical —
+  // bounces across it forever, and plain iteration ran 200 passes still 1.2e-3 out. So a step
+  // that is not contracting is halved instead of taken, which turns the bounce into a
+  // bisection and settles both. Where the map contracts, nothing changes.
+  let previous = Infinity;
+  for (let pass = 0; pass < 24; pass++) {
     touchPose(out, m, sign, handX, localHeight(m, height + lift), handZ, restX);
     const next = palmOffset(m, isBeau, out.aimX, out.aimY, out.aimZ);
-    const settled = Math.abs(next - lift) < 1e-12;
-    lift = next;
-    if (settled) break;
+    const delta = Math.abs(next - lift);
+    if (delta < 1e-12) { lift = next; break; }
+    lift = delta < previous * 0.9 ? next : (lift + next) / 2;
+    previous = delta;
   }
   touchPose(out, m, sign, handX, localHeight(m, height + lift), handZ, restX);
   return lift;

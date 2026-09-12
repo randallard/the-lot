@@ -267,3 +267,77 @@ describe("the Partner Trade clears the bodies dancing it", () => {
     expect(closestApproach(shapes, ["california-twirl"])).toBeGreaterThanOrEqual(trade * 0.999);
   });
 });
+
+/**
+ * `poseAt` — the review route's step addressing, and the other half of the clock's
+ * backwards operation.
+ *
+ * The failure to rule out is the same shape `home`'s is, and worse for being plausible: a
+ * seek that moved the clock but not the dancers, or the dancers but not the clock, poses a
+ * body at one beat and asks the hands about another. Nothing on screen says so — you get a
+ * pose, you rate it, and the rating is of a moment that does not exist.
+ */
+describe("useDancePerformance poseAt", () => {
+  it("lands where the same performance ticked to, in one jump", () => {
+    // The claim `poseAt` rests on: with the coefficients off a dancer's state is a pure
+    // function of the beat, so a jump and a walk are the same pose. When a coefficient is
+    // switched on this test is what fails, which is the point of writing it this way.
+    const walk = renderHook(() => useDancePerformance({ call: "dosado", bpm: 60 }));
+    for (let i = 0; i < 30; i++) walk.result.current.advance(0.1);
+    expect(walk.result.current.beat()).toBeCloseTo(3);
+    const walked = places(walk.result.current.advance(0));
+
+    const jump = renderHook(() => useDancePerformance({ call: "dosado", bpm: 60 }));
+    expect(places(jump.result.current.poseAt(3))).toEqual(walked);
+  });
+
+  it("🔴 puts the clock on the beat it posed, so the hands are asked about the same moment", () => {
+    // `DanceFloor` looks the arch and forearm spans up by `runtime.beat()`. A seek whose
+    // clock stayed at 0 would draw the bodies at beat 2 of a Twirl and the hands at beat 0
+    // of it — and on a call whose grip span covers the whole figure, that reads as correct.
+    const { result } = renderHook(() =>
+      useDancePerformance({ call: "california-twirl", sequence: ["california-twirl"], bpm: 120 }),
+    );
+    result.current.poseAt(2);
+    expect(result.current.beat()).toBeCloseTo(2);
+  });
+
+  it("holds the clock still afterwards, like home does", () => {
+    const { result } = renderHook(() => useDancePerformance({ call: "pass-thru", bpm: 120 }));
+    result.current.poseAt(1);
+    expect(result.current.beat()).toBeCloseTo(1);
+    result.current.poseAt(1);
+    expect(result.current.beat()).toBeCloseTo(1);
+  });
+
+  it("is home at 0", () => {
+    const { result } = renderHook(() => useDancePerformance({ call: "dosado", bpm: 60 }));
+    const home = places(result.current.home());
+    expect(places(result.current.poseAt(0))).toEqual(home);
+    expect(result.current.beat()).toBe(0);
+  });
+
+  it("clamps to the figure rather than off the end of it", () => {
+    // A step names a beat and a figure's length is data; a step written for a 4-beat call
+    // that lands on a 2-beat one should land on its end, and the readout must say so
+    // rather than printing a beat the figure does not have.
+    const { result } = renderHook(() => useDancePerformance({ call: "pass-thru", bpm: 120 }));
+    const end = places(result.current.poseAt(2));
+    expect(places(result.current.poseAt(99))).toEqual(end);
+    expect(result.current.beat()).toBe(2);
+    expect(places(result.current.poseAt(-5))).toEqual(places(result.current.home()));
+  });
+
+  it("walks a couple sequence's whole beat axis without drifting", () => {
+    // Every review step is an independent jump, so a seek that left state behind would show
+    // up as the same beat posing differently depending on which cell was visited before it.
+    const { result } = renderHook(() =>
+      useDancePerformance({ call: "california-twirl", sequence: ["california-twirl"], bpm: 120 }),
+    );
+    const direct = [0, 1, 2, 3, 4].map((b) => places(result.current.poseAt(b)));
+    const shuffled = [3, 0, 4, 2, 1];
+    const out = new Map<number, unknown>();
+    for (const b of shuffled) out.set(b, places(result.current.poseAt(b)));
+    expect([0, 1, 2, 3, 4].map((b) => out.get(b))).toEqual(direct);
+  });
+});
