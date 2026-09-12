@@ -1,10 +1,37 @@
 # Progress & Status
 
-_Last updated: 2026-09-07 (evening)_
+_Last updated: 2026-09-12_
 
 ## Status / next
 
-> ### ▶ PICK UP HERE — 2026-09-08
+> ### ▶ PICK UP HERE — 2026-09-12
+>
+> **The review matrix grew a diagonal.** Ryan asked for identity pairings — `you → you`,
+> `Myco → Myco` — and they are in: `reviewPairings()` is now the full 5 × 5, **25 pairings and
+> 650 cells**, with the five identity rows bold in the exported chart as the control the mixed
+> rows are read against.
+> [ADR-0053](adr/0053-a-dancer-is-paired-with-themselves-too.md) ·
+> [journal](journal/2026-09-12-1-the-diagonal-goes-back-in.md)
+>
+> ✅ **Free finding from the new rows: the handhold holds on all of them.** The measured section
+> walks the same pairings, so it is **50 palms now, 50 of 50 inside ADR-0052's target**, every
+> gap 1.0× ideal. The wrist holds on five builds it was never measured against.
+>
+> ⚠️ **The diagonal is not expected to be symmetric.** `you → you` hangs its forearms at 40° and
+> 47° on identical bodies, because the hold is authored beau-palm-up / belle-palm-down. The
+> control removes the **size** confound and nothing else — read it as a symmetry check and you
+> will file ADR-0052 working as a defect.
+>
+> 754 tests, **the same 7 failing**, none of them here · `tsc` clean · docs-hygiene clean.
+> 📌 **`src/` is still uncommitted** — same deliberate state as 09-08 below, and now with the
+> pairing change in it. **The sweep has still not started, and it is 650 cells long.**
+>
+> **Ryan has more tweaks coming** — he said *"a couple"* and has given one.
+> Items 1–5 below are unchanged and still the job.
+>
+> ---
+>
+> ### ▶ PREVIOUS — 2026-09-08
 >
 > **Yesterday was one thread: the standing couple's handhold, found, decided twice, and fixed.**
 > Three ADRs, five journal entries, and a new `#review` route. 753 tests, **746 passing**, `tsc`
@@ -47,7 +74,7 @@ _Last updated: 2026-09-07 (evening)_
 > 4. ⏳ **THEN THE 08-23 CALIFORNIA TWIRL ARM-SWAP** — still open, and it now has a wrist to turn
 >    under with, which is exactly what your report asked for. Addressed at
 >    `#review=california-twirl/under-arch/*`.
-> 5. ⏳ **THEN RATE.** 520 cells, none done. Export with `copy chart (md)` into
+> 5. ⏳ **THEN RATE.** 650 cells as of 09-12 (520 when this was written), none done. Export with `copy chart (md)` into
 >    `work/square-dance-planning/pose-review-chart.md` — localStorage is one laptop.
 >
 > #### Two things to know before you start

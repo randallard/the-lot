@@ -141,6 +141,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0050](0050-a-pose-is-reviewed-at-a-named-beat-not-a-caught-one.md) | A pose is reviewed at a named beat, not a caught one | Accepted |
 | [0051](0051-a-couple-stands-staggered-by-the-angle-the-palm-needs.md) | A couple stands staggered, by the angle the palm needs | Superseded by ADR-0052 |
 | [0052](0052-a-palm-turns-on-its-forearm-before-the-wrist-bends.md) | A palm turns on its forearm before the wrist bends | Accepted |
+| [0053](0053-a-dancer-is-paired-with-themselves-too.md) | A dancer is paired with themselves too — the diagonal is the control | Accepted |
 
 ## Decisions this repo inherits
 
