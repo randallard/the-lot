@@ -449,6 +449,39 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
         </label>
 
         <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <span style={{ fontSize: 11, color: "#666" }}>note (n to focus · esc to leave)</span>
+          <textarea
+            ref={noteRef}
+            value={record?.note ?? ""}
+            onChange={(e) => { setRecords((r) => noteCell(r, cell.id, e.target.value)); }}
+            rows={4}
+            placeholder="what is wrong, in your words"
+            style={{
+              font: "12px/1.4 system-ui, sans-serif",
+              padding: "6px 8px",
+              border: "1px solid #999",
+              borderRadius: 4,
+              resize: "vertical",
+            }}
+          />
+        </label>
+
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={() => { go(-1); }} style={{ ...BUTTON, flex: "1 1 0" }}>← prev</button>
+          <button onClick={() => { go(1); }} style={{ ...BUTTON, flex: "1 1 0" }}>next →</button>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={nextUnrated} style={{ ...BUTTON, flex: "1 1 0" }}>next unrated (u)</button>
+          <button onClick={() => { setRecords((r) => clearCell(r, cell.id)); }} style={BUTTON}>
+            clear (x)
+          </button>
+        </div>
+        <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}>
+          <input type="checkbox" checked={advance} onChange={(e) => { setAdvance(e.target.checked); }} />
+          advance on rate
+        </label>
+
+        <label style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           <span style={{ fontSize: 11, color: "#666" }}>walk</span>
           <select
             value={figureFilter}
@@ -496,7 +529,10 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
           {/* Keyed on the cast **and the figure**: the frame and its body-derived scale are
               built once per mount, and the performance is memoised per figure — so a fresh
               floor is the honest way to change either. The step is not in the key, because
-              a step change is exactly what `seek` is for. */}
+              a step change is exactly what `seek` is for. The hold arrangement **is** in the
+              key: a separation is spent out of the couple's reach, so it moves their width —
+              Myco/Sprout stand 0.829 apart square and 0.745 apart on the candidate — and the
+              width is what the frame scale is built from. */}
           <DanceFloor
             key={`${cell.pairing.beau}|${cell.pairing.belle}|${cell.figure.id}`}
             call={cell.figure.call}

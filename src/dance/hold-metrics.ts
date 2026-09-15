@@ -20,25 +20,46 @@
  * 2. **Contact** — do the two drawn hands actually meet? By construction they do: each
  *    dancer's own palm surface is put on `hold.height` ({@link touchLift}), so tangency is
  *    guaranteed rather than measured.
- * 3. 🔴 **Face** — do they meet *palm to palm*, or edge to edge? This is the one nothing was
- *    checking, and it is the one that fails. {@link HoldMetrics.flatness} is 0 when a palm
- *    lies in the contact plane and 1 when it stands on its rim.
+ * 3. ✅ **Face** — do they meet *palm to palm*, or edge to edge? This was the one nothing was
+ *    checking and the one that failed; ADR-0052's wrist fixed it. {@link HandMetrics.flatness}
+ *    is 0 when a palm lies in the contact plane and 1 when it stands on its rim.
+ * 4. 🔴 **Room** — can each forearm actually *get to* its own hand? Two palms meeting face to
+ *    face sit on one vertical line, and an arm reaching the lower of them has to come down
+ *    through the upper one. {@link HandMetrics.partnerForearmGap} is the surface gap between a
+ *    hand and the partner's forearm, and it is negative on every pairing the cast can make.
  *
  * ## The thing to understand before reading a number here
  *
- * **There is no wrist.** A hand is an ellipsoid with a fixed authored rotation, carried by
- * the forearm group — so where the palm faces is decided entirely by where the forearm
- * points, and the forearm points wherever the reach happened to leave it. `arm-pose.ts`
- * already compensates for the *consequence* (`handRiseAlongUp` measures the tilted hand's
- * true vertical extent, so the surfaces still touch) but nothing addresses the *cause*. Two
- * hands can therefore be exactly tangent and still be two coins standing on their rims.
+ * **A hand is an ellipsoid, not a ball**, and since ADR-0052 it is one that *turns*: the
+ * wrist rolls the palm level before it bends. So every extent here is taken through
+ * {@link handExtentAlong} on the hand as drawn, in the direction actually being asked about.
+ * A radius would answer for a hand nobody is drawing — Myco's is 0.110 across and 0.025
+ * thick, and which of those is the right number depends entirely on the question.
+ *
+ * 🔑 **Question 4 is the one the wrist created.** Before it, the palms met edge to edge and
+ * the two hands sat well apart; flattening them put both centres within a palm-thickness of
+ * one contact plane, stacked on a common vertical. That is the correct-looking hold, and it
+ * is also the arrangement in which each forearm's only route to its own hand runs through
+ * the partner's. The fix for question 3 is what made question 4 visible.
  */
 
 import {
   armMetrics,
+  contact,
+  drawnForearm,
+  handCentre,
+  vec3,
+  forearm,
+  handExtentAlong,
   touchHold,
   touchLift,
+  trackCylinder,
+  type ArmMetrics,
+  type ArmPose,
+  type Forearm,
+  type Placement,
   type TouchHold,
+  type Vec3,
 } from "./arm-pose";
 import type { CharacterBodyShape } from "../services/body-shapes";
 
@@ -58,6 +79,23 @@ export interface HandMetrics {
   readonly flatness: number;
   /** Angle of the forearm off straight-down, in degrees. Over 90° is a forearm pointing *up*. */
   readonly forearmTilt: number;
+  /**
+   * 🔴 Surface gap between this hand and the **partner's forearm**. Positive is clear air;
+   * **negative is the partner's arm inside this hand**, by that much.
+   *
+   * Both ends of it are measured on the drawn solid rather than on a radius: the forearm is a
+   * cylinder of `forearmHalfWidth`, and the hand's share is {@link handExtentAlong} in the
+   * direction of the crossing, which is the ellipsoid's own reach that way.
+   */
+  readonly partnerForearmGap: number;
+  /**
+   * Where along the partner's forearm the crossing is: **0 at their elbow, 1 at their hand.**
+   *
+   * Reported because it says *which* defect this is. Near 1 is the two hands stacked on one
+   * vertical with the wrist end fouling — the structural case. Anywhere mid-span would be an
+   * arm laid across a partner, which is a different fault and is not what the cast does.
+   */
+  readonly partnerForearmAlong: number;
 }
 
 export interface HoldMetrics {
@@ -101,27 +139,89 @@ export function holdMetrics(beauShape: CharacterBodyShape, belleShape: Character
   const b = touchLift(beau, true, -(acrossBeau + hold.insideBeau), hold.forward, hold.height, hold.insideBeau);
   const l = touchLift(belle, false, acrossBelle + hold.insideBelle, hold.forward, hold.height, hold.insideBelle);
 
+  // **The couple, on the floor.** Both arms are solved in their own local frames and neither
+  // needs the other — that locality is `palmOffset`'s whole design — so the first thing a
+  // question about *one arm against the other* needs is the one frame they share.
+  //
+  // The beau stands at `+width/2` and the belle at `−width/2`, both facing `+z`, which is the
+  // placement `touchLifts` is already implicitly solving: it hands the beau a hand at local
+  // `−(width/2 + lateral)` and the belle one at `+(width/2 − lateral)`, and those are the same
+  // world point only from these two spots. Derived here rather than asserted — the test checks
+  // the two hands land together.
+  //
+  // Both yaws are zero, so a *direction* means the same thing in either dancer's frame as it
+  // does on the floor. That is what lets {@link handExtentAlong} — which asks in the dancer's
+  // own frame — be handed a vector measured between the two of them.
+  const beauAt: Placement = { x: hold.width / 2, z: 0, yaw: 0 };
+  const belleAt: Placement = { x: -hold.width / 2, z: 0, yaw: 0 };
+  // 🔑 **Where the hand is, and where the arm is, are two different questions now.**
+  // `handCentre` swings the hand off the wrist the way the render draws it; `drawnForearm`
+  // stops where the cylinder does. Neither is `elbow + forearmSpan · aim` any more — that
+  // point is the end of the arm's *line* and there is nothing of the dancer at it.
+  const place = (m: ArmMetrics, side: "left" | "right", pose: ArmPose, at: Placement): Vec3 => {
+    const local = handCentre(vec3(), m, side, pose);
+    const c = Math.cos(at.yaw), sn = Math.sin(at.yaw);
+    return {
+      x: at.x + local.x * c + local.z * sn,
+      y: m.rigOriginY + local.y,
+      z: at.z - local.x * sn + local.z * c,
+    };
+  };
+  const beauHandAt = place(beau, "right", b.pose, beauAt);
+  const belleHandAt = place(belle, "left", l.pose, belleAt);
+  const beauArm = drawnForearm(forearm(), beau, b.pose, beauAt);
+  const belleArm = drawnForearm(forearm(), belle, l.pose, belleAt);
+
   const measure = (
     shape: CharacterBodyShape,
-    lift: number,
-    aim: { aimX: number; aimY: number; aimZ: number },
+    m: ArmMetrics,
+    side: "left" | "right",
+    pose: ArmPose,
+    mineHandCentre: Vec3,
+    partner: ArmMetrics,
+    theirs: Forearm,
   ): HandMetrics => {
     const half = halfThickness(shape);
     const radius = shape.hand.open.radius;
-    const rise = Math.abs(lift);
+    // How far this palm's own centre ended up from the contact plane — a half-thickness when
+    // it came level, more when the wrist's clamp left it proud. Read off the placed hand
+    // rather than off the solve's lift, which since 2026-09-13 is the **wrist's** offset.
+    const rise = Math.abs(mineHandCentre.y - hold.height);
+    // 🔑 **Both solids are taken as they are drawn, and neither as a radius.** The partner's
+    // arm is the capped cylinder `Dancer` draws — `trackCylinder`, not `trackContact`, because
+    // the two hands sit off the *ends* of each other's forearms and that is the one place a
+    // capsule and a cylinder disagree. And the hand is an ellipsoid whose reach depends on the
+    // direction asked, so it is left out of the distance and put back on the next line, along
+    // the direction the crossing actually happens in.
+    const c = trackCylinder(contact(), mineHandCentre, theirs, partner.forearmElbowRadius, partner.forearmWristRadius);
     return {
-      centreY: hold.height + lift,
+      centreY: mineHandCentre.y,
       // Guarded because a perfectly round hand (`flattenZ` 1) has no flat face to speak of,
       // and dividing by its zero range would report a defect that is a body, not a pose.
       flatness: radius - half < 1e-9 ? 0 : (rise - half) / (radius - half),
       forearmTilt:
         (180 / Math.PI) *
-        Math.acos(Math.min(1, Math.max(-1, -aim.aimY / Math.hypot(aim.aimX, aim.aimY, aim.aimZ)))),
+        Math.acos(Math.min(1, Math.max(-1, -pose.aimY / Math.hypot(pose.aimX, pose.aimY, pose.aimZ)))),
+      partnerForearmGap:
+        c.gap -
+        handExtentAlong(
+          m,
+          side,
+          pose.aimX,
+          pose.aimY,
+          pose.aimZ,
+          c.point.x - mineHandCentre.x,
+          c.point.y - mineHandCentre.y,
+          c.point.z - mineHandCentre.z,
+        ),
+      partnerForearmAlong: c.along,
     };
   };
 
-  const beauHand = measure(beauShape, b.lift, b);
-  const belleHand = measure(belleShape, l.lift, l);
+  // "beau right palm up and belle's left palm down" (2026-08-15) — the same two sides
+  // `palmOffset` picks, so the hand measured here is the hand the solve posed.
+  const beauHand = measure(beauShape, beau, "right", b.pose, beauHandAt, belle, belleArm);
+  const belleHand = measure(belleShape, belle, "left", l.pose, belleHandAt, beau, beauArm);
   return {
     hold,
     beau: beauHand,

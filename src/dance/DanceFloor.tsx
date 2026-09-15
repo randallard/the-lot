@@ -65,7 +65,7 @@ import {
   type WorldPoint,
 } from "./frame";
 import { COUPLE_WIDTH, type ShapeAt } from "square-one";
-import { wristRotation } from "./wrist";
+import { handLie, wristRotation } from "./wrist";
 import { LOW, planArch, sizeArch, type ArchPlan, type ArchSizing } from "./arch";
 import { pairGripRadius, planForearm, type ForearmPlan } from "./forearm-hold";
 import {
@@ -1099,6 +1099,28 @@ export function DanceFloor({
               const r = handRotations(ex.shape.hand.open)[drawn];
               _e.set(r[0], r[1], r[2]);
               hand.quaternion.setFromEuler(_e).premultiply(_q);
+
+              /*
+               * 🔑 **And the hand's POSITION swings with the wrist too**, which until
+               * 2026-09-13 it did not. `Dancer` seats the hand at `[0, handLocalY, 0]` — on
+               * the forearm's own axis — so ADR-0052 turned a hand that stayed where the
+               * forearm pointed. A real hand hangs off its wrist: the centre sits a fixed
+               * distance along the hand's own axis, and that axis turns with the joint.
+               *
+               * Ryan's sketch is the statement of it — two palms stacked flat, projecting
+               * forward past two meeting wrists, forearms angling back to their own bodies —
+               * and it is why a forearm used to run through the partner's hand. On the
+               * forearm's line, each dancer's wrist lands under the middle of the partner's
+               * palm. Off the wrist, both arms are behind the wrists and both hands in front.
+               *
+               * The wrist sits at `drawnSpan` down the group's own `−y`; `handLie` is the
+               * direction on from there, and it comes back as `(0, −1, 0)` whenever the wrist
+               * is doing nothing — which is what keeps every arm that is not holding hands
+               * exactly where it was.
+               */
+              const lie = handLie(map, pose.aimX, pose.aimY, pose.aimZ);
+              const reach = me.forearmSpan - me.drawnSpan;
+              hand.position.set(lie[0] * reach, -me.drawnSpan + lie[1] * reach, lie[2] * reach);
             }
           }
 

@@ -168,15 +168,30 @@ function holdSection(labels: ReadonlyMap<string, string>): string[] {
     "  no wrist**: a hand's orientation is its forearm's, so this is decided by wherever the reach",
     `  left the arm. Target is ${FLAT_ENOUGH.toFixed(2)} or less.`,
     "- **tilt** — the forearm off straight-down, in degrees. Over 90° is a forearm pointing *up*.",
+    "- 🔴 **room** — surface gap between a hand and the **partner's forearm**, taken on the solids",
+    "  as drawn: a capped cylinder that stops `handForearmGap + handRadius` short of its own hand,",
+    "  against a flattened palm measured in the direction of the crossing. **Negative is the",
+    "  partner's arm inside that hand.** Every crossing is at the cylinder's far cap, because two",
+    "  stacked palms sit directly off the ends of each other's arms.",
     "",
-    "| pairing | order | gap | ideal | ×ideal | flat beau | flat belle | tilt beau | tilt belle |",
-    "|---|---|---|---|---|---|---|---|---|",
+    "🔴 **`room` is the open defect** (2026-09-13). The hold is one point with both palms on it, so",
+    "the two hand centres stack on a single vertical — and a forearm reaching the lower of them",
+    "arrives through the upper one. Nine of the twenty-five pairings foul. It is not symmetric in",
+    "the pair: `Myco → Sprout` is clear and `Sprout → Myco` is not, because which dancer reaches",
+    "*down* to the shared point is a matter of role rather than of build.",
+    "",
+    "| pairing | order | gap | ideal | ×ideal | flat beau | flat belle | tilt beau | tilt belle | room beau | room belle |",
+    "|---|---|---|---|---|---|---|---|---|---|---|",
   ];
   const mark = (ok: boolean) => (ok ? "✅" : "🔴");
   // `+ 0` because a palm that came exactly level lands on negative zero, and a chart that
   // prints `-0.00` for "perfect" invites a bug hunt with no bug in it — the same guard the
   // hold readout puts on its clearances.
   const flat = (n: number) => (Number(n.toFixed(2)) + 0).toFixed(2);
+  // Three places, because the whole spread of the defect is 0.022 and two would print most of
+  // it as `-0.02` — a column where every bad cell looks equally bad says nothing about which
+  // pairing to stand up first.
+  const room = (n: number) => (Number(n.toFixed(3)) + 0).toFixed(3);
   for (const p of reviewPairings()) {
     const m = holdMetrics(getBodyShape(p.beau), getBodyShape(p.belle));
     const name = pairingLabel(p, labels);
@@ -185,7 +200,9 @@ function holdSection(labels: ReadonlyMap<string, string>): string[] {
         `${(m.gap / m.idealGap).toFixed(1)}× | ` +
         `${mark(m.beau.flatness <= FLAT_ENOUGH)} ${flat(m.beau.flatness)} | ` +
         `${mark(m.belle.flatness <= FLAT_ENOUGH)} ${flat(m.belle.flatness)} | ` +
-        `${m.beau.forearmTilt.toFixed(0)}° | ${m.belle.forearmTilt.toFixed(0)}° |`,
+        `${m.beau.forearmTilt.toFixed(0)}° | ${m.belle.forearmTilt.toFixed(0)}° | ` +
+        `${mark(m.beau.partnerForearmGap >= 0)} ${room(m.beau.partnerForearmGap)} | ` +
+        `${mark(m.belle.partnerForearmGap >= 0)} ${room(m.belle.partnerForearmGap)} |`,
     );
   }
   out.push("");

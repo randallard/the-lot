@@ -142,6 +142,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0051](0051-a-couple-stands-staggered-by-the-angle-the-palm-needs.md) | A couple stands staggered, by the angle the palm needs | Superseded by ADR-0052 |
 | [0052](0052-a-palm-turns-on-its-forearm-before-the-wrist-bends.md) | A palm turns on its forearm before the wrist bends | Accepted |
 | [0053](0053-a-dancer-is-paired-with-themselves-too.md) | A dancer is paired with themselves too — the diagonal is the control | Accepted |
+| [0054](0054-the-solve-places-the-hand-and-the-wrist-follows.md) | The solve places the hand and the wrist follows | Accepted |
 
 ## Decisions this repo inherits
 

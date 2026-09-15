@@ -163,6 +163,40 @@ export function wristRotation(
 }
 
 /**
+ * Which way a hand lies from its own **wrist**, as a unit vector in the forearm group's frame.
+ *
+ * 🔑 **A hand hangs off a wrist, not off the end of a forearm's line.** Its centre sits a fixed
+ * distance from the wrist along the hand's *own* axis, so when the wrist turns the centre swings
+ * with it. Before this, the hand was drawn at `[0, handLocalY, 0]` inside the forearm group —
+ * rigidly on the forearm's axis — and ADR-0052 gave the wrist a rotation without giving it the
+ * translation that goes with one. Ryan's sketch of 2026-09-13 is the correction: two hands
+ * stacked flat, projecting forward past two meeting wrists, with the forearms angling back to
+ * their own bodies.
+ *
+ * That is also why a forearm used to run through the partner's hand. With the hand on the
+ * forearm's line, each dancer's wrist ends up directly under the middle of the partner's palm;
+ * with the hand swung off the wrist, both arms are behind the wrists and both hands in front.
+ *
+ * 🔑 **It is the wrist rotation alone, not composed with the authored one.** The authored
+ * rotation is already baked into where `[0, handLocalY, 0]` puts the hand — that placement *is*
+ * the rest pose — so what moves the centre is only what the wrist adds on top. Identity wrist
+ * gives back `(0, −1, 0)`, the direction the hand has always sat in, which is what makes this
+ * change invisible wherever no wrist is being spent.
+ */
+export function handLie(handMap: Mat3, aimX: number, aimY: number, aimZ: number): V3 {
+  return apply(wristRotation(handMap, aimX, aimY, aimZ), HAND_FROM_WRIST);
+}
+
+/**
+ * The direction from elbow to hand in the forearm group's own frame — **−y**.
+ *
+ * `Dancer` hangs the hand at `[0, handLocalY, 0]` with `handLocalY` negative, since the hand is
+ * below the elbow at rest. ({@link FOREARM_AXIS} says `+y` and is used only for projecting
+ * across the axis, where the sign cannot matter — this one is a direction and it can.)
+ */
+const HAND_FROM_WRIST: V3 = [0, -1, 0];
+
+/**
  * A hand's drawn map with its wrist applied — what the hand **is** at this aim, as opposed to
  * how it was authored.
  *

@@ -25,6 +25,8 @@ import {
   touchPose,
   touchReach,
   handRiseAlongUp,
+  handExtentAlong,
+  handCentre,
   sideExtentAt,
   armPoses,
   upperArmStrain,
@@ -869,7 +871,7 @@ describe("touch hands — a couple stands with inside hands joined", () => {
 
     // Each one's inside arm: the beau's is `right` (partner at −x), the belle's is `left`.
     const beauHand = handEnd(his.right, beau);
-    const belleHand = handEnd(hers.left, belle);
+    const belleHand = handEnd(hers.left, belle, "left");
 
     // Same point on the floor. Both poses are rig-local, so each is *added* to its own
     // dancer's position — and that point is the hold, off the midpoint toward the belle.
@@ -968,7 +970,7 @@ describe("touch hands — a couple stands with inside hands joined", () => {
     // Both hands still land on the same point, forward included — the whole thing is void
     // otherwise.
     expect(handEnd(his.right, beau).z).toBeCloseTo(HOLD.forward, 9);
-    expect(handEnd(hers.left, belle).z).toBeCloseTo(HOLD.forward, 9);
+    expect(handEnd(hers.left, belle, "left").z).toBeCloseTo(HOLD.forward, 9);
 
     // The binding dancer — the one whose relaxed reach is shorter, here the beau — has his
     // upper arm exactly vertical: elbow directly below the shoulder, in x *and* z.
@@ -983,12 +985,17 @@ describe("touch hands — a couple stands with inside hands joined", () => {
 });
 
 /** A hand's centre in rig-local space, from the elbow the pose names. */
-function handEnd(pose: ArmPose, m: ArmMetrics) {
-  return {
-    x: pose.x + pose.aimX * m.forearmSpan,
-    y: pose.y + pose.aimY * m.forearmSpan,
-    z: pose.z + pose.aimZ * m.forearmSpan,
-  };
+/**
+ * Where a posed arm's **hand centre** is, in rig-local space.
+ *
+ * 🔴 **Not `pose + aim × forearmSpan` any more.** That is the end of the arm's *line*, and
+ * since the hand swings off the wrist (2026-09-13) there is nothing of the dancer at it. Every
+ * assertion in this file that asks "where did the hand go" has to ask the same function the
+ * render and the metrics do, or it pins a point nobody draws.
+ */
+function handEnd(pose: ArmPose, m: ArmMetrics, side: "left" | "right" = "right") {
+  const out = handCentre(vec3(), m, side, pose);
+  return { x: out.x, y: out.y, z: out.z };
 }
 
 describe("touch hands — the square accommodates the bodies", () => {
@@ -1082,11 +1089,11 @@ describe("touch hands — the square accommodates the bodies", () => {
     const hers = poseArms(armPoses(), belleM, beauM, belleAt, beauAt, gripBlend(), undefined, hold);
     const meet = (beauAt.x + belleAt.x) / 2 - hold.lateral;
     expect(beauAt.x + handEnd(his.right, beauM).x).toBeCloseTo(meet, 5);
-    expect(belleAt.x + handEnd(hers.left, belleM).x).toBeCloseTo(meet, 5);
+    expect(belleAt.x + handEnd(hers.left, belleM, "left").x).toBeCloseTo(meet, 5);
     // And touching, on every cast — the drawn palms, not the sphere centres.
     const top = handEnd(his.right, beauM).y
       + handRiseAlongUp(beauM, "right", his.right.aimX, his.right.aimY, his.right.aimZ);
-    const bottom = handEnd(hers.left, belleM).y
+    const bottom = handEnd(hers.left, belleM, "left").y
       - handRiseAlongUp(belleM, "left", hers.left.aimX, hers.left.aimY, hers.left.aimZ);
     expect(bottom - top).toBeCloseTo(0, 9);
   });
@@ -1101,5 +1108,78 @@ describe("touch hands — the square accommodates the bodies", () => {
     expect(hold.width).toBeCloseTo(1.14, 3);
     expect(hold.height).toBeCloseTo(0.713, 3);
     expect(hold.lateral).toBeCloseTo(0.05, 3);
+  });
+});
+
+describe("a hand's reach from its own centre, in any direction", () => {
+  // `handExtentAlong` generalises `handRiseAlongUp` off world up, so the guard that matters
+  // is that it still *is* the same function there. The up case keeps its closed form because
+  // every trig term cancels for that one direction; this is the proof the general path agrees
+  // with it, taken over the cast and over a spread of aims rather than on one convenient arm.
+  // Unit aims, because every aim in this codebase is one — `touchPose` and `reachPose` both
+  // normalise before they return. Worth saying rather than assuming: the closed form scales
+  // with the aim's length where the general path normalises it, so the two agree exactly on
+  // the aims that actually occur and drift apart on ones that cannot.
+  const unit = (v: readonly [number, number, number]): readonly [number, number, number] => {
+    const n = Math.hypot(v[0], v[1], v[2]);
+    return [v[0] / n, v[1] / n, v[2] / n];
+  };
+  const AIMS = [
+    [0, -1, 0],
+    [0, 1, 0],
+    [0, 0, 1],
+    [0.6, -0.8, 0],
+    [-0.3, -0.5, 0.81],
+    [0.5, 0.5, 0.707],
+  ].map((v) => unit(v as [number, number, number]));
+
+  it("agrees with the closed form on world up, on every hand the cast has", () => {
+    for (const [name, shape] of CAST) {
+      const m = armMetrics(shape);
+      for (const side of ["left", "right"] as const) {
+        for (const [ax, ay, az] of AIMS) {
+          expect(
+            handExtentAlong(m, side, ax, ay, az, 0, 1, 0),
+            `${name} ${side} ${String(ax)},${String(ay)},${String(az)}`,
+          ).toBeCloseTo(handRiseAlongUp(m, side, ax, ay, az), 12);
+        }
+      }
+    }
+  });
+
+  it("is a thickness across the palm and a radius across its face", () => {
+    // The whole reason a direction has to be passed at all: Myco's hand is 0.110 across and
+    // 0.025 thick, and a measurement that answered `handRadius` to both questions would be
+    // wrong by more than 4× on one of them.
+    //
+    // Asked on a **forearm pointing forward**, because that is where the palm genuinely comes
+    // flat: level is then perpendicular to the forearm's own axis, which is exactly what the
+    // free roll can reach (ADR-0052). A hand on a *hanging* arm is the opposite case — level
+    // lies along the axis, where roll does nothing and the whole correction falls on the bend,
+    // which clamps at 80°. So that hand stays a little proud, and 0.031 rather than 0.025 is
+    // the clamp's own mark. It is the same residue `hold-metrics.test.ts` finds on Sprout.
+    const m = armMetrics(MYCO_DEFAULTS);
+    const half = MYCO_DEFAULTS.hand.open.radius * MYCO_DEFAULTS.hand.open.flattenZ;
+    expect(handExtentAlong(m, "right", 0, 0, 1, 0, 1, 0)).toBeCloseTo(half, 9);
+    expect(handExtentAlong(m, "right", 0, 0, 1, 1, 0, 0)).toBeCloseTo(
+      MYCO_DEFAULTS.hand.open.radius,
+      9,
+    );
+    // And the hanging arm, pinned so the clamp's residue is a recorded fact rather than a
+    // surprise to whoever reads the number next.
+    expect(handExtentAlong(m, "right", 0, -1, 0, 0, 1, 0)).toBeCloseTo(0.0314, 4);
+  });
+
+  it("does not care about the length of the direction it is given", () => {
+    const m = armMetrics(EMBER_DEFAULTS);
+    for (const k of [0.1, 1, 7]) {
+      expect(handExtentAlong(m, "left", 0.3, -0.9, 0.2, k * 0.4, k * 0.5, -k * 0.3)).toBeCloseTo(
+        handExtentAlong(m, "left", 0.3, -0.9, 0.2, 0.4, 0.5, -0.3),
+        12,
+      );
+    }
+    // And a zero direction is zero rather than NaN — the degenerate a caller hits when a hand
+    // centre lands exactly on the axis it is being measured against.
+    expect(handExtentAlong(m, "left", 0, -1, 0, 0, 0, 0)).toBe(0);
   });
 });

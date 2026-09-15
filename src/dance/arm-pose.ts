@@ -70,7 +70,7 @@ import {
   type RigidPart,
 } from "../services/body-shapes";
 import { passingWidth } from "./frame";
-import { palmMap } from "./wrist";
+import { handLie, palmMap } from "./wrist";
 
 /** A point in world space. Mutable so the frame loop can reuse it. */
 export interface Vec3 {
@@ -177,8 +177,39 @@ export interface ArmMetrics {
   readonly handReach: number;
   /** Elbow → hand centre: the span a grip has to place. */
   readonly forearmSpan: number;
+  /**
+   * How much of that span is **drawn** — the forearm mesh's own height.
+   *
+   * 🔴 **A forearm does not reach its own hand, and the difference is not small.** `Dancer`
+   * draws a cylinder of `forearm.height` from the elbow and then leaves
+   * `handForearmGap + radius` of air before the hand's centre, so the solid stops a good
+   * fraction of the way short. Anything asking *where the arm is* — as opposed to where it
+   * points — has to stop where the cylinder does, or it charges a partner for a span of
+   * nothing.
+   */
+  readonly drawnSpan: number;
+  /**
+   * Shoulder → **wrist**, the reach a handhold is actually solved from.
+   *
+   * 🔑 **Not {@link handReach}, and the difference is a third of a forearm.** A hold joins two
+   * *wrists*; the hands lie on top of each other beyond them ({@link handLie}). So the arm that
+   * has to get somewhere ends at the wrist, and the `handForearmGap + handRadius` past it is
+   * hand, not reach. A stance cut from `handReach` credits every dancer with that much more
+   * arm than they have to place.
+   */
+  readonly wristReach: number;
   /** Half the forearm's width — how far off the shared plane it sits in a grip. */
   readonly forearmHalfWidth: number;
+  /**
+   * The forearm's radius at each end: **at the elbow** and **at the wrist**.
+   *
+   * 🔴 **A forearm tapers, and where it is thin is exactly where a handhold happens.** Ember's
+   * runs 0.100 at the elbow to 0.025 at the wrist — a factor of four — and
+   * {@link forearmHalfWidth}, which is the wider of the two, is the right answer for a grip in
+   * mid-forearm and wrong by 0.075 at the wrist. That is most of a hand.
+   */
+  readonly forearmElbowRadius: number;
+  readonly forearmWristRadius: number;
   /**
    * The hand's radius, for judging whether it really has hold of something.
    *
@@ -288,7 +319,11 @@ export function armMetrics(
     elbowReach: pos.upperArmLength,
     handReach,
     forearmSpan: handReach - pos.upperArmLength,
+    drawnSpan: shape.forearm.height,
+    wristReach: pos.upperArmLength + shape.forearm.height,
     forearmHalfWidth,
+    forearmElbowRadius: shape.forearm.topRadius,
+    forearmWristRadius: shape.forearm.bottomRadius,
     handRadius,
     handMap: {
       left: handDrawnMap(shape.hand[handPose], "left"),
@@ -628,6 +663,172 @@ export function handRiseAlongUp(
 }
 
 /**
+ * How far the **drawn** hand reaches from its own centre along an arbitrary direction, for an
+ * arm aimed along `aim`. {@link handRiseAlongUp} generalised off world up.
+ *
+ * Same ellipsoid and the same `|Mᵀd|`; the only new work is getting `d`. World up has the
+ * closed form `(aimX, −aimY, aimZ)` because every trig term cancels for that one direction,
+ * and no other direction is so lucky — so this builds the forearm group's rotation (the
+ * *minimal* one taking `DOWN` to `aim`) and runs `u` back through its inverse.
+ *
+ * 🔑 **Why a general direction is wanted at all.** A hand is an ellipsoid, so "how big is it"
+ * has no single answer — Myco's is 0.110 across and 0.025 thick. Asking whether a partner's
+ * forearm has entered a palm means asking how far the palm reaches *toward that forearm*, and
+ * answering with `handRadius` would be the exact mistake ADR-0052's note calls out one level
+ * down: a number that describes a hand nobody is drawing.
+ *
+ * `u` is in the **dancer's own frame**, the same frame `aim` is in. It need not be a unit
+ * vector; it is normalised here.
+ */
+export function handExtentAlong(
+  m: ArmMetrics,
+  side: "left" | "right",
+  aimX: number,
+  aimY: number,
+  aimZ: number,
+  ux: number,
+  uy: number,
+  uz: number,
+): number {
+  const un = Math.hypot(ux, uy, uz);
+  if (un < 1e-12) return 0;
+  const [dx, dy, dz] = intoForearmFrame(aimX, aimY, aimZ, ux / un, uy / un, uz / un);
+  const h = palmMap(m.handMap[side], aimX, aimY, aimZ);
+  const c0 = (h[0] ?? 0) * dx + (h[3] ?? 0) * dy + (h[6] ?? 0) * dz;
+  const c1 = (h[1] ?? 0) * dx + (h[4] ?? 0) * dy + (h[7] ?? 0) * dz;
+  const c2 = (h[2] ?? 0) * dx + (h[5] ?? 0) * dy + (h[8] ?? 0) * dz;
+  return Math.hypot(c0, c1, c2);
+}
+
+/**
+ * The vector from a dancer's **wrist** to their hand's centre, in the dancer's own frame.
+ *
+ * 🔑 **This is where the hand actually is**, and until 2026-09-13 nothing asked. The hand was
+ * drawn on the forearm's axis, so `elbow + forearmSpan · aim` was both the end of the arm's
+ * line and the hand's centre. Since the wrist turns the hand ({@link handLie}), the centre
+ * swings around the wrist with it, and the two stop being the same point.
+ *
+ * The length is `forearmSpan − drawnSpan` — `handForearmGap + handRadius`, the dead span the
+ * cylinder does not cover. With an identity wrist the direction comes back as `aim` and this
+ * adds up to the old placement exactly.
+ */
+export function handOffset(
+  out: Vec3,
+  m: ArmMetrics,
+  side: "left" | "right",
+  aimX: number,
+  aimY: number,
+  aimZ: number,
+): Vec3 {
+  const reach = m.forearmSpan - m.drawnSpan;
+  const lie = handLie(m.handMap[side], aimX, aimY, aimZ);
+  const [x, y, z] = outOfForearmFrame(aimX, aimY, aimZ, lie[0], lie[1], lie[2]);
+  out.x = x * reach;
+  out.y = y * reach;
+  out.z = z * reach;
+  return out;
+}
+
+/** Scratch for {@link handCentre}, which is called inside solves that must not allocate. */
+const _lie = vec3();
+
+/**
+ * Where a posed arm's hand **centre** sits, in the dancer's rig-local space.
+ *
+ * The wrist is on the forearm's axis at {@link ArmMetrics.drawnSpan}; the hand hangs off it.
+ * One derivation, used by the render, the measurements and the solve alike — the rule this
+ * module keeps relearning is that a second opinion about where a hand is becomes a hold that
+ * comes apart.
+ */
+export function handCentre(
+  out: Vec3,
+  m: ArmMetrics,
+  side: "left" | "right",
+  pose: ArmPose,
+): Vec3 {
+  handOffset(_lie, m, side, pose.aimX, pose.aimY, pose.aimZ);
+  out.x = pose.x + pose.aimX * m.drawnSpan + _lie.x;
+  out.y = pose.y + pose.aimY * m.drawnSpan + _lie.y;
+  out.z = pose.z + pose.aimZ * m.drawnSpan + _lie.z;
+  return out;
+}
+
+/**
+ * A unit direction in the **forearm group's** frame, expressed in the dancer's — `Ru`, the
+ * inverse of {@link intoForearmFrame} and the same Rodrigues with the sine term unflipped.
+ */
+function outOfForearmFrame(
+  aimX: number,
+  aimY: number,
+  aimZ: number,
+  vx: number,
+  vy: number,
+  vz: number,
+): readonly [number, number, number] {
+  const an = Math.hypot(aimX, aimY, aimZ);
+  if (an < 1e-12) return [vx, vy, vz];
+  const ax = aimX / an, ay = aimY / an, az = aimZ / an;
+  const kx = -az, ky = 0, kz = ax;
+  const sin = Math.hypot(kx, ky, kz);
+  if (sin < 1e-12) return ay < 0 ? [vx, vy, vz] : [vx, -vy, -vz];
+  const cos = -ay;
+  const nx = kx / sin, ny = ky / sin, nz = kz / sin;
+  const dot = nx * vx + ny * vy + nz * vz;
+  const cx = ny * vz - nz * vy;
+  const cy = nz * vx - nx * vz;
+  const cz = nx * vy - ny * vx;
+  return [
+    vx * cos + cx * sin + nx * dot * (1 - cos),
+    vy * cos + cy * sin + ny * dot * (1 - cos),
+    vz * cos + cz * sin + nz * dot * (1 - cos),
+  ];
+}
+
+/**
+ * A unit direction in the dancer's frame, expressed in the **forearm group's** frame — `Rᵀu`,
+ * where `R` is the minimal rotation taking `DOWN` to `aim`.
+ *
+ * Rodrigues about `DOWN × aim` by `−θ`. The two degenerate axes are the ones the cross product
+ * loses: an arm hanging straight down needs no rotation at all, and one pointing straight up is
+ * a half turn, taken about `x` because any horizontal axis gives the same answer for a body of
+ * revolution about the forearm.
+ */
+function intoForearmFrame(
+  aimX: number,
+  aimY: number,
+  aimZ: number,
+  ux: number,
+  uy: number,
+  uz: number,
+): readonly [number, number, number] {
+  const an = Math.hypot(aimX, aimY, aimZ);
+  if (an < 1e-12) return [ux, uy, uz];
+  const ax = aimX / an;
+  const ay = aimY / an;
+  const az = aimZ / an;
+  // DOWN × aim, with DOWN = (0, −1, 0).
+  const kx = -az;
+  const ky = 0;
+  const kz = ax;
+  const sin = Math.hypot(kx, ky, kz);
+  if (sin < 1e-12) return ay < 0 ? [ux, uy, uz] : [ux, -uy, -uz];
+  const cos = -ay;
+  // Rodrigues by −θ: the sine term changes sign, the cosine term does not.
+  const nx = kx / sin;
+  const ny = ky / sin;
+  const nz = kz / sin;
+  const dot = nx * ux + ny * uy + nz * uz;
+  const cx = ny * uz - nz * uy;
+  const cy = nz * ux - nx * uz;
+  const cz = nx * uy - ny * ux;
+  return [
+    ux * cos - cx * sin + nx * dot * (1 - cos),
+    uy * cos - cy * sin + ny * dot * (1 - cos),
+    uz * cos - cz * sin + nz * dot * (1 - cos),
+  ];
+}
+
+/**
  * Which way this dancer's own hand centre sits from the contact, and how far: the beau's
  * palm is up and **underneath**, so his hand centre sits below the hold and the belle's
  * above. Ryan, 2026-08-15: *"beau right palm up and belle's left palm down."*
@@ -671,26 +872,84 @@ function handDrop(m: ArmMetrics, height: number, lift: number): number {
  * case — a dancer already at full stretch across and down cannot also hold their hands out
  * in front, and {@link touchReach} is what says so.
  */
-function relaxedForward(m: ArmMetrics, across: number, handY: number): number {
-  const drop = handY - (m.rigOriginY + m.elbowY);
-  const spare = m.forearmSpan * m.forearmSpan - across * across - drop * drop;
+function relaxedForward(m: ArmMetrics, across: number, wristY: number): number {
+  const drop = wristY - (m.rigOriginY + m.elbowY);
+  // 🔑 **The drawn span, because what the forearm has to reach is the wrist.** The hand past
+  // it swings on the wrist rather than extending the arm, so it is not length this link can
+  // spend going forward.
+  const spare = m.drawnSpan * m.drawnSpan - across * across - drop * drop;
   return Math.sqrt(Math.max(0, spare));
 }
 
 /** Scratch for {@link settleTouch}'s callers that only want the lift. */
 const _settle = armPose();
 
+/** Scratch for the hand's swing off the wrist, inside the settle. */
+const _hang = vec3();
+
+/** Scratch for {@link settleTouch}'s iterate — the wrist's offset from the hand it is placing. */
+const _off = vec3();
+const _next = vec3();
+
+/** Scratch for the Newton solve in {@link settleTouch}. Module-scoped: this is a frame path. */
+const _F = vec3();
+const _Ftrial = vec3();
+/** The 3×3 Jacobian of `F`, row-major: `_jac[r * 3 + c]` is `∂F_r / ∂off_c`. */
+const _jac = new Float64Array(9);
+
+/**
+ * How many passes {@link settleTouch} gets to settle its wrist.
+ *
+ * 🔴 **This bound is not what is wrong, and raising it does not help — measured.** Since the
+ * iterate became a vector (ADR-0054) **26 of 50 arms run the budget out without converging**,
+ * and the residual is concentrated in the two components the vector added: `|dy|` lands at
+ * 1e-12 or better while `|dx|` and `|dz|` sit at 1e-2. The old scalar iterate solved `y`
+ * alone and solved it well; `x` and `z` are a fixed point this damping does not hold.
+ *
+ * Tried and measured, so nobody pays for them twice: raising the bound to 48 (buys only the
+ * genuinely-slow minority, costs ~50% solver time), persistent adaptive damping
+ * `w ← w/2` (worst residual 1.7e-1 → 4.5e-2, still not converging — and it *stalls*, because
+ * `|g(x) − x|` does not shrink when the step does, so the weight collapses to its floor), and
+ * disabling the ±face flip in {@link wristRotation} on the suspicion it was a discontinuity
+ * (26 → 25 at the bound; it is not the cause).
+ *
+ * 🔑 **What it wants is a root-find on `F(x) = g(x) − x`, not a damped iteration** — the gain
+ * exceeds 1 because the hand sits a `dead` span out on a lever from the wrist, so moving the
+ * wrist sideways swings the hand further back the other way. That is the next piece of work.
+ * Left at 24 deliberately: the arms that matter are wrong at any bound, and the pin that
+ * catches it is left failing rather than bought off.
+ */
+const SETTLE_PASSES = 12;
+
+/**
+ * How near `F(off) = 0` has to get before {@link settleTouch} calls the wrist settled.
+ *
+ * Tight because the pins that read this are tight, and a Newton step that is converging gets
+ * here in one or two more passes anyway — the cost of the last few digits is nearly nothing
+ * once the quadratic regime starts.
+ */
+const SETTLE_TOLERANCE = 1e-12;
+
+/** Forward-difference step for the Jacobian, in world units. */
+const SETTLE_DIFF = 1e-6;
+
+
 /**
  * Where one dancer's inside hand ends up on a hold, as a **lift off the contact plane and
  * the direction the forearm is pointing** — {@link settleTouch}'s answer, for callers
  * outside this module.
  *
- * Exists because those two numbers are the whole of whether a handhold reads as one. The
- * lift says how far the hand centre sits from the contact (`hold.height + lift`, signed so
- * the beau's is below and the belle's above), and the aim says which way the palm is facing
- * — because there is no wrist, so the hand's orientation is the forearm's. A measurement
- * that took only the lift would report two palms tangent and say nothing about whether they
- * are tangent *face to face* or edge to edge.
+ * Exists because these numbers are the whole of whether a handhold reads as one. The lift
+ * says how far the hand centre sits from the contact (`hold.height + lift`, signed so the
+ * beau's is below and the belle's above); the pose's aim says which way the palm is facing,
+ * because the hand's orientation is the forearm's. A measurement that took only the lift
+ * would report two palms tangent and say nothing about whether they are tangent *face to
+ * face* or edge to edge.
+ *
+ * 🔑 **The whole pose, not just the aim, because a forearm has to get to its hand.** The
+ * elbow is `pose.x/y/z`, which is what turns the arm from a direction into a *segment* — and
+ * a segment is what a partner's hand can be in the way of. Nothing needed that until the
+ * hands came flat and the two of them ended up stacked on one vertical line.
  *
  * Same solve as the render's, not a second one beside it: `hold-metrics.ts` measures what
  * the scene draws or it measures nothing.
@@ -702,10 +961,10 @@ export function touchLift(
   handZ: number,
   height: number,
   restX: number,
-): { lift: number; aimX: number; aimY: number; aimZ: number } {
-  const out = armPose();
-  const lift = settleTouch(out, m, isBeau, handX, handZ, height, restX);
-  return { lift, aimX: out.aimX, aimY: out.aimY, aimZ: out.aimZ };
+): { lift: number; pose: ArmPose } {
+  const pose = armPose();
+  const lift = settleTouch(pose, m, isBeau, handX, handZ, height, restX);
+  return { lift, pose };
 }
 
 /**
@@ -719,9 +978,19 @@ export function touchLift(
  * pathological body cannot spin it, and the last `touchPose` is outside the loop so the pose
  * always matches the lift that is returned.
  *
- * `handX`/`handZ` are the contact point in **this dancer's** local frame; `height` is world.
- * Both dancers run this independently and neither needs the other's hand: each puts its own
- * palm *on* `height`, so they meet there.
+ * 🔑 **`handX`/`handZ` name the HAND's centre, not the wrist's** — Ryan's sketch of
+ * 2026-09-14. The wrist is wherever the hand's own swing puts it, which is `handOffset`
+ * backwards, and it comes out somewhere quite different for each dancer because their two
+ * forearms arrive from opposite sides. That separation is the sketch's *arc from the
+ * median*, and it is the whole of what this used to get wrong: the offset was subtracted
+ * on **y** and thrown away on **x** and **z**, so both wrists were pinned to one point in
+ * plan and the two hands slid off it in opposite directions — up to 0.178 apart on
+ * `player/player`, where the honest answer for two identical hands is zero.
+ *
+ * `height` is world. Both dancers run this independently and neither needs the other's
+ * hand: each puts its own palm *on* `height`, so they meet there. Where the two hands sit
+ * *across* the plane is not local in the same way — the flush rule references the partner's
+ * radius — and that offset is applied by the caller, before this is entered.
  */
 function settleTouch(
   out: ArmPose,
@@ -732,30 +1001,150 @@ function settleTouch(
   height: number,
   /** Where the inside arm hangs at this stance (ADR-0049). */
   restX: number = m.restX,
+  /**
+   * Receives the **whole** wrist offset when a caller needs more than its `y`.
+   *
+   * The stance does. Every reach budget in this module is cut to the wrist — `wristReach`,
+   * `drawnSpan`, {@link touchSpanAt} — and until 2026-09-14 it was then handed the *hold's*
+   * coordinates to spend them against, which is the wrist's only on the vertical. The wrist
+   * sits up to 0.074 out along its own arc as well, and an arm budgeted without that is an
+   * arm the stance believes can reach a point it cannot.
+   */
+  offOut?: Vec3,
 ): number {
   const sign = isBeau ? -1 : 1;
-  let lift = palmOffset(m, isBeau, 0, -1, 0);
-  // Linear, and since the wrist landed it is *faster* — most hands settle in two passes,
-  // because a palm that has rolled level barely moves its own centre when the aim shifts.
-  //
-  // 🔴 **Safeguarded, because two hands do not settle at all without it.** ADR-0052's clamp
-  // puts a kink in this map: below the wrist's limit the palm comes flat and the rise is a
-  // thickness, above it the rise grows with whatever is left over. A hand sitting on that
-  // boundary — `you/sprout` and `sprout/you`, the two whose forearms hang nearest vertical —
-  // bounces across it forever, and plain iteration ran 200 passes still 1.2e-3 out. So a step
-  // that is not contracting is halved instead of taken, which turns the bounce into a
-  // bisection and settles both. Where the map contracts, nothing changes.
-  let previous = Infinity;
-  for (let pass = 0; pass < 24; pass++) {
-    touchPose(out, m, sign, handX, localHeight(m, height + lift), handZ, restX);
-    const next = palmOffset(m, isBeau, out.aimX, out.aimY, out.aimZ);
-    const delta = Math.abs(next - lift);
-    if (delta < 1e-12) { lift = next; break; }
-    lift = delta < previous * 0.9 ? next : (lift + next) / 2;
-    previous = delta;
+  const side = isBeau ? "right" : "left";
+
+  /**
+   * The one thing being solved: where this dancer's **wrist** sits from the hand it is
+   * holding the plane with — a vector, because the hand swings off the wrist on all three
+   * axes and only one of them used to be collected.
+   *
+   * 🔑 **One iterate, not three.** Its `y` is the sum of two terms — where the palm surface
+   * has to be relative to its own centre ({@link palmOffset}), less how far that centre has
+   * swung above or below the wrist ({@link handOffset}) — and its `x`/`z` are the rest of
+   * that same swing. All of them are functions of the aim, which is a function of the wrist.
+   * Splitting the two `y` terms into separate iterates let the damping hold one still while
+   * the other jumped and a cast stopped converging, two palms 0.018 apart; the same rule
+   * applies with a breadth of three, so the step below is taken or halved on the **vector**
+   * and never componentwise.
+   */
+  const wristFrom = (out: Vec3, aimX: number, aimY: number, aimZ: number): Vec3 => {
+    handOffset(_hang, m, side, aimX, aimY, aimZ);
+    out.x = -_hang.x;
+    out.y = palmOffset(m, isBeau, aimX, aimY, aimZ) - _hang.y;
+    out.z = -_hang.z;
+    return out;
+  };
+
+  /**
+   * The residual `F(off) = g(off) − off`, written into `into`, returning its length.
+   *
+   * 🔑 **A root of `F` is what was wanted all along**, and `g` was being *iterated* instead.
+   * Fixed-point iteration only converges where `g` contracts, and here it does not: the hand
+   * sits a `dead` span out from the wrist, so nudging the wrist sideways rotates the forearm
+   * and swings the hand further back the other way — a gain above 1. Measured on 2026-09-14,
+   * **26 of 50 arms never settled**, the whole residual living in `x` and `z` while `y` came
+   * to 1e-12. Damping cannot rescue it: `x ← x + w(g(x) − x)` converges only for
+   * `−3 < g' < 1` at `w = ½`, and shrinking `w` further *stalls* rather than converges,
+   * because `|g(x) − x|` does not shrink just because the step does.
+   *
+   * `out` is scratch here — the pose that matters is re-solved at the settled offset below.
+   */
+  const residual = (ox: number, oy: number, oz: number, into: Vec3): number => {
+    touchPose(
+      out, m, sign,
+      handX + ox,
+      localHeight(m, height + oy),
+      handZ + oz,
+      restX, m.drawnSpan,
+    );
+    wristFrom(_next, out.aimX, out.aimY, out.aimZ);
+    into.x = _next.x - ox;
+    into.y = _next.y - oy;
+    into.z = _next.z - oz;
+    return Math.hypot(into.x, into.y, into.z);
+  };
+
+  // Seeded with a hanging arm, the same seed the iteration used.
+  wristFrom(_off, 0, -1, 0);
+  let fNorm = residual(_off.x, _off.y, _off.z, _F);
+
+  // **Damped Newton.** Three extra evaluations buy the Jacobian, the 3×3 solve is Cramer, and
+  // the backtracking line search is what makes it safe across ADR-0052's flexion kink — a
+  // Newton step that overshoots a corner is rejected rather than taken, and a pass that cannot
+  // improve `|F|` at any length stops the solve instead of wandering. Quadratic where the map
+  // is smooth, which is why twelve passes are more than the twenty-four the iteration had.
+  for (let pass = 0; pass < SETTLE_PASSES && fNorm > SETTLE_TOLERANCE; pass++) {
+    for (let c = 0; c < 3; c++) {
+      residual(
+        _off.x + (c === 0 ? SETTLE_DIFF : 0),
+        _off.y + (c === 1 ? SETTLE_DIFF : 0),
+        _off.z + (c === 2 ? SETTLE_DIFF : 0),
+        _Ftrial,
+      );
+      _jac[c] = (_Ftrial.x - _F.x) / SETTLE_DIFF;
+      _jac[3 + c] = (_Ftrial.y - _F.y) / SETTLE_DIFF;
+      _jac[6 + c] = (_Ftrial.z - _F.z) / SETTLE_DIFF;
+    }
+
+    const [a, b, c2, d, e, f, g2, h2, i2] = _jac as unknown as number[];
+    const det =
+      a! * (e! * i2! - f! * h2!) - b! * (d! * i2! - f! * g2!) + c2! * (d! * h2! - e! * g2!);
+
+    // Solve `J · step = −F`. A singular Jacobian means Newton has nothing to say here, so
+    // fall back to the steepest sensible thing — a step along `−F` itself, which is the old
+    // iteration's direction and is at least not wrong.
+    let sx: number;
+    let sy: number;
+    let sz: number;
+    if (Math.abs(det) < 1e-18) {
+      sx = _F.x; sy = _F.y; sz = _F.z;
+    } else {
+      const rx = -_F.x;
+      const ry = -_F.y;
+      const rz = -_F.z;
+      sx = (rx * (e! * i2! - f! * h2!) - b! * (ry * i2! - f! * rz) + c2! * (ry * h2! - e! * rz)) / det;
+      sy = (a! * (ry * i2! - f! * rz) - rx * (d! * i2! - f! * g2!) + c2! * (d! * rz - ry * g2!)) / det;
+      sz = (a! * (e! * rz - ry * h2!) - b! * (d! * rz - ry * g2!) + rx * (d! * h2! - e! * g2!)) / det;
+    }
+
+    let stepped = false;
+    let t = 1;
+    for (let k = 0; k < 10; k++) {
+      const trial = residual(_off.x + t * sx, _off.y + t * sy, _off.z + t * sz, _Ftrial);
+      if (trial < fNorm) {
+        _off.x += t * sx;
+        _off.y += t * sy;
+        _off.z += t * sz;
+        _F.x = _Ftrial.x; _F.y = _Ftrial.y; _F.z = _Ftrial.z;
+        fNorm = trial;
+        stepped = true;
+        break;
+      }
+      t /= 2;
+    }
+    // 🔴 **Nothing improved it, so stop.** Better a settled answer that is honestly short than
+    // a wandering one: the callers all read this as a position, and a pose that keeps moving
+    // between frames is the visible failure.
+    if (!stepped) break;
   }
-  touchPose(out, m, sign, handX, localHeight(m, height + lift), handZ, restX);
-  return lift;
+  touchPose(
+    out, m, sign,
+    handX + _off.x,
+    localHeight(m, height + _off.y),
+    handZ + _off.z,
+    restX, m.drawnSpan,
+  );
+  // 🔴 **The WRIST's offset from the contact plane, not the hand centre's** — the callers of
+  // this are the reach budget and the stance, and what they have to know is where the arm was
+  // asked to end. {@link handCentre} is how anything wanting the hand gets it.
+  if (offOut) {
+    offOut.x = _off.x;
+    offOut.y = _off.y;
+    offOut.z = _off.z;
+  }
+  return _off.y;
 }
 
 /**
@@ -767,7 +1156,7 @@ function settleTouch(
  * point from the *live* placements, which is what keeps a held hand on the pivot while the
  * bodies move; this is what the solve has to agree with at rest.
  */
-function touchLifts(
+function touchOffsets(
   beau: ArmMetrics,
   belle: ArmMetrics,
   height: number,
@@ -776,11 +1165,41 @@ function touchLifts(
   forward: number,
   insideBeau: number,
   insideBelle: number,
-): { beau: number; belle: number } {
-  return {
-    beau: settleTouch(_settle, beau, true, -(acrossBeau + insideBeau), forward, height, insideBeau),
-    belle: settleTouch(_settle, belle, false, acrossBelle + insideBelle, forward, height, insideBelle),
-  };
+): HoldOffsets {
+  const b = vec3();
+  const l = vec3();
+  settleTouch(_settle, beau, true, -(acrossBeau + insideBeau), forward, height, insideBeau, b);
+  settleTouch(_settle, belle, false, acrossBelle + insideBelle, forward, height, insideBelle, l);
+  return { beau: b, belle: l };
+}
+
+/**
+ * Each dancer's **wrist offset from the hold** — where the joint the arm has to reach sits
+ * relative to the hand the hold names.
+ *
+ * 🔑 **Three axes, and the two that were missing are the point.** `y` is the old `lifts`: the
+ * palm's own rise, less the hand's swing off the wrist. `x` and `z` are the rest of that same
+ * swing, and they are what the sketch of 2026-09-14 calls the *arc from the median* — the
+ * beau's wrist trails off to his side and the belle's to hers, because their two forearms
+ * arrive from opposite sides and each hand lies along its own arm's line.
+ *
+ * Carried through the stance rather than re-derived in it, because it is an output of the arm
+ * solve and an input to the reach budget, and a second opinion about where a wrist is becomes
+ * a hold that comes apart (ADR-0045).
+ */
+interface HoldOffsets {
+  readonly beau: Vec3;
+  readonly belle: Vec3;
+}
+
+/**
+ * The beau's wrist sits at `−(across + inside) + off.x` in his own frame and his shoulder at
+ * `−inside`, so the distance his arm actually spends going **across** is `across − off.x`;
+ * the belle's frame is mirrored and hers is `across + off.x`. One helper rather than four
+ * sprinkled signs — this is the conversion every budget below needs and none of them had.
+ */
+function wristAcross(across: number, off: Vec3, isBeau: boolean): number {
+  return across + (isBeau ? -off.x : off.x);
 }
 
 /**
@@ -806,7 +1225,8 @@ function touchLifts(
  */
 function touchSpanAt(m: ArmMetrics, drop: number): number {
   const gap = Math.abs(drop) - m.elbowReach;
-  const fore = m.forearmSpan;
+  // The forearm as far as the **wrist** — the joint the hold places. What lies past it is hand.
+  const fore = m.drawnSpan;
   return fore > Math.abs(gap) ? Math.sqrt(fore * fore - gap * gap) : 0;
 }
 
@@ -981,30 +1401,37 @@ export function touchHold(
   let acrossBeau = 0;
   let acrossBelle = 0;
   let forward = 0;
-  let lifts = { beau: palmOffset(beau, true, 0, -1, 0), belle: palmOffset(belle, false, 0, -1, 0) };
-  let height = bandedHeight(beau, belle, target, acrossBeau, acrossBelle, lifts, forward);
+  // Seeded with a hanging arm, which has no swing across or forward yet — only the palm's
+  // own rise, which is what this used to be the whole of.
+  let off: HoldOffsets = {
+    beau: { x: 0, y: palmOffset(beau, true, 0, -1, 0), z: 0 },
+    belle: { x: 0, y: palmOffset(belle, false, 0, -1, 0), z: 0 },
+  };
+  let height = bandedHeight(beau, belle, target, acrossBeau, acrossBelle, off, forward);
   let inside = { beau: beau.restX, belle: belle.restX };
-  let solved = placeHold(beau, belle, height, lifts, forward, inside);
+  let solved = placeHold(beau, belle, height, off, forward, inside);
+  const moved = (a: Vec3, b: Vec3): boolean =>
+    Math.abs(a.x - b.x) >= 1e-12 || Math.abs(a.y - b.y) >= 1e-12 || Math.abs(a.z - b.z) >= 1e-12;
   for (let pass = 0; pass < 12; pass++) {
     acrossBeau = solved.acrossBeau;
     acrossBelle = solved.acrossBelle;
-    const nextLifts = touchLifts(
+    const nextOff = touchOffsets(
       beau, belle, height, acrossBeau, acrossBelle, solved.forward,
       solved.insideBeau, solved.insideBelle,
     );
-    const next = bandedHeight(beau, belle, target, acrossBeau, acrossBelle, nextLifts, solved.forward);
+    const next = bandedHeight(beau, belle, target, acrossBeau, acrossBelle, nextOff, solved.forward);
     const settled =
       Math.abs(next - height) < 1e-12 &&
       Math.abs(solved.forward - forward) < 1e-12 &&
-      Math.abs(nextLifts.beau - lifts.beau) < 1e-12 &&
-      Math.abs(nextLifts.belle - lifts.belle) < 1e-12 &&
+      !moved(nextOff.beau, off.beau) &&
+      !moved(nextOff.belle, off.belle) &&
       Math.abs(solved.insideBeau - inside.beau) < 1e-12 &&
       Math.abs(solved.insideBelle - inside.belle) < 1e-12;
-    lifts = nextLifts;
+    off = nextOff;
     height = next;
     forward = solved.forward;
     inside = { beau: solved.insideBeau, belle: solved.insideBelle };
-    solved = placeHold(beau, belle, height, lifts, forward, inside);
+    solved = placeHold(beau, belle, height, off, forward, inside);
     if (settled) break;
   }
 
@@ -1040,23 +1467,24 @@ function bandedHeight(
   target: number,
   acrossBeau: number,
   acrossBelle: number,
-  lifts: { beau: number; belle: number },
+  off: HoldOffsets,
   forward: number,
 ): number {
   let floor = -Infinity;
   let ceiling = Infinity;
-  for (const [m, across, palm] of [
-    [beau, acrossBeau, lifts.beau],
-    [belle, acrossBelle, lifts.belle],
+  for (const [m, across, o, isBeau] of [
+    [beau, acrossBeau, off.beau, true],
+    [belle, acrossBelle, off.belle, false],
   ] as const) {
     const shoulder = m.rigOriginY + m.restY;
-    // What the arm has left for the vertical, once the sideways **and the forward** are paid
-    // for. Three axes now, for the same reason it stopped being one: a reach is a sphere.
-    const drop = Math.sqrt(
-      Math.max(0, m.handReach * m.handReach - across * across - forward * forward),
-    );
-    floor = Math.max(floor, shoulder - drop - palm);
-    ceiling = Math.min(ceiling, shoulder + drop - palm);
+    // 🔑 **Spent against the WRIST on all three axes.** `wristReach` was already the right
+    // budget and `off.y` the right vertical; the across and the forward were the hold's, and
+    // the wrist is off the hold on both (2026-09-14).
+    const ax = wristAcross(across, o, isBeau);
+    const az = forward + o.z;
+    const drop = Math.sqrt(Math.max(0, m.wristReach * m.wristReach - ax * ax - az * az));
+    floor = Math.max(floor, shoulder - drop - o.y);
+    ceiling = Math.min(ceiling, shoulder + drop - o.y);
   }
   return Math.max(floor, Math.min(ceiling, target));
 }
@@ -1077,7 +1505,7 @@ function placeHold(
   beau: ArmMetrics,
   belle: ArmMetrics,
   height: number,
-  lifts: { beau: number; belle: number },
+  off: HoldOffsets,
   forward: number,
   /**
    * Where the inside arms hung on the previous pass (ADR-0049), seeded with the authored
@@ -1092,16 +1520,22 @@ function placeHold(
   inside: { beau: number; belle: number } = { beau: beau.restX, belle: belle.restX },
 ): PlacedHold {
   // Vertical and forward both come out of the same reach, so the stance sees them as one
-  // number: what is left over is what may be spent going sideways.
-  const beauDrop = Math.hypot(handDrop(beau, height, lifts.beau), forward);
-  const belleDrop = Math.hypot(handDrop(belle, height, lifts.belle), forward);
+  // number: what is left over is what may be spent going sideways. Both are measured to the
+  // **wrist** — the joint the arm has to get to — which is `off` away from the hold on every
+  // axis and not just the vertical one.
+  const beauDrop = Math.hypot(handDrop(beau, height, off.beau.y), forward + off.beau.z);
+  const belleDrop = Math.hypot(handDrop(belle, height, off.belle.y), forward + off.belle.z);
 
   // The stance. `shoulders` is the width a handhold wants; `arms` is as far apart as the
   // pair can stand and still **meet in the middle** of the daylight between their inside
   // shoulders, which is as far as the *shorter* of the two inside arms can go, twice;
   // `bodies` is the closest the pair can stand at all.
-  const beauReach = touchSpanAt(beau, beauDrop);
-  const belleReach = touchSpanAt(belle, belleDrop);
+  // `touchSpanAt` answers for the **wrist**, and `arms` is a width measured to the **hold**,
+  // so each dancer's answer is converted back through their own offset — {@link wristAcross}
+  // run the other way. A dancer whose wrist trails outboard of the hold can hold hands that
+  // much further across; one whose wrist trails inboard, that much less.
+  const beauReach = Math.max(0, touchSpanAt(beau, beauDrop) + off.beau.x);
+  const belleReach = Math.max(0, touchSpanAt(belle, belleDrop) - off.belle.x);
   const shoulders = 2 * (Math.max(beau.restX, belle.restX) + handDaylight(beau, belle));
   const arms = inside.beau + inside.belle + 2 * Math.min(beauReach, belleReach);
   const bodies = Math.max(
@@ -1161,10 +1595,14 @@ function placeHold(
     // the two relaxed answers, because the longer-armed dancer can always fold an elbow back
     // to take up the slack and the shorter-armed one cannot conjure length. Same shape as the
     // height's own band: whichever demand binds, binds.
-    forward: Math.min(
-      relaxedForward(beau, acrossBeau, height + lifts.beau),
-      relaxedForward(belle, acrossBelle, height + lifts.belle),
-    ),
+    // 🔑 **`relaxedForward` answers for the wrist too**, so it takes the wrist's across and
+    // its answer is the wrist's forward — the hold sits `off.z` back from it. Clamped at
+    // zero: ADR-0027 holds the hands *in front*, and a negative here would be a new rule
+    // rather than a smaller helping of this one.
+    forward: Math.max(0, Math.min(
+      relaxedForward(beau, wristAcross(acrossBeau, off.beau, true), height + off.beau.y) - off.beau.z,
+      relaxedForward(belle, wristAcross(acrossBelle, off.belle, false), height + off.belle.y) - off.belle.z,
+    )),
     acrossBeau,
     acrossBelle,
     insideBeau,
@@ -1240,11 +1678,20 @@ export function reachPose(
   handZ: number,
   /** Where this arm hangs from — {@link tuckedRestX} inside a couple, `restX` otherwise. */
   restX: number = m.restX,
+  /**
+   * Length of the second link — how far the point being placed sits from the elbow.
+   *
+   * {@link ArmMetrics.forearmSpan} by default, which places the **hand's centre** and is what
+   * every caller outside the handhold wants. A hold passes {@link ArmMetrics.drawnSpan} and
+   * places the **wrist** instead, because that is the joint two dancers put together; the hand
+   * then lies off it ({@link handOffset}) rather than continuing the arm's line.
+   */
+  span: number = m.forearmSpan,
 ): ArmPose {
   const sx = sign * restX;
   const sy = m.restY;
   const upper = m.elbowReach;
-  const fore = m.forearmSpan;
+  const fore = span;
 
   const vx = handX - sx;
   const vy = handY - sy;
@@ -1410,26 +1857,35 @@ export function touchPose(
   handZ: number,
   /** Where this arm hangs from — {@link tuckedRestX} inside a couple, `restX` otherwise. */
   restX: number = m.restX,
+  /**
+   * Length of the second link — how far the point being placed sits from the elbow.
+   *
+   * {@link ArmMetrics.forearmSpan} by default, which places the **hand's centre** and is what
+   * every caller outside the handhold wants. A hold passes {@link ArmMetrics.drawnSpan} and
+   * places the **wrist** instead, because that is the joint two dancers put together; the hand
+   * then lies off it ({@link handOffset}) rather than continuing the arm's line.
+   */
+  span: number = m.forearmSpan,
 ): ArmPose {
   const sx = sign * restX;
   const sy = m.restY;
   const upper = m.elbowReach;
-  const fore = m.forearmSpan;
+  const fore = span;
 
   const ax = handX - sx;
   const ay = handY - sy;
   const az = handZ;
   const d = Math.hypot(ax, ay, az);
-  if (d < 1e-9 || d >= upper + fore) return reachPose(out, m, sign, handX, handY, handZ, restX);
+  if (d < 1e-9 || d >= upper + fore) return reachPose(out, m, sign, handX, handY, handZ, restX, span);
 
   // The elbow lies on both spheres, so its offset `e` from the shoulder satisfies
   // `a·e = (d² + upper² − fore²)/2` and `|e| = upper`. Pinning `e.x` to zero leaves a
   // line and a circle in the dancer's own (y, z) plane.
   const k = (d * d + upper * upper - fore * fore) / 2;
   const r = Math.hypot(ay, az);
-  if (r < 1e-9) return reachPose(out, m, sign, handX, handY, handZ, restX);
+  if (r < 1e-9) return reachPose(out, m, sign, handX, handY, handZ, restX, span);
   const along = k / r;
-  if (Math.abs(along) >= upper) return reachPose(out, m, sign, handX, handY, handZ, restX);
+  if (Math.abs(along) >= upper) return reachPose(out, m, sign, handX, handY, handZ, restX, span);
   const off = Math.sqrt(upper * upper - along * along);
 
   // `n` points from the shoulder toward the hand within the plane; `p` is perpendicular to
@@ -1776,6 +2232,7 @@ export function poseArms(
         // A couple faces the same way, so both add the same thing to parallel axes and both
         // still write the same point on the floor — the hands come forward of the pair, not
         // forward of one of them.
+
         settleTouch(
           out[side],
           me,
@@ -1883,6 +2340,126 @@ export interface Contact {
 
 export function contact(): Contact {
   return { point: vec3(), along: 0, gap: 0 };
+}
+
+/**
+ * Lay out the **drawn** part of a forearm in world space: elbow to where the cylinder
+ * actually stops, which is {@link ArmMetrics.drawnSpan} short of the hand.
+ *
+ * {@link trackForearm} places the hand end because a grip is a question about where the hand
+ * *is*; this places the mesh's end because collision is a question about where the arm *is*.
+ * The two differ by `handForearmGap + handRadius`, which on this cast is a fifth to a third of
+ * the whole forearm — enough that an arm measured to its hand centre is charged for a span of
+ * air it does not occupy.
+ */
+export function drawnForearm(
+  out: Forearm,
+  m: ArmMetrics,
+  pose: ArmPose,
+  self: Placement,
+): Forearm {
+  const full = trackForearm(out, m, pose, self);
+  const t = m.forearmSpan < 1e-12 ? 0 : m.drawnSpan / m.forearmSpan;
+  full.hand.x = full.elbow.x + (full.hand.x - full.elbow.x) * t;
+  full.hand.y = full.elbow.y + (full.hand.y - full.elbow.y) * t;
+  full.hand.z = full.elbow.z + (full.hand.z - full.elbow.z) * t;
+  return full;
+}
+
+/**
+ * Resolve a point against a forearm as the **capped cylinder it is drawn as**, rather than as
+ * the capsule {@link trackContact} treats it as.
+ *
+ * 🔴 **The cap is the whole reason this exists.** A capsule's end is a dome, so a point just
+ * beyond a forearm's wrist reads as inside it; a cylinder's end is a flat disc, so the same
+ * point reads as clear. For a grip that distinction never mattered — a hand wrapping a forearm
+ * is nowhere near either end. For the standing couple it decides the answer, because the two
+ * joined hands sit exactly off the ends of each other's arms and nowhere else.
+ *
+ * `gap` is the signed distance from `point` to the **solid**: positive is clear air, zero is
+ * touching, and negative is that far inside, measured to the nearest face. `along` is where on
+ * the axis the answer came from, 0 at the elbow and 1 at the drawn end, and `point` is the
+ * place on the cylinder to measure toward — which a caller with a non-spherical hand needs,
+ * because "how far does my hand reach" has no answer until there is a direction in it.
+ */
+export function trackCylinder(
+  out: Contact,
+  point: Vec3,
+  cylinder: Forearm,
+  /** Radius at the **elbow** end — `cylinder.elbow`. */
+  radius: number,
+  /**
+   * Radius at the **wrist** end. Defaults to `radius`, which is a straight cylinder.
+   *
+   * 🔴 **The taper is not a detail here.** A forearm is drawn as a truncated cone and the
+   * handhold happens at its thin end: Ember's goes 0.100 to 0.025. Charging the wide end
+   * against a partner's hand overstates the crossing by 0.075, which is most of a palm.
+   *
+   * Sideways this is an approximation — the nearest point on a cone is not at the same axial
+   * coordinate as the nearest point on a cylinder — and it is exact at the caps, which is
+   * where two joined wrists put everything.
+   */
+  wristRadius: number = radius,
+): Contact {
+  const ax = cylinder.hand.x - cylinder.elbow.x;
+  const ay = cylinder.hand.y - cylinder.elbow.y;
+  const az = cylinder.hand.z - cylinder.elbow.z;
+  const length = Math.hypot(ax, ay, az);
+  if (length < 1e-12) {
+    out.point.x = cylinder.elbow.x;
+    out.point.y = cylinder.elbow.y;
+    out.point.z = cylinder.elbow.z;
+    out.along = 0;
+    out.gap = Math.hypot(point.x - cylinder.elbow.x, point.y - cylinder.elbow.y, point.z - cylinder.elbow.z) - radius;
+    return out;
+  }
+  const ux = ax / length;
+  const uy = ay / length;
+  const uz = az / length;
+
+  // Split the offset from the elbow into along-the-axis and across-it.
+  const ox = point.x - cylinder.elbow.x;
+  const oy = point.y - cylinder.elbow.y;
+  const oz = point.z - cylinder.elbow.z;
+  const axial = ox * ux + oy * uy + oz * uz;
+  let rx = ox - axial * ux;
+  let ry = oy - axial * uy;
+  let rz = oz - axial * uz;
+  const radial = Math.hypot(rx, ry, rz);
+  if (radial > 1e-12) {
+    rx /= radial;
+    ry /= radial;
+    rz /= radial;
+  } else {
+    // Dead on the axis: any perpendicular will do, and the caller only wants a direction to
+    // measure a hand's reach along. Take the world axis the forearm leans on least.
+    const px = Math.abs(ux) < 0.9 ? 1 : 0;
+    const py = Math.abs(ux) < 0.9 ? 0 : 1;
+    const dot = px * ux + py * uy;
+    rx = px - dot * ux;
+    ry = py - dot * uy;
+    rz = -dot * uz;
+    const n = Math.hypot(rx, ry, rz) || 1;
+    rx /= n;
+    ry /= n;
+    rz /= n;
+  }
+
+  const clampedAxial = axial < 0 ? 0 : axial > length ? length : axial;
+  const here = radius + (wristRadius - radius) * (clampedAxial / length);
+  const clampedRadial = radial > here ? here : radial;
+  out.point.x = cylinder.elbow.x + clampedAxial * ux + clampedRadial * rx;
+  out.point.y = cylinder.elbow.y + clampedAxial * uy + clampedRadial * ry;
+  out.point.z = cylinder.elbow.z + clampedAxial * uz + clampedRadial * rz;
+  out.along = clampedAxial / length;
+
+  const inside = axial >= 0 && axial <= length && radial <= here;
+  out.gap = inside
+    ? // Deepest inside is nearest the middle of the solid, so the depth is whichever face is
+      // closest — the curved side or either cap.
+      -Math.min(here - radial, axial, length - axial)
+    : Math.hypot(point.x - out.point.x, point.y - out.point.y, point.z - out.point.z);
+  return out;
 }
 
 /**

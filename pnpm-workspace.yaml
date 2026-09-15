@@ -61,9 +61,13 @@ overrides:
   "brace-expansion@2": ">=2.1.4 <3"
   "brace-expansion@5": ">=5.0.9 <6"
 
-  # GHSA-5p4m-2wfm-xmqj — js-yaml quadratic CPU in `!!omap` resolution. Via eslint's
-  # `@eslint/eslintrc`.
-  "js-yaml@4": ">=4.3.1 <5"
+  # js-yaml, via eslint's `@eslint/eslintrc`. **Two advisories, and the second is why the
+  # bound moved on 2026-09-12:** GHSA-5p4m-2wfm-xmqj (quadratic CPU in `!!omap` resolution)
+  # is fixed in 4.3.1, and GHSA-2883-xcg3-v3hh (`maxTotalMergeKeys` does not limit CPU use
+  # for merge keys) is fixed in 4.3.2. A range satisfying only the first passes the day it is
+  # written and goes red when the next one lands on the same package — which is exactly what
+  # happened here, on the first push after 08-22.
+  "js-yaml@4": ">=4.3.2 <5"
 
   # GHSA-mwp4-54f8-5fhr — ip-address decodes leading-zero octets as decimal where
   # resolvers read them as octal, so an SSRF filter and the resolver disagree. Via

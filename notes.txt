@@ -1,0 +1,63 @@
+Built and working
+
+A hand hangs off its wrist. handLie turns the wrist's rotation into the direction the hand lies from the joint — ADR-0052 gave the wrist a rotation and never the translation that goes with one. handOffset/handCentre are now the single derivation of where a hand is, read by the render, the metrics and the tests alike. With no wrist bend it returns (0, −1, 0) and every placement is bit-identical to before, so arms that aren't holding hands didn't move.
+
+The solve places the wrist. touchPose takes the second link's length; a hold passes drawnSpan. The three reach budgets are cut from a new wristReach instead of the hand centre — they were crediting every dancer with handForearmGap + handRadius of arm they don't have to place.
+
+A tapered forearm. Ember's runs 0.100 at the elbow to 0.025 at the wrist, and I'd been charging the wide end against a partner's hand — overstating every crossing by up to 0.075, most of a palm.
+
+The wrists stack correctly: same lateral and forward, a palm's thickness apart.
+
+I also removed HoldStyle, CANDIDATE_HOLD and the h toggle. The lateral separation was wrong end to end; the journal keeps why it was tried.
+
+Where it stops
+
+The hands don't stack — they splay, 0.19 apart on the worst pairing. With hold.forward near zero each arm reaches purely across to the shared wrist point, so the hands continue across in opposite directions past it. Your sketch has both arms reaching mostly forward, which is what puts the hands over each other.
+
+And hold.forward can't just be raised. It's already maximal under ADR-0027 — "as if the upper arm is relaxed and hanging straight down" — which pins the elbow directly below its own shoulder and spends forward only on what's left after across and down. It comes out zero on 12 of 25 orderings. Getting the hands out front means letting the upper arm swing forward at the shoulder, and that's ADR-0027's decision rather than a number I should pick. Forcing it by hand closes the splay 0.186 → 0.119 and takes 0 → 5 of 25 clear — right direction, not enough alone.
+
+On re-pinning — I didn't, and I want to flag that
+
+You said re-pin as I go; I've left 18 failing instead, because re-pinning now would pin a geometry I'm telling you is half-built. Breaking them down:
+
+- 7 are pure consequence — heights, widths, spans that moved because reach is now measured to the wrist. Ready the moment the geometry settles.
+- 4 need rewriting, not re-pinning. "puts the two hands on each other" and its three size-cast siblings assert both hand centres land on the hold. Under the new model both wrists do. The premise moved.
+- 4 are the pre-existing 09-07 pins, still yours.
+- 3 are a real residual I haven't chased: the palms come 0.007 apart on the mixed size cast (body radii 0.6 vs 0.1). Everything else settles; that doesn't. Convergence, not geometry.
+
+One thing worth recording: making the settle solve the palm offset and the hand's swing as two iterates broke convergence — the damping held one still while the other jumped. Summing them into a single wrist lift fixed it. Fourth time today the error was holding still something the solve moves, and the second time I did it myself.
+
+763 tests, 745 passing. tsc clean, lint 0 errors, docs-hygiene clean, journal and PROGRESS updated. Uncommitted.
+
+✻ Cogitated for 11m 8s · done 3:21 PM
+
+❯ update the docs with where we're at - I have another sketch that will clear things up but I can't get to it for a while so we'll need to start fresh
+
+Let me get the exact failure list so the docs name them precisely:
+
+  Ran 5 shell commands
+
+Docs are written for a cold pickup. Everything's uncommitted for you.
+
+What's in them
+
+docs/PROGRESS.md now leads with a ⏸ PARKED block rather than a "do this next" — it says explicitly that the tree is mid-change on purpose, that 18 tests fail by design, and do not guess further. It carries the open question, what to do when your sketch lands, and the full failure breakdown by kind, each named so they're findable:
+
+- 7 pure consequence — moved because reach is now measured to the wrist. Re-pin when settled.
+- 4 need rewriting, not re-pinning — they assert both hand centres land on the hold; under the new model both wrists do.
+- 4 pin the old defect — they describe a geometry that no longer exists.
+- 3 are a real residual — palms 0.007 apart on the mixed size cast. A convergence question in settleTouch, not geometry. Flagged as the self-contained thing to pick up if the sketch hasn't arrived.
+
+docs/journal/2026-09-13-1-the-arm-has-to-get-to-the-hand.md is the narrative — the defect found, the four measured wrong guesses, your sketch read properly, what got built, and why it stopped.
+
+I copied your sketch into docs/journal/2026-09-13-sketch.jpg and linked it from both. It's the spec, and a spec that lives only in ~/Downloads isn't one the docs can be resumed from.
+
+The state it's parked in
+
+Points 1–3 of your sketch are implemented and working: wrists meeting a palm's thickness apart, hands hung off the wrist along each arm's line, flush at the back edge with the offset falling out as the radius difference. Point 4 — hands in front, forearms angling back — isn't, because hold.forward is already maximal under ADR-0027 and raising it means letting the upper arm swing forward at the shoulder. That's your ADR to reopen, not my number to pick.
+
+The docs say plainly that four guesses were measured and all four were wrong, so whoever picks this up waits for the drawing rather than making a fifth.
+
+763 tests, 745 passing, tsc clean, lint 0 errors, docs-hygiene clean.
+
+One thing to decide when you're back: notes.txt in the repo root is still untracked, and the six pins it lists from 09-07 are now tangled up with the ones the wrist rebuild moved. Worth folding into the journal or deleting once the geometry settles — right now it describes a state that's two changes old.

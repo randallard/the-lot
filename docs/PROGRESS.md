@@ -1,10 +1,290 @@
 # Progress & Status
 
-_Last updated: 2026-09-12_
+_Last updated: 2026-09-14_
 
 ## Status / next
 
-> ### ▶ PICK UP HERE — 2026-09-12 (two tweaks from Ryan)
+> ### ▶ PICK UP HERE — 2026-09-14 — the sketch landed, the arc is in, the reach is not
+>
+> **The hold is no longer parked.** Ryan's second sketch arrived and is
+> [`journal/2026-09-14-sketch.jpg`](journal/2026-09-14-sketch.jpg) — the spec, kept beside its
+> [journal entry](journal/2026-09-14-1-the-arc-from-the-median.md). The decision it forced is
+> [ADR-0054](adr/0054-the-solve-places-the-hand-and-the-wrist-follows.md): **the hold names a
+> hand centre and the wrist is wherever that hand's own swing puts it.**
+>
+> 🔑 **The 09-13 sketch and the 09-14 sketch are the same drawing.** The old one had both
+> forearms leaving to the same side; the new one has them leaving to **opposite** sides, as a
+> couple standing side by side must, each swept off the **median** by its own *arc*, hands
+> overlaid over the median and wrists well apart. That one difference was the whole defect.
+>
+> 🔴 **The defect was one axis wide.** `settleTouch` built the hand's whole swing off the
+> wrist and then used **`y` alone**, discarding `x` and `z` — so both wrists were pinned to one
+> point in plan (`wristSep` measured **0.000 on all 25 pairings**) and the two hands slid off it
+> in opposite directions. The splay was never a residual; it is algebraic, and it reproduces to
+> three decimals: `splay = |dead_belle·û(arc_belle) − dead_beau·û(arc_beau)|`.
+>
+> ✅ **ADR-0027 IS NOT THE BLOCKER AND DOES NOT NEED REOPENING.** That was the parked question.
+> Under ADR-0054 the hand separation is fixed by construction and does not depend on the arcs,
+> so it does not depend on `forward` either. `forward` was zero on **12 of 25** orderings and is
+> now zero on **2 of 25** — it went *up*, as a consequence rather than as a target.
+>
+> ✅ **Exact overlay on 13 of 25, from 0 of 25.** Wrists now separate by 0.044–0.192: the splay
+> moved off the hands and onto the wrists, which is the sketch's picture.
+>
+> #### 🔴 FIRST THING, BEFORE ANYTHING ELSE
+>
+> **RUN `npx vitest run`.** The root-find below landed and **the suite has not been run against
+> it.** `tsc` is clean and docs-hygiene is clean; the 18/745 figures further down are from the
+> state *before* it. Do not trust them until you have re-run.
+>
+> #### Where the solve got to
+>
+> ✅ **`settleTouch` is a root-find now, not an iteration** — damped Newton on
+> `F(off) = g(off) − off`, with a forward-differenced 3×3 Jacobian, Cramer, and a backtracking
+> line search that keeps it safe across ADR-0052's flexion kink. `SETTLE_PASSES` is **12**.
+>
+> 🔑 **Why it had to change:** placing the *hand* makes `g` a map whose gain exceeds 1 — the
+> hand sits a `dead` span out from the wrist, so nudging the wrist sideways swings the hand
+> further back the other way. Iterating that cannot converge, and it did not: **26 of 50 arms
+> never settled**, the whole residual in `x`/`z` while `y` reached 1e-12.
+>
+> ✅ **Exact overlay 13 → 21 of 25**, most at **1e-13 to 1e-15**. Wrists separate 0.015–0.176.
+>
+> #### Do these, in this order
+>
+> 1. 🔴 **RUN THE SUITE** (above), then re-read the failure list before touching anything.
+> 2. 🔴 **`player/player` splays 1.0e-1 and it is an identity pairing, so the honest answer is
+>    zero.** The other three stragglers are `myco/sprout` 2.7e-3, `sprout/player` 2.6e-3,
+>    `sprout/myco` 3.7e-7. A residual that large after Newton means **the line search found no
+>    step that improved `|F|` and broke out**, so it is one of: the flexion kink sitting under
+>    the solution, a singular Jacobian (the `det < 1e-18` fallback firing), or **no root at
+>    that stance at all** — which would put the question back in `placeHold`.
+>    🔑 **NOT DIAGNOSED. Do not write down which one it is before measuring it** — that mistake
+>    has already been made once on this change. Instrument `settleTouch` to report passes used,
+>    final `|F|`, whether the determinant fallback fired, and whether the line search exhausted
+>    its ten halvings.
+> 3. 🔴 **THEN the flush rule, decided and deliberately NOT implemented.** Ryan ruled the hold
+>    names the **smaller hand's centre**, the larger sitting `Δ·û(arc_small)` along it for
+>    `Δ = r_large − r_small`. Derived: `hold.height` is the contact plane, and the contact patch
+>    is the smaller palm since it lies entirely inside the larger. Today both dancers target the
+>    same point, so mismatched hands are **concentric rather than flush**, by up to 0.06. Needs
+>    one shared helper, not three: `touchOffsets`, `holdMetrics` and `poseArms` must agree or it
+>    is ADR-0045 again.
+> 4. ⏳ **Then re-pin.** Not before.
+>
+> 🔴 **Three cheaper convergence fixes are already tried and measured — do not repeat them.**
+> Pass bound 24 → 48 (buys only the slow minority, ~50% more solver time; reverted). Persistent
+> adaptive damping `w ← w/2` (1.7e-1 → 4.5e-2, still diverging, and it *stalls*: `|g(x) − x|`
+> does not shrink just because the step does). Disabling the ±face flip in `wristRotation`
+> (26 → 25 at the bound; not the cause).
+>
+> #### The failure list as of the PREVIOUS state — 18 failing, three worth naming
+>
+> - 🔴 **`"hangs the binding dancer's upper arm dead vertical"` was left FAILING on `7e-9`
+>   against `5e-10` deliberately.** 7e-9 is six orders below anything visible, so the magnitude
+>   means nothing — but it was the **only test that noticed the solve had stopped converging**.
+>   🔑 **It may well pass now that Newton converges.** If it does, that is the root-find working,
+>   not a pin to be adjusted.
+> - 🔑 **`"never lets an elbow get outboard of the hand it is holding with"` fails on
+>   `2.8e-17 <= 0`** — machine epsilon on a quantity that is analytically zero. The line above it
+>   already carries an epsilon and this one does not. It wants `1e-12`, not a geometry change.
+> - 🔑 **`"closes the gap to something a handhold could have"`, `player→ryan` 1.374 vs 1.35** —
+>   one pairing marginally over. It was one of the non-converging ones, so **check it first
+>   after the re-run**; it may have fixed itself.
+>
+> The rest are as documented on 09-13: the arch consequence pins, the four standing-couple
+> measurements that describe the *old* defect, and the three `"still puts the two hands on each
+> other"` residuals.
+>
+> 📌 **Everything uncommitted, `src/` and `docs/` alike.**
+>
+> ---
+>
+> ### ▶ HOW THE WRIST REBUILD GOT HERE
+>
+> Ryan's `sketch.jpg` (2026-09-13) is the spec, and it is **entirely derived** — no tunable
+> number in it. The two **wrists** meet, a palm's thickness apart (`idealGap`); the hands lie
+> flat and stacked beyond them, along each arm's own line; they are **flush at the back edge**,
+> so the centre offset is just the difference of the two radii. 🔑 **The alignment point is the
+> wrist, not the hand centre** — which is exactly why a forearm ran through a partner's hand,
+> and why `myco/myco` fouled on two identical hands.
+>
+> 🔴 **The lateral separation was wrong end to end.** `HoldStyle`, `CANDIDATE_HOLD` and the `h`
+> toggle are **removed**; the journal keeps why they were tried.
+>
+> ✅ **Built and working**: `handLie` / `handOffset` / `handCentre` — the hand swings off the
+> wrist with the wrist's own rotation (ADR-0052 gave it a rotation and never the translation
+> that goes with one), and returns to today's placement exactly when no wrist is being spent.
+> The solve places the **wrist** (`touchPose` takes the link length; `drawnSpan` for a hold),
+> and the three reach budgets are cut from `wristReach` rather than the hand centre. A tapered
+> `trackCylinder` — Ember's forearm is 0.100 at the elbow and 0.025 at the wrist, and charging
+> the wide end overstated every crossing by up to 0.075.
+>
+> ✅ **The wrists stack correctly** — same lateral and forward, a palm's thickness apart.
+>
+> 🔴 **The hands do not stack. They splay, 0.19 apart on the worst pairing** — because with
+> `hold.forward` near zero each arm reaches purely *across* and the hands continue across in
+> opposite directions past the wrist. The sketch has both arms reaching **forward**.
+>
+> ### ▶ THE DECISION THAT BLOCKS IT — ADR-0027
+>
+> `hold.forward` is **maximal already**. `relaxedForward` is *"as if the upper arm is relaxed
+> and hanging straight down"*, which pins the elbow under its own shoulder and spends forward
+> only on what is left after across and down — **zero on 12 of 25 orderings**. Getting the hands
+> out in front where the sketch has them means letting the upper arm **swing forward at the
+> shoulder**. That is ADR-0027's decision and yours to make; carrying the hands forward by hand
+> shuts the splay from 0.186 to 0.119 and takes 0 → 5 of 25 clear, so it is the right direction
+> and not by itself enough.
+>
+> 🔴 **18 tests left failing rather than re-pinned** — against your "repin as you go", because
+> re-pinning now would pin a half-built geometry. 7 are pure consequence and ready; **4 need
+> rewriting, not re-pinning** (`"puts the two hands on each other"` and its three size-cast
+> siblings assert both *hand centres* land on the hold — under the new model both **wrists** do);
+> 4 are the pre-existing 09-07 pins; and 🔴 **3 are a real residual** — the palms come 0.007
+> apart on the `mixed` size cast (body radii 0.6 vs 0.1), a convergence question, not chased.
+>
+> 763 tests, 745 passing · `tsc` clean · lint 0 errors · docs-hygiene clean. 📌 Uncommitted.
+>
+> ---
+>
+> ### ▶ SUPERSEDED — the lateral separation (kept for the reasoning, not the answer)
+>
+> **Open any cell, press `h`.** The checkbox is under *advance on rate*; the panel says which
+> arrangement is up and what to watch for. The pose is live and the camera is yours — the
+> question is whether palms meeting **near their rims** still read as two people holding hands.
+> `#review=california-twirl/stand/sprout-myco` is the cell the defect was found on.
+>
+> ✅ **It is the real solve, not an overlay.** `HoldStyle` carries `separation` and `bend`;
+> `SQUARE_HOLD` is the default everywhere and `CANDIDATE_HOLD` is 0.85 / 20°. The separation is
+> spent out of both `across` values **inside** the fixed point, so the height band, the tuck and
+> the stance all re-solve around it.
+>
+> ✅ **It clears by more than the sweeps promised** — worst gap **+0.0089** through the real
+> `touchHold` against the +0.0057 they forecast, because the pair stand closer and the arms go
+> straighter still.
+>
+> 🔴 **The cost is the stance, and it is yours to rule on. `Myco/Sprout` go 0.829 → 0.745.**
+> That is the width you called *"great as far as how far apart they are standing"*, and 0.745 is
+> what ADR-0046 raised it **from**. The arch's whole sizing is cut from this number.
+>
+> 🔑 **A sign error the render showed and no measurement could**: `poseArms` flipped the
+> separation on the role the way it flips `lateral`, so both hands moved the same way and
+> separated by nothing. `lateral` names a direction on the *floor*; a separation names one
+> relative to *the dancer reaching*. Caught by asserting `poseArms` puts the hands where
+> `touchHold` put them — **`hold-metrics.ts` reads the solve, not the render, and cannot see
+> this class of bug at all.**
+>
+> 772 tests, **the same 7 failing** · `tsc` clean · lint 0 errors · docs-hygiene clean · verified
+> running in the browser. 📌 Uncommitted.
+>
+> ---
+>
+> ### ▶ HOW `f = 0.85` / `20°` WAS ARRIVED AT
+>
+> All three options are measured (below). The combination that clears every pairing **and** every
+> blended body with the most hold left in it is **separation `f = 0.85` with a `20°` elbow bend**
+> — tightest palm overlap 0.0142, 17° of humerus off its shoulder plane.
+>
+> 🔴 **No ADR, on purpose.** What the numbers cannot say is whether a hold whose palms meet that
+> near their **rims** reads as two people holding hands.
+>
+> ✅ **The fallback if it reads wrong: `f = 0.90, bend 0°`.** Clears everything too, costs no
+> decision about ADR-0047, gives a thinner hold (0.0090 overlap against 0.0142). Change
+> `CANDIDATE_HOLD` in `arm-pose.ts` and press `h` again to compare it.
+>
+> ✅ **The offset direction is settled: the lateral is the only one that works.** There is no
+> finger direction to try — `handDrawnMap` builds the hand with `sx = sy = radius`, so it is a
+> **circular disc** and every direction in the palm plane costs its extent equally. Swept as an
+> angle over 325 bodies, the smallest separation that clears them all: **0° → f 0.82** (bend 20°),
+> 15° → 1.00 (past where the palms part), **30°–165° → never clears at any separation.**
+>
+> 🔑 **Because the lateral does two jobs.** It separates the hands *and* moves each one back under
+> its own shoulder — `sprout/myco`'s `across` falls 0.0815 → 0.0111 — which straightens the
+> forearm from 24° to 14°. A plumb forearm keeps the partner's hand in the dead space beyond its
+> own wrist; a tilted one swings its end cap down and leaves the hand beside the shaft. Fore/aft
+> separates just as well, buys none of that, and at 90° is **out of reach outright** — which is
+> ADR-0051's own finding that `hold.forward` is already maximal.
+>
+> **So the pick stands, with margin**: the minimum is `f = 0.82` at 20°, and 0.85 sits above it.
+>
+> ⏳ **One lever still never tried: the yaw combined with the bend.** Beside the separation on its
+> own it buys ~0.05 of `f`; with the bend the two may overlap rather than add, since both end up
+> turning the forearm. Low value now that 0.85/20° clears everything.
+>
+> ---
+>
+> ### ▶ HOW THE THREE OPTIONS MEASURED
+>
+> 🔴 **Options 2 and 3 are dead, and one number kills both.** Under every yaw (−30°…+45°) and
+> every stagger (−0.30…+0.40) the two hand centres stay **0.0328 apart** — exactly what they are
+> at rest, because both dancers solve to the *same hold point*, so their separation is the palm
+> stack and nothing else. Turning or staggering the bodies moves where the arms come **from**;
+> it cannot move where the two hands **are**, and the fouling is at the hands. Clear count only
+> ever reaches 18 of 25 and the worst gap gets *worse*. **The fault is at the hold, not in the
+> stance.** ADR-0051 stays superseded, now for a second and independent reason.
+>
+> ✅ **Option 1 works, and it has to be scaled to the hands.** A constant separation cannot be
+> right — 0.16 clears all 25 but pulls `sprout/sprout`'s two 0.05 hands clean apart. As
+> **`D = f × (beau hand radius + belle hand radius)`**:
+>
+> | f | clear | worst gap | overlap left | strain |
+> |---|---|---|---|---|
+> | 0.00 | 16 | −0.0217 | 0.0850 | 0 |
+> | 0.80 | 24 | −0.0028 | 0.0185 | 0 |
+> | **0.90** | **25** | +0.0039 | 0.0087 | 0 |
+> | 1.00 | 25 | +0.0130 | **−0.0057** | 0 |
+>
+> ✅ **And on 500 bodies blended between the cast, `f = 0.90` leaves none fouled** (f = 0.85
+> leaves 3). Zero arm strain throughout. **The window is roughly `f ∈ [0.90, 0.95]`** — clearing
+> the arms at the bottom, losing the palms at the top.
+>
+> 🔑 **A yaw is worth keeping as a *helper*, not as the fix** — once the hands are separated it
+> buys about 0.05 of `f`. Turning away is worse.
+>
+> 🔴 **Two consequences to rule on with it.** (1) At `f = 0.90` the tightest pairs meet **near
+> their rims** — a visibly different hold, and exactly your *"line them up at the edge where the
+> wrist connects"*. (2) **`HoldMetrics.gap`/`idealGap` stop meaning what they say**: separated,
+> the ideal is a lens, not a stack. That rewrite is part of the decision, not a follow-up
+> (ADR-0045's trap again).
+>
+> 🔴 **Correction — the elbow bend is not backwards; it is neutral.** The first reading derived
+> the elbow as `hand − aim × forearmSpan`, which does not keep it `elbowReach` from the shoulder
+> — an arm of the wrong bone lengths. On its **real circle** (one freedom, both ends pinned,
+> re-settled each iterate, anchored so `bend = 0` reproduces `touchPose` exactly) the bend alone
+> changes nothing: **14/23 clear at every angle from −20° to +45°.** Same reason as the yaw and
+> the stagger — it moves where the arm comes from, not where the hands are.
+>
+> ✅ **But with the hands separated it pays, and that is the trade to rule on.** Clean on 500
+> blended bodies:
+>
+> | f | bend | worst gap | tightest palm overlap | elbow off its shoulder plane |
+> |---|---|---|---|---|
+> | **0.90** | **0°** | +0.0008 | 0.0090 | **0°** |
+> | **0.85** | **20°** | +0.0057 | 0.0142 | 17° |
+> | 0.80 | 30° | +0.0015 | 0.0193 | 25° |
+>
+> 🔑 **`f = 0.85` with a 20° bend is 7× the clearance margin and 58% more palm overlap** than the
+> no-bend answer — for 17° of humerus, which is nothing anatomically and **everything to
+> ADR-0047**. That ADR pins the elbow in its own shoulder's plane and the *stance* is cut from
+> the reach that rule allows (`touchSpanAt`), so spending it feeds back into the couple's width.
+> **It is a decision about an ADR, not a parameter.** `f = 0.90, bend 0°` costs no decision.
+>
+> 🔴 **`sprout/sprout` and `sprout/player` have no elbow circle at all** — `touchPose` already
+> falls through to `reachPose` there, out of reach, upper arm stretching. Pre-existing, found by
+> this sweep rather than caused by it, and worth its own look.
+>
+> 🔴 **Item 2 below — the `0.922 → 0.829` ruling — should now WAIT.** Fixing this moves the
+> couple's width a third time. Re-pinning it today is re-pinning it twice.
+>
+> **No ADR written.** "Measure the arm as the solid that is drawn" is arguably one (same shape
+> as ADR-0039), but the fix is undecided and may want to say it itself.
+>
+> 763 tests, **the same 7 failing**, no new ones · `tsc` clean · lint 0 · docs-hygiene clean.
+> 📌 **`src/` still uncommitted**, now with the measurement in it.
+>
+> ---
+>
+> ### ▶ PREVIOUS — 2026-09-12 (two tweaks from Ryan)
 >
 > 🔴 **Tweak 2 — the Twirl's ending position had the arch still up, and the step text told you to
 > expect that.** Ryan: *"the ending position is always hands back down in a normal handhold."*
@@ -30,9 +310,20 @@ _Last updated: 2026-09-12_
 > URL — `git rev-parse v<tag>^{}`). The install stops with `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`
 > until it is updated. Its own comment warns about this and it still cost a cycle.
 >
-> 📌 **`src/` and this pin bump are UNCOMMITTED together, on purpose.** Committing the pin alone
-> would leave a red tree — the old `review-steps.test.ts` fails against v0.5.0 — so the two belong
-> in one commit, and that commit waits on your eyes (item 1).
+> ✅ **`src/` and the pin landed together in `d22b7ec`** — Ryan: *"2x twirl looks good."* Pushed to
+> `data` and to `origin`.
+>
+> 🔴 **CI is red on two counts, and only one of them is ours.** `pnpm install --frozen-lockfile`,
+> `pnpm lint` and docs-hygiene all pass, and the pin resolves cleanly in CI.
+>
+> 1. **`pnpm test` — the same 7**, exactly as locally, same three files. Not fixable here: it needs
+>    the ruling on the six moved pins, starting `0.922 → 0.829`.
+> 2. **`ts supply chain` + `osv-scan`** — `js-yaml` needed `>=4.3.2`, not the `>=4.3.1` this repo
+>    had bounded for on 08-15. A *second* advisory (GHSA-2883-xcg3-v3hh, `maxTotalMergeKeys`) landed
+>    on the same package one patch later, so a range that was correct for a month went red on the
+>    first push after it. Also vitest 4.1.10 → **4.1.11** (GHSA-82fw-gwwq-j7x9). 🔑 **The lesson is
+>    to satisfy the later fix, not the one in the ticket you are reading.** `pnpm audit` is clean
+>    again and the 7 tests are unchanged by it. **Uncommitted — it is config, so it waits on you.**
 >
 > **Look at it first: `#review=california-twirl/end/*`.** The engine is linked and its `dist` is
 > rebuilt, so the scene shows the new ending now.
