@@ -2165,6 +2165,17 @@ export function poseArms(
    * the same trick the arch plays with `TouchHold`'s two heights, for the same reason.
    */
   forearmY?: number,
+  /**
+   * 🧪 **Exploratory (2026-09-14).** The world yaw the **couple** faces, for a couple whose two
+   * dancers are deliberately turned in toward each other (the review route's turn-in slider).
+   *
+   * `hold.forward` is carried along this dancer's own local `z` below, which is the couple's
+   * facing only while both dancers face the same way. Turned in, the two local `z` axes diverge
+   * and the two hands would be written to two different points. Given this, `forward` runs
+   * along the couple's facing instead, so both still write the same point. Absent, the
+   * original path runs unchanged.
+   */
+  coupleYaw?: number,
 ): ArmPoses {
   // The partner, in this dancer's local space: the direction their share of the gap
   // lies in, and half their offset is the pivot a grip is held over.
@@ -2233,12 +2244,20 @@ export function poseArms(
         // still write the same point on the floor — the hands come forward of the pair, not
         // forward of one of them.
 
+        // The couple's facing in this dancer's frame: local `+z` when no couple yaw is given,
+        // which is the original placement exactly.
+        const fwdX = coupleYaw === undefined ? 0 : Math.sin(coupleYaw) * c - Math.cos(coupleYaw) * s;
+        const fwdZ = coupleYaw === undefined ? 1 : Math.sin(coupleYaw) * s + Math.cos(coupleYaw) * c;
         settleTouch(
           out[side],
           me,
           beau,
-          localX / 2 + offset * dirX,
-          localZ / 2 + offset * dirZ + hold.forward,
+          coupleYaw === undefined
+            ? localX / 2 + offset * dirX
+            : localX / 2 + offset * dirX + hold.forward * fwdX,
+          coupleYaw === undefined
+            ? localZ / 2 + offset * dirZ + hold.forward
+            : localZ / 2 + offset * dirZ + hold.forward * fwdZ,
           hold.height,
           // The arm hangs from where the stance left room (ADR-0049), which is the shoulder
           // the hold was solved against. Posing from the authored `restX` here would put the

@@ -84,6 +84,21 @@ export interface BodyLayout {
   upperArmSpacing: number;
   /** Gap between head bottom and body top. Negative = overlap (natural look) */
   headBodyGap: number;
+  /**
+   * Where the shoulder joint actually sits, relative to `bodyCenterY` — the same frame
+   * `body.height/2 + body.radius` (the body capsule's own top) is already in. Absent means
+   * "the top of the body", which is every character before 2026-09-19 and everyone since who
+   * hasn't set this.
+   *
+   * 🔴 **Separate from the head on purpose.** `headBodyGap` moves the *head*, and moving it to
+   * fix a shoulder that reads wrong changes a look Ryan already chose. This instead moves
+   * where the arm attaches — `computePositions`' `elbowY` (and everything hung off it:
+   * `forearmCenterY`, `handCenterY`, `waistY`) — while `headCenterY` stays keyed to the body's
+   * own top, unmoved. Myco is the first case: her head overlaps her body by design
+   * (`headBodyGap -0.4`), but the shoulder was still being read at the body's top, above where
+   * the head visibly starts. Set here instead: `0.05`, the base of her (unchanged) head.
+   */
+  shoulderY?: number;
 }
 
 export interface CharacterBodyShape {
@@ -151,7 +166,13 @@ export const MYCO_DEFAULTS: CharacterBodyShape = {
     open:   { radius: 0.11, flattenZ: 0.23, widthSegments: 10, heightSegments: 8, rotation: [0, 0, 0], handForearmGap: 0.01 },
     closed: { ...NPC_HAND_CLOSED },
   },
-  layout: { forearmXOffset: 0.46, upperArmSpacing: 0.33, headBodyGap: -0.4 },
+  // `shoulderY: 0.05` is the base of her (unchanged) head — `headBodyGap -0.4` sinks the
+  // head deep into the body on purpose, but the shoulder joint was still reading at the
+  // body's own top (0.45), well above where the head visibly starts. Computed once from
+  // her own head/body numbers above: 0.45 (body top) + (-0.4) (headBodyGap) = 0.05 (head's
+  // base) — nudge with the "shoulder height" slider in the body editor's Layout section if
+  // it isn't quite right once it's on screen.
+  layout: { forearmXOffset: 0.46, upperArmSpacing: 0.33, headBodyGap: -0.4, shoulderY: 0.05 },
   eyes: {
     ...NPC_EYE_DEFAULTS,
     positioning: { fromTopOfHead: 0.36, separation: 0.2 },
@@ -251,6 +272,10 @@ export const SHAPE_BOUNDS = {
     forearmXOffset:  { min: 0.20, max: 1.00, step: 0.01 },
     upperArmSpacing: { min: -0.50, max: 1.00, step: 0.01 },
     headBodyGap:     { min: -0.40, max: 0.30, step: 0.01 },
+    // Absolute, relative to bodyCenterY, not a gap — so its range has to cover the body
+    // capsule's own top across the cast (body.height/2 + body.radius, roughly 0.15 to 1.3
+    // over SHAPE_BOUNDS.body's own extremes) plus room to go lower for a head-based read.
+    shoulderY:       { min: -0.20, max: 1.50, step: 0.01 },
   },
 } as const;
 
@@ -307,8 +332,11 @@ export function computePositions(
   const activePose = hand[pose];
 
   const bodyTop = bodyCenterY + body.height / 2 + body.radius;
-  const shoulderY = bodyTop;
-  const elbowY = bodyTop - layout.upperArmSpacing;
+  // `layout.shoulderY` overrides where the joint sits; absent, it's the body's own top, as
+  // it always was. The head stays keyed to `bodyTop` either way — moving the shoulder is not
+  // the head-body relationship changing, it's where the arm attaches.
+  const shoulderY = layout.shoulderY !== undefined ? bodyCenterY + layout.shoulderY : bodyTop;
+  const elbowY = shoulderY - layout.upperArmSpacing;
   const upperArmLength = layout.upperArmSpacing;
   const forearmCenterY = elbowY - forearm.height / 2;
   const forearmWristY = forearmCenterY - forearm.height / 2;

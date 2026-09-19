@@ -4,7 +4,68 @@ _Last updated: 2026-09-14_
 
 ## Status / next
 
-> ### ▶ PICK UP HERE — 2026-09-14 — the sketch landed, the arc is in, the reach is not
+> ### ▶ PICK UP HERE — 2026-09-14 (late) — the stragglers are a pole in the wrist rule
+>
+> [`journal/2026-09-14-2-the-stragglers-hang-straight-down.md`](journal/2026-09-14-2-the-stragglers-hang-straight-down.md)
+>
+> ✅ **Suite run against the root-find: 763 tests, 749 passing, 14 failing** (was 745/18).
+> The failures are 5 in `arch`, 2 in `arm-pose`, 6 in `hold-metrics` and 1 in
+> `standing-hold`. All are pins on the old geometry. **None re-pinned.**
+>
+> ✅ **Ryan's `progress` commit split** into `build:` / `dance:` / `docs:`. `notes.txt` is back to
+> untracked, and the original is kept as branch `backup/progress-dd219d9`. 🔴 **data and data-lan
+> still hold the old commit**, so pushing the split needs a force push. That is Ryan's to do.
+>
+> 🔑 **Measured: the stragglers are not a solver problem.** There are five unconverged arms
+> (`sprout/sprout` beau at 1.7e-9 is the fifth), and **every one has its forearm within 4° of
+> vertical.** The Jacobian is never singular (min `|det|` 1.2). F is not kinked; it **jumps**
+> ~0.06 inside a 1e-4 step. The cause is `wristRotation` at a hanging forearm:
+> - the **roll** turns the palm toward whatever way the forearm leans, so the hand's swing
+>   azimuth spans **54°–133°** inside a 1e-3 ball (4°–8° for arms 10° off vertical);
+> - the **±face flip** is a coin toss there (`|n0·target|` ≈ 0.02, sign changes in 8–42% of
+>   samples).
+>
+> Disabling the flip alone does **not** fix it (3 unchanged, `player/player` better,
+> `player/myco` breaks).
+>
+> 🔄 **UPDATED SAME EVENING — read the journal's last three sections first.** The hand is in
+> front but the **wrist trails back by about `forward`**, so the wrist lands under a hanging
+> elbow. Lever sweep, observed and not decided: the squinch and the torso trade **do not**
+> reach the stragglers, which are low-`forward` pairs rather than mismatched ones (two are
+> identity pairings). `forward + f` fixes all 5 but has no safe flat value (0.10 → 99% reach
+> and breaks `ember/sprout`; 0.15 → Sprout 108%).
+>
+> 🔄 **Then floor, stagger and yaw were measured** (journal, last section). The wrist floor
+> never breaks anything, but Sprout runs out of arm (m = 0.08 → 108%). Stagger gives no rule.
+> **Inward yaw is the clean one:** 20° → 5/5 converged, 4 off the pole, 0 broken, 97% reach.
+> A flat 30° over-extends the Myco/Ryan pairs, so it wants sizing per pairing. Yaw × floor
+> overlap more than they add.
+>
+> 🔄 **Then, same evening (journal, last section):** the yaw neither causes nor cures fouling
+> (21/25 at every angle). Flatness improves, 0.13 → 0.01. The straggler left at 20° is
+> `player/player`'s beau at 9.9°, which 25° clears. 🔴 **21/25 fouling abreast is itself news**,
+> probably since ADR-0054, and needs its own look.
+>
+> 🧪 **The toggle is built, uncommitted:** a turn-in slider (0°–30°) on the review route's
+> `standing couple` step, with a live readout. For it, `poseArms` takes an optional couple yaw
+> (without one, turned hands split 0.15–0.43 apart; with it, ≤ 1e-12), `DanceFloor` has a
+> `turnIn` prop, and `holdMetrics` has `turnIn`. At 0 nothing changes (same failing set).
+>
+> **NEXT:** (1) **Ryan looks** at `#review=california-twirl/stand/<pairing>` with the slider,
+> starting with the five stragglers. (2) Depending on what he sees: size the turn per pairing
+> and put it inside `touchHold`'s fixed point, or drop it. (3) Look separately at the 21/25
+> fouling. Still no ADR.
+>
+> *(Earlier framing, kept for the record:)* how a held hand is oriented when its forearm
+> hangs. Candidates, none built: (a) orient it by the hold's `û(arc)` and the role's fixed face
+> (beau up, belle down), which also retires the flip for a hold; (b) keep forearms off vertical
+> in `placeHold`; (c) blend the roll to a fixed reference as tilt → 0. Recommended: (a). It
+> answers the question the rule cannot answer, instead of steering around it. Then the flush
+> rule, then re-pin.
+>
+> ---
+>
+> ### ▶ 2026-09-14 — the sketch landed, the arc is in, the reach is not
 >
 > **The hold is no longer parked.** Ryan's second sketch arrived and is
 > [`journal/2026-09-14-sketch.jpg`](journal/2026-09-14-sketch.jpg) — the spec, kept beside its
@@ -33,9 +94,7 @@ _Last updated: 2026-09-14_
 >
 > #### 🔴 FIRST THING, BEFORE ANYTHING ELSE
 >
-> **RUN `npx vitest run`.** The root-find below landed and **the suite has not been run against
-> it.** `tsc` is clean and docs-hygiene is clean; the 18/745 figures further down are from the
-> state *before* it. Do not trust them until you have re-run.
+> ~~**RUN `npx vitest run`.**~~ Done, and superseded by the block above: 749/763.
 >
 > #### Where the solve got to
 >

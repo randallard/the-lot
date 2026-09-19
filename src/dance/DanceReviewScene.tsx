@@ -69,6 +69,7 @@ import {
   type ReviewRecords,
 } from "./review-store";
 import { reviewChartMarkdown } from "./review-chart";
+import { holdMetrics } from "./hold-metrics";
 
 const PANEL_WIDTH = 340;
 
@@ -98,6 +99,36 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
   const [records, setRecords] = useState<ReviewRecords>(() => loadReviews());
   const [figureFilter, setFigureFilter] = useState<string>("all");
   const [advance, setAdvance] = useState(true);
+  /**
+   * 🧪 **Exploratory turn-in, in degrees** (journal 2026-09-14-2; not mirrored since
+   * 2026-09-19). The beau turns this far toward the belle; the belle turns the same number
+   * of degrees the other way, away from him (`player/player` under the mirrored version
+   * looked wrong at the eye test). Gated by `turnOn` so the dialed-in angle survives a
+   * toggle off and back on. It is a thing to look at, not a setting: it is never saved with
+   * a rating, and it only applies to the `stand` step.
+   */
+  const [turnDeg, setTurnDeg] = useState(0);
+  const [turnOn, setTurnOn] = useState(false);
+  const [turnNudge, setTurnNudge] = useState(0);
+  /**
+   * 🧪 **Exploratory stagger, in cm** (2026-09-19, `floor-stagger-yaw` probe 2026-09-14). The
+   * beau steps this far back, the belle the same distance forward, along the couple's shared
+   * facing — half the dial each, so the joined-hands point doesn't move. Gated by
+   * `staggerOn`, same reasoning as `turnOn`. Only applies to the `stand` step.
+   */
+  const [staggerCm, setStaggerCm] = useState(0);
+  const [staggerOn, setStaggerOn] = useState(false);
+  const [staggerNudge, setStaggerNudge] = useState(0);
+  /**
+   * 🧪 **Exploratory hand height, in cm** (2026-09-19). Moves the one point both dancers'
+   * arms solve onto, up or down — signed, unlike `turnDeg`/`staggerCm`. `settleTouch` works
+   * out whatever elbow bend the new target implies; nothing here poses an elbow directly.
+   * Gated by `handHeightOn`, same reasoning as the other two. Only applies to the `stand`
+   * step.
+   */
+  const [handHeightCm, setHandHeightCm] = useState(0);
+  const [handHeightOn, setHandHeightOn] = useState(false);
+  const [handHeightNudge, setHandHeightNudge] = useState(0);
 
   /**
    * The cells being walked. Filtering narrows the *walk*, never the store: a rating given
@@ -159,17 +190,39 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
    */
   const seek = useMemo(
     () => ({
-      token: allCells.findIndex((c) => c.id === cell.id),
+      // A paused floor writes nothing, so a turn-in, stagger or hand-height change has to
+      // arrive as a fresh seek. The nudges keep the token unique without disturbing the
+      // cell's own position in it.
+      token:
+        allCells.findIndex((c) => c.id === cell.id) * 100000 +
+        turnNudge +
+        staggerNudge +
+        handHeightNudge,
       beat: cell.step.pose.kind === "stand" ? 0 : cell.step.pose.beat,
       arch: cell.step.pose.kind === "stand" ? ("down" as const) : ("declared" as const),
     }),
-    [allCells, cell],
+    [allCells, cell, turnNudge, staggerNudge, handHeightNudge],
   );
+
 
   const shapes = useMemo(
     () => [getBodyShape(cell.pairing.beau), getBodyShape(cell.pairing.belle)] as const,
     [cell.pairing.beau, cell.pairing.belle],
   );
+
+  const standing = cell.step.pose.kind === "stand";
+  const turnIn = standing && turnOn ? (turnDeg * Math.PI) / 180 : 0;
+  const stagger = standing && staggerOn ? staggerCm / 100 : 0;
+  const handHeight = standing && handHeightOn ? handHeightCm / 100 : 0;
+  /** The numbers for this pairing at this turn/stagger/height, from the same `holdMetrics` the probe read. */
+  const turnReadout = useMemo(() => {
+    const m = holdMetrics(shapes[0], shapes[1], turnIn, stagger, handHeight);
+    return {
+      tilt: [m.beau.forearmTilt, m.belle.forearmTilt] as const,
+      gap: Math.min(m.beau.partnerForearmGap, m.belle.partnerForearmGap),
+      flat: Math.max(m.beau.flatness, m.belle.flatness),
+    };
+  }, [shapes, turnIn, stagger, handHeight]);
 
   const labels = useMemo(() => new Map(castRoster().map((c) => [c.id, c.label])), []);
 
@@ -388,6 +441,95 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
           {cell.step.watch}
         </div>
 
+        {/* 🧪 Exploratory, and labelled as such so a rating is never taken of a turned,
+            staggered or height-shifted pose by accident. Journal 2026-09-14-2 has what
+            turn-in measured; stagger is the same `floor-stagger-yaw` probe; hand height is
+            2026-09-19 — it moves the hold point the arm solves onto and lets `settleTouch`
+            work out the bend, rather than posing an elbow directly. Each dial keeps its
+            dialed-in value across an on/off toggle — the checkbox gates whether it's
+            *applied*, not the number itself. */}
+        <div
+          style={{
+            border: "1px dashed #b58b2a",
+            borderRadius: 4,
+            padding: "6px 10px",
+            fontSize: 12,
+            background: turnIn === 0 && stagger === 0 && handHeight === 0 ? "transparent" : "#fff6e0",
+          }}
+        >
+          <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={turnOn}
+              disabled={!standing}
+              onChange={(e) => { setTurnOn(e.target.checked); setTurnNudge((n) => n + 1); }}
+            />
+            <span>🧪 turn in</span>
+            <input
+              type="range"
+              min={0}
+              max={30}
+              step={1}
+              value={turnDeg}
+              disabled={!standing || !turnOn}
+              onChange={(e) => { setTurnDeg(Number(e.target.value)); setTurnNudge((n) => n + 1); }}
+              style={{ flex: "1 1 0" }}
+            />
+            <span style={{ fontVariantNumeric: "tabular-nums", width: 28, textAlign: "right" }}>{turnDeg}°</span>
+          </label>
+          <label style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
+            <input
+              type="checkbox"
+              checked={staggerOn}
+              disabled={!standing}
+              onChange={(e) => { setStaggerOn(e.target.checked); setStaggerNudge((n) => n + 1); }}
+            />
+            <span>🧪 stagger</span>
+            <input
+              type="range"
+              min={0}
+              max={30}
+              step={1}
+              value={staggerCm}
+              disabled={!standing || !staggerOn}
+              onChange={(e) => { setStaggerCm(Number(e.target.value)); setStaggerNudge((n) => n + 1); }}
+              style={{ flex: "1 1 0" }}
+            />
+            <span style={{ fontVariantNumeric: "tabular-nums", width: 34, textAlign: "right" }}>{staggerCm}cm</span>
+          </label>
+          <label style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
+            <input
+              type="checkbox"
+              checked={handHeightOn}
+              disabled={!standing}
+              onChange={(e) => { setHandHeightOn(e.target.checked); setHandHeightNudge((n) => n + 1); }}
+            />
+            <span>🧪 hand height</span>
+            <input
+              type="range"
+              min={-30}
+              max={30}
+              step={1}
+              value={handHeightCm}
+              disabled={!standing || !handHeightOn}
+              onChange={(e) => { setHandHeightCm(Number(e.target.value)); setHandHeightNudge((n) => n + 1); }}
+              style={{ flex: "1 1 0" }}
+            />
+            <span style={{ fontVariantNumeric: "tabular-nums", width: 40, textAlign: "right" }}>
+              {handHeightCm > 0 ? "+" : ""}{handHeightCm}cm
+            </span>
+          </label>
+          {standing ? (
+            <div style={{ color: "#555", fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
+              forearm off vertical {turnReadout.tilt[0].toFixed(1)}° / {turnReadout.tilt[1].toFixed(1)}° ·
+              forearm gap {turnReadout.gap.toFixed(3)} · flatness {turnReadout.flat.toFixed(2)}
+              {turnIn === 0 && stagger === 0 && handHeight === 0 ? "" : <><br /><strong>not the shipped pose — don't rate it</strong></>}
+            </div>
+          ) : (
+            <div style={{ color: "#888", fontSize: 11 }}>standing couple step only</div>
+          )}
+        </div>
+
         <div>
           <div style={{ display: "flex", gap: 4 }}>
             {([0, 1, 2, 3, 4] as const).map((r) => (
@@ -541,6 +683,9 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
             seek={seek}
             onBeat={onBeat}
             shapes={shapes}
+            turnIn={turnIn}
+            stagger={stagger}
+            handHeight={handHeight}
           />
         </Canvas>
       </div>

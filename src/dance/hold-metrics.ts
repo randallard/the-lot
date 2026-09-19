@@ -126,7 +126,37 @@ function halfThickness(shape: CharacterBodyShape): number {
  * the same reason. A second derivation beside the first is two numbers for one thing, which
  * is the defect ADR-0045 was written about.
  */
-export function holdMetrics(beauShape: CharacterBodyShape, belleShape: CharacterBodyShape): HoldMetrics {
+export function holdMetrics(
+  beauShape: CharacterBodyShape,
+  belleShape: CharacterBodyShape,
+  /**
+   * 🧪 **Exploratory (2026-09-14, resigned 2026-09-19), not a decided stance.** Radians the
+   * beau turns *toward* the belle, with the hold point held fixed on the floor — the beau
+   * yaws `−turnIn`. 🧪 **Not mirrored (2026-09-19):** `player/player` under the mirrored
+   * version showed the belle needed to turn *away* rather than in, so the belle now yaws
+   * `−turnIn` too (the same sign as the beau, not `+turnIn`) — same magnitude as the beau,
+   * opposite effect because her hold-frame placement is already mirrored at `−width/2`. It
+   * measures whether a couple turned slightly keeps its forearms off the vertical pole
+   * without fouling (journal 2026-09-14-2, 2026-09-19). `touchHold` is **not** re-solved for
+   * the turn, so width, lateral, height and forward are still the abreast answers. `0` takes
+   * exactly the abreast path below.
+   */
+  turnIn = 0,
+  /**
+   * 🧪 **Exploratory (2026-09-19), not a decided stance.** World units the beau steps back
+   * along the hold's own forward axis, and the belle steps forward by — the hold point stays
+   * fixed on the floor, so each moves half the dial. From the `floor-stagger-yaw` probe
+   * (2026-09-14, `stagger s>0 = beau behind`). `0` takes exactly the abreast/turn-only path.
+   */
+  stagger = 0,
+  /**
+   * 🧪 **Exploratory (2026-09-19), not a decided stance.** World units added to the shared
+   * hold height, up or down — the one point both dancers' `touchLift` independently solve
+   * their arm onto. `settleTouch`/`touchPose` work out whatever elbow bend the new target
+   * implies; nothing here poses the elbow directly. `0` changes nothing.
+   */
+  handHeight = 0,
+): HoldMetrics {
   const beau = armMetrics(beauShape);
   const belle = armMetrics(belleShape);
   const hold = touchHold(beau, belle);
@@ -136,8 +166,24 @@ export function holdMetrics(beauShape: CharacterBodyShape, belleShape: Character
   // solves against.
   const acrossBeau = hold.width / 2 + hold.lateral - hold.insideBeau;
   const acrossBelle = hold.width / 2 - hold.lateral - hold.insideBelle;
-  const b = touchLift(beau, true, -(acrossBeau + hold.insideBeau), hold.forward, hold.height, hold.insideBeau);
-  const l = touchLift(belle, false, acrossBelle + hold.insideBelle, hold.forward, hold.height, hold.insideBelle);
+  // Turned in, the same floor point `(−lateral, forward)` is taken into each dancer's own
+  // frame by the inverse of `place` below. Branched rather than always rotated so the abreast
+  // numbers stay bit-identical to what every existing pin was written against.
+  const localHold = (at: Placement): [number, number] => {
+    const c = Math.cos(at.yaw), s = Math.sin(at.yaw);
+    const dx = -hold.lateral - at.x, dz = hold.forward - at.z;
+    return [dx * c - dz * s, dx * s + dz * c];
+  };
+  const [bx, bz] = turnIn === 0 && stagger === 0
+    ? [-(acrossBeau + hold.insideBeau), hold.forward]
+    : localHold({ x: hold.width / 2, z: -stagger / 2, yaw: -turnIn });
+  const [lx, lz] = turnIn === 0 && stagger === 0
+    ? [acrossBelle + hold.insideBelle, hold.forward]
+    : localHold({ x: -hold.width / 2, z: stagger / 2, yaw: -turnIn });
+  // The plane both palms actually rest on — `hold.height` plus whatever the dial moved it.
+  const contactHeight = hold.height + handHeight;
+  const b = touchLift(beau, true, bx, bz, contactHeight, hold.insideBeau);
+  const l = touchLift(belle, false, lx, lz, contactHeight, hold.insideBelle);
 
   // **The couple, on the floor.** Both arms are solved in their own local frames and neither
   // needs the other — that locality is `palmOffset`'s whole design — so the first thing a
@@ -149,11 +195,11 @@ export function holdMetrics(beauShape: CharacterBodyShape, belleShape: Character
   // world point only from these two spots. Derived here rather than asserted — the test checks
   // the two hands land together.
   //
-  // Both yaws are zero, so a *direction* means the same thing in either dancer's frame as it
-  // does on the floor. That is what lets {@link handExtentAlong} — which asks in the dancer's
-  // own frame — be handed a vector measured between the two of them.
-  const beauAt: Placement = { x: hold.width / 2, z: 0, yaw: 0 };
-  const belleAt: Placement = { x: -hold.width / 2, z: 0, yaw: 0 };
+  // Abreast, both yaws are zero and a *direction* means the same thing in either dancer's frame
+  // as it does on the floor. Turned in (`turnIn`) it does not, so the crossing direction handed
+  // to {@link handExtentAlong} — which asks in the dancer's own frame — is rotated into it first.
+  const beauAt: Placement = { x: hold.width / 2, z: -stagger / 2, yaw: -turnIn };
+  const belleAt: Placement = { x: -hold.width / 2, z: stagger / 2, yaw: -turnIn };
   // 🔑 **Where the hand is, and where the arm is, are two different questions now.**
   // `handCentre` swings the hand off the wrist the way the render draws it; `drawnForearm`
   // stops where the cylinder does. Neither is `elbow + forearmSpan · aim` any more — that
@@ -180,13 +226,14 @@ export function holdMetrics(beauShape: CharacterBodyShape, belleShape: Character
     mineHandCentre: Vec3,
     partner: ArmMetrics,
     theirs: Forearm,
+    at: Placement,
   ): HandMetrics => {
     const half = halfThickness(shape);
     const radius = shape.hand.open.radius;
     // How far this palm's own centre ended up from the contact plane — a half-thickness when
     // it came level, more when the wrist's clamp left it proud. Read off the placed hand
     // rather than off the solve's lift, which since 2026-09-13 is the **wrist's** offset.
-    const rise = Math.abs(mineHandCentre.y - hold.height);
+    const rise = Math.abs(mineHandCentre.y - contactHeight);
     // 🔑 **Both solids are taken as they are drawn, and neither as a radius.** The partner's
     // arm is the capped cylinder `Dancer` draws — `trackCylinder`, not `trackContact`, because
     // the two hands sit off the *ends* of each other's forearms and that is the one place a
@@ -194,6 +241,8 @@ export function holdMetrics(beauShape: CharacterBodyShape, belleShape: Character
     // direction asked, so it is left out of the distance and put back on the next line, along
     // the direction the crossing actually happens in.
     const c = trackCylinder(contact(), mineHandCentre, theirs, partner.forearmElbowRadius, partner.forearmWristRadius);
+    const wx = c.point.x - mineHandCentre.x, wz = c.point.z - mineHandCentre.z;
+    const cy = Math.cos(at.yaw), sy = Math.sin(at.yaw);
     return {
       centreY: mineHandCentre.y,
       // Guarded because a perfectly round hand (`flattenZ` 1) has no flat face to speak of,
@@ -210,9 +259,9 @@ export function holdMetrics(beauShape: CharacterBodyShape, belleShape: Character
           pose.aimX,
           pose.aimY,
           pose.aimZ,
-          c.point.x - mineHandCentre.x,
+          wx * cy - wz * sy,
           c.point.y - mineHandCentre.y,
-          c.point.z - mineHandCentre.z,
+          wx * sy + wz * cy,
         ),
       partnerForearmAlong: c.along,
     };
@@ -220,8 +269,8 @@ export function holdMetrics(beauShape: CharacterBodyShape, belleShape: Character
 
   // "beau right palm up and belle's left palm down" (2026-08-15) — the same two sides
   // `palmOffset` picks, so the hand measured here is the hand the solve posed.
-  const beauHand = measure(beauShape, beau, "right", b.pose, beauHandAt, belle, belleArm);
-  const belleHand = measure(belleShape, belle, "left", l.pose, belleHandAt, beau, beauArm);
+  const beauHand = measure(beauShape, beau, "right", b.pose, beauHandAt, belle, belleArm, beauAt);
+  const belleHand = measure(belleShape, belle, "left", l.pose, belleHandAt, beau, beauArm, belleAt);
   return {
     hold,
     beau: beauHand,

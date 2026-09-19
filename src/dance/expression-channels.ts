@@ -133,6 +133,11 @@ export interface ExpressionContext {
    * planned. Passed straight through to `poseArms` — see there (ADR-0033).
    */
   forearmY?: number | undefined;
+  /**
+   * 🧪 Exploratory: the couple's world yaw when the pair are deliberately turned in toward each
+   * other. Passed straight through to `poseArms` — see there.
+   */
+  coupleYaw?: number | undefined;
 }
 
 /**
@@ -235,7 +240,7 @@ export function resolveExpression(
   out: ResolvedExpression,
   ctx: ExpressionContext,
 ): ResolvedExpression {
-  const { pose, me, them, self, partner, blend, hold, declaredHold, forearmY } = ctx;
+  const { pose, me, them, self, partner, blend, hold, declaredHold, forearmY, coupleYaw } = ctx;
 
   // limited — arms fold where they trespass, and a gripped hand is taken over entirely
   out.arms = poseArms(
@@ -249,6 +254,7 @@ export function resolveExpression(
     hold,
     declaredHold ?? false,
     forearmY,
+    coupleYaw,
   );
 
   // limited — shape is clipped to this dancer's share of the live slack

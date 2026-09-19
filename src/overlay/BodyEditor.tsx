@@ -249,6 +249,14 @@ export function BodyEditor({ shape, onChange, openSections, onToggleSection }: B
             <SliderRow label="arm width"        value={shape.layout.forearmXOffset}  {...B.layout.forearmXOffset}  onChange={v => onChange(patchSection(shape, "layout", "forearmXOffset", v))} />
             <SliderRow label="upper arm space"  value={shape.layout.upperArmSpacing} {...B.layout.upperArmSpacing} onChange={v => onChange(patchSection(shape, "layout", "upperArmSpacing", v))} />
             <SliderRow label="head↔body gap"    value={shape.layout.headBodyGap}     {...B.layout.headBodyGap}     onChange={v => onChange(patchSection(shape, "layout", "headBodyGap", v))} />
+            <SliderRow
+              label="shoulder height"
+              value={shape.layout.shoulderY ?? shape.body.height / 2 + shape.body.radius}
+              {...B.layout.shoulderY}
+              overridden={shape.layout.shoulderY !== undefined}
+              onReset={() => onChange({ ...shape, layout: { ...shape.layout, shoulderY: undefined } })}
+              onChange={v => onChange(patchSection(shape, "layout", "shoulderY", v))}
+            />
           </>
         )}
       </div>

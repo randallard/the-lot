@@ -53,6 +53,8 @@ import {
   touchHold,
   touchingSide,
   gripHeight,
+  insideSide,
+  standingAsCouple,
 } from "./arm-pose";
 import {
   facingToRotationY,
@@ -165,6 +167,38 @@ interface DanceFloorProps extends DancePerformanceOptions {
    * all. Absent or `null` is a dancer who simply dances.
    */
   controllers?: readonly (AnimationController | null)[];
+  /**
+   * 🧪 **Exploratory (2026-09-14, un-mirrored 2026-09-19), not a decided stance.** Radians the
+   * beau of a **standing couple** turns toward the belle; she turns the same number of
+   * radians the other way, holding the same joined-hands point on the floor.
+   *
+   * Exists so Ryan can look at a turned-in couple before anything is decided. The measurement
+   * is in `journal/2026-09-14-2`: a turn keeps the forearms off the vertical pole that stops
+   * `settleTouch` converging. Applied only while the placements say the two are standing as
+   * a couple, never during an arch. `touchHold` is **not** re-solved for the turn. `0` (the
+   * default) changes nothing.
+   */
+  turnIn?: number;
+  /**
+   * 🧪 **Exploratory (2026-09-19), not a decided stance.** World units the beau of a
+   * **standing couple** steps back, along the couple's shared facing, while the belle steps
+   * forward by the same amount — half each, so the joined-hands point stays put. From the
+   * `floor-stagger-yaw` probe (2026-09-14). Same gating as {@link turnIn}: only while
+   * standing as a couple, never during an arch, `touchHold` not re-solved, `0` (the default)
+   * changes nothing.
+   */
+  stagger?: number;
+  /**
+   * 🧪 **Exploratory (2026-09-19), not a decided stance.** World units added to the standing
+   * couple's shared hold height — up or down, signed. Unlike {@link turnIn}/{@link stagger}
+   * this reaches the actual solve rather than turning the posed rig afterward: it moves the
+   * one point both dancers' arms independently settle onto ({@link touchHold}'s `height`),
+   * and `settleTouch`/`touchPose` work out whatever elbow bend that target implies — a
+   * fully-determined triangle, not a free swivel. Beyond the arm's reach it falls through to
+   * `reachPose` (fully straight), same as any other unreachable target. `0` (the default)
+   * changes nothing.
+   */
+  handHeight?: number;
 }
 
 /** One dancer's arms this frame: where they are, and what the hand has hold of. */
@@ -352,6 +386,9 @@ export function DanceFloor({
   onBeat,
   onArms,
   controllers,
+  turnIn = 0,
+  stagger = 0,
+  handHeight = 0,
   ...performanceOptions
 }: DanceFloorProps) {
   /**
@@ -682,6 +719,7 @@ export function DanceFloor({
   const seekSeen = useRef<number | null>(null);
 
   useFrame((state, delta) => {
+    let coupleYaw: number | undefined;
     // A home request outranks the pause — it is the one thing that must move the
     // dancers while the clock is frozen — and it is consumed here, so a bump of the
     // token buys exactly one pass however long the floor then sits paused.
@@ -718,6 +756,46 @@ export function DanceFloor({
         // dancers grounded, matching how positionRef is handled everywhere else.
         rig.position.y = 0;
         rig.rotation.y = facingToRotationY(frameRef.current, state.facing);
+      }
+
+      // 🧪 The exploratory turn-in and stagger (see `turnIn`, `stagger`). Read off the
+      // placements the engine just wrote, so a pair only turn/stagger while they really are
+      // standing as a couple, and the couple's own facing is kept for `poseArms` before
+      // either rig is moved.
+      coupleYaw = undefined;
+      if ((turnIn !== 0 || stagger !== 0) && keys.length === 2 && hold !== undefined) {
+        const a = rigs[keys[0] ?? ""]?.current;
+        const b = rigs[keys[1] ?? ""]?.current;
+        if (a && b) {
+          readPlacement(_self, a);
+          readPlacement(_partner, b);
+          if (standingAsCouple(_self, _partner, hold.width)) {
+            const sideA = insideSide(_self, _partner);
+            const sideB = insideSide(_partner, _self);
+            coupleYaw =
+              _self.yaw + Math.atan2(Math.sin(_partner.yaw - _self.yaw), Math.cos(_partner.yaw - _self.yaw)) / 2;
+            if (turnIn !== 0) {
+              // 🧪 2026-09-19: not mirrored any more. `keys[0]` is the beau (see the `poseArms`
+              // note above) and he still turns toward the belle; she now turns the same number
+              // of degrees the other way, away from him. Toward the partner: the inside-right
+              // dancer turns clockwise (−), inside-left (+); away is the same formula negated.
+              a.rotation.y += sideA === "right" ? -turnIn : turnIn;
+              b.rotation.y += sideB === "right" ? turnIn : -turnIn;
+            }
+            if (stagger !== 0) {
+              // 🧪 The beau (`a`) steps straight back, the belle (`b`) straight forward, along
+              // the couple's shared facing (`coupleYaw`) rather than either dancer's own — half
+              // the dial each, so the hold point they're aiming at doesn't move. World forward
+              // for a given `rotation.y` is `(sin, cos)` in `(x, z)` (see `frame.ts`
+              // `facingToRotationY`'s doc comment: heading is `atan2(dir.x, dir.z)`).
+              const fx = Math.sin(coupleYaw), fz = Math.cos(coupleYaw);
+              a.position.x -= fx * (stagger / 2);
+              a.position.z -= fz * (stagger / 2);
+              b.position.x += fx * (stagger / 2);
+              b.position.z += fz * (stagger / 2);
+            }
+          }
+        }
       }
 
       if (followDrift) {
@@ -1022,9 +1100,20 @@ export function DanceFloor({
                   insideBeau: standing.insideBeau,
                   insideBelle: standing.insideBelle,
                 };
-          const coupleHold = archHold ?? standing;
+          // 🧪 The exploratory hand-height dial (see `handHeight`). Shared, not per-dancer —
+          // moving it for only one of them is the arch/break mechanism above (`forearmY`),
+          // which pulls the hold apart on purpose; this instead keeps it the one point both
+          // still solve their own arm onto, just moved.
+          const baseHold = archHold ?? standing;
+          const coupleHold: TouchHold | undefined =
+            baseHold === undefined || handHeight === 0
+              ? baseHold
+              : { ...baseHold, height: baseHold.height + handHeight };
           _ctx.hold = coupleHold;
-          _ctx.declaredHold = archHold !== undefined;
+          // A turned-in couple face ~2·turnIn apart, which `standingAsCouple`'s facing tolerance
+          // can read as "not a couple". They are one by construction, so the hold is declared.
+          _ctx.declaredHold = archHold !== undefined || coupleYaw !== undefined;
+          _ctx.coupleYaw = archHold === undefined ? coupleYaw : undefined;
           // The planned height for **this** dancer, eased in with the rest of the hold. Under
           // a break the two get different numbers and the forearms finish on different planes,
           // which is the hold coming apart — the same thing `archHold`'s two heights do.
@@ -1039,7 +1128,7 @@ export function DanceFloor({
                 );
           // Reported from the same call `poseArms` poses from, so the markers cannot
           // point at a hold the render did not draw.
-          track.touch = touchingSide(_self, _partner, coupleHold, archHold !== undefined);
+          track.touch = touchingSide(_self, _partner, coupleHold, _ctx.declaredHold);
           resolveExpression(ex, _ctx);
 
           /**
@@ -1075,6 +1164,17 @@ export function DanceFloor({
              * The wrist (ADR-0052): roll the palm level on its own forearm, bend across it
              * for the remainder, clamp at what a wrist does.
              *
+             * 🔴 **2026-09-19: only the touch-hold's own hand spends a wrist.** `wristRotation`
+             * turns the palm to face world-**up** (`target = (aimX, −aimY, aimZ)`), which is
+             * only a sensible thing to ask of the hand that is actually resting flat on a
+             * partner's palm. Ryan caught it by eye on the outside hand of a standing couple:
+             * hanging straight down (`restPose`'s `aimY = −1`) is a perfectly well-defined
+             * input — not the degenerate case the early-return in `wristRotation` guards
+             * against — so it was never a no-op there, just a wrong, nonzero turn toward
+             * "flat" that a hand doing nothing has no business taking. `track.touch` is the
+             * same signal `shoulderX` above already gates the inside-arm tuck on, so this
+             * reuses it rather than inventing a second notion of "is this hand held."
+             *
              * 🔑 **Solved from the mesh's own drawn map**, which on this side is the
              * *mirrored* one — the hand inside the `right` forearm group wears
              * `handRotations(...).left`. Reading the same-named map instead would turn the
@@ -1088,14 +1188,19 @@ export function DanceFloor({
              */
             const hand = arms.hands[side].current;
             if (hand) {
+              const touching = side === track.touch;
               const drawn = MIRRORED[side];
               const map = handDrawnMap(ex.shape.hand.open, drawn);
-              _m3.fromArray(wristRotation(map, pose.aimX, pose.aimY, pose.aimZ));
-              // `fromArray` reads column-major and the wrist is row-major, so this is the
-              // transpose — the inverse rotation. Transposing back is one call and beats
-              // shipping a second matrix convention into this file.
-              _m4.setFromMatrix3(_m3).transpose();
-              _q.setFromRotationMatrix(_m4);
+              if (touching) {
+                _m3.fromArray(wristRotation(map, pose.aimX, pose.aimY, pose.aimZ));
+                // `fromArray` reads column-major and the wrist is row-major, so this is the
+                // transpose — the inverse rotation. Transposing back is one call and beats
+                // shipping a second matrix convention into this file.
+                _m4.setFromMatrix3(_m3).transpose();
+                _q.setFromRotationMatrix(_m4);
+              } else {
+                _q.identity();
+              }
               const r = handRotations(ex.shape.hand.open)[drawn];
               _e.set(r[0], r[1], r[2]);
               hand.quaternion.setFromEuler(_e).premultiply(_q);
@@ -1116,9 +1221,12 @@ export function DanceFloor({
                * The wrist sits at `drawnSpan` down the group's own `−y`; `handLie` is the
                * direction on from there, and it comes back as `(0, −1, 0)` whenever the wrist
                * is doing nothing — which is what keeps every arm that is not holding hands
-               * exactly where it was.
+               * exactly where it was. Asked outright now, via `touching`, rather than relied
+               * on: identity aim gives the same `(0, −1, 0)`, but a hanging arm's aim is not
+               * identity, it is vertical — a different input this function was never meant to
+               * see.
                */
-              const lie = handLie(map, pose.aimX, pose.aimY, pose.aimZ);
+              const lie = touching ? handLie(map, pose.aimX, pose.aimY, pose.aimZ) : ([0, -1, 0] as const);
               const reach = me.forearmSpan - me.drawnSpan;
               hand.position.set(lie[0] * reach, -me.drawnSpan + lie[1] * reach, lie[2] * reach);
             }
