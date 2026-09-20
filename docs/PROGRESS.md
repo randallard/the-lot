@@ -1,10 +1,226 @@
 # Progress & Status
 
-_Last updated: 2026-09-14_
+_Last updated: 2026-09-20_
 
 ## Status / next
 
-> ### ▶ PICK UP HERE — 2026-09-14 (late) — the stragglers are a pole in the wrist rule
+> ### ▶ PICK UP HERE — 2026-09-20 (2) — Myco's arm is a diversity case now
+>
+> [`journal/2026-09-20-2-mycos-arm-is-a-diversity-case-now.md`](journal/2026-09-20-2-mycos-arm-is-a-diversity-case-now.md)
+>
+> ✅ **`MYCO_DEFAULTS` re-authored to what Ryan set on screen:** forearm 0.24 → **0.16**, hand
+> radius 0.11 → **0.08**, `upperArmSpacing` 0.33 → **0.10**, `shoulderY` 0.05 → **0.11**.
+> 🔑 **Her reach is now roughly half what it was** — `handReach` 0.690 → **0.350**, whole arm
+> 0.80 → 0.43.
+>
+> ✅ **On the step it was tuned against it is the best this pairing has measured:** arch fits at
+> the couple's own width (0.880 both — no reach, no let-go), `clearFloor` silent, flatness
+> **0.018** against the 0.25 target, forearm tilt **34°** where her old upper arm put her at
+> 128° pointing up, and worst forearm gap **−0.018** — the least-fouling `player/myco` has ever
+> been. 09-19-3 needed +30cm of `hands fwd` to get that pairing positive; most of it is now free
+> at 0cm, bought by the smaller hand.
+>
+> 🔴 **Costs 0.028 of strain on her, taken deliberately.** Every upper-arm length that zeroes it
+> rotates her forearm to 100–120°, past horizontal — the look the re-authoring existed to remove.
+> There is no cell that is both unstrained and hanging; that is the shape of a short arm, not a
+> tuning failure. Grid in the journal.
+>
+> 🔑 **The framing, from Ryan: this is a diversity exercise.** Myco is the first cast member
+> whose *body* cannot make holds the dance assumes — every reach problem before this was a
+> **pair** problem. The answer is the accommodations already decided, not more tuning:
+> **reshape** and **break** (ADR-0037, drawn per execution) and **reach** (ADR-0040, the ordered
+> last resort before break). `accommodation.ts` is explicit that a new hold must *"answer which
+> of these two rather than inventing a third silent one."* Plan: carry on through the review and
+> answer each hold she cannot make with one of the three.
+>
+> 🔴 **Suite 31 → 36 failures** (9 new, 4 recovered; diffed by full test name). Three kinds:
+> **A** 3 stale pins on her old numbers; **B** 3 `clearFloor` tests that lost their subject — her
+> hand now rests at **+0.18**, so ADR-0055's clamp fires for **no** character and those rules
+> want a *synthetic* low-shoulder/long-arm body rather than a shipped one; **C** 🔴 3 real
+> regressions — the **fist bump** over-extends her (`upperArmStrain` **0.1135** where 0 is
+> asserted) and she can **no longer reach the mean elbow** in a forearm hold (shortfall
+> **0.0925**, so `planForearm` would accommodate both dancers instead of one). The standing
+> handhold got better and the bump and the turn got worse, structurally: the `#review` route
+> only covers the couple figures.
+>
+> ❓ **Open, deliberately: fix those tests now, or as the review reaches them?** Ryan raised it
+> and left it. **Now** — a red suite hides the next regression. **As we reach them** — group C is
+> not bookkeeping; each is a hold awaiting an accommodation decision, and re-pinning before
+> deciding throws away the only thing asking for it. A middle reading, not chosen: do A and B
+> now, leave C failing.
+>
+> ⚠️ **Nothing changes in the browser** — a saved `myco` in `localStorage` holds the identical
+> values and overrides the defaults. Fresh profile or editor **reset** only.
+>
+> **State:** `body-shapes.ts` only, typecheck clean, uncommitted. **Next:** carry on through the
+> review; settle the open question the first time group C actually bites.
+>
+> ---
+>
+> ### ▶ 2026-09-20 (1) — a negative upper arm, and a welded elbow
+>
+> [`journal/2026-09-20-1-a-negative-upper-arm-and-a-welded-elbow.md`](journal/2026-09-20-1-a-negative-upper-arm-and-a-welded-elbow.md)
+>
+> 🔑 **The `player/myco` pair Ryan saw "way far apart" had *let go*.** The Twirl's `stand` step
+> stands the pair at `sizeArch(...).width`, not at their handhold's, and `sizeArch`'s last
+> resort (ADR-0040) is *"stand at twice the room they need."* Reproduced: stance **1.602**
+> against a handhold width of 0.801, both forearms at 180°, strain 0.533 — with
+> `upperArmSpacing −0.40` on **both** dancers. Myco alone at −0.40 still holds.
+>
+> 🔴 **`upperArmSpacing` is a length, and negative inverts every reach budget silently.**
+> `armMetrics` spends it as `elbowReach` and inside `wristReach`, both radii. `touchSpanAt`'s
+> `gap = |drop| − elbowReach` **adds** the upper arm to the gap it should subtract and returns
+> 0 sideways reach; `wristReach` goes negative and `bandedHeight` squares it; `handReach` comes
+> out negative because the hand computes *above* the shoulder.
+>
+> ✅ **`SHAPE_BOUNDS.layout.upperArmSpacing.min` is now `0`, was `−0.50`.** **No authored
+> character affected** — the cast runs 0.10 to 0.33, player 0.22. Saved `localStorage` shapes
+> are not retro-clamped; `migrate` merges layout through untouched.
+>
+> 🔑 **The band that works for Myco is `shoulderY` 0.10–0.15 with `upperArmSpacing` 0.05–0.12**
+> — a diagonal, because dropping the shoulder wants a shorter upper arm (ADR-0055's `clearFloor`
+> pairing) while flatness wants a longer one. There the arch fits at the handhold's own width
+> (no reach, no let-go), the floor clamp is silent, belle's forearm sits 4–6° off vertical
+> instead of 128°, and flatness is 0.018 against the 0.25 target. ADR-0055's 0.08 clears the
+> clamp but leaves the palms edge-on at 0.675. Full sweep in the journal.
+>
+> 🔴 **Noted, not fixed (Ryan: *"don't fix that yet, just note it"*): hand height does not bend
+> Myco's elbow because she has no upper arm to bend.** At `upperArmSpacing 0.000` her elbow is
+> welded to her shoulder — `(0.410, 0.550, 0.000)` at every dial — and the readout says so:
+> **upper arm off hang `37.5° / 0.0°`**. The dial is fine; the beau's elbow goes *back* by
+> 0.133 at +8cm, which is the behaviour expected, on the other dancer. `touchPose`'s
+> `|along| >= upper` is true for any `along` when `upper` is 0, so every hold falls to
+> `reachPose`, whose elbow sphere then has radius 0. Open question it leaves: **nothing in the
+> Layout panel tells you that you have welded a joint.**
+>
+> 📌 **Task set for later — hone `sizeArch`'s last resort** (worklist below). Ryan: *"each move
+> should start from the same 'stand' … that isn't great."*
+>
+> **State:** `body-shapes.ts` only, uncommitted with the rest of 09-19. Suite **31 failed / 741
+> passed**, identical to the working tree without the change — no dance code reads the bound,
+> only `BodyEditor`'s slider. **Next:** Ryan sets Myco to a real upper arm in the 0.05–0.12
+> band and says whether `player/myco` reads right at the `stand` step.
+>
+> ---
+>
+> ### ▶ 2026-09-19 (3) — 🧪 a dial for elbow back
+>
+> [`journal/2026-09-19-3-a-dial-for-elbow-back.md`](journal/2026-09-19-3-a-dial-for-elbow-back.md)
+>
+> 🧪 **An instrument, nothing decided.** Ryan: *"just playing with it — give me a dial for
+> elbow back."* A handhold's elbow is derived, not posed (`touchPose` keeps the humerus in its
+> own shoulder's plane and takes the further-back point), so the dial is at the other end:
+> **`🧪 hands fwd`**, −20…+40cm, moves `hold.forward` the way the hand-height dial moves
+> `hold.height`, and the anatomy decides where the elbow goes. `stand` step only, never saved
+> with a rating, `0` changes nothing.
+>
+> ✅ **It prints its own cost**, which is ADR-0027's: **upper arm off hang** per dancer, and
+> **strain** in red the moment the hold is asked for past the end of somebody's arm.
+>
+> 🔑 **Forward buys both chart complaints at once.** Forearm gap — the 🔴 nine-pairing foul,
+> 21/25 abreast — roughly halves on `player/player` by 10cm, and **`myco/player` stops fouling
+> altogether at 30cm**, the first pairing ever to go positive. Flatness collapses to 0.
+>
+> 🔴 **Strain leaves zero at ~5cm on anything with the player in it** (his forearm is 93%
+> spent just dropping from elbow to hold); `ryan/ryan` and `ember/sprout` hold to 15–20cm. So
+> the hanging-upper-arm window is 5–15cm and the interesting fouling territory is past it.
+> **That tension is ADR-0027's to answer** — if forward past the hang is worth having, that is
+> the ADR to supersede, and the gap numbers are the argument.
+>
+> Suite unchanged: **31 failed / 772 against the same baseline of 31 failed / 763**, the
+> identical failing set, both figures stable over three runs.
+>
+> ---
+>
+> ### ▶ 2026-09-19 (2) — the arm was already in the floor
+>
+> [`journal/2026-09-19-2-the-arm-was-already-in-the-floor.md`](journal/2026-09-19-2-the-arm-was-already-in-the-floor.md)
+> · [ADR-0055](adr/0055-an-arm-is-a-fixed-length-and-a-shoulder-can-be-put-anywhere.md)
+>
+> 🔑 **The floor plunge was not something a wider bound would cause — it is live on the
+> shipped cast, at Myco's own authored `shoulderY: 0.05`, with no override anywhere.** Her arm
+> is 0.80 long on a 0.55 shoulder, so her resting hand computes to **−0.25**, a quarter of a
+> unit under the opaque ground mesh, which is the stub in Ryan's screenshot. The `-0.20` bound
+> was holding the *fix* back, not the defect.
+>
+> ✅ **`clearFloor` (`arm-pose.ts`, ADR-0055).** A free arm that would put its hand underground
+> rotates about its own pinned shoulder until the hand's centre sits one `handRadius` above
+> `FLOOR_Y`. Upper arm keeps its natural length (`upperArmStrain` still reads zero at rest).
+> Limited channel only, on `_free`, **before** `constrainArm` — the lift is a rotation, the
+> fold is a horizontal slide, and a slide cannot undo a lift. `aimX` is carried across to the
+> bit and only clamped inward; the whole lift goes into `z`, where `rigidParts` already
+> declines to charge for an overhang. Fires for **Myco alone** on the cast.
+>
+> ✅ **`SHAPE_BOUNDS.layout.shoulderY` opened to `{ min: -1.30, max: 1.50 }`** — the body's own
+> span. That was Ryan's ask.
+>
+> 🔑 **Ryan's setting-up number: `upperArmSpacing` ≤ 0.08 and Myco hangs naturally**, clamp
+> silent, elbow 0.47, hand 0.11. Her shipped 0.33 is **deliberately left alone** — an authored
+> look is his to change, not a rule's to quiet. The table of the sweep is in the journal.
+>
+> ✅ **Suite: 31 failed / 772, against a clean baseline of 31 failed / 763 — the identical
+> failing set**, diffed by full test name, not by count. 9 tests added, all passing. Seven
+> existing statements moved and **none re-pinned to a number**: they now compare against
+> `clearFloor(restPose(…))`, so they keep stating the rule and keep passing once her upper arm
+> is shortened.
+>
+> 🔴 **Recorded, not fixed:** a lifted arm reaches forward, so `constrainArm` backs it off a
+> diagonally-approached partner along a diagonal, and a diagonal has an `x` in it —
+> `|localX|` 0.484 against `restX` 0.46 at dosado beat 4.25. It moves the arm *away* from the
+> partner and the intersection assertion is unmoved. A property of `constrainArm`, predating
+> this, which only a floor-lifted free arm had the forward reach to expose.
+>
+> ✅ **The head overlap was never the ask.** *"especially with Myco, who has their head
+> overlapping the body"* names why her shoulder is hard to place. `headBodyGap` stays at
+> `-0.4`; `headCenterY` keys off `bodyTop` by design, so `shoulderY` never moved it.
+>
+> **State:** uncommitted, held for Ryan's look — `arm-pose.ts`, `body-shapes.ts`, three test
+> files, ADR-0055 + index row, this entry. **Next:** Ryan opens
+> `#review=california-twirl/stand/player-myco`, drags **upper arm space** down toward 0.08, and
+> says whether the pairing reads right.
+>
+> ---
+>
+> ### ▶ 2026-09-19 (1) — a lever that moves two things (switching to Opus)
+>
+> [`journal/2026-09-19-1-a-lever-that-moves-two-things.md`](journal/2026-09-19-1-a-lever-that-moves-two-things.md)
+>
+> 🔴 **Superseded in part by (2) above:** this session read the floor plunge as something a
+> widened bound would *introduce* and reverted the bound; it was already live. It also left
+> the head/body overlap open as Ryan's original ask; it was not the ask. The `waistY` fix
+> below stands and is carried forward.
+>
+> Session run on **Sonnet 5**; next attempt continues on **Opus**. Picked up cold from Ryan's
+> own uncommitted `008c86e` (`layout.shoulderY`, an optional per-character arm-attachment
+> override, Myco set to `0.05`, bound `{ min: -0.20, max: 1.50 }`). Ryan's ask: lower Myco's
+> shoulder further to fix her head overlapping her body.
+>
+> ✅ **Found and fixed: `waistY` (`body-shapes.ts`) was riding on the now-overridable
+> `shoulderY`, dragging the couple's joined-hand hold height down with a lowered shoulder.**
+> Now derived from `bodyTop` instead. Confirmed live (wrote a `shoulderY: -0.5` override into
+> `localStorage`, watched the hold break, then recover after the fix) and confirmed no new test
+> failures (30 failed/157 passed, identical before/after, all pre-existing pins).
+>
+> 🔴 **Found, diagnosed, NOT fixed: the idle "outside hand" pose (`DanceFloor.tsx`, `restPose`,
+> `aimY: -1`) hangs a fixed-length straight arm from the shoulder with no floor clamp.** At
+> `shoulderY: -0.5` Myco's resting hand computes to world `Y ≈ -0.69`, ~0.7 below the floor
+> plane (`y ≈ 0`), and gets cut off by the opaque ground mesh — reads as a forearm plunging
+> into the dirt. Structural, not Myco-specific: safe only while `shoulderY` tracked `bodyTop`.
+> Reverted `SHAPE_BOUNDS.layout.shoulderY.min` back to `-0.20` (I had widened it to `-1.00`
+> first, which is what exposed this) and left the numbers in a comment. Did **not** touch the
+> idle-pose logic — it's mid-flux, carries Ryan's own comment dated today.
+>
+> 🔴 **Ryan's actual original ask — the head/body overlap — is still untouched.** `shoulderY`
+> never moves the head; that's `layout.headBodyGap` (`-0.4` for Myco, called out as intentional
+> in her defaults). Whether to relax it is undecided.
+>
+> **State:** uncommitted, `src/services/body-shapes.ts` only — the `waistY` fix and the bounds
+> revert/warning-comment. Next: decide `headBodyGap`, then decide whether/how to make the
+> idle-arm pose floor-aware if a lower `shoulderY` is still wanted afterward.
+>
+> ---
+>
+> ### ▶ 2026-09-14 (late) — the stragglers are a pole in the wrist rule
 >
 > [`journal/2026-09-14-2-the-stragglers-hang-straight-down.md`](journal/2026-09-14-2-the-stragglers-hang-straight-down.md)
 >
@@ -3499,6 +3715,19 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
    [ADR-0013](adr/0013-pointer-events-with-capture-for-new-pointer-input.md) input API). The
    wheel is how the fist bump is initiated, so the two land together. See
    [M5 order: the fist bump comes first](#m5-order-the-fist-bump-comes-first).
+
+10. 📌 **Hone `sizeArch`'s last resort, and make `stand` one pose** (set 2026-09-20; see
+    [`journal/2026-09-20-1`](journal/2026-09-20-1-a-negative-upper-arm-and-a-welded-elbow.md)).
+    Ryan: *"each move should start from the same 'stand' — let's set a task for later to hone
+    that `sizeArch` last resort — that isn't great."* Two ends of one thing:
+    1. **The `stand` step should not depend on the figure.** `DanceFloor` sizes the stance
+       through `sizeArch` for a Twirl, so a pair who cannot make the *arch* are stood apart at
+       the *standing couple* step, before the arch exists. The standing couple is a fact about
+       two bodies; it should not change with what they are about to dance.
+    2. **"Let go and stand at twice the room" is a cliff, not a degradation** (ADR-0040,
+       `arch.ts`). It is correct as a last resort and reached far too readily, and the pose it
+       produces — a full body apart, arms down — reads as a bug rather than as an
+       accommodation. ADR-0040 is the decision to revisit.
 
 Deferred with reasons: physics (rapier removed — re-add deliberately when something needs it,
 and resolve its missing license declaration then); the NPC documentation "booklet" plan; the
