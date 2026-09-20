@@ -97,6 +97,13 @@ export interface BodyLayout {
    * own top, unmoved. Myco is the first case: her head overlaps her body by design
    * (`headBodyGap -0.4`), but the shoulder was still being read at the body's top, above where
    * the head visibly starts. Set here instead: `0.05`, the base of her (unchanged) head.
+   *
+   * 🔑 **It does not shorten the arm it moves.** An arm is `upperArmSpacing + forearm.height
+   * + hand` of fixed length hung from here, so putting a shoulder low enough puts the hand
+   * underground; `arm-pose.ts`'s `clearFloor` swings such an arm out to the side rather than
+   * through the floor, and the way to make it *hang* instead is to shorten the upper arm to
+   * suit the new shoulder. That pairing — this and `upperArmSpacing` — is the whole
+   * adjustment for a low-shouldered character.
    */
   shoulderY?: number;
 }
@@ -272,10 +279,21 @@ export const SHAPE_BOUNDS = {
     forearmXOffset:  { min: 0.20, max: 1.00, step: 0.01 },
     upperArmSpacing: { min: -0.50, max: 1.00, step: 0.01 },
     headBodyGap:     { min: -0.40, max: 0.30, step: 0.01 },
-    // Absolute, relative to bodyCenterY, not a gap — so its range has to cover the body
-    // capsule's own top across the cast (body.height/2 + body.radius, roughly 0.15 to 1.3
-    // over SHAPE_BOUNDS.body's own extremes) plus room to go lower for a head-based read.
-    shoulderY:       { min: -0.20, max: 1.50, step: 0.01 },
+    // Absolute, relative to bodyCenterY, not a gap — so its range is the body capsule's own
+    // span across the cast: `±(body.height/2 + body.radius)` runs to roughly 1.3 over
+    // SHAPE_BOUNDS.body's own extremes, and a shoulder may be put anywhere on the body it
+    // belongs to, top to bottom. A sunken head (Myco's `headBodyGap -0.4`) is the case that
+    // wants the low end — the shoulder reads at the base of the head, well under the body's
+    // own top — and a deeply sunken head on a tall body wants a lot of it.
+    //
+    // 🔑 **Safe to go this low because a hanging arm now clears the ground on its own**
+    // (`arm-pose.ts`'s `clearFloor`, 2026-09-19). An arm is a fixed length hung from wherever
+    // this puts the shoulder, so a low enough value used to compute the forearm and hand to
+    // below the floor plane at y=0, where the opaque ground mesh cut them off — a limb
+    // plunging into the dirt. That was live on the shipped cast at Myco's own authored 0.05,
+    // not something this bound introduced, and it is the clamp that fixes it rather than the
+    // bound. Widen the bound freely; the clamp is the thing that must keep holding.
+    shoulderY:       { min: -1.30, max: 1.50, step: 0.01 },
   },
 } as const;
 
@@ -308,13 +326,16 @@ export interface ComputedPositions {
    *
    * This cast has no legs: a character is a capsule with a head on it, so the waist
    * that *reads* on screen is the middle of the capsule rather than the anthropometric
-   * 0.6-of-stature. Defined off `shoulderY` because that is the only height here that
-   * tracks how tall a shape actually is — `bodyCenterY` is one constant applied to the
-   * whole cast, so anything derived from it alone would give a 0.95-shouldered dancer
+   * 0.6-of-stature. Defined off `bodyTop` (the body capsule's own top) because that is
+   * what tracks how tall a shape actually is — `bodyCenterY` is one constant applied to
+   * the whole cast, so anything derived from it alone would give a 0.95-shouldered dancer
    * and a 1.43-shouldered one the same waist.
    *
    * Added for touch hands: joined hands sit at a waist, and a waist is a body fact, so
    * it belongs next to the shoulder rather than being reconstructed by the arm layer.
+   * **Not `shoulderY`** — `layout.shoulderY` (2026-09-19) lets the arm's attachment move
+   * independently of the body, and a waist tracking that would move the couple's hold
+   * height every time someone nudges where an arm hangs.
    */
   waistY: number;
 }
@@ -353,7 +374,13 @@ export function computePositions(
     forearmCenterY,
     handCenterY,
     forearmX: layout.forearmXOffset,
-    waistY: shoulderY * WAIST_OF_SHOULDER,
+    // Off `bodyTop`, not the (now overridable) `shoulderY` — `layout.shoulderY` moves where
+    // the arm attaches, not the body's own proportions, and a waist is a body fact (see the
+    // field doc). Before `layout.shoulderY` existed the two were always equal; keeping this
+    // on `bodyTop` is what lets a dancer's shoulder height move without dragging her waist,
+    // and the couple's joined-hand hold height (`arm-pose.ts` picks the taller dancer's
+    // `waistY`), down to the floor with it.
+    waistY: bodyTop * WAIST_OF_SHOULDER,
   };
 }
 

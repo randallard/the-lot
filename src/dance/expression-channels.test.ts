@@ -6,7 +6,7 @@ import {
   resolvedExpression,
 } from "./expression-channels";
 import { silhouetteMetrics, restClearance } from "./silhouette-limit";
-import { armMetrics, armPose, gripBlend, restPose, type Placement } from "./arm-pose";
+import { armMetrics, armPose, clearFloor, gripBlend, restPose, type Placement } from "./arm-pose";
 import { NEUTRAL_POSE, type ResolvedPose } from "../services/emotes";
 import {
   EMBER_DEFAULTS,
@@ -91,19 +91,34 @@ describe("resolveExpression", () => {
     // `restPose` is the statement of what a resting arm is, and this is the assertion that the
     // dance actually goes through it: `resolveExpression` always builds a proposal, even with
     // no emote, so `poseArms`' own `restPose` fallback is never reached from a dance floor.
+    //
+    // 🔴 **Through `clearFloor` as well, since 2026-09-19** — and this dancer is exactly why
+    // it exists. Myco's shoulder is the base of her sunken head at 0.55 and she has 0.80 of
+    // arm to hang from it, so a dead-straight hang buries her hand a quarter of a unit under
+    // the floor; the limit brings it forward and up until the hand rests on the ground. The
+    // defect this test was written for is untouched by that and is asserted outright below:
+    // whatever the arm is doing, the **elbow** is a full `elbowReach` away from the shoulder,
+    // which is what a proposal writing the shoulder into the pose got wrong.
     const me = armMetrics(MYCO_DEFAULTS);
     const resting = resolve(pose());
     for (const [side, sign] of [
       ["left", 1],
       ["right", -1],
     ] as const) {
-      const want = restPose(armPose(), me, sign);
+      const want = clearFloor(restPose(armPose(), me, sign), me);
       const got = resting.arms[side];
-      expect(got.y).toBeCloseTo(want.y, 12);
-      expect(got.y).toBeCloseTo(me.restY - me.elbowReach, 12);
       expect(got.x).toBeCloseTo(want.x, 12);
+      expect(got.y).toBeCloseTo(want.y, 12);
       expect(got.z).toBeCloseTo(want.z, 12);
-      expect([got.aimX, got.aimY, got.aimZ]).toEqual([want.aimX, want.aimY, want.aimZ]);
+      // Componentwise rather than `toEqual` on the triple: the two now arrive at the same
+      // aim by slightly different arithmetic, and agree to 15 places rather than to the bit.
+      expect(got.aimX).toBeCloseTo(want.aimX, 12);
+      expect(got.aimY).toBeCloseTo(want.aimY, 12);
+      expect(got.aimZ).toBeCloseTo(want.aimZ, 12);
+      // The original assertion, restated so it survives the arm being moved: an elbow a
+      // whole upper arm from the shoulder, not a zero-length one at it.
+      expect(Math.hypot(got.x - sign * me.restX, got.y - me.restY, got.z))
+        .toBeCloseTo(me.elbowReach, 12);
     }
   });
 
@@ -196,8 +211,12 @@ describe("resolveExpression", () => {
     const wide = resolve(rp);
     const hanging = resolve(pose());
 
-    // Wide arms aim outward; a resting arm hangs straight down.
-    expect(hanging.arms.left.aimY).toBeCloseTo(-1, 6);
+    // Wide arms aim outward; a resting arm hangs as far down as it can. Down is `-1` for
+    // everyone but this dancer, whose arm `clearFloor` holds off the ground (2026-09-19) —
+    // so the hang is asserted against the limit rather than against the constant.
+    const me = armMetrics(MYCO_DEFAULTS);
+    expect(hanging.arms.left.aimY)
+      .toBeCloseTo(clearFloor(restPose(armPose(), me, 1), me).aimY, 6);
     expect(wide.arms.left.aimY).toBeGreaterThan(hanging.arms.left.aimY);
     expect(wide.arms.right.aimY).toBeGreaterThan(hanging.arms.right.aimY);
   });

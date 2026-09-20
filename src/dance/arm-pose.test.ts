@@ -14,6 +14,8 @@ import {
   trackContact,
   trackForearm,
   constrainArm,
+  clearFloor,
+  FLOOR_Y,
   elbowLocal,
   reachAllowance,
   reachPose,
@@ -160,6 +162,142 @@ describe("folding an arm in", () => {
     // Partner dead ahead: the fold is in z, and x is left where it was.
     expect(pose.z).toBeLessThan(0);
     expect(pose.x).toBeCloseTo(m.restX, 9);
+  });
+});
+
+describe("clearing the floor", () => {
+  /** Where the bottom of the drawn hand ends up, in world height. */
+  function handBottom(pose: ArmPose, m: ArmMetrics): number {
+    return m.rigOriginY + pose.y + pose.aimY * m.forearmSpan - m.handRadius;
+  }
+
+  /** The same shape with its shoulder put back at the top of its own body. */
+  function unsunk(shape: CharacterBodyShape): CharacterBodyShape {
+    return { ...shape, layout: { ...shape.layout, shoulderY: undefined } };
+  }
+
+  it("leaves a hang that already clears exactly where it was", () => {
+    for (const [name, shape] of CAST) {
+      const m = armMetrics(unsunk(shape));
+      const hung = restPose(armPose(), m, 1);
+      const p = clearFloor(restPose(armPose(), m, 1), m);
+      expect(handBottom(hung, m), name).toBeGreaterThan(FLOOR_Y);
+      expect(p.x, name).toBeCloseTo(hung.x, 12);
+      expect(p.y, name).toBeCloseTo(hung.y, 12);
+      expect(p.aimY, name).toBeCloseTo(-1, 12);
+    }
+  });
+
+  it("puts an underground hand on the floor instead", () => {
+    // Myco's shipped shoulder is the base of her sunken head at 0.55, and she has 0.80 of
+    // arm to hang from it. This is live on the cast, not a hypothetical.
+    const m = armMetrics(MYCO_DEFAULTS);
+    expect(handBottom(restPose(armPose(), m, 1), m)).toBeLessThan(FLOOR_Y);
+    const p = clearFloor(restPose(armPose(), m, 1), m);
+    expect(handBottom(p, m)).toBeCloseTo(FLOOR_Y, 9);
+  });
+
+  it("spends the lift on the shoulder joint, not on stretching the upper arm", () => {
+    const m = armMetrics(MYCO_DEFAULTS);
+    const p = clearFloor(restPose(armPose(), m, 1), m);
+    expect(upperArmStrain(p, m, 1)).toBeCloseTo(0, 9);
+    expect(Math.hypot(p.aimX, p.aimY, p.aimZ)).toBeCloseTo(1, 12);
+  });
+
+  it("🔑 lifts a dead hang FORWARD, leaving the width a lane is sized from alone", () => {
+    // `restX` is what `lateralClearance`/`passingWidth` space a square with, so an arm swung
+    // out past it is an arm in room nobody allowed for. A forward overhang costs nothing —
+    // `rigidParts` already declines to count one — so the lift is spent there and `localX`
+    // comes out untouched, on both sides.
+    const m = armMetrics(MYCO_DEFAULTS);
+    for (const sign of [1, -1]) {
+      const p = clearFloor(restPose(armPose(), m, sign), m);
+      expect(Math.abs(p.x), `sign ${sign}`).toBeCloseTo(m.restX, 12);
+      expect(p.aimX, `sign ${sign}`).toBeCloseTo(0, 12);
+      expect(p.aimZ, `sign ${sign}`).toBeGreaterThan(0);
+      expect(p.z, `sign ${sign}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("🔴 never buys sideways reach with the lift, whatever the arm was already doing", () => {
+    // The hole the dosado found. Raising an arm toward horizontal *grows* its horizontal
+    // budget, so rescaling a leaning arm's bearing to the new budget widens it — and an arm
+    // wider than `restX` is an arm in room the square was spaced without. `aimX` is carried
+    // across to the bit instead, and only ever clamped inward.
+    const m = armMetrics(MYCO_DEFAULTS);
+    for (const [ax, az] of [[0, 0], [0, 1], [0, -1], [0.3, 0.2], [-0.5, 0], [0.9, 0.1]] as const) {
+      const lean = restPose(armPose(), m, 1);
+      const down = -Math.sqrt(Math.max(0, 1 - ax * ax - az * az));
+      const len = Math.hypot(ax, down, az);
+      lean.aimX = ax / len;
+      lean.aimY = down / len;
+      lean.aimZ = az / len;
+      lean.x = m.restX + lean.aimX * m.elbowReach;
+      lean.y = m.restY + lean.aimY * m.elbowReach;
+      lean.z = lean.aimZ * m.elbowReach;
+      const was = lean.aimX;
+      const p = clearFloor(lean, m);
+      const label = `aim (${ax}, ${az})`;
+      expect(Math.abs(p.aimX), label).toBeLessThanOrEqual(Math.abs(was) + 1e-12);
+      expect(Math.sign(p.aimX) * Math.sign(was), label).toBeGreaterThanOrEqual(0);
+      expect(Math.hypot(p.aimX, p.aimY, p.aimZ), label).toBeCloseTo(1, 12);
+      expect(handBottom(p, m), label).toBeGreaterThanOrEqual(FLOOR_Y - 1e-9);
+    }
+  });
+
+  it("keeps a forward lean forward and a backward lean back", () => {
+    const m = armMetrics(MYCO_DEFAULTS);
+    for (const dir of [1, -1]) {
+      const lean = restPose(armPose(), m, 1);
+      lean.aimX = 0;
+      lean.aimY = -Math.SQRT1_2;
+      lean.aimZ = dir * Math.SQRT1_2;
+      lean.y = m.restY + lean.aimY * m.elbowReach;
+      lean.z = lean.aimZ * m.elbowReach;
+      const p = clearFloor(lean, m);
+      expect(Math.sign(p.aimZ), `dir ${dir}`).toBe(dir);
+    }
+  });
+
+  it("shortens nothing — the authoring answer is a shorter upper arm", () => {
+    // 🔑 The clamp is the safety net; this is the fix. Myco's arm is 0.80 long on a 0.55
+    // shoulder, so it cannot hang. Take the upper arm down to what the shoulder can carry
+    // and the same shoulder hangs naturally, with the clamp doing nothing at all.
+    const short: CharacterBodyShape = {
+      ...MYCO_DEFAULTS,
+      layout: { ...MYCO_DEFAULTS.layout, upperArmSpacing: 0.06 },
+    };
+    const m = armMetrics(short);
+    const hung = restPose(armPose(), m, 1);
+    expect(handBottom(hung, m)).toBeGreaterThan(FLOOR_Y);
+    expect(clearFloor(restPose(armPose(), m, 1), m).aimY).toBeCloseTo(-1, 12);
+  });
+
+  it("a lifted arm survives being folded in off a close partner", () => {
+    // The ordering property: `clearFloor` rotates, `constrainArm` slides horizontally, and
+    // a horizontal slide cannot undo a vertical lift. Run the other way round and the fold
+    // drops the cleared hand back into the ground.
+    const m = armMetrics(MYCO_DEFAULTS);
+    const lifted = constrainArm(clearFloor(restPose(armPose(), m, 1), m), m, m.bodyRadius, 1, 0);
+    expect(lifted.x).toBeLessThan(m.restX);
+    expect(handBottom(lifted, m)).toBeCloseTo(FLOOR_Y, 9);
+  });
+
+  it("keeps every free arm on the shipped cast above ground through a standing hold", () => {
+    const here: Placement = { x: 0, z: 0, yaw: 0 };
+    const there: Placement = { x: 0.9, z: 0, yaw: 0 };
+    for (const [aName, a] of CAST) {
+      for (const [bName, b] of CAST) {
+        const me = armMetrics(a);
+        const them = armMetrics(b);
+        const out = poseArms(armPoses(), me, them, here, there, gripBlend(), undefined,
+          touchHold(me, them));
+        for (const side of ["left", "right"] as const) {
+          expect(handBottom(out[side], me), `${aName}/${bName} ${side}`)
+            .toBeGreaterThan(FLOOR_Y - 1e-9);
+        }
+      }
+    }
   });
 });
 
@@ -938,8 +1076,21 @@ describe("touch hands — a couple stands with inside hands joined", () => {
 
   it("leaves the outside arm hanging", () => {
     const his = poseArms(armPoses(), beau, belle, BEAU_AT, BELLE_AT, gripBlend(), undefined, HOLD);
-    // Straight down — the outside arm is not claimed, only limited as it always was.
-    expect(his.left.aimY).toBeCloseTo(-1, 5);
+    // The outside arm is not claimed, only limited — asserted as *exactly* the limits, so
+    // this still says "nothing else touched it" rather than pinning a number.
+    //
+    // 🔴 Not `aimY === -1` any more, and the beau here is the reason: Myco's shoulder is the
+    // base of her sunken head at 0.55 with 0.80 of arm on it, so a dead-straight hang puts
+    // her hand a quarter of a unit underground. `clearFloor` (2026-09-19) brings it forward
+    // and up until the hand rests on the floor instead. Every other character on the cast is
+    // untouched by that, and so is this arm the moment her upper arm is shortened to
+    // something her shoulder can actually carry.
+    const limited = clearFloor(restPose(armPose(), beau, 1), beau);
+    expect(his.left.aimX).toBeCloseTo(limited.aimX, 12);
+    expect(his.left.aimY).toBeCloseTo(limited.aimY, 12);
+    expect(his.left.aimZ).toBeCloseTo(limited.aimZ, 12);
+    // Still out at its own rest width — the lift is spent forward, where a lane is not.
+    expect(his.left.x).toBeCloseTo(beau.restX, 12);
   });
 
   it("🔴 joins nothing when no hold is supplied", () => {
@@ -948,14 +1099,28 @@ describe("touch hands — a couple stands with inside hands joined", () => {
     // more: `touchPose` keeps the shoulder's own offset, so a held arm and a hanging one share
     // an elbow x — and since ADR-0027 the binding dancer's elbow hangs dead vertical too, so
     // they share an elbow **z**. What is left, and what a handhold actually is, is a forearm
-    // that leaves the elbow and goes somewhere: forward and across, rather than straight down.
+    // that leaves the elbow and goes somewhere.
+    //
+    // 🔴 **"Somewhere" is no longer "forward", and the old assertion's `aimZ` no longer tells
+    // the two apart.** This beau is Myco, whose arm is longer than her shoulder is high, and
+    // since 2026-09-19 `clearFloor` brings *her free arm* forward too rather than letting it
+    // hang through the floor. So the free arm is asserted against the limits outright — it is
+    // a hang and nothing but a hang, which is what "joins nothing" means — and the held one
+    // against being anywhere else at all. Across is what is left, and across is right: a
+    // handhold reaches for a partner, which a hanging arm never does.
     const held = poseArms(armPoses(), beau, belle, BEAU_AT, BELLE_AT, gripBlend(), undefined, HOLD);
     const free = poseArms(armPoses(), beau, belle, BEAU_AT, BELLE_AT, gripBlend());
-    expect(free.right.aimY).toBeCloseTo(-1, 5);
-    expect(free.right.z).toBeCloseTo(0, 12);
-    expect(free.right.aimZ).toBeCloseTo(0, 12);
-    expect(held.right.aimY).not.toBeCloseTo(-1, 2);
+    const limited = clearFloor(restPose(armPose(), beau, -1), beau);
+    expect(free.right.aimX).toBeCloseTo(limited.aimX, 12);
+    expect(free.right.aimY).toBeCloseTo(limited.aimY, 12);
+    expect(free.right.aimZ).toBeCloseTo(limited.aimZ, 12);
+    // 🔑 Not compared on `aimY`: with the clamp on, this beau's free arm and her held one
+    // come out within 0.0015 of the same declination. That near-coincidence is exactly why
+    // the discriminator below had to be found rather than assumed.
     expect(held.right.aimZ).toBeGreaterThan(0.5);
+    // The one thing a hang never has and a handhold always does: it goes across, toward her.
+    expect(Math.abs(held.right.aimX)).toBeGreaterThan(0.1);
+    expect(limited.aimX).toBeCloseTo(0, 12);
   });
 
   it("🔴 hangs the binding dancer's upper arm dead vertical, and holds the hands forward", () => {

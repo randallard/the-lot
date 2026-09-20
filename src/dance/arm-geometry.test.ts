@@ -17,8 +17,11 @@ import { DEFAULT_SCALE, facingToRotationY, makeFrame, toWorld } from "./frame";
 import {
   advanceGripBlend,
   armMetrics,
+  armPose,
   armPoses,
+  clearFloor,
   gripBlend,
+  restPose,
   contact,
   forearm,
   poseArms,
@@ -55,6 +58,8 @@ interface Arm {
   readonly aimY: number;
   /** The local aim's sideways component — how far out an emote has swung it. */
   readonly aimX: number;
+  /** The local aim's forward component — non-zero only where `clearFloor` has lifted it. */
+  readonly aimZ: number;
 }
 
 /**
@@ -114,6 +119,7 @@ function armsAt(call: CallName, beat: number, yaw = 0.4, emoting = false): Arm[]
         localX: pose.x,
         aimY: pose.aimY,
         aimX: pose.aimX,
+        aimZ: pose.aimZ,
       });
     }
   }
@@ -190,10 +196,26 @@ describe.each(CALLS)("%s", (call) => {
   it("lays a forearm horizontal only for a grip, and never reaches further out than rest", () => {
     for (const beat of beatsOf(call)) {
       for (const arm of armsAt(call, beat)) {
-        expect(arm.aimY, `beat ${beat}`).toBe(arm.gripping ? 0 : -1);
+        // 🔴 **A free arm hangs as far down as the floor lets it**, which was `-1` outright
+        // until `clearFloor` (2026-09-19). Myco is the one dancer on the cast it touches:
+        // her shoulder is the base of her sunken head and her arm is longer than that is
+        // high, so hanging it dead straight buries the hand. Asserted as "down, and no
+        // further down than her own floor limit" rather than re-pinned to her number —
+        // the rule is what this test is for, and her number changes the day her upper arm
+        // is shortened to fit her shoulder.
+        const hang = arm.gripping ? 0 : clearFloor(restPose(armPose(), arm.metrics, 1), arm.metrics).aimY;
+        expect(arm.aimY, `beat ${beat}`).toBeCloseTo(hang, 12);
         if (!arm.gripping) {
+          // 🔴 One carve-out, and it is the fold pushing an arm *away* rather than an arm
+          // reaching. A floor-lifted arm aims forward, so `constrainArm` backs it off a
+          // diagonally-approached partner along a diagonal bearing — and a diagonal has an
+          // `x` in it. Bounded by the forward reach the lift bought (at most `forearmSpan`),
+          // and in the direction of *more* daylight, not less: "never lets a free arm
+          // intersect the partner's", above, is the assertion that guards the pass and it
+          // does not move. Only a lifted arm has any `aimZ` to begin with.
+          const backedOff = Math.abs(arm.aimZ) > 1e-9 ? arm.metrics.forearmSpan : 0;
           expect(Math.abs(arm.localX), `beat ${beat}`).toBeLessThanOrEqual(
-            arm.metrics.restX + 1e-9,
+            arm.metrics.restX + backedOff + 1e-9,
           );
         }
       }

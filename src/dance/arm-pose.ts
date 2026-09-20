@@ -2093,6 +2093,101 @@ export function constrainArm(
   return pose;
 }
 
+/**
+ * The height dancers stand on. Zero by construction — a {@link Placement} is a point on
+ * this plane and {@link ArmMetrics.rigOriginY} is measured up from it — and named rather
+ * than written as a bare `0` because it is a fact about the dance, not an origin.
+ */
+export const FLOOR_Y = 0;
+
+/**
+ * Swing an arm up off the ground, about its own shoulder, until the hand clears the floor.
+ *
+ * 🔴 **An arm is a fixed length and a shoulder can now be put anywhere.** `layout.shoulderY`
+ * (2026-09-19) moves where an arm attaches independently of the body it attaches to, and
+ * nothing about a hanging arm ever asked how high the shoulder was: {@link restPose} — and
+ * `expression-channels`' `proposeArms`, which is the path a resting dance arm actually takes
+ * — hang `elbowReach + forearmSpan` of arm straight down from wherever the shoulder is. That
+ * was safe only while every shoulder sat at the top of its own body, which is every character
+ * before Myco. Hers sits at the base of her sunken head, 0.55, with 0.80 of arm on it: the
+ * forearm and the whole hand compute to below `y = 0` and the opaque ground mesh cuts them
+ * off, which reads as a limb plunging into the dirt. It is **live on the shipped cast today**,
+ * not something a wider bound would introduce.
+ *
+ * So the arm goes where a short-shouldered person's arm actually goes — out, not through.
+ * The whole straight arm rotates about the pinned shoulder until the hand's centre sits one
+ * `handRadius` above the floor, keeping the upper arm at exactly its natural length, so
+ * {@link upperArmStrain} still reads zero on a rest pose. A hang that already clears is
+ * returned untouched, which is every other character on the cast at every authored shoulder
+ * they have.
+ *
+ * 🔑 **`handRadius`, not the drawn hand.** A hand is a sphere of `radius` flattened in `z`
+ * and then rotated ({@link handDrawnMap}), so how far it reaches *down* depends on which way
+ * the wrist has turned it — but every semi-axis of that ellipsoid is at most `radius`, so one
+ * `handRadius` of headroom is the bound that holds whatever the wrist is doing. Cheap and
+ * conservative beats exact and orientation-dependent for a clamp.
+ *
+ * 🔑 **The lift is spent forward, and sideways reach is never bought with it.** Coming up off
+ * the vertical is what makes an arm reach further out — the horizontal budget `√(1 − aimY²)`
+ * *grows* as the arm rises — so the gain has to be pointed somewhere. Sideways is the wrong
+ * place: an arm's own `restX` is the width everything from {@link tuckedRestX} to the review
+ * chart reads it at, it is measured to sit clear of this dancer's own body, and a lift that
+ * widened it would put a resting arm somewhere no rule had put one. Forward is where a
+ * caricature has room — the same asymmetry {@link rigidParts} already relies on when it
+ * declines to count a forward overhang, because dancers pass side-on and nothing that juts
+ * forward narrows the gap they pass through. So `aimX` is carried across untouched (clamped
+ * inward only, when even that will not fit) and the whole lift goes into `z`. A dead hang has
+ * no bearing at all and simply goes forward.
+ *
+ * 🔴 **A lifted arm does then reach forward, and {@link constrainArm} answers that.** A
+ * partner approached diagonally gets backed off along a diagonal bearing, and a diagonal has
+ * an `x` in it — so a lifted arm's elbow can end up a little wider than `restX` after the
+ * fold, by at most the forward reach the lift bought it. That is the fold moving the arm
+ * *away* from the partner, not toward, and `arm-geometry`'s own "never lets a free arm
+ * intersect the partner's" is unmoved by it.
+ *
+ * 🔑 **Before {@link constrainArm}, never after.** The lift is a rotation about the shoulder
+ * and the fold is a horizontal slide, and a horizontal slide cannot undo a vertical lift. The
+ * other order lets the fold drop a cleared hand straight back into the ground.
+ */
+export function clearFloor(pose: ArmPose, m: ArmMetrics): ArmPose {
+  // Shoulder → hand centre, along the arm. The pose *is* the elbow (ADR-0017) and the
+  // forearm aims on down the same line, so one straight segment describes the whole thing.
+  const reach = m.elbowReach + m.forearmSpan;
+  if (reach <= 1e-9) return pose;
+
+  // The shoulder from the pose's own elbow rather than from `restX`/`restY`, so this stays
+  // true of an arm some other rule has already moved.
+  const sx = pose.x - pose.aimX * m.elbowReach;
+  const sy = pose.y - pose.aimY * m.elbowReach;
+  const sz = pose.z - pose.aimZ * m.elbowReach;
+
+  // The lowest the hand's centre may sit, in this rig's own frame.
+  const lowest = FLOOR_Y - m.rigOriginY + m.handRadius;
+  const aimYMin = clampUnit((lowest - sy) / reach);
+  if (pose.aimY >= aimYMin) return pose;
+
+  // The horizontal budget a raised arm has. 🔴 It is *bigger* than the one it had: coming up
+  // off the vertical is exactly what makes an arm reach further out. Which is why the sideways
+  // share of it is pinned rather than scaled — see below.
+  const room = Math.sqrt(Math.max(0, 1 - aimYMin * aimYMin));
+
+  // `aimX` is kept to the bit, never grown: it is the only component a lane is sized against,
+  // and rescaling a leaning arm's bearing to the new budget would widen it. Clamped rather
+  // than rejected when it does not fit, because that direction is inward, which is always safe.
+  const ax = Math.max(-room, Math.min(room, pose.aimX));
+  // Everything the lift bought goes forward — or back, for an arm already leaning that way.
+  const az = Math.sqrt(Math.max(0, room * room - ax * ax)) * (pose.aimZ < 0 ? -1 : 1);
+
+  pose.aimX = ax;
+  pose.aimY = aimYMin;
+  pose.aimZ = az;
+  pose.x = sx + pose.aimX * m.elbowReach;
+  pose.y = sy + pose.aimY * m.elbowReach;
+  pose.z = sz + pose.aimZ * m.elbowReach;
+  return pose;
+}
+
 /** How far each arm is into its grip: 0 free, 1 fully joined. */
 export interface GripBlend {
   left: number;
@@ -2215,6 +2310,11 @@ export function poseArms(
       _free.aimY = want.aimY;
       _free.aimZ = want.aimZ;
     }
+    // Off the ground first, then in off the partner: the lift is a rotation about the
+    // shoulder and the fold is a horizontal slide, so this order keeps both. See
+    // {@link clearFloor}. Only the limited channel — an owned hand has somewhere it must
+    // be, and where a *hold* can sit is `bandedHeight`'s question, not this one.
+    clearFloor(_free, me);
     constrainArm(_free, me, allowance, dirX, dirZ);
 
     if (joined <= 0) {
