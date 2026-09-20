@@ -199,6 +199,22 @@ interface DanceFloorProps extends DancePerformanceOptions {
    * changes nothing.
    */
   handHeight?: number;
+  /**
+   * 🧪 **Exploratory (2026-09-19), not a decided stance.** World units added to the standing
+   * couple's `forward` — how far in front of the pair the joined hands are held, signed.
+   *
+   * 🔑 **The "elbow back" dial, turned from the end that exists.** A handhold's elbow is
+   * derived, not posed: `touchPose` keeps the humerus in its own shoulder's plane and takes
+   * the further-back of the two legal points, so there is no elbow parameter to turn. Moving
+   * the hold forward is what sends the elbow back, and the anatomy still decides how far.
+   *
+   * Reaches the solve the same way {@link handHeight} does, and costs the same thing ADR-0027
+   * buys: `hold.forward` is normally as far forward as **both** dancers can hold with the
+   * upper arm hanging, so past that the upper arm stops hanging — `holdMetrics`'
+   * `upperArmAngle` and `strain` are the meter. Out of reach falls through to `reachPose`,
+   * same as any unreachable target. `0` (the default) changes nothing.
+   */
+  handForward?: number;
 }
 
 /** One dancer's arms this frame: where they are, and what the hand has hold of. */
@@ -389,6 +405,7 @@ export function DanceFloor({
   turnIn = 0,
   stagger = 0,
   handHeight = 0,
+  handForward = 0,
   ...performanceOptions
 }: DanceFloorProps) {
   /**
@@ -1100,15 +1117,20 @@ export function DanceFloor({
                   insideBeau: standing.insideBeau,
                   insideBelle: standing.insideBelle,
                 };
-          // 🧪 The exploratory hand-height dial (see `handHeight`). Shared, not per-dancer —
-          // moving it for only one of them is the arch/break mechanism above (`forearmY`),
-          // which pulls the hold apart on purpose; this instead keeps it the one point both
-          // still solve their own arm onto, just moved.
+          // 🧪 The exploratory hand-height and hands-forward dials (see `handHeight`,
+          // `handForward`). Shared, not per-dancer — moving one for only one of them is the
+          // arch/break mechanism above (`forearmY`), which pulls the hold apart on purpose;
+          // these instead keep it the one point both still solve their own arm onto, just
+          // moved. Two axes of the same move, so they compose in one spread.
           const baseHold = archHold ?? standing;
           const coupleHold: TouchHold | undefined =
-            baseHold === undefined || handHeight === 0
+            baseHold === undefined || (handHeight === 0 && handForward === 0)
               ? baseHold
-              : { ...baseHold, height: baseHold.height + handHeight };
+              : {
+                  ...baseHold,
+                  height: baseHold.height + handHeight,
+                  forward: baseHold.forward + handForward,
+                };
           _ctx.hold = coupleHold;
           // A turned-in couple face ~2·turnIn apart, which `standingAsCouple`'s facing tolerance
           // can read as "not a couple". They are one by construction, so the hold is declared.

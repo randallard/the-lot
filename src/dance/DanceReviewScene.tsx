@@ -38,6 +38,26 @@
  * | **figure filter** | Narrow the walk to one figure, for when a fix has landed and only its own cells are owed a re-look. |
  * | **beat readout** | What the clock actually says, against what the step asked for. An instrument that cannot be caught lying is not an instrument. |
  * | **export** | The whole matrix as markdown, for `work/square-dance-planning/`. |
+ *
+ * ## 🧪 The dials
+ *
+ * Four exploratory dials sit on the `stand` step, in the dashed amber box. **None of them is
+ * a decided stance**, none is ever saved with a rating, and each is `0` by default and
+ * changes nothing there. The box turns amber and says *don't rate it* the moment any of them
+ * is off zero, because a rating taken of a dialed pose is worse than no rating.
+ *
+ * | Dial | What it moves | Journal |
+ * |---|---|---|
+ * | **turn in** | Each dancer's yaw — does a turned couple keep its forearms off the vertical pole. Posed rig only; `touchHold` is not re-solved. | `2026-09-14-2` |
+ * | **stagger** | Beau back, belle forward along the couple's facing, half each so the hold point stays put. | `2026-09-14-2` |
+ * | **hand height** | `hold.height` — the one point both arms solve onto, up or down. | `2026-09-19-3` |
+ * | **hands fwd** | `hold.forward` — Ryan's *"a dial for elbow back"*, from the end that exists. A handhold's elbow is derived by `touchPose` from anatomy, so what sends it back is the hands going forward. | `2026-09-19-3` |
+ *
+ * The last two reach the **solve** rather than turning the posed rig afterward, so they cost
+ * something the first two do not: `hold.forward` is ADR-0027's *as far forward as both can
+ * hold with the upper arm hanging*, and past it the upper arm stops hanging. The second
+ * readout line is that cost — **upper arm off hang** per dancer, and **strain** in red once
+ * the hold has been asked for past the end of somebody's arm.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -129,6 +149,21 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
   const [handHeightCm, setHandHeightCm] = useState(0);
   const [handHeightOn, setHandHeightOn] = useState(false);
   const [handHeightNudge, setHandHeightNudge] = useState(0);
+  /**
+   * 🧪 **Exploratory hands-forward, in cm** (2026-09-19) — Ryan's *"give me a dial for elbow
+   * back"*, which is this one seen from the other end.
+   *
+   * A handhold's elbow is **derived, not posed**: `touchPose` keeps the humerus in its own
+   * shoulder's plane and takes the further-back of the two legal points, so there is no elbow
+   * parameter to turn. What sends an elbow back is the hands going forward, and the anatomy
+   * decides the rest. So the dial moves `hold.forward` and the readout prints what it costs —
+   * the upper-arm angle off the hang, and the strain when it has been asked for more arm than
+   * there is. ADR-0027 sets the zero: as far forward as **both** can hold with the upper arm
+   * hanging. Signed, gated by `handForwardOn`, `stand` step only.
+   */
+  const [handForwardCm, setHandForwardCm] = useState(0);
+  const [handForwardOn, setHandForwardOn] = useState(false);
+  const [handForwardNudge, setHandForwardNudge] = useState(0);
 
   /**
    * The cells being walked. Filtering narrows the *walk*, never the store: a rating given
@@ -190,18 +225,19 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
    */
   const seek = useMemo(
     () => ({
-      // A paused floor writes nothing, so a turn-in, stagger or hand-height change has to
-      // arrive as a fresh seek. The nudges keep the token unique without disturbing the
-      // cell's own position in it.
+      // A paused floor writes nothing, so a turn-in, stagger, hand-height or hands-forward
+      // change has to arrive as a fresh seek. The nudges keep the token unique without
+      // disturbing the cell's own position in it.
       token:
         allCells.findIndex((c) => c.id === cell.id) * 100000 +
         turnNudge +
         staggerNudge +
-        handHeightNudge,
+        handHeightNudge +
+        handForwardNudge,
       beat: cell.step.pose.kind === "stand" ? 0 : cell.step.pose.beat,
       arch: cell.step.pose.kind === "stand" ? ("down" as const) : ("declared" as const),
     }),
-    [allCells, cell, turnNudge, staggerNudge, handHeightNudge],
+    [allCells, cell, turnNudge, staggerNudge, handHeightNudge, handForwardNudge],
   );
 
 
@@ -214,15 +250,21 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
   const turnIn = standing && turnOn ? (turnDeg * Math.PI) / 180 : 0;
   const stagger = standing && staggerOn ? staggerCm / 100 : 0;
   const handHeight = standing && handHeightOn ? handHeightCm / 100 : 0;
-  /** The numbers for this pairing at this turn/stagger/height, from the same `holdMetrics` the probe read. */
+  const handForward = standing && handForwardOn ? handForwardCm / 100 : 0;
+  /** The numbers for this pairing at these dials, from the same `holdMetrics` the probe read. */
   const turnReadout = useMemo(() => {
-    const m = holdMetrics(shapes[0], shapes[1], turnIn, stagger, handHeight);
+    const m = holdMetrics(shapes[0], shapes[1], turnIn, stagger, handHeight, handForward);
     return {
       tilt: [m.beau.forearmTilt, m.belle.forearmTilt] as const,
       gap: Math.min(m.beau.partnerForearmGap, m.belle.partnerForearmGap),
       flat: Math.max(m.beau.flatness, m.belle.flatness),
+      // 🧪 What the hands-forward dial costs: the upper arm off the hang (ADR-0027's zero),
+      // and the strain once the hold has been asked for past the end of somebody's arm.
+      upper: [m.beau.upperArmAngle, m.belle.upperArmAngle] as const,
+      strain: Math.max(m.beau.strain, m.belle.strain),
+      forward: m.hold.forward,
     };
-  }, [shapes, turnIn, stagger, handHeight]);
+  }, [shapes, turnIn, stagger, handHeight, handForward]);
 
   const labels = useMemo(() => new Map(castRoster().map((c) => [c.id, c.label])), []);
 
@@ -454,7 +496,10 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
             borderRadius: 4,
             padding: "6px 10px",
             fontSize: 12,
-            background: turnIn === 0 && stagger === 0 && handHeight === 0 ? "transparent" : "#fff6e0",
+            background:
+              turnIn === 0 && stagger === 0 && handHeight === 0 && handForward === 0
+                ? "transparent"
+                : "#fff6e0",
           }}
         >
           <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -519,11 +564,47 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
               {handHeightCm > 0 ? "+" : ""}{handHeightCm}cm
             </span>
           </label>
+          <label style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
+            <input
+              type="checkbox"
+              checked={handForwardOn}
+              disabled={!standing}
+              onChange={(e) => { setHandForwardOn(e.target.checked); setHandForwardNudge((n) => n + 1); }}
+            />
+            <span title="Ryan's &quot;elbow back&quot; — a handhold's elbow is derived by touchPose from anatomy, so what sends it back is the hands going forward.">
+              🧪 hands fwd
+            </span>
+            <input
+              type="range"
+              min={-20}
+              max={40}
+              step={1}
+              value={handForwardCm}
+              disabled={!standing || !handForwardOn}
+              onChange={(e) => { setHandForwardCm(Number(e.target.value)); setHandForwardNudge((n) => n + 1); }}
+              style={{ flex: "1 1 0" }}
+            />
+            <span style={{ fontVariantNumeric: "tabular-nums", width: 40, textAlign: "right" }}>
+              {handForwardCm > 0 ? "+" : ""}{handForwardCm}cm
+            </span>
+          </label>
           {standing ? (
             <div style={{ color: "#555", fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
               forearm off vertical {turnReadout.tilt[0].toFixed(1)}° / {turnReadout.tilt[1].toFixed(1)}° ·
               forearm gap {turnReadout.gap.toFixed(3)} · flatness {turnReadout.flat.toFixed(2)}
-              {turnIn === 0 && stagger === 0 && handHeight === 0 ? "" : <><br /><strong>not the shipped pose — don't rate it</strong></>}
+              <br />
+              {/* 🧪 The hands-forward dial's own cost. `upper` is the elbow off the hang —
+                  ADR-0027's zero is "as far forward as both can hold with the upper arm
+                  hanging", so this is how far past that the dial has gone. `strain` turns red
+                  when the hold has been asked for past the end of somebody's arm. */}
+              hold fwd {turnReadout.forward.toFixed(3)} · upper arm off hang{" "}
+              {turnReadout.upper[0].toFixed(1)}° / {turnReadout.upper[1].toFixed(1)}° ·{" "}
+              <span style={{ color: turnReadout.strain > 1e-6 ? "#b03a2e" : "#555" }}>
+                strain {turnReadout.strain.toFixed(3)}
+              </span>
+              {turnIn === 0 && stagger === 0 && handHeight === 0 && handForward === 0
+                ? ""
+                : <><br /><strong>not the shipped pose — don't rate it</strong></>}
             </div>
           ) : (
             <div style={{ color: "#888", fontSize: 11 }}>standing couple step only</div>
@@ -686,6 +767,7 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
             turnIn={turnIn}
             stagger={stagger}
             handHeight={handHeight}
+            handForward={handForward}
           />
         </Canvas>
       </div>

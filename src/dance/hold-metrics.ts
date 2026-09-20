@@ -54,6 +54,7 @@ import {
   touchHold,
   touchLift,
   trackCylinder,
+  upperArmStrain,
   type ArmMetrics,
   type ArmPose,
   type Forearm,
@@ -79,6 +80,23 @@ export interface HandMetrics {
   readonly flatness: number;
   /** Angle of the forearm off straight-down, in degrees. Over 90° is a forearm pointing *up*. */
   readonly forearmTilt: number;
+  /**
+   * 🧪 How far this dancer's **upper arm** has come off the hang, in degrees — the
+   * elbow's angle from straight-down, measured at its own shoulder.
+   *
+   * ADR-0027 holds the hands as far forward as both dancers can manage *with the upper arm
+   * hanging*, so on the shipped stance this is small and is the residue of the fold
+   * {@link touchPose}'s anatomy produces. It is here for the 🧪 hands-forward dial, which
+   * has no other honest cost meter: pushing the hold forward is the same lever as swinging
+   * the elbow back, and this is the end of it you cannot see in the picture.
+   */
+  readonly upperArmAngle: number;
+  /**
+   * 🧪 How far past its natural length the undrawn upper arm has been stretched, in world
+   * units — {@link upperArmStrain}. Zero while the pose is anatomical; positive means the
+   * hold has been asked for somewhere this dancer cannot reach.
+   */
+  readonly strain: number;
   /**
    * 🔴 Surface gap between this hand and the **partner's forearm**. Positive is clear air;
    * **negative is the partner's arm inside this hand**, by that much.
@@ -156,10 +174,28 @@ export function holdMetrics(
    * implies; nothing here poses the elbow directly. `0` changes nothing.
    */
   handHeight = 0,
+  /**
+   * 🧪 **Exploratory (2026-09-19), not a decided stance.** World units added to the hold's
+   * own `forward` — how far in front of the pair the joined hands are held, signed.
+   *
+   * 🔑 **This is the "elbow back" lever, from the end you can actually turn.** A handhold's
+   * elbow is not a free parameter: {@link touchPose} derives it from anatomy — the humerus
+   * stays in its own shoulder's plane and takes the further-back of the two legal points —
+   * so there is nothing to dial there without changing that rule. Moving the hold forward is
+   * what *makes* the elbow go back, and the anatomy still decides how far.
+   *
+   * What it costs is ADR-0027: `hold.forward` is normally as far forward as both dancers can
+   * reach **with the upper arm hanging**, and going past it means the upper arm stops
+   * hanging. {@link HandMetrics.upperArmAngle} and {@link HandMetrics.strain} are that cost.
+   * `0` changes nothing.
+   */
+  handForward = 0,
 ): HoldMetrics {
   const beau = armMetrics(beauShape);
   const belle = armMetrics(belleShape);
-  const hold = touchHold(beau, belle);
+  const solved = touchHold(beau, belle);
+  const hold: TouchHold =
+    handForward === 0 ? solved : { ...solved, forward: solved.forward + handForward };
 
   // Each dancer's inside hand is `across` beyond their own inside shoulder, on the side their
   // partner is on, at the hold's forward offset — the canonical standing couple `touchLifts`
@@ -251,6 +287,17 @@ export function holdMetrics(
       forearmTilt:
         (180 / Math.PI) *
         Math.acos(Math.min(1, Math.max(-1, -pose.aimY / Math.hypot(pose.aimX, pose.aimY, pose.aimZ)))),
+      // The elbow off straight-down, at its own shoulder. `inside` is where this arm hangs
+      // from inside a couple (ADR-0049), so the offset is taken from the shoulder the pose
+      // was actually solved against and not from the authored `restX`.
+      upperArmAngle: (() => {
+        const inside = side === "right" ? hold.insideBeau : hold.insideBelle;
+        const ex = pose.x - (side === "left" ? 1 : -1) * inside;
+        const ey = pose.y - m.restY;
+        const len = Math.hypot(ex, ey, pose.z);
+        return len < 1e-9 ? 0 : (180 / Math.PI) * Math.acos(Math.min(1, Math.max(-1, -ey / len)));
+      })(),
+      strain: upperArmStrain(pose, m, side === "left" ? 1 : -1),
       partnerForearmGap:
         c.gap -
         handExtentAlong(
