@@ -168,18 +168,33 @@ export const NPC_DEFAULTS: CharacterBodyShape = {
 export const MYCO_DEFAULTS: CharacterBodyShape = {
   head: { radius: 0.49, widthSegments: 32, heightSegments: 24, rotation: [-77, 0, -93], offsetX: 0, offsetY: 0, offsetZ: 0 },
   body: { radius: 0.3, height: 0.3, capSegments: 8, radialSegments: 16, leanX: 0, leanZ: 0 },
-  forearm: { topRadius: 0.058, bottomRadius: 0.045, height: 0.24, radialSegments: 10 },
+  // 🔑 **Her arm was re-authored on screen, 2026-09-20, and these five numbers go together.**
+  // `headBodyGap -0.4` sinks her head deep into her body on purpose, which puts her shoulder
+  // nowhere near her body's own top (0.45) — so `shoulderY` moves the joint down to where a
+  // shoulder visibly is on her, and the arm hung from it has to shorten to suit (ADR-0055:
+  // *"`shoulderY` and `upperArmSpacing` are one adjustment, not two"*). Ryan set them against
+  // `#review=california-twirl/stand/player-myco`; the sweep behind them is in
+  // `journal/2026-09-20-1`.
+  //
+  // What they buy, measured against the player at defaults: the arch fits at the couple's own
+  // handhold width (0.880 both, so no reach and no `sizeArch` let-go), `clearFloor` stays
+  // silent, flatness **0.018** against the 0.25 target, and her forearm sits **34°** off
+  // vertical where her old 0.33 upper arm put it at 128° — pointing up.
+  //
+  // 🔑 **The hand radius is load-bearing and is not a look.** At 0.08 the worst forearm gap on
+  // this pairing is **−0.018**, the least-fouling it has ever measured (0.11 sends it back to
+  // −0.047); a smaller hand is a smaller thing for a partner's forearm to be inside of.
+  //
+  // 🔴 **Costs 0.028 of `upperArmStrain` on her, deliberately.** Her arm is that much short of
+  // the hold, so her elbow wings out to 99° off the hang. Every length that zeroes the strain
+  // (upper arm ≥ 0.22) rotates her forearm back past horizontal to 100–120°, which is the look
+  // this re-authoring existed to get rid of. The grid of the trade is in the journal.
+  forearm: { topRadius: 0.058, bottomRadius: 0.045, height: 0.16, radialSegments: 10 },
   hand: {
-    open:   { radius: 0.11, flattenZ: 0.23, widthSegments: 10, heightSegments: 8, rotation: [0, 0, 0], handForearmGap: 0.01 },
+    open:   { radius: 0.08, flattenZ: 0.23, widthSegments: 10, heightSegments: 8, rotation: [0, 0, 0], handForearmGap: 0.01 },
     closed: { ...NPC_HAND_CLOSED },
   },
-  // `shoulderY: 0.05` is the base of her (unchanged) head — `headBodyGap -0.4` sinks the
-  // head deep into the body on purpose, but the shoulder joint was still reading at the
-  // body's own top (0.45), well above where the head visibly starts. Computed once from
-  // her own head/body numbers above: 0.45 (body top) + (-0.4) (headBodyGap) = 0.05 (head's
-  // base) — nudge with the "shoulder height" slider in the body editor's Layout section if
-  // it isn't quite right once it's on screen.
-  layout: { forearmXOffset: 0.46, upperArmSpacing: 0.33, headBodyGap: -0.4, shoulderY: 0.05 },
+  layout: { forearmXOffset: 0.46, upperArmSpacing: 0.10, headBodyGap: -0.4, shoulderY: 0.11 },
   eyes: {
     ...NPC_EYE_DEFAULTS,
     positioning: { fromTopOfHead: 0.36, separation: 0.2 },
