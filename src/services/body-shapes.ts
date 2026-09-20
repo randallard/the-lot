@@ -277,7 +277,26 @@ export const SHAPE_BOUNDS = {
   },
   layout: {
     forearmXOffset:  { min: 0.20, max: 1.00, step: 0.01 },
-    upperArmSpacing: { min: -0.50, max: 1.00, step: 0.01 },
+    // 🔴 **A length, not a gap, and the floor is 0 because the dance layer has no meaning
+    // for a negative one.** `computePositions` returns this verbatim as `upperArmLength`, and
+    // `arm-pose`'s `armMetrics` spends it as `elbowReach` and inside `wristReach` — both of
+    // them *radii*. Negative, every reach budget inverts without erroring:
+    // `touchSpanAt`'s `gap = |drop| − elbowReach` **adds** the upper arm to the gap it is
+    // meant to subtract and returns 0 sideways reach, `wristReach` goes negative and
+    // `bandedHeight` squares it into a height band a hand's width tall, and `handReach` comes
+    // out negative because the hand computes *above* the shoulder. The visible end of it is a
+    // couple who cannot make their own arch, fall through `sizeArch`'s last resort, let go and
+    // stand at twice the room (`arch.ts`, ADR-0040) — measured at −0.40 on both dancers of
+    // `player/myco`: a stance of 1.602 against a handhold width of 0.801, both forearms at
+    // 180°, strain 0.533.
+    //
+    // ⚠️ **0 itself is legal here and still degenerate**: a zero-length upper arm puts the
+    // elbow *at* the shoulder, and `touchPose`'s `Math.abs(along) >= upper` then sends every
+    // handhold through `reachPose` instead. Nothing inverts, but there is no upper arm left to
+    // angle — which is what a dancer authored at 0 looks like when a hold moves and their
+    // elbow does not. The bound stops the arithmetic going backwards; it does not make every
+    // value in range a good one to author.
+    upperArmSpacing: { min: 0, max: 1.00, step: 0.01 },
     headBodyGap:     { min: -0.40, max: 0.30, step: 0.01 },
     // Absolute, relative to bodyCenterY, not a gap — so its range is the body capsule's own
     // span across the cast: `±(body.height/2 + body.radius)` runs to roughly 1.3 over
