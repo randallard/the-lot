@@ -1,10 +1,325 @@
 # Progress & Status
 
-_Last updated: 2026-09-20_
+_Last updated: 2026-10-10_
 
 ## Status / next
 
-> ### ▶ PICK UP HERE — 2026-09-20 (2) — Myco's arm is a diversity case now
+> ### ▶ PICK UP HERE — 2026-10-10 (1) — the rules check, and Ryan poses
+>
+> [`journal/2026-10-10-1-the-rules-check-and-ryan-poses.md`](journal/2026-10-10-1-the-rules-check-and-ryan-poses.md)
+> · **no ADR** — nothing is built yet.
+>
+> 🔑 **THE APPROACH CHANGED. Read this block before any entry below it.** A review of the posture
+> work found the loop was the problem: each fix checked against a number the session chose, then
+> corrected by Ryan's eye one cell at a time, on top of a `sizeArch` rule ladder whose rungs
+> interact. Ryan's answer: **he authors poses by dragging limbs, the rules are hard checks, and
+> the code carries a pose from the pairing it was set on to the others.** The ladder stops
+> generating poses.
+>
+> **The rules:** no arm through a head, body or other arm (own or partner's) · an arm stays on its
+> side · arms keep their length · feet on the floor · joined hands touch in `full-l` and
+> `duck-under`, need not in `lazy-l` and `casual`. The four are **styles** (ADR-0057), with a
+> preference order, L first.
+>
+> ✅ **Checkpointed.** 09-19 through 09-30 is committed as it stood. Suite **907 / 38**, `tsc -b`
+> clean, lint 0 errors — unchanged from 09-30. No source changed on 10-10.
+>
+> ⏳ **NEXT, in order:**
+> 1. **The rules as one checker** — a pose in, the rules it breaks out. 🔴 Arm-through-own-head
+>    has no check today (worklist item 11) and arm-against-arm is unconfirmed; start by finding
+>    what `ArmMetrics.parts` / `rigidParts` already give.
+> 2. **A contact sheet** — all 25 orderings at one step, same camera, the checker's verdict under
+>    each. Nothing like it exists (`review-chart.ts` is a ratings table, `#review` is single-cell).
+> 3. **Drag handles and save** on the review page — hand and elbow per arm, pair separation, duck.
+>    Poses saved to a file in the repo, not localStorage. `@react-three/drei` is already a
+>    dependency; no drag controls are used in `src/dance/` yet.
+> 4. **Carry-over** — store a pose relative to the bodies, re-apply to the other 24, nudge the
+>    least it takes to satisfy the rules; blend between Ryan's examples by body proportions.
+> 5. **Keyframes** — the named steps are the keyframes, `blendPose` goes between; run the rules on
+>    the in-betweens.
+>
+> **Scope is frozen to `under-arch`, `full-l`, all 25, until Ryan accepts it.** Parked and not to
+> be picked up first: `BREAK_COMFORT`'s value, the overhead-join default, `CASUAL`'s pose, the
+> head guard as a solver, the selection rule (item 13), and the three tests 09-30 left failing —
+> which are more likely deleted with the stance they pin than re-pointed.
+>
+> ---
+>
+> ### ▶ 2026-09-30 (1) — a broken hold stops, it does not stretch
+>
+> [`journal/2026-09-30-1-a-broken-hold-stops-it-does-not-stretch.md`](journal/2026-09-30-1-a-broken-hold-stops-it-does-not-stretch.md)
+> · **still no ADR** — and it is now four decisions, not three.
+>
+> 🔴 **THE REPORT.** Ryan, on the 09-26 dial: *"it doesn't look like it worked."* It had not. The
+> join landed exactly where asked (`0.000 short of over her head` everywhere) and the **hold**
+> paid: **10 of 25** orderings fell to the terminal let-go, standing 1.4×–2.7× their own width —
+> `ryan/myco` 1.140 → **3.061**, with no raised arm drawn at all. Every ordering whose hands met
+> at `overhead = 0` lost them at `100%`. 🔑 09-26 measured her hand and never measured its cost.
+>
+> 🔑 **The couple were being moved for a collision that should have stopped a hand.** `sizeArch`
+> needs **both** accommodations to fit at a width, and with the join over her crown the *break*
+> is incoherent: his hand aims above her head, falls short, so it stops **under** it — inside
+> her — and `archClearance` answers with a separation. Four pairs dancing a reshape they fit
+> (`ryan/ryan` needs 0.870 of 1.140) were walked apart by a break they were not drawing.
+>
+> ✅ **Ryan's rule, implemented as two things.** *"For a broken hold, the arms should move in the
+> direction but not require touch — should get as close as comfortably possible, not spread to
+> max distance."*
+> - **`BREAK_COMFORT` (0.95)** — the comfort ceiling back, for a hold that is **not** being made
+>   (it is why `touchHold` deleted `TOUCH_COMFORT`, the same 0.95). 🔴 **On its own it moved the
+>   let-go count 10 → 8 and no further** — a ceiling shortens a reach without aiming it anywhere
+>   new. It is a **look**, not a fit.
+> - **`stopClearOf`** — the lever. A hand that is not going to arrive walks back along its own
+>   reach to the last point clear of the other dancer and stops. ADR-0018's premise is a
+>   *joined* hand the pair must be given room for; there is no joined hand in a break.
+>
+> ✅ **Let-go at `overhead = 100%`: 10/25 → 4/25, and 5/20 → 0/20 of the non-self orderings.**
+> The four left are `myco/myco`, `ember/ember`, `player/player`, `sprout/sprout` — every one a
+> dancer paired with their own build. 🔑 **`ryan/ember` is the one to look at:** 2.919 wide with a
+> 2.099 gap → its own **1.140**, **gap 0.000**, her hand **+0.360 over her own head**.
+>
+> 🔴 **It is not overhead-only — the shipped figure moves in three orderings.** `myco/sprout`
+> 0.831 → 0.766 apart but gap 0.135 → **0.499** (the break got cheap enough that `sizeArch` stops
+> reaching for the forearm, and the reshape at the closer width cannot close the hands — the
+> worst of the three); `ember/ryan` gap 0.000 → 0.035; `ember/ember` 0.084 → 0.141.
+>
+> 🔴 **Three tests fail that did not**, each asserting the stance this change moves — left failing
+> rather than re-pointed, as 09-26 left ADR-0037's witness: *is bounded, and lets go…* (that same
+> witness, a second time), *stops the short arm across as well as up* (asserts `handReach`
+> **exactly** — the "max distance" Ryan named), and the duck's recorded `ryan/ember` cost. Suite
+> **907 / 38** against a baseline of 910 / 35; `tsc` and `eslint` clean.
+>
+> ✅ **Also fixed:** the review panel's readout planned on the **resting** arms while the floor
+> posed the lengthened ones, so for the 11 orderings that reach it printed a figure nobody was
+> looking at (`ryan/sprout` 0.234 against a drawn 0.204). Now on the bodies `sizeArch` sized.
+>
+> 🔴 **Held for Ryan:** the-lot uncommitted (09-19 through 09-30). ⏳ **Look at**
+> `#review=california-twirl/under-arch/ryan-ember` with 🧪 join overhead **on** (the one that came
+> right) and `.../myco-sprout` with it **off** (the one that got worse). **`BREAK_COMFORT` is a
+> number to choose, not a measurement** — between 0.85 and 1.00 it changes no fit, only how
+> straight a broken arm looks.
+>
+> ---
+>
+> ### ▶ 2026-09-26 (1) — the join was never over her head
+>
+> [`journal/2026-09-26-1-the-join-was-never-over-her-head.md`](journal/2026-09-26-1-the-join-was-never-over-her-head.md)
+> · **no ADR on purpose** — Ryan: *"let's try it out in practice before setting it in stone."*
+>
+> 🔴 **THE REPORT.** Ryan, watching `FULL_L` with four reference photographs: *"the beau kind of
+> has to put their hand directly above the belle's head … in our implementation the beau is just
+> putting his hand up in between the couple and that causes the belle to have to reach more than
+> is reasonable."* True and measurable: `archLateral` puts the join **30%–70% of the separation
+> short** of her midline, and taken against her own inside shoulder her hand is **inboard in 18 of
+> 20 orderings** — reaching across her chest, away from her head.
+> 🔑 **The rule was inherited from the wrong figure.** *"Halfway between the two inside
+> shoulders"* is ADR-0025/0027's **standing** hold, where it is right. A turn-under is not that
+> figure. The **"L" terminology was never the problem** — an L already lands the hand over the
+> crown whenever `forearmSpan ≥ restX`.
+>
+> 🔴 **TWO CLEARANCE DEFECTS FELL OUT, and they matter more than the dial did.** Both are the
+> same defect one level apart: a **lateral** clearance charged against a dancer with **no
+> cross-section at that height**.
+> - `archClearance` solved `halfSeparation − lateral ≥ extent + radius`; with the join over her
+>   midline `lateral` **is** `halfSeparation`, so it read `0 ≥ extent + radius` — unsatisfiable
+>   at every width. The pair let go and stood at **twice** the room, under a change meant to
+>   bring them closer.
+> - `armSweepClearance` charged `armHalfWidth` above a crown, pinning its answer at
+>   `2 × (handLateral + armHalfWidth)`. **Found by the duck not working** — the number sat at
+>   1.280 and did not move while the belle's crown fell 1.530 → 1.330.
+>
+> ✅ That fix alone took the cast from **5 to 11 of 20** keeping the hold at `overhead = 1`;
+> `ember/myco`, `ember/player`, `ember/ryan` all hold now.
+>
+> 🔑 **Shrink-and-grow was never broken and was never going to fix this.** The reshape is doing
+> heavy work (`myco/ember`: Myco 1.530 → 2.278, Ember 2.155 → 1.407). But `reshapeDeficit` only
+> asks *can his hand reach the join height* — for the Ember-as-beau failures it correctly computed
+> a **zero** trade, and forcing the growth moved the sweep not at all. A reach lever aimed at
+> something that was not a reach problem.
+>
+> ✅ **`DUCK_UNDER` has a pose** — a torso drop, feet on the floor (ADR-0043), spread across the
+> turn by `duckProfile`. 🔴 **Sized in `sizeArch`'s cascade, between reaching and letting go** —
+> the first attempt solved it at pose time and *could not work*: its only yardstick there is the
+> already-doubled let-go width, so every pairing wanted a duck of one centimetre.
+>
+> **State:** `arch.ts`, `turn-under.ts`, `DanceFloor.tsx`, `DanceReviewScene.tsx`, new
+> `duck.test.ts` (**148 statements**). **Uncommitted.** Suite **508 → 656 passing, the same 35
+> failures in the same 8 files** — the pre-existing set from the in-progress arm work, untouched.
+> `tsc` clean, lint 0 errors / 1 known warning.
+>
+> ⏳ **NEEDS A WATCH — this is the whole point of the session.** Two 🧪 dials, on the **arch**
+> steps (the first to sit anywhere but `stand`), both off by default:
+> **🧪 join overhead** (shoulder midpoint → over her crown) and **🧪 pair closes** (handhold width
+> → tightest deliverable; `100%` is **bisected, not `bodies`** — a naive floor there would push
+> every pairing into let-go under a dial named *closer*).
+> Look at `myco/ember`, `myco/player`, `myco/ryan`, `player/ember`, `sprout/ember`, `sprout/ryan`
+> — these close up and keep the hold. Then 🔴 **`ryan/ember`, the duck to judge:** she needs
+> **−1.20** of her 1.41 of body and will probably read as collapsing. Honest geometry, left
+> uncapped on purpose — the cap is a number to *see* before choosing.
+>
+> 🔴 **ONE TEST LEFT FAILING ON PURPOSE.** A third defect, in `reachCeiling`'s callers (across
+> measured to the couple's midpoint, not to the join), means ADR-0037 part 3's terminal-case pair
+> no longer has to let go. Whether that case still wants that witness is a decision, not a fixup.
+>
+> ⏳ **NEXT:** the look, then the selection rule (item 13) — now unblocked and with a *measurable*
+> trigger beside the strain: a pairing whose partner's arm cannot clear the turning dancer's head
+> **cannot dance a `FULL_L`**. Then one ADR covering the join, the closing, and whether the four
+> rank. Then `CASUAL`'s pose. Nine orderings still let go at `overhead = 1`; none seen yet.
+>
+> ---
+>
+> ### ▶ 2026-09-21 (3) — the arch is at full stretch for almost everybody
+>
+> [`journal/2026-09-21-3-the-arch-is-at-full-stretch-for-almost-everybody.md`](journal/2026-09-21-3-the-arch-is-at-full-stretch-for-almost-everybody.md)
+> · [ADR-0058](adr/0058-a-raised-hold-stands-the-upper-arm-up.md)
+>
+> ✅ **`FULL_L` has a pose.** `touchPose` gains `raised` (0–1), which **rotates the elbow along its
+> own circle** toward the highest point on it — the most vertical humerus the geometry allows.
+> ADR-0027's hanging rule and the L are two points on the *same* circle, which is why this is one
+> parameter and not a second solver.
+> 🔑 **A rotation, not a lerp** — so the humerus keeps its exact length the whole way across and
+> `upperArmStrain` reads **zero** at both ends and in between. A position lerp would cut the chord
+> and shorten the upper arm mid-blend, on the one figure where somebody is watching the arm.
+> 🔑 **It rides the arch's own blend**, so the arm stands up as fast as the hands climb; and
+> `raised = 0` is **ADR-0027 byte-identical**, asserted rather than assumed.
+>
+> 🔴 **THE FINDING, and it is bigger than the rule: the L has a circle to turn on in 7 of 50
+> arms.** All twenty-five orderings, both roles, at the real arch with the reach and reshape worn.
+> For **43 of 50** the hold is at or past full stretch — `reachPose` fires, the circle is a point,
+> there is no elbow to place. That is not a defect: a straight arm has no elbow freedom and
+> neither does the dancer, and those straight arms are mostly already near-vertical (6°–29° off)
+> because they are reaching above the crown. Where there *is* slack it earns its keep —
+> `ryan/sprout`'s beau **44° → 28°**.
+> 🔑 **The 43 is a number for worklist item 10.** *"The last resort is reached far too readily"*
+> was a look; this is a measurement. The arch asks almost every arm on the cast for its full
+> length, because `archRoom` clears the **taller** dancer's crown and holds both to it. Likely
+> most of why `sizeArch` reaches for accommodations as often as it does.
+> 🔴 **And one arm is neither:** `sprout/ember`'s beau sits at **88° off vertical, straight** — a
+> nearly horizontal upper arm at an arch. Recorded, not fixed: a reach problem, not an elbow one.
+>
+> **State:** `arm-pose.ts` (`standUp`, `TouchHold.raised`, threaded through `settleTouch` and
+> `poseArms`), `DanceFloor.tsx`, new `raised-elbow.test.ts` (6 statements). **Uncommitted.**
+> Suite **753 → 759 passing, the same 36 failures, same 8 files.** `tsc` clean, lint 0 errors / 25
+> known warnings, docs-hygiene clean.
+>
+> ⏳ **NEEDS A WATCH:** `#review=california-twirl/under-arch/ryan-sprout` — the one pairing with
+> real slack, so the one where the L is visible. Then `under-arch/*` generally.
+>
+> ⏳ **NEXT: the head guard (item 11), still owed.** Standing the elbow up can move a forearm
+> *toward* a head and nothing checks. 🔑 **But the 43 changes its shape:** it is a smaller problem
+> for a **held** arm than assumed — a straight arm reaching above the crown passes the head rather
+> than through it — and the real subject is the **free** arm, which raises inward past horizontal
+> and fouls its own head on *every* character. Own ADR.
+>
+> ---
+>
+> ### ▶ 2026-09-21 (2) — four ways to get an arm over your own head
+>
+> [`journal/2026-09-21-2-four-ways-to-get-an-arm-over-your-own-head.md`](journal/2026-09-21-2-four-ways-to-get-an-arm-over-your-own-head.md)
+> · [ADR-0057](adr/0057-the-turn-under-is-four-named-styles-and-the-review-branches-on-them.md)
+>
+> ✅ **The review branches the turn-under four ways.** Ryan named them: *"happy path is the L,
+> next is to L and duck under, those both maintain contact, sometimes they lazy L and break
+> contact, sometimes they just arm up as high as casually possible and walk around it."*
+> `src/dance/turn-under.ts` is the one place they are named. **650 → 875 cells**, 26 → 35 steps,
+> 15 Twirl columns.
+>
+> 🔑 **This session built the instrument, not the poses** — the ask, and this effort's order:
+> stand the cells up, then work through them.
+> 🔴 **So 675 of the 875 cells are not yet worth rating**, and the panel says so in red on each
+> one: *"this style has no pose yet — don't rate it."* Only `FULL_L` (as the arch has always
+> rendered — undrawn) and `LAZY_L` (which reaches ADR-0037's break) differ on screen today.
+>
+> 🔑 **Two answers from Ryan shaped the work.** *"Walk around it"* **keeps the belle's path** —
+> which is the whole difference between a the-lot change and a square-one release: `belleHalf`
+> walks her a `step-pivot` of exactly `couple.width` and `archClearance` feeds only the *beau's*
+> bow. And *"lazy L"* **is ADR-0037's `BREAK`**, keeping `accommodation.ts`'s rule that a new
+> hold must *"answer which of these two rather than inventing a third silent one."*
+>
+> ✅ **It closed a gap that predates it.** `drawAccommodation()` is a coin flip **per mount**, so
+> two visits to the same `#review` address could show two different poses and a rating could not
+> say which it was of. Forcing the style fixes it — and the force goes where the accommodation is
+> *drawn* (the `arches` memo), not where it is read, or the beau bows for one answer while the
+> arms pose the other.
+>
+> 🔑 **The four are deliberately NOT ordered as a ladder.** Whether they rank is what the branch
+> was built to ask; only `keepsContact` is recorded, because that is the one property Ryan stated
+> outright. **And the happy path keeps the unbranched id** — `#review=…/under-arch/…` still opens
+> the pose every journal meant, which matters because journals are append-only.
+>
+> **State:** new `turn-under.ts` + `turn-under.test.ts`, `review-steps.ts`, `DanceFloor.tsx`,
+> `DanceReviewScene.tsx`, three test files **restated not re-pinned** (ADR-0055's standard), ADR
+> + journal. **Uncommitted.** Suite **743 → 753 passing, the same 36 failures, same 8 files** —
+> the Myco set from 09-20. `tsc` clean, lint 0 errors / 25 known warnings, docs-hygiene clean.
+>
+> ⏳ **NEEDS A WATCH:** `#review=california-twirl/under-arch/player-myco` and its `-duck`,
+> `-lazy`, `-casual` siblings — check the chip grouping reads, and that `lazy` visibly differs.
+>
+> ⏳ **NEXT: the L, and it is worklist item 11 — one mechanism, not two.** A joined hand has
+> nowhere else to be, so the only free variable is the **elbow**, and the elbow that keeps the
+> forearm out of the head *is* the upside-down L. Then `DUCK_UNDER` and `CASUAL`, both defined
+> against it, then the selection rule (item 13).
+>
+> ---
+>
+> ### ▶ 2026-09-21 (1) — the down arm was never moving
+>
+> [`journal/2026-09-21-1-the-down-arm-was-never-moving.md`](journal/2026-09-21-1-the-down-arm-was-never-moving.md)
+> · [ADR-0056](adr/0056-a-declared-hold-keeps-the-hand-the-figure-named.md)
+>
+> ✅ **The 2026-08-23 California Twirl arm-swap is FIXED** — open for four weeks, the last thing
+> left from that day. Ryan raised it again mid-Myco: *"when passing under the raised arm the
+> other arm switches sides."*
+>
+> 🔑 **The arm was never moving.** The belle's down arm does not swing anywhere — the *held*
+> arm's label moves and the down arm is whatever is left over. `insideSide` reads the partner's
+> bearing in the dancer's **own** frame, which moves when either the partner moves or this
+> dancer turns; a Twirl does both, out of phase. Walked at quarter-beat resolution through the
+> real engine, the belle reads `left` → **`right` (beats 1.25–2.75)** → `left`. Ryan's three
+> screenshots, exactly.
+>
+> 🔑 **The endpoints agree — `left` at beat 0 and `left` at beat 4** — so it is a *phase error*
+> inside the figure, not a change of side. That is what makes a fixed answer safe: it loses
+> nothing. It is also why the arch's release half a beat early does not pop the arm across.
+>
+> 🔴 **The half nobody saw was worse.** `poseArms` reads the role off the same side
+> (`const beau = side === "right"`), so for seven quarter-beats **both dancers were the beau** —
+> two palms up, both applying `+hold.lateral`, writing two different contact points for one
+> hold. Fixed as a side effect, not separately.
+>
+> ✅ **The engine had already answered.** square-one's `GripSpan.hand` names the hand a span
+> engages and holds it beat 0 → 7.5: beau `right`, belle `left`, every pairing, never changing.
+> `DanceFloor` was *already reading it* into `track.arch` and using it only to report. The fix
+> is to pass it instead of a bare `true`, plus one line in `touchingSide`.
+> 🔑 **A latch would have been actively harmful** — `#review` seeks straight to a beat, so
+> landing on `under-arch` would have latched the *swapped* value and preserved the defect inside
+> the instrument built to find it.
+>
+> **State:** `arm-pose.ts`, `expression-channels.ts`, `DanceFloor.tsx`, new
+> `declared-hold.test.ts` (7 tests, the old behaviour pinned as a **finding**), ADR + journal.
+> **Uncommitted.** Suite **736 → 743 passing, the same 36 failures, same 8 files** — the Myco
+> set from 09-20, untouched. `tsc` clean, lint 0 errors / 25 known warnings, docs-hygiene clean.
+>
+> ⏳ **NEEDS A WATCH: `#review=california-twirl/under-arch/*` and `/quarter/*`.** The belle's
+> down arm should stay on the side it started. Numbers say it does for all twenty orderings;
+> no eye has been on it.
+>
+> ⏳ **NEXT, and it gets harder — and Ryan asked for it in the same breath: *"myco's arm passes
+> through the head — can we guard against that in general?"*** Swept the cast: **it is not
+> Myco.** Every character's forearm enters their own head once the arm raises inward past
+> roughly horizontal — ember's shoulder sits **0.022** outside her own head with 0.935 of arm on
+> it; myco's 0.140 with 0.350 (she is just where you *see* it, head radius 0.490). **There is no
+> guard at all:** every consumer of `ArmMetrics.parts` is pairwise, and the one self-reference
+> (`arch.ts:99`) uses it for a height. The 2026-08-17 exclusion on record was about an arm
+> through its owner's **torso**; the head was never separately asked.
+> 🔑 **It is the same mechanism as the turn-under this fix just exposed.** A joined hand has
+> nowhere else to be, so the only free variable is the **elbow** — and the elbow that keeps the
+> forearm out of the head *is* Ryan's *"upside down L, forearm horizontal over the head."*
+> `clearFloor` (ADR-0055) is the template for the free-arm half.
+>
+> ---
+>
+> ### ▶ 2026-09-20 (2) — Myco's arm is a diversity case now
 >
 > [`journal/2026-09-20-2-mycos-arm-is-a-diversity-case-now.md`](journal/2026-09-20-2-mycos-arm-is-a-diversity-case-now.md)
 >
@@ -3728,6 +4043,82 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
        `arch.ts`). It is correct as a last resort and reached far too readily, and the pose it
        produces — a full body apart, arms down — reads as a bug rather than as an
        accommodation. ADR-0040 is the decision to revisit.
+
+11. 📌 **An arm should clear its own head** (set 2026-09-21; see
+    [`journal/2026-09-21-1`](journal/2026-09-21-1-the-down-arm-was-never-moving.md) and
+    [ADR-0056](adr/0056-a-declared-hold-keeps-the-hand-the-figure-named.md)'s last consequence).
+    Ryan: *"myco's arm passes through the head — can we guard against that in general?"* It is
+    **not** Myco: every character's forearm enters their own head once the arm raises inward
+    past roughly horizontal (ember 0.022 of shoulder-to-head-surface with 0.935 of arm; myco
+    0.140 with 0.350). No self-collision guard exists — every consumer of `ArmMetrics.parts` is
+    pairwise. The 2026-08-17 exclusion covered an arm through its owner's **torso**; the head
+    was never separately asked. Two halves:
+    1. **The free arm — and as of 2026-09-21 this is the *main* case, not half of it.** Measuring
+       ADR-0058 found 43 of 50 **held** arms are straight and near-vertical at an arch, so they
+       pass a head rather than through one. The free arm, raising inward past horizontal, fouls
+       its own head on every character. `clearFloor`'s sibling (ADR-0055 is the template): swing
+       about the shoulder until it clears, limited channel only. `rigidParts()[1]` is already the
+       head as a sphere.
+    2. **The owned arm** — the elbow circle, now built: ADR-0058's `standUp` turns the elbow to
+       the **highest** point on it. What is left here is the *limit* — refusing a rotation that
+       puts the forearm through the head, and taking the nearest one that does not. Narrower than
+       it looked, per the 43 above.
+
+12. ⏳ **Watch the Twirl fix** — `#review=california-twirl/under-arch/*` and `/quarter/*`. The
+    belle's down arm should stay on the side it started, for any pairing. Asserted over all
+    twenty orderings; no eye on it yet.
+
+13. 📌 **The turn-under selection rule** (set 2026-09-21; [ADR-0057](adr/0057-the-turn-under-is-four-named-styles-and-the-review-branches-on-them.md)'s
+    last consequence). The four styles are *set* per render today, deliberately — Ryan: *"this
+    will be per character … characters where the happy path is easier will be more likely not to
+    break — have it depend on the strain — characters like Myco might be able to shrink … but for
+    now just set it per render."* Three parts, and they are not the same part:
+    1. **Per character**, which the per-occupant `turnUnder` prop already expresses — motivated
+       by a floor of several couples not all doing the same thing at once.
+    2. **Strain-derived, not random.** `upperArmStrain` (`arm-pose.ts`) is the input. A real
+       departure from ADR-0037, whose two *are* a coin flip because neither is the fallback —
+       here one of them is.
+    3. A coin flip was **deliberately not** put in meanwhile: it would be a decision made by
+       default against one already stated.
+
+    🔑 **Unblocked as of 2026-09-26, and by a second trigger the strain does not cover.** Ryan,
+    on the four: *"those would choose between fallback methods, right?"* — the call
+    `turn-under.ts` was waiting on, having refused to rank them *"because nobody has looked at
+    them yet."* And there is now a **measurable** fallback condition beside the strain: a pairing
+    whose partner's arm cannot clear the turning dancer's head cannot dance a `FULL_L` at all, no
+    matter how it reshapes. See
+    [`journal/2026-09-26-1`](journal/2026-09-26-1-the-join-was-never-over-her-head.md).
+
+14. 🧪 **The overhead join and the pair closing — dialled, not decided** (2026-09-26,
+    [`journal/2026-09-26-1`](journal/2026-09-26-1-the-join-was-never-over-her-head.md)). Ryan:
+    *"the beau kind of has to put their hand directly above the belle's head … the beau is just
+    putting his hand up in between the couple and that causes the belle to have to reach more
+    than is reasonable"*, and *"the turn under we should have the pair get closer during
+    execution of that type of move."* Both are 🧪 dials on the review panel's arch steps,
+    defaulting to off; **deliberately no ADR yet** — *"let's try it out in practice before
+    setting it in stone."* Owed: the look, then one ADR covering the join, the closing and
+    whether the styles rank. Nine of twenty orderings still let go at `overhead = 1` and none
+    has been seen.
+
+    Two clearance defects fell out of building it, both landed: `archClearance` and
+    `armSweepClearance` each charged a **lateral** clearance against a dancer with no
+    cross-section at that height, which made a join over somebody's head unsatisfiable by
+    construction. Alone, that fix took the cast from 5 to 11 of 20 keeping the hold at
+    `overhead = 1`. A third, in `reachCeiling`'s callers, leaves
+    [ADR-0037](adr/0037-the-figure-is-sized-to-the-accommodation-drawn.md) part 3's terminal-case
+    test failing — **left failing on purpose**: whether that case still wants that witness is a
+    decision, not a fixup.
+
+15. ✅ **`DUCK_UNDER` has a pose** (2026-09-26). A torso drop sized inside `sizeArch`'s cascade
+    between reaching and letting go, spread across the turn by `duckProfile`, feet on the floor
+    per [ADR-0043](adr/). Off the review panel's "no pose yet" list. 🔴 `ryan/ember` needs
+    **−1.20** of Ember's 1.41 of body and will probably read as collapsing rather than ducking —
+    the judgement `review-steps`' own watch text asks for, and the first thing to look at.
+    `CASUAL` is the one style still owed a pose.
+
+16. ⏳ **Rate the branched cells — after the poses exist.** 875 cells, and one of the four styles
+    still has no pose and is marked *"don't rate it"* in the panel. The rating sweep on the
+    Twirl's turn steps is blocked on items 11, 13 and 15, not on time.
 
 Deferred with reasons: physics (rapier removed — re-add deliberately when something needs it,
 and resolve its missing license declaration then); the NPC documentation "booklet" plan; the

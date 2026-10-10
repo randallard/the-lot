@@ -144,6 +144,9 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0053](0053-a-dancer-is-paired-with-themselves-too.md) | A dancer is paired with themselves too — the diagonal is the control | Accepted |
 | [0054](0054-the-solve-places-the-hand-and-the-wrist-follows.md) | The solve places the hand and the wrist follows | Accepted |
 | [0055](0055-an-arm-is-a-fixed-length-and-a-shoulder-can-be-put-anywhere.md) | An arm is a fixed length, and a shoulder can be put anywhere | Accepted |
+| [0056](0056-a-declared-hold-keeps-the-hand-the-figure-named.md) | A declared hold keeps the hand the figure named | Accepted |
+| [0057](0057-the-turn-under-is-four-named-styles-and-the-review-branches-on-them.md) | The turn-under is four named styles, and the review branches on them | Accepted |
+| [0058](0058-a-raised-hold-stands-the-upper-arm-up.md) | A raised hold stands the upper arm up | Accepted |
 
 ## Decisions this repo inherits
 
