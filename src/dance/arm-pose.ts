@@ -515,8 +515,19 @@ export function standingAsCouple(
  * Which of this dancer's hands is the **inside** one — the one a couple joins.
  *
  * The partner is on one side or the other; the inside hand is the one nearer them.
- * Derived from where they actually are, so it stays right through a turn rather than
- * being fixed at the moment the couple formed.
+ * Derived from where they actually are, which is the right question for a couple the
+ * *placements* reveal: two dancers who drift around each other really do change which
+ * hand is nearer.
+ *
+ * 🔴 **And the wrong question for a hold a figure imposes** (ADR-0056). A bearing is
+ * measured in the dancer's own frame, so it moves when *either* the partner moves or the
+ * dancer turns — and a California Twirl does both at once, deliberately and out of phase.
+ * The belle walks the diameter at a steady 180° while the beau bows around his arc, so the
+ * partner's bearing crosses her midline at beat ~1.1 and crosses back at ~2.9: her joined
+ * hand is re-labelled twice mid-figure, and her free arm with it. The two rotations cancel
+ * exactly at the ends — she reads `left` at beat 0 and `left` at beat 4 — which is what
+ * makes the swap a phase error rather than a change of side, and what makes the figure's
+ * own answer the one to trust. See {@link touchingSide}.
  */
 export function insideSide(self: Placement, partner: Placement): "left" | "right" {
   const dx = partner.x - self.x;
@@ -526,6 +537,17 @@ export function insideSide(self: Placement, partner: Placement): "left" | "right
   const localX = dx * Math.cos(self.yaw) - dz * Math.sin(self.yaw);
   return localX >= 0 ? "left" : "right";
 }
+
+/**
+ * Whether a hold is the **figure's** rather than the placements', and — when the figure
+ * says so — which hand it engages.
+ *
+ * Three states, because there are three: `false` is an undeclared pair, whose hold is read
+ * off where they are standing; `true` is a hold declared without a hand, which still has to
+ * skip the proximity gate but has nothing better than the placements to name a side with;
+ * and a hand names it outright.
+ */
+export type DeclaredHold = boolean | "left" | "right";
 
 /**
  * Which hand this dancer has joined by simply **standing** as half of a couple, or
@@ -545,16 +567,30 @@ export function insideSide(self: Placement, partner: Placement): "left" | "right
  * the placements reveal — square-one's `arch` spans (its ADR-0017). It has to be skipped
  * rather than loosened: a California Twirl's pair close to half their standing width and end
  * up facing opposite ways, so {@link standingAsCouple} says "not a couple" for most of a call
- * whose hands never come apart. Which hand is still read from the live placements, because
- * that stays true through a turn and a fixed answer would not.
+ * whose hands never come apart.
+ *
+ * 🔑 **And when the figure names the hand, that is the answer** (ADR-0056). square-one's
+ * {@link GripSpan} carries the hand it engages and holds it for the life of the span — beau's
+ * right, belle's left, beat 0 to 7.5 across two whole Twirls — because the engine is what
+ * knows which figure is being danced. Deriving it from the placements instead re-labelled the
+ * belle's joined hand twice mid-Twirl (see {@link insideSide}), which swapped her free arm
+ * onto the other side of her body and, because {@link poseArms} reads the role off the same
+ * side, briefly made **both** dancers the beau — two palms up, and `lateral` applied in the
+ * same direction by both, so the pair wrote two different contact points for one hold.
+ *
+ * 🔑 **A named hand is preferred over a latch for one reason: seeking.** A latch would have to
+ * be seeded on the first frame of the hold, and `#review` jumps straight to a beat — landing
+ * at `under-arch` would have latched the swapped value and preserved the defect in the one
+ * instrument built to watch it.
  */
 export function touchingSide(
   self: Placement,
   partner: Placement,
   hold: TouchHold | undefined,
-  declared = false,
+  declared: DeclaredHold = false,
 ): "left" | "right" | null {
   if (hold === undefined) return null;
+  if (declared === "left" || declared === "right") return declared;
   if (declared) return insideSide(self, partner);
   return standingAsCouple(self, partner, hold.width) ? insideSide(self, partner) : null;
 }
@@ -615,6 +651,20 @@ export interface TouchHold {
    */
   readonly insideBeau: number;
   readonly insideBelle: number;
+  /**
+   * How far this hold has **risen out of the hang**, `0`–`1` — `0` (or absent) for the standing
+   * handhold every solver in this module was written for, `1` for a fully raised arch.
+   *
+   * 🔑 **A number rather than a kind**, for the same reason the arch's height and lateral are
+   * numbers: an arch *is* a standing handhold that has gone up — `DanceFloor` builds one by
+   * lerping this hold's own fields — so anything that switched on "is this an arch" would pop
+   * the elbow across halfway through the rise. Passed to {@link touchPose} as its `raised`,
+   * where it turns the elbow up its own circle (ADR-0058) exactly as fast as the hands climb.
+   *
+   * 🔑 **On the hold rather than beside it, because the two dancers have to agree.** One arm
+   * standing its humerus up while the other's still hangs is one hold posed by two anatomies.
+   */
+  readonly raised?: number;
 }
 
 /**
@@ -1011,6 +1061,16 @@ function settleTouch(
    * arm the stance believes can reach a point it cannot.
    */
   offOut?: Vec3,
+  /**
+   * How far the hold has risen out of the hang (ADR-0058) — {@link TouchHold.raised}, passed
+   * straight down to {@link touchPose}.
+   *
+   * 🔑 **It has to reach the solve, not just the final pose.** The iteration's residual is a
+   * function of the arm's *aim*, and standing the humerus up turns the forearm — so settling
+   * against the hanging elbow and then raising it would land the wrist somewhere the solve
+   * never checked. Both `touchPose` calls below take it for that reason.
+   */
+  raised = 0,
 ): number {
   const sign = isBeau ? -1 : 1;
   const side = isBeau ? "right" : "left";
@@ -1057,7 +1117,7 @@ function settleTouch(
       handX + ox,
       localHeight(m, height + oy),
       handZ + oz,
-      restX, m.drawnSpan,
+      restX, m.drawnSpan, raised,
     );
     wristFrom(_next, out.aimX, out.aimY, out.aimZ);
     into.x = _next.x - ox;
@@ -1134,7 +1194,7 @@ function settleTouch(
     handX + _off.x,
     localHeight(m, height + _off.y),
     handZ + _off.z,
-    restX, m.drawnSpan,
+    restX, m.drawnSpan, raised,
   );
   // 🔴 **The WRIST's offset from the contact plane, not the hand centre's** — the callers of
   // this are the reach budget and the stance, and what they have to know is where the arm was
@@ -1847,6 +1907,31 @@ export function touchReach(m: ArmMetrics, hold: TouchHold, isBeau: boolean): num
  * elbow's circle**, so a nearly straight arm gives a preference almost nothing to get wrong,
  * while the folded arms — where it had everything to get wrong, and did — are the ones that
  * now come through the anatomy.
+ *
+ * ## 🔑 `raised` — and why the L is a rotation rather than a second solver (ADR-0058)
+ *
+ * A California Twirl turns a dancer 180° beneath a hand they are still holding, and *"the
+ * humerus of a hanging arm stays in the plane of its own shoulder"* is the wrong anatomy for
+ * that: nothing about an arch is hanging. Ryan, 2026-08-23 — the held arm should make *"an
+ * upside down L with the invisible upper arm and the forearm then is horizontal over the head."*
+ *
+ * 🔑 **Both answers are points on the same circle**, which is the whole reason this is one
+ * parameter and not a second function. The elbow's legal positions are the intersection of two
+ * spheres — one at the shoulder, one at the placed point — and that is a circle whatever rule
+ * picks from it. ADR-0027 picks where the circle crosses the shoulder's own plane; the L picks
+ * the **highest point on it**, which is the most vertical upper arm the geometry allows. So
+ * `raised` rotates the elbow from the first toward the second *about the circle's own axis*,
+ * and every value in between is a real elbow: the upper arm and the forearm keep their exact
+ * lengths the whole way across, so {@link upperArmStrain} reads the same at both ends and
+ * everywhere between. A lerp between two elbow *positions* would cut the chord and shorten the
+ * humerus.
+ *
+ * 🔑 **And that is what lets it ease.** The arch blends up out of the standing handhold rather
+ * than appearing, so a rule that switched at a threshold would pop the elbow across. `raised` is
+ * the arch's own blend, so the upper arm stands up exactly as fast as the hands rise.
+ *
+ * `0` — the default, and every caller outside a raised hold — is the ADR-0027 pose **untouched**,
+ * including its fall-throughs to {@link reachPose}.
  */
 export function touchPose(
   out: ArmPose,
@@ -1866,6 +1951,12 @@ export function touchPose(
    * then lies off it ({@link handOffset}) rather than continuing the arm's line.
    */
   span: number = m.forearmSpan,
+  /**
+   * How far the upper arm has stood up out of the hang, `0`–`1` (ADR-0058). `0` is ADR-0027
+   * exactly; `1` is the highest elbow the circle has, which is the L. A raised hold passes its
+   * own blend, so the arm stands up exactly as fast as the hands rise.
+   */
+  raised = 0,
 ): ArmPose {
   const sx = sign * restX;
   const sy = m.restY;
@@ -1897,9 +1988,20 @@ export function touchPose(
   const pz = ny;
   const swing = pz > 0 ? -off : off;
 
-  const ex = sx;
-  const ey = sy + along * ny + swing * py;
-  const ez = along * nz + swing * pz;
+  let ex = sx;
+  let ey = sy + along * ny + swing * py;
+  let ez = along * nz + swing * pz;
+
+  // 🔑 **Stand the upper arm up, by rotating the elbow along its own circle** (ADR-0058).
+  // Everything above found the hanging elbow; this turns it toward the highest one the circle
+  // has, which is the most vertical humerus the geometry allows — Ryan's upside-down L.
+  if (raised > 0) {
+    standUp(_stand, ex, ey, ez, sx, sy, 0, ax, ay, az, d, upper, raised);
+    ex = _stand.x;
+    ey = _stand.y;
+    ez = _stand.z;
+  }
+
   out.x = ex;
   out.y = ey;
   out.z = ez;
@@ -1911,6 +2013,94 @@ export function touchPose(
   out.aimX = bx / blen;
   out.aimY = by / blen;
   out.aimZ = bz / blen;
+  return out;
+}
+
+/** Scratch for the raised elbow. Frame-loop code allocates nothing. */
+const _stand = vec3();
+
+/**
+ * Turn an elbow along its own circle toward the **highest** point on it — the most vertical
+ * upper arm the geometry allows, which is Ryan's upside-down L (ADR-0058).
+ *
+ * The elbow's legal positions are the intersection of a sphere at the shoulder with one at the
+ * placed point: a circle, centred on the shoulder→hand line at `C = S + along·n` with radius
+ * `off`, lying in the plane perpendicular to `n`. The hanging elbow is one point on it; the L is
+ * another. Turning between them keeps *both* segments at their true lengths, which is why this
+ * rotates rather than interpolating positions.
+ *
+ * 🔑 **The highest point is closed form, and basis-free.** Height on the circle is
+ * `C.y + off·(ŵ·ŷ)` for the in-plane direction `ŵ`, so the maximum is at the normalised
+ * projection of **up** onto the circle's plane: `w = ŷ − (ŷ·n)n`. Its length is `√(1 − n.y²)`,
+ * which is zero exactly when the hand is straight above or below the shoulder — and then every
+ * elbow on the circle is the same height, standing up asks for nothing, and the hanging answer
+ * is returned unchanged. No search, no tuned constant.
+ *
+ * Rodrigues about `n` by `raised` of the angle between the two, so `raised = 1` lands on the L
+ * exactly and `0` cannot move anything.
+ */
+function standUp(
+  out: Vec3,
+  ex: number, ey: number, ez: number,
+  sx: number, sy: number, sz: number,
+  ax: number, ay: number, az: number,
+  d: number,
+  upper: number,
+  raised: number,
+): Vec3 {
+  out.x = ex;
+  out.y = ey;
+  out.z = ez;
+  if (d < 1e-9 || upper < 1e-9) return out;
+
+  // The circle: axis `n`, centre `C`, radius `off`.
+  const nx = ax / d;
+  const ny = ay / d;
+  const nz = az / d;
+  const vx = ex - sx;
+  const vy = ey - sy;
+  const vz = ez - sz;
+  const along = vx * nx + vy * ny + vz * nz;
+  // From the circle's centre to the hanging elbow — the vector being rotated.
+  const hx = vx - along * nx;
+  const hy = vy - along * ny;
+  const hz = vz - along * nz;
+  const off = Math.hypot(hx, hy, hz);
+  if (off < 1e-9) return out;
+
+  // Straight up, projected into the circle's plane: the direction of the highest elbow.
+  const wx = -ny * nx;
+  const wy = 1 - ny * ny;
+  const wz = -ny * nz;
+  const wlen = Math.hypot(wx, wy, wz);
+  // A circle lying flat — the hand directly above or below the shoulder. Every elbow on it is
+  // the same height, so there is no "up" to turn toward and the hang is already as raised as
+  // anything else would be.
+  if (wlen < 1e-9) return out;
+
+  // The angle from the hanging elbow to the highest one, signed about `n`.
+  const ux = hx / off;
+  const uy = hy / off;
+  const uz = hz / off;
+  const tx = wx / wlen;
+  const ty = wy / wlen;
+  const tz = wz / wlen;
+  const cos = clampUnit(ux * tx + uy * ty + uz * tz);
+  // `u × t` runs along ±n; its component on n gives the sign of the turn.
+  const crossN = (uy * tz - uz * ty) * nx + (uz * tx - ux * tz) * ny + (ux * ty - uy * tx) * nz;
+  const angle = Math.atan2(crossN, cos) * raised;
+
+  // Rodrigues: rotate `h` about `n` by `angle`.
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const dot = hx * nx + hy * ny + hz * nz;
+  const rx = hx * c + (ny * hz - nz * hy) * s + nx * dot * (1 - c);
+  const ry = hy * c + (nz * hx - nx * hz) * s + ny * dot * (1 - c);
+  const rz = hz * c + (nx * hy - ny * hx) * s + nz * dot * (1 - c);
+
+  out.x = sx + along * nx + rx;
+  out.y = sy + along * ny + ry;
+  out.z = sz + along * nz + rz;
   return out;
 }
 
@@ -2240,12 +2430,13 @@ export function poseArms(
    */
   hold?: TouchHold,
   /**
-   * Whether the **figure** says these two are holding hands, rather than their placements.
+   * Whether the **figure** says these two are holding hands, rather than their placements —
+   * and which hand, when the figure names one.
    *
    * Passed through to {@link touchingSide}. `false` — the default, and every use before the
    * arch — asks the placements, which is what a standing couple's hold is decided from.
    */
-  declared = false,
+  declared: DeclaredHold = false,
   /**
    * The world height **this dancer's** joined forearm sits at, when a hold has been planned
    * for the pair.
@@ -2363,6 +2554,10 @@ export function poseArms(
           // the hold was solved against. Posing from the authored `restX` here would put the
           // elbow a tuck's width out from the shoulder the render is about to draw.
           beau ? hold.insideBeau : hold.insideBelle,
+          undefined,
+          // …and it stops hanging as the hold goes up (ADR-0058). `0` for every standing
+          // handhold, which is every caller that predates the arch.
+          hold.raised ?? 0,
         );
         continue;
       }

@@ -68,16 +68,31 @@ import {
 } from "./frame";
 import { COUPLE_WIDTH, type ShapeAt } from "square-one";
 import { handLie, wristRotation } from "./wrist";
-import { LOW, planArch, sizeArch, type ArchPlan, type ArchSizing } from "./arch";
+import {
+  LOW,
+  planArch,
+  sizeArch,
+  type ArchPlan,
+  type ArchSizing,
+  type DuckRoom,
+} from "./arch";
 import { pairGripRadius, planForearm, type ForearmPlan } from "./forearm-hold";
 import {
   BREAK,
+  NO_DELTAS,
   drawAccommodation,
   growBody,
   growForearm,
   standingLift,
   type Accommodation,
+  type BodyDeltas,
 } from "./accommodation";
+import {
+  duckProfile,
+  duckRoom as styleRoom,
+  forcedAccommodation,
+  type TurnUnderStyle,
+} from "./turn-under";
 import { useDancePerformance, type DancePerformanceOptions } from "./useDancePerformance";
 import type { AnimationController } from "../services/animation-controller";
 import { NEUTRAL_POSE } from "../services/emotes";
@@ -96,6 +111,7 @@ import {
   deg2rad,
   lateralClearance,
   rigidParts,
+  SHAPE_BOUNDS,
   type CharacterBodyShape,
 } from "../services/body-shapes";
 
@@ -215,6 +231,61 @@ interface DanceFloorProps extends DancePerformanceOptions {
    * same as any unreachable target. `0` (the default) changes nothing.
    */
   handForward?: number;
+  /**
+   * How each occupant takes their joined arm over their own head while turning beneath it —
+   * one {@link TurnUnderStyle} per dancer, in the same order as {@link shapes}. See
+   * [`turn-under.ts`](turn-under.ts) for the four and where they came from.
+   *
+   * 🔑 **Per dancer, and per render.** Ryan, 2026-09-21: *"this will be per character … each
+   * render should have a preferred accommodation if they need it … but for now just set it per
+   * render."* The two halves of that are a shape (per occupant, so a floor of several couples
+   * is not all doing the same thing) and a scope (set, not inferred — for now).
+   *
+   * 🔴 **Deliberately NOT drawn like {@link drawAccommodation}.** ADR-0037's pair are a coin
+   * flip because neither is the fallback; these are not, and Ryan has already said what should
+   * decide them: *"characters where the happy path is easier will be more likely not to break —
+   * have it depend on the strain."* A coin flip put in now would be a decision made by default
+   * against one he has already stated, so the prop is set by the caller and the inference is
+   * owed. `upperArmStrain` is the input it will read.
+   *
+   * Absent, or `null` for one dancer, is `FULL_L` — the happy path, and the only style with a
+   * pose of its own yet.
+   */
+  turnUnder?: readonly (TurnUnderStyle | null)[];
+  /**
+   * 🧪 **Exploratory (2026-09-26), not a decided stance.** How far the arch's joined hands sit
+   * **over the belle's own crown** rather than at the midpoint of the two inside shoulders —
+   * `0` (the default) is ADR-0025's rule and changes nothing, `1` puts the join directly above
+   * her head.
+   *
+   * Ryan, watching the L against four reference photographs: *"the beau kind of has to put
+   * their hand directly above the belle's head … in our implementation the beau is just putting
+   * his hand up in between the couple and that causes the belle to have to reach more than is
+   * reasonable."*
+   *
+   * Unlike {@link turnIn}/{@link stagger} this reaches the **solve**, and it reaches all of it:
+   * the join's lateral is an input to the reshape, the height, the hand placements, the
+   * clearance and the figure's own width, so the dial is threaded into `sizeArch` as well as
+   * `planArch`. Sizing and posing must see the same number or the beau bows for one arch and
+   * poses another — ADR-0037's defect.
+   *
+   * 🔴 **Applies only to an arch**, which is the one figure where somebody turns under. A
+   * standing couple keeps the shoulder midpoint whatever this says.
+   */
+  archOverhead?: number;
+  /**
+   * 🧪 **Exploratory (2026-09-26), not a decided stance.** How close the pair stand while
+   * dancing an arch — `0` (the default) is the standing handhold's own width and changes
+   * nothing, `1` is as close as the figure can still be delivered.
+   *
+   * Ryan, 2026-09-26: *"the turn under we should have the pair get closer during execution of
+   * that type of move."*
+   *
+   * 🔑 **The other half of {@link archOverhead}.** A join over the belle's crown is most of a
+   * separation from the beau's inside shoulder, so moving it without closing the pair up only
+   * breaks the hold. Separate dials so the two effects can be told apart on screen.
+   */
+  archClose?: number;
 }
 
 /** One dancer's arms this frame: where they are, and what the hand has hold of. */
@@ -406,6 +477,9 @@ export function DanceFloor({
   stagger = 0,
   handHeight = 0,
   handForward = 0,
+  turnUnder,
+  archOverhead = 0,
+  archClose = 0,
   ...performanceOptions
 }: DanceFloorProps) {
   /**
@@ -464,6 +538,28 @@ export function DanceFloor({
    * width**: they stand at twice the room they need, where the arc's own radius delivers it with
    * no bow at all (ADR-0014's relationship, used the other way round).
    */
+  /** What the pair's {@link turnUnder} styles force on the reach draw — see `turn-under.ts`. */
+  const forced = useMemo<Accommodation | null>(
+    () => forcedAccommodation(turnUnder),
+    [turnUnder],
+  );
+
+  /**
+   * 🧪 How far each dancer is willing to drop, for `sizeArch`'s duck step — the shape editor's
+   * own room below their body height for anyone dancing `DUCK_UNDER`, and `0` for everyone else
+   * (2026-09-26).
+   *
+   * 🔑 **The style lives here and the geometry lives in `arch.ts`.** That module knows about
+   * bodies and holds and deliberately not about the four turn-under styles; `duckRoom` is the
+   * one sentence of translation between them.
+   */
+  const duckRoom = useMemo<DuckRoom>(() => {
+    const floor = SHAPE_BOUNDS.body.height.min;
+    const room = (shape: CharacterBodyShape | undefined, style: TurnUnderStyle | null | undefined) =>
+      shape === undefined ? 0 : styleRoom(style, shape.body.height, floor);
+    return { beau: room(shapes[0], turnUnder?.[0]), belle: room(shapes[1], turnUnder?.[1]) };
+  }, [shapes, turnUnder]);
+
   const arches = useMemo<readonly (ArchSizing | null)[]>(() => {
     const a = shapes[0];
     const b = shapes[1];
@@ -474,10 +570,27 @@ export function DanceFloor({
     const bodies = passingWidth(lateralClearance(rigidParts(a), rigidParts(b)));
     return seq.map((call) =>
       call === "california-twirl"
-        ? sizeArch(am, bm, a, b, hold.width, bodies, drawAccommodation())
+        ? sizeArch(
+            am, bm, a, b, hold.width, bodies,
+            // 🔴 **Forced here and nowhere downstream, because this is where the draw *is***
+            // (ADR-0037). The figure is sized to the accommodation before it is built, so a
+            // style that pinned the accommodation at the posing end instead would have the beau
+            // bowing for one answer while the arms posed the other — the exact defect ADR-0037
+            // was written to fix.
+            //
+            // 🔑 And forcing it is what makes a review cell **reproducible**. This has been a
+            // coin flip per mount since the draw existed, so two visits to the same address
+            // could show two different poses and a rating could not say which it was of.
+            forced ?? drawAccommodation(),
+            // 🧪 Sized with the same dial the pose uses, or the bow is built for one arch and
+            // the arms solve another (ADR-0037).
+            archOverhead,
+            archClose,
+            duckRoom,
+          )
         : null,
     );
-  }, [shapes, hold, performanceOptions.sequence]);
+  }, [shapes, hold, performanceOptions.sequence, forced, archOverhead, archClose, duckRoom]);
 
   const shapeAt = useCallback<ShapeAt>(
     (index) => {
@@ -688,7 +801,21 @@ export function DanceFloor({
     stance: TouchHold | undefined;
     /** 0 hands down and shapes unchanged, 1 fully into the hold. */
     blend: number;
-  }>({ span: null, accommodation: BREAK, plan: null, forearm: null, armDelta: 0, stance: undefined, blend: 0 });
+    /**
+     * How far each dancer drops at the **deepest** point of a duck, as a body-height change —
+     * negative, and `0` for anyone not dancing {@link DUCK_UNDER} (see `turn-under.ts`).
+     *
+     * 🔑 **Solved once per execution, like the plan, and scaled per frame by `duckProfile`.**
+     * A depth re-solved every frame would be a dancer hunting for the shallowest duck that
+     * works *at the pose she is currently in*, which is a feedback loop rather than a figure.
+     */
+    duck: BodyDeltas;
+    /** The arch span the duck's profile is measured across — beats, from the live span. */
+    duckSpan: { from: number; to: number } | null;
+  }>({
+    span: null, accommodation: BREAK, plan: null, forearm: null, armDelta: 0,
+    stance: undefined, blend: 0, duck: NO_DELTAS, duckSpan: null,
+  });
 
   // The only eased quantity in the arm channel: how far each hand is into its grip.
   const blends = useMemo(() => {
@@ -866,7 +993,13 @@ export function DanceFloor({
         } else {
           // The style is in the key, so a call that changed hold across the same beat range
           // would be a second execution and get its own draw.
-          const id = `${heldSpan.grip}:${String(heldSpan.from)}:${String(heldSpan.to)}`;
+          // 🧪 The overhead dial is part of the identity, because the plan is built once per
+          // execution and cached here — without it, turning the dial on a paused floor would
+          // re-size the figure and leave the arms posed for the arch before it.
+          const id =
+            `${heldSpan.grip}:${String(heldSpan.from)}:${String(heldSpan.to)}` +
+            (archOverhead === 0 ? "" : `:oh${archOverhead.toFixed(3)}`) +
+            (archClose === 0 ? "" : `:cl${archClose.toFixed(3)}`);
           if (under.span !== id) {
             under.span = id;
             // 🔴 **The arch's accommodation is not drawn here** (ADR-0037). It was drawn before
@@ -925,12 +1058,28 @@ export function DanceFloor({
                     // Same aim `sizeArch` chose (ADR-0042) — a reshape posed at one height while
                     // the bow was built for another is the whole class of defect ADR-0037 closed.
                     chosen == null ? LOW : chosen.aim,
+                    archOverhead,
                   )
                 : null;
             under.forearm =
               pair && heldSpan.grip === "forearm"
                 ? planForearm(beauM, belleM, beauS, belleS, under.accommodation)
                 : null;
+
+            /*
+             * 🔑 **The duck was *sized* with the figure, not solved here** (`turn-under.ts`).
+             *
+             * The first attempt did solve it at this point, and it could not work: a duck
+             * measured at pose time can only be compared against `ArchSizing.width`, which for
+             * exactly the pairings a duck exists to rescue is already the doubled let-go width.
+             * The arm clears trivially at that separation, so every pairing came back wanting a
+             * duck of one centimetre. It has to be tried while the pair are still trying to keep
+             * the hold, which is inside `sizeArch`'s cascade.
+             *
+             * So all that is left here is the span the profile is measured across.
+             */
+            under.duck = chosen == null ? NO_DELTAS : chosen.duck;
+            under.duckSpan = { from: heldSpan.from, to: heldSpan.to };
           }
         }
         // Eased like a grip and snapped like one: a shape a hair off its target is a torso
@@ -1015,8 +1164,27 @@ export function DanceFloor({
           // Whichever hold is live owns the reshape; they are mutually exclusive and both
           // carry `bodyDeltas`, so this reads one field and stays indifferent to the style.
           const deltas = plan?.bodyDeltas ?? under.forearm?.bodyDeltas ?? null;
-          const myDelta = deltas === null ? 0 : deltas[mine] * under.blend;
-          const theirDelta = deltas === null ? 0 : deltas[theirs] * under.blend;
+          /*
+           * 🔑 **The duck rides its own curve, not the hold's blend** (`turn-under.ts`).
+           *
+           * `under.blend` is how far the hands are into the hold — it reaches 1 as the arch
+           * goes up and stays there for the whole span. A duck is not that shape: it is *"spread
+           * across the turn"*, deepest under the arch and gone at both ends, so it takes
+           * `duckProfile` over the span's own beats. Sharing the blend would leave her folded
+           * at the ending position with the hands already back down.
+           *
+           * Added to the reshape rather than replacing it: a pair can be trading torsos to make
+           * the arch **and** one of them ducking under it, and those are different questions
+           * asked of the same lever.
+           */
+          const duckNow =
+            under.duckSpan === null
+              ? 0
+              : duckProfile(beat, under.duckSpan.from, under.duckSpan.to);
+          const myDelta =
+            (deltas === null ? 0 : deltas[mine] * under.blend) + under.duck[mine] * duckNow;
+          const theirDelta =
+            (deltas === null ? 0 : deltas[theirs] * under.blend) + under.duck[theirs] * duckNow;
           // 🔑 **Both dancers take the same arm**, unlike the torso trade, which is signed.
           // The reshape moves one *against* the other because it is closing a gap between
           // them; the reach is the pair asking the same question of both their arms.
@@ -1116,6 +1284,11 @@ export function DanceFloor({
                   // a shoulder (ADR-0049).
                   insideBeau: standing.insideBeau,
                   insideBelle: standing.insideBelle,
+                  // 🔑 **The upper arm stands up as fast as the hands climb** (ADR-0058). The
+                  // arch's own blend, reused rather than a second easing: a hold that is half
+                  // raised should be posed by an anatomy that is half raised, and anything with
+                  // a threshold in it would pop the elbow across partway up.
+                  raised: under.blend,
                 };
           // 🧪 The exploratory hand-height and hands-forward dials (see `handHeight`,
           // `handForward`). Shared, not per-dancer — moving one for only one of them is the
@@ -1132,9 +1305,18 @@ export function DanceFloor({
                   forward: baseHold.forward + handForward,
                 };
           _ctx.hold = coupleHold;
-          // A turned-in couple face ~2·turnIn apart, which `standingAsCouple`'s facing tolerance
-          // can read as "not a couple". They are one by construction, so the hold is declared.
-          _ctx.declaredHold = archHold !== undefined || coupleYaw !== undefined;
+          /*
+           * A turned-in couple face ~2·turnIn apart, which `standingAsCouple`'s facing tolerance
+           * can read as "not a couple". They are one by construction, so the hold is declared.
+           *
+           * 🔑 **And an arch declares the hand as well** (ADR-0056). `track.arch` is the hand
+           * square-one's own `arch` span names, held for the life of the span; passing it means
+           * the pose reads the figure's answer instead of re-deriving one from a bearing that a
+           * turning dancer moves under. The turn-in dial has no span and no hand, so it stays a
+           * bare `true` and goes on asking the placements — which is correct there, because
+           * nobody is turning.
+           */
+          _ctx.declaredHold = track.arch ?? (archHold !== undefined || coupleYaw !== undefined);
           _ctx.coupleYaw = archHold === undefined ? coupleYaw : undefined;
           // The planned height for **this** dancer, eased in with the rest of the hold. Under
           // a break the two get different numbers and the forearms finish on different planes,

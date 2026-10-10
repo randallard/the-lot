@@ -41,23 +41,30 @@
  *
  * ## 🧪 The dials
  *
- * Four exploratory dials sit on the `stand` step, in the dashed amber box. **None of them is
- * a decided stance**, none is ever saved with a rating, and each is `0` by default and
- * changes nothing there. The box turns amber and says *don't rate it* the moment any of them
- * is off zero, because a rating taken of a dialed pose is worse than no rating.
+ * Six exploratory dials sit in the dashed amber box — **four on the `stand` step and two on the
+ * arch steps**, because the last two are about a figure somebody turns under and the first four
+ * are about a couple standing still. **None of them is a decided stance**, none is ever saved
+ * with a rating, and each is `0` by default and changes nothing there. The box turns amber and
+ * says *don't rate it* the moment any of them is off zero, because a rating taken of a dialed
+ * pose is worse than no rating.
  *
- * | Dial | What it moves | Journal |
- * |---|---|---|
- * | **turn in** | Each dancer's yaw — does a turned couple keep its forearms off the vertical pole. Posed rig only; `touchHold` is not re-solved. | `2026-09-14-2` |
- * | **stagger** | Beau back, belle forward along the couple's facing, half each so the hold point stays put. | `2026-09-14-2` |
- * | **hand height** | `hold.height` — the one point both arms solve onto, up or down. | `2026-09-19-3` |
- * | **hands fwd** | `hold.forward` — Ryan's *"a dial for elbow back"*, from the end that exists. A handhold's elbow is derived by `touchPose` from anatomy, so what sends it back is the hands going forward. | `2026-09-19-3` |
+ * | Dial | Step | What it moves | Journal |
+ * |---|---|---|---|
+ * | **turn in** | stand | Each dancer's yaw — does a turned couple keep its forearms off the vertical pole. Posed rig only; `touchHold` is not re-solved. | `2026-09-14-2` |
+ * | **stagger** | stand | Beau back, belle forward along the couple's facing, half each so the hold point stays put. | `2026-09-14-2` |
+ * | **hand height** | stand | `hold.height` — the one point both arms solve onto, up or down. | `2026-09-19-3` |
+ * | **hands fwd** | stand | `hold.forward` — Ryan's *"a dial for elbow back"*, from the end that exists. A handhold's elbow is derived by `touchPose` from anatomy, so what sends it back is the hands going forward. | `2026-09-19-3` |
+ * | **join overhead** | arch | `archLateral` — the joined hands from the midpoint of the two inside shoulders to over the turning dancer's own crown. | `2026-09-26` |
+ * | **pair closes** | arch | How close the pair stand while turning under, from their handhold's width to the tightest the figure can still be delivered at. | `2026-09-26` |
  *
- * The last two reach the **solve** rather than turning the posed rig afterward, so they cost
- * something the first two do not: `hold.forward` is ADR-0027's *as far forward as both can
- * hold with the upper arm hanging*, and past it the upper arm stops hanging. The second
- * readout line is that cost — **upper arm off hang** per dancer, and **strain** in red once
- * the hold has been asked for past the end of somebody's arm.
+ * `hand height`, `hands fwd` and both arch dials reach the **solve** rather than turning the
+ * posed rig afterward, so they cost something `turn in` and `stagger` do not: `hold.forward` is
+ * ADR-0027's *as far forward as both can hold with the upper arm hanging*, and past it the upper
+ * arm stops hanging. The `stand` readout's second line is that cost — **upper arm off hang** per
+ * dancer, and **strain** in red once the hold has been asked for past the end of somebody's arm.
+ * The arch readout is the other pair's: where the join landed against the turning dancer's
+ * midline, which way her hand points, and whether the couple's width **grew** (red) because the
+ * figure stopped being deliverable and the pair let go.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -67,7 +74,7 @@ import * as THREE from "three";
 import { DanceFloor } from "./DanceFloor";
 import { getBodyShape } from "../services/body-shapes";
 import { castRoster } from "../config/npcs";
-import { REVIEW_FIGURES } from "./review-steps";
+import { REVIEW_FIGURES, type ReviewStep } from "./review-steps";
 import {
   cellId as addressOf,
   pairingId,
@@ -90,6 +97,12 @@ import {
 } from "./review-store";
 import { reviewChartMarkdown } from "./review-chart";
 import { holdMetrics } from "./hold-metrics";
+import { insideShoulderX, planArch, sizeArch } from "./arch";
+import { RESHAPE, growForearm } from "./accommodation";
+import { passingWidth } from "./frame";
+import { lateralClearance, rigidParts } from "../services/body-shapes";
+import { armMetrics, touchHold } from "./arm-pose";
+import { DUCK_UNDER, FULL_L, LAZY_L, type TurnUnderStyle } from "./turn-under";
 
 const PANEL_WIDTH = 340;
 
@@ -164,6 +177,34 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
   const [handForwardCm, setHandForwardCm] = useState(0);
   const [handForwardOn, setHandForwardOn] = useState(false);
   const [handForwardNudge, setHandForwardNudge] = useState(0);
+  /**
+   * 🧪 **Exploratory overhead join, in percent** (2026-09-26) — Ryan, watching the L against
+   * four reference photographs: *"the beau kind of has to put their hand directly above the
+   * belle's head … in our implementation the beau is just putting his hand up in between the
+   * couple and that causes the belle to have to reach more than is reasonable."*
+   *
+   * `0` is ADR-0025's rule — the join at the midpoint of the two inside shoulders — and `100`
+   * puts it over the turning dancer's own crown. **The only dial here that applies to the arch
+   * steps instead of `stand`**, because it is the only one about a figure somebody turns under.
+   *
+   * It reaches further than the other four: the join's lateral is an input to the reshape, the
+   * height, the clearance and the figure's own width, so moving it re-sizes the Twirl. Expect
+   * the couple's spacing to change, not just the arms.
+   */
+  const [overheadPct, setOverheadPct] = useState(100);
+  const [overheadOn, setOverheadOn] = useState(false);
+  const [overheadNudge, setOverheadNudge] = useState(0);
+  /**
+   * 🧪 **Exploratory close-up, in percent** (2026-09-26) — Ryan: *"the turn under we should
+   * have the pair get closer during execution of that type of move."*
+   *
+   * `0` is the standing handhold's width, `100` is as close as the figure can still be
+   * delivered (bisected — see `closedWidth`). The other half of `join overhead`, and on the
+   * same gate: arch steps only.
+   */
+  const [closePct, setClosePct] = useState(100);
+  const [closeOn, setCloseOn] = useState(false);
+  const [closeNudge, setCloseNudge] = useState(0);
 
   /**
    * The cells being walked. Filtering narrows the *walk*, never the store: a rating given
@@ -233,11 +274,13 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
         turnNudge +
         staggerNudge +
         handHeightNudge +
-        handForwardNudge,
+        handForwardNudge +
+        overheadNudge +
+        closeNudge,
       beat: cell.step.pose.kind === "stand" ? 0 : cell.step.pose.beat,
       arch: cell.step.pose.kind === "stand" ? ("down" as const) : ("declared" as const),
     }),
-    [allCells, cell, turnNudge, staggerNudge, handHeightNudge, handForwardNudge],
+    [allCells, cell, turnNudge, staggerNudge, handHeightNudge, handForwardNudge, overheadNudge, closeNudge],
   );
 
 
@@ -246,11 +289,119 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
     [cell.pairing.beau, cell.pairing.belle],
   );
 
+  /**
+   * The turn-under style this cell is of — **both dancers**, so the pair are dancing one style
+   * rather than two.
+   *
+   * Given to both because the style is what the cell *is*: four cells name beat 2 of a Twirl
+   * and the only difference between them is this. A per-dancer mix is a thing the prop can
+   * express and the matrix deliberately cannot — mixing them would make a cell a pose nobody
+   * asked a question about.
+   *
+   * `null` on the steps outside a turn leaves the floor on its default.
+   */
+  const turnUnder = useMemo<readonly (TurnUnderStyle | null)[]>(
+    () => [cell.step.turnUnder ?? null, cell.step.turnUnder ?? null],
+    [cell.step.turnUnder],
+  );
+
+  /**
+   * 🔴 Whether this cell's style has a pose of its own yet — the same honesty the dials get.
+   *
+   * `FULL_L` is what the arch has always rendered as (which is to say: undrawn, ADR-0027's
+   * hanging humerus), and `LAZY_L` reaches ADR-0037's break and so genuinely differs. The other
+   * two do not exist yet, and a matrix that let them be scored anyway would fill with ratings of
+   * a pose that was never built — indistinguishable later from ratings of one that was.
+   */
+  const unbuiltStyle =
+    cell.step.turnUnder !== undefined &&
+    cell.step.turnUnder !== FULL_L &&
+    cell.step.turnUnder !== LAZY_L &&
+    // 🧪 2026-09-26: `DUCK_UNDER` has a pose now — the torso drop `sizeArch` sizes and
+    // `duckProfile` spreads across the turn. Removed from this guard one style at a time, as
+    // each lands, which is what the guard's own note asks for. `CASUAL` is still owed one.
+    cell.step.turnUnder !== DUCK_UNDER;
+
+  /**
+   * The figure's steps grouped by **moment** — one row of chips per pose, with the branched
+   * styles sitting together.
+   *
+   * Keyed on the step's own `pose`, so the grouping is a fact about what the floor is asked to
+   * stand up rather than a convention about how ids are spelled. A step list that never branches
+   * comes back as one group per step and renders exactly as it did before.
+   */
+  const stepGroups = useMemo(() => {
+    const groups: { key: string; label: string; steps: ReviewStep[] }[] = [];
+    for (const step of cell.figure.steps) {
+      const key = JSON.stringify(step.pose);
+      const last = groups[groups.length - 1];
+      if (last?.key === key) last.steps.push(step);
+      else groups.push({ key, label: step.label.split(" · ")[0] ?? step.label, steps: [step] });
+    }
+    return groups;
+  }, [cell.figure]);
+
   const standing = cell.step.pose.kind === "stand";
+  /**
+   * Whether this cell is inside the arch — the steps the overhead dial can say anything about.
+   *
+   * Beat 4 is deliberately outside: square-one releases the hold half a beat before the call
+   * ends (`HOLD_RELEASE_BEATS`), so `end` is the ordinary handhold with the bodies swapped and
+   * has no join overhead to move. The step list brackets the arch on both sides.
+   */
+  const arched =
+    cell.figure.id === "california-twirl" &&
+    cell.step.pose.kind === "beat" &&
+    cell.step.pose.beat < 4;
   const turnIn = standing && turnOn ? (turnDeg * Math.PI) / 180 : 0;
   const stagger = standing && staggerOn ? staggerCm / 100 : 0;
   const handHeight = standing && handHeightOn ? handHeightCm / 100 : 0;
   const handForward = standing && handForwardOn ? handForwardCm / 100 : 0;
+  const archOverhead = arched && overheadOn ? overheadPct / 100 : 0;
+  const archClose = arched && closeOn ? closePct / 100 : 0;
+  /**
+   * 🧪 Where the dial actually puts the join, against the two landmarks it sits between: the
+   * couple's own midpoint and the belle's midline, which is directly above her crown.
+   *
+   * Printed rather than assumed, because the whole finding was that a rule everybody could read
+   * — "halfway between the inside shoulders" — lands somewhere nobody expected once the two
+   * dancers are different sizes.
+   */
+  const overheadReadout = useMemo(() => {
+    const beau = armMetrics(shapes[0]);
+    const belle = armMetrics(shapes[1]);
+    const standing = touchHold(beau, belle).width;
+    const bodies = passingWidth(lateralClearance(rigidParts(shapes[0]), rigidParts(shapes[1])));
+    // The same call the floor makes, so the readout is of the figure on screen rather than of
+    // an arithmetic lookalike — the defect `sizeArch`'s own doc comment was written about.
+    const sized = sizeArch(
+      beau, belle, shapes[0], shapes[1], standing, bodies, RESHAPE, archOverhead, archClose,
+    );
+    // 🔴 **On the bodies `sizeArch` sized the figure for, which is what the floor draws**
+    // (ADR-0045). Without this the readout planned on the *resting* arms while the scene
+    // posed the lengthened ones, so the printed gap was of a figure nobody was looking at —
+    // 11 of the 25 orderings reach, and `ryan/sprout` printed 0.234 against a drawn 0.204.
+    const beauShape = sized.armDelta === 0 ? shapes[0] : growForearm(shapes[0], sized.armDelta);
+    const belleShape = sized.armDelta === 0 ? shapes[1] : growForearm(shapes[1], sized.armDelta);
+    const beauReached = sized.armDelta === 0 ? beau : armMetrics(beauShape);
+    const belleReached = sized.armDelta === 0 ? belle : armMetrics(belleShape);
+    const plan = planArch(
+      beauReached, belleReached, beauShape, belleShape,
+      sized.width, sized.accommodation, sized.aim, archOverhead,
+    );
+    const herShoulder = insideShoulderX(belleReached, sized.width, 1);
+    return {
+      lateral: plan.lateral,
+      standing,
+      stood: sized.width,
+      herMidline: sized.width / 2,
+      short: sized.width / 2 - plan.lateral,
+      // Positive is her hand out over her own head; negative is back across her chest, which
+      // is the thing Ryan saw and the sign that has to flip.
+      herHand: plan.hands.belle.lateral - herShoulder,
+      gap: plan.gap,
+    };
+  }, [shapes, archOverhead, archClose]);
   /** The numbers for this pairing at these dials, from the same `holdMetrics` the probe read. */
   const turnReadout = useMemo(() => {
     const m = holdMetrics(shapes[0], shapes[1], turnIn, stagger, handHeight, handForward);
@@ -428,9 +579,17 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
         {/* The two axes the arrows cannot walk. Steps first, because following one couple
             through a figure is the thing the matrix order is worst at and the thing that was
             actually asked for. A rated step carries its score on the chip, so the figure's
-            shape across this pairing is readable without moving. */}
-        <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
-          {cell.figure.steps.map((s) => {
+            shape across this pairing is readable without moving.
+
+            🔑 **Grouped by moment**, since the turn branched four ways (2026-09-21). Fifteen
+            chips in one wrapped row is a list you have to read; four rows of "this beat, its
+            four styles" is a shape you can see — and comparing the styles *at one beat* is the
+            whole reason the branch exists. The group's own chip carries the short beat label,
+            and the style chips inside it carry only the style. */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {stepGroups.map((group) => (
+            <div key={group.key} style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+              {group.steps.map((s) => {
             const r = records[addressOf(cell.figure, s, cell.pairing)];
             const here = s.id === cell.step.id;
             return (
@@ -448,11 +607,18 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
                   borderWidth: r === undefined ? 1 : 2,
                 }}
               >
-                {s.label}
+                {group.steps.length > 1 ? (s.label.split(" · ")[1] ?? s.label) : s.label}
                 {r === undefined ? "" : ` ${String(r.rating)}`}
               </button>
             );
-          })}
+              })}
+              {group.steps.length > 1 && (
+                <span style={{ fontSize: 10, color: "#888", alignSelf: "center" }}>
+                  {group.label}
+                </span>
+              )}
+            </div>
+          ))}
         </div>
         <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}>
           pairing
@@ -483,6 +649,27 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
           {cell.step.watch}
         </div>
 
+        {/* 🔴 The same guard the dials get, for the same reason: a rating of a pose that was
+            never built is worse than a missing one, because later nothing distinguishes it from
+            a rating of a pose that was. `LAZY_L` is exempt — it reaches ADR-0037's break, which
+            is real. Removed one style at a time as each pose lands. */}
+        {unbuiltStyle && (
+          <div
+            style={{
+              border: "1px dashed #b03030",
+              borderRadius: 4,
+              padding: "6px 10px",
+              fontSize: 12,
+              background: "#fdf2f2",
+              color: "#7a1f1f",
+            }}
+          >
+            🔴 <strong>This style has no pose yet — don&apos;t rate it.</strong> It renders as
+            the L does. The <em>watch</em> above is the specification it is owed, not a
+            description of what is on screen.
+          </div>
+        )}
+
         {/* 🧪 Exploratory, and labelled as such so a rating is never taken of a turned,
             staggered or height-shifted pose by accident. Journal 2026-09-14-2 has what
             turn-in measured; stagger is the same `floor-stagger-yaw` probe; hand height is
@@ -497,7 +684,8 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
             padding: "6px 10px",
             fontSize: 12,
             background:
-              turnIn === 0 && stagger === 0 && handHeight === 0 && handForward === 0
+              turnIn === 0 && stagger === 0 && handHeight === 0 && handForward === 0 &&
+              archOverhead === 0 && archClose === 0
                 ? "transparent"
                 : "#fff6e0",
           }}
@@ -588,6 +776,85 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
               {handForwardCm > 0 ? "+" : ""}{handForwardCm}cm
             </span>
           </label>
+          {/* 🧪 The odd one out: this dial applies to the **arch** steps, not `stand`, because
+              it is about a figure somebody turns under. It also reaches further than the other
+              four — the join's lateral re-sizes the whole Twirl, not just the arms. */}
+          <label style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
+            <input
+              type="checkbox"
+              checked={overheadOn}
+              disabled={!arched}
+              onChange={(e) => { setOverheadOn(e.target.checked); setOverheadNudge((n) => n + 1); }}
+            />
+            <span title="0% is the midpoint of the two inside shoulders (ADR-0025's rule, inherited from the standing hold). 100% puts the join directly above the turning dancer's own crown, which is where it sits in every reference photograph.">
+              🧪 join overhead
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={overheadPct}
+              disabled={!arched || !overheadOn}
+              onChange={(e) => { setOverheadPct(Number(e.target.value)); setOverheadNudge((n) => n + 1); }}
+              style={{ flex: "1 1 0" }}
+            />
+            <span style={{ fontVariantNumeric: "tabular-nums", width: 34, textAlign: "right" }}>
+              {overheadPct}%
+            </span>
+          </label>
+          <label style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
+            <input
+              type="checkbox"
+              checked={closeOn}
+              disabled={!arched}
+              onChange={(e) => { setCloseOn(e.target.checked); setCloseNudge((n) => n + 1); }}
+            />
+            <span title="0% is the standing handhold's own width. 100% is as close as the figure can still be delivered — bisected, never below the room their two bodies need to pass (ADR-0044).">
+              🧪 pair closes
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={closePct}
+              disabled={!arched || !closeOn}
+              onChange={(e) => { setClosePct(Number(e.target.value)); setCloseNudge((n) => n + 1); }}
+              style={{ flex: "1 1 0" }}
+            />
+            <span style={{ fontVariantNumeric: "tabular-nums", width: 34, textAlign: "right" }}>
+              {closePct}%
+            </span>
+          </label>
+          {arched ? (
+            <div style={{ color: "#555", fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
+              join {overheadReadout.lateral.toFixed(3)} · her midline{" "}
+              {overheadReadout.herMidline.toFixed(3)} ·{" "}
+              <span style={{ color: Math.abs(overheadReadout.short) > 1e-6 ? "#b03a2e" : "#2e7d32" }}>
+                {overheadReadout.short.toFixed(3)} short of over her head
+              </span>
+              <br />
+              {/* The two things that have to move together: her hand has to come OUT over her
+                  own head (positive), and the pair have to close for the beau to follow it. */}
+              her hand{" "}
+              <span style={{ color: overheadReadout.herHand >= 0 ? "#2e7d32" : "#b03a2e" }}>
+                {overheadReadout.herHand > 0 ? "+" : ""}{overheadReadout.herHand.toFixed(3)}
+              </span>{" "}
+              from her shoulder · width {overheadReadout.standing.toFixed(3)} →{" "}
+              <span
+                style={{
+                  color: overheadReadout.stood > overheadReadout.standing + 1e-6 ? "#b03a2e" : "#555",
+                }}
+              >
+                {overheadReadout.stood.toFixed(3)}
+              </span>{" "}
+              · hold gap {overheadReadout.gap.toFixed(3)}
+              {archOverhead === 0 && archClose === 0
+                ? ""
+                : <><br /><strong>not the shipped pose — don&apos;t rate it</strong></>}
+            </div>
+          ) : null}
           {standing ? (
             <div style={{ color: "#555", fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
               forearm off vertical {turnReadout.tilt[0].toFixed(1)}° / {turnReadout.tilt[1].toFixed(1)}° ·
@@ -606,7 +873,7 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
                 ? ""
                 : <><br /><strong>not the shipped pose — don't rate it</strong></>}
             </div>
-          ) : (
+          ) : arched ? null : (
             <div style={{ color: "#888", fontSize: 11 }}>standing couple step only</div>
           )}
         </div>
@@ -768,6 +1035,9 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
             stagger={stagger}
             handHeight={handHeight}
             handForward={handForward}
+            turnUnder={turnUnder}
+            archOverhead={archOverhead}
+            archClose={archClose}
           />
         </Canvas>
       </div>

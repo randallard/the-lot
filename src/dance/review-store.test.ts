@@ -118,8 +118,19 @@ describe("the chart", () => {
     });
     const row = md.split("\n").find((l) => l.startsWith("| Myco → Sprout |"));
     expect(row).toBeDefined();
-    // `under-arch` is the fourth step of the Twirl, so the fourth score column.
-    expect(row!.split("|").map((s) => s.trim())[5]).toBe("0");
+    // 🔑 **The column is found by its heading, not counted to.** It used to be "the fourth
+    // score column", which was true until the turn branched four ways and then silently named
+    // a different step. A test that has to be re-counted every time a step is added is a test
+    // that will one day be re-counted wrong — and the thing being asserted is that a score
+    // lands under *its own* heading, which is exactly what looking the heading up says.
+    const headings = md
+      .split("\n")
+      .find((l) => l.startsWith("| pairing |"))!
+      .split("|")
+      .map((s) => s.trim());
+    const column = headings.indexOf(cell.step.label);
+    expect(column, cell.step.label).toBeGreaterThan(0);
+    expect(row!.split("|").map((s) => s.trim())[column]).toBe("0");
     expect(md).toContain("1 of");
   });
 

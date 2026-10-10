@@ -62,6 +62,7 @@ import {
 import { passingWidth } from "./frame";
 import {
   BREAK,
+  NO_DELTAS,
   OVERSHOOT,
   RESHAPE,
   growBody,
@@ -100,31 +101,84 @@ export function crownOf(m: ArmMetrics): number {
 }
 
 /**
- * The highest a dancer's own inside hand can get, at a given couple separation.
+ * The highest a dancer's own inside hand can get, at a given couple separation — reaching for
+ * a join at `lateral`, with this dancer on the `sign` side of the midpoint.
  *
  * A reach is a sphere: whatever the arm spends going **across** to meet its partner is not
  * available going up. Same decomposition `bandedHeight` makes for a hanging hold, with the
  * sign the other way round.
+ *
+ * 🔴 **The callers used to leave `lateral` out, and that was a defect of its own** (found
+ * 2026-09-26, while `overhead` was being built). `across` was measured to the couple's
+ * **midpoint** — but the join has never been at the midpoint. {@link archLateral} puts it at
+ * the midpoint of the two inside *shoulders*, which is a different point whenever the pair's
+ * `restX` differ, by up to 0.130 on the shipped cast. So the height solve priced a reach to a
+ * point nobody was reaching for.
+ *
+ * Small, and it moved a real outcome: the contrived pair in `sizeArch`'s terminal-case test —
+ * forearms at the editor's ceiling, heads at their widest — **no longer has to let go**, because
+ * the reach they were being charged for was never the reach they make. That is ADR-0037 part 3
+ * losing one of its witnesses, not losing its reachability.
+ *
+ * The defaults are still the old arithmetic exactly (`lateral = 0` gives
+ * `|separation / 2 - restX|`, and the `sign` is irrelevant there because the two inside
+ * shoulders are equidistant from the midpoint) — but nothing in this module calls it that way
+ * any more. Pass the join's own lateral and the dancer's own sign, together.
  */
-export function reachCeiling(m: ArmMetrics, separation: number): number {
-  const across = Math.abs(separation / 2 - m.restX);
+export function reachCeiling(
+  m: ArmMetrics,
+  separation: number,
+  lateral = 0,
+  sign: -1 | 1 = -1,
+): number {
+  const across = Math.abs(lateral - insideShoulderX(m, separation, sign));
   return m.rigOriginY + m.restY + Math.sqrt(Math.max(0, m.handReach ** 2 - across ** 2));
 }
 
 /**
  * How far the arch sits off the couple's midpoint, toward the belle.
  *
- * The same rule as a standing hold's (ADR-0025/0027): halfway between the two inside
- * shoulders, which is the one point at which both dancers reach the same distance across.
+ * At `overhead === 0`: halfway between the two inside shoulders — the same rule as a standing
+ * hold's (ADR-0025/0027), the one point at which both dancers reach the same distance across.
  *
  * **Unclamped, unlike the standing hold's**, and that is a property of being overhead rather
  * than an omission. `touchHold` finally clamps its lateral into the corridor between the two
  * bodies, because a hold at waist height can otherwise land inside somebody's chest. An arch
  * is above both crowns by construction — `sideExtentAt` returns nothing up there — so there
  * is no body to be inside of and nothing to clamp against.
+ *
+ * ## 🧪 `overhead` — the join over the belle's own crown (2026-09-26, undecided)
+ *
+ * Ryan, watching the L: *"the beau kind of has to put their hand directly above the belle's
+ * head … in our implementation the beau is just putting his hand up in between the couple and
+ * that causes the belle to have to reach more than is reasonable."* Four reference photographs,
+ * and in every one the joined hands are above the turning dancer's crown while the beau's arm
+ * is the one that crosses the gap.
+ *
+ * The shoulder-midpoint rule is inherited from the **standing** hold, where it is right: two
+ * people facing each other hand in hand meet in the middle. A turn-under is not that figure.
+ * The measurement, on the shipped cast: the join lands 30%–70% of the separation short of the
+ * belle's midline, and in 18 of the 20 orderings her hand ends up **inboard of her own inside
+ * shoulder** — reaching across her chest toward him, in the opposite direction from her head.
+ *
+ * `overhead` slides the join from that midpoint (`0`) to the belle's own midline (`1`), which
+ * is where her crown is. It is a **dial and not yet a decision**: `0` is the default and keeps
+ * ADR-0025's rule, so nothing dances differently until somebody turns it.
+ *
+ * (`0` is not *quite* the old behaviour, and the exception is not this dial's doing — see
+ * {@link reachCeiling} for the midpoint-versus-shoulders slip it uncovered on the way past.)
+ *
+ * 🔑 **Her midline rather than her crown's `x`** — they are the same number. A dancer's rigid
+ * parts are centred on their own midline, so `separation / 2` *is* directly above the head.
  */
-export function archLateral(beau: ArmMetrics, belle: ArmMetrics): number {
-  return (beau.restX - belle.restX) / 2;
+export function archLateral(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  separation = 0,
+  overhead = 0,
+): number {
+  const shoulders = (beau.restX - belle.restX) / 2;
+  return shoulders + overhead * (separation / 2 - shoulders);
 }
 
 /**
@@ -159,9 +213,15 @@ export function insideShoulderX(m: ArmMetrics, separation: number, sign: -1 | 1)
 /**
  * As far toward `target` as this arm gets, from a shoulder at `shoulderX`.
  *
- * The target itself when it is within reach; otherwise `handReach` **along the direction to
- * it**, which is what an arm at full stretch does and what {@link reachPose} already draws —
- * a straight arm aimed at a point it cannot touch.
+ * The target itself when it is within reach; otherwise `comfort * handReach` **along the
+ * direction to it**, which is what an arm at full stretch does and what {@link reachPose}
+ * already draws — a straight arm aimed at a point it cannot touch.
+ *
+ * 🧪 **`comfort` is how much of the arm this reach is willing to spend** (2026-09-30,
+ * undecided). `1` is full stretch and is what every caller asked for until now. Ryan, on
+ * what a *broken* hold should look like: *"the arms should move in the direction but not
+ * require touch — should get as close as comfortably possible, not spread to max
+ * distance."* See {@link BREAK_COMFORT}.
  *
  * 🔴 **Not {@link reachCeiling}**, which answers a different question: the highest a hand can
  * get if it must arrive *over the join*. That is the right question while a hold is being
@@ -173,14 +233,83 @@ export function reachToward(
   m: ArmMetrics,
   shoulderX: number,
   target: HandPoint,
+  comfort = 1,
 ): HandPoint {
   const shoulderY = m.rigOriginY + m.restY;
   const dx = target.lateral - shoulderX;
   const dy = target.height - shoulderY;
   const d = Math.hypot(dx, dy);
-  if (d <= m.handReach || d < 1e-9) return target;
-  const f = m.handReach / d;
+  const spend = m.handReach * comfort;
+  if (d <= spend || d < 1e-9) return target;
+  const f = spend / d;
   return { lateral: shoulderX + dx * f, height: shoulderY + dy * f };
+}
+
+/**
+ * 🧪 **How much of their arm each dancer spends on a hold that is not being made**
+ * (2026-09-30, undecided — no ADR yet, and `1` is today's shipped figure).
+ *
+ * ADR-0028 has both arms reach **as far as they can** toward the same target, and that is
+ * what a hold *being made* does: a reach that must arrive arrives, straight arm and all —
+ * it is why {@link touchHold} dropped its own comfort ceiling (`TOUCH_COMFORT`, 0.95).
+ *
+ * 🔑 **A break is the opposite case, and it wants the ceiling back.** Nothing has to arrive,
+ * so nothing has to strain: Ryan, 2026-09-30 — *"for a broken hold, the arms should move in
+ * the direction but not require touch — should get as close as comfortably possible, not
+ * spread to max distance."* The direction is kept (so an overhead join still pulls her hand
+ * out over her own head); what is given up is the last of the stretch.
+ */
+export const BREAK_COMFORT = 0.95;
+
+/**
+ * 🧪 **As far along this reach as the hand gets without being inside the other dancer**
+ * (2026-09-30, undecided — no ADR yet, and it applies only under {@link BREAK}).
+ *
+ * The other half of {@link BREAK_COMFORT}. A comfort ceiling shortens a reach but does not aim
+ * it anywhere new, and with the join over the belle's own crown the direction itself runs into
+ * her: the beau's hand leaves his shoulder pointed at a spot above her head, and the points
+ * short of that spot are *under* it. Stopping at 70% of his arm only puts his hand inside her
+ * cap instead of above it — which is why the comfort ceiling alone moved 10 let-gos to 8.
+ *
+ * 🔴 **`archClearance` answers the same collision by moving the couple, and that is the wrong
+ * lever for a break.** Its premise is square-one's ADR-0018 — a *joined* hand in the gap
+ * between two heads, which the pair must be given room for, because the hold is going to be
+ * made and the hand has to go somewhere. There is no joined hand here. Two separate hands that
+ * would collide do not need the dancers moved apart; they need to stop, which is what Ryan
+ * asked for: *"get as close as comfortably possible, not spread to max distance."*
+ *
+ * Walked rather than bisected, for {@link duckForIt}'s reason: a silhouette is not monotone in
+ * height, so a bisection can settle on the far side of a waist it never sampled. The walk is
+ * along the shoulder→hand segment and takes the furthest clear sample, so a hand that is
+ * already clear is returned untouched, and one that is not comes back at the last good point.
+ */
+function stopClearOf(
+  hand: HandPoint,
+  shoulder: HandPoint,
+  handRadius: number,
+  them: ArmMetrics,
+  themX: number,
+): HandPoint {
+  const crown = crownOf(them);
+  const clear = (p: HandPoint): boolean =>
+    // Over their head is clear by going over them — the same exemption `archClearance` takes,
+    // and for the same reason: what keeps a hand off a crown up there is `headroom`.
+    p.height >= crown || Math.abs(p.lateral - themX) >= sideExtentAt(them.parts, p.height) + handRadius;
+
+  if (clear(hand)) return hand;
+
+  const dx = hand.lateral - shoulder.lateral;
+  const dy = hand.height - shoulder.height;
+  const span = Math.hypot(dx, dy);
+  const steps = Math.max(1, Math.ceil(span / FOREARM_STEP));
+  for (let i = steps - 1; i > 0; i--) {
+    const t = i / steps;
+    const p = { lateral: shoulder.lateral + dx * t, height: shoulder.height + dy * t };
+    if (clear(p)) return p;
+  }
+  // Nothing along the reach is clear, which means the shoulder itself is inside them — a pair
+  // standing closer than their bodies allow, which `archRoom`'s `bodies` floor already forbids.
+  return { lateral: shoulder.lateral, height: shoulder.height };
 }
 
 /** What an arch costs this pair, and what they do about it. */
@@ -256,11 +385,19 @@ function reshapeDeficit(
   clear: number,
   separation: number,
   aim: ReshapeAim,
+  lateral: number,
 ): number {
   const beauTaller = crownOf(beau) > crownOf(belle);
   const high = aim === CLEAR && beauTaller;
   const target = (high ? crownOf(beau) : crownOf(belle)) + clear;
-  const shortfall = Math.max(0, target - reachCeiling(high ? belle : beau, separation));
+  // Whoever holds the lever is reaching from their own side: the belle from `+1`, the beau
+  // from `-1`. It made no difference while the join sat at the midpoint and it makes a large
+  // one once `overhead` moves it — the whole point of the dial is that the two of them stop
+  // reaching the same distance across.
+  const shortfall = Math.max(
+    0,
+    target - reachCeiling(high ? belle : beau, separation, lateral, high ? 1 : -1),
+  );
   return high ? -shortfall : shortfall;
 }
 
@@ -295,10 +432,14 @@ function archHeight(
   belle: ArmMetrics,
   clear: number,
   separation: number,
+  lateral: number,
 ): number {
   const lo = crownOf(belle) + clear;
   const hi = Math.max(crownOf(beau), crownOf(belle)) + clear;
-  const both = Math.min(reachCeiling(beau, separation), reachCeiling(belle, separation));
+  const both = Math.min(
+    reachCeiling(beau, separation, lateral, -1),
+    reachCeiling(belle, separation, lateral, 1),
+  );
   return Math.max(lo, Math.min(hi, both));
 }
 
@@ -344,11 +485,12 @@ export function planArch(
   separation: number,
   accommodation: Accommodation,
   aim: ReshapeAim = LOW,
+  overhead = 0,
 ): ArchPlan {
   const clear = headroom(beau, belle);
-  const lateral = archLateral(beau, belle);
+  const lateral = archLateral(beau, belle, separation, overhead);
 
-  const deficit = reshapeDeficit(beau, belle, clear, separation, aim);
+  const deficit = reshapeDeficit(beau, belle, clear, separation, aim, lateral);
   const bodyDeltas =
     accommodation === RESHAPE
       // 🔑 **Half the deficit, because a trade of `d` now closes `2d`** (ADR-0043): each dancer
@@ -363,14 +505,34 @@ export function planArch(
   const b = wearing(beau, beauShape, bodyDeltas.beau);
   const l = wearing(belle, belleShape, bodyDeltas.belle);
 
-  const height = archHeight(b, l, clear, separation);
+  const height = archHeight(b, l, clear, separation, lateral);
   // Where both of them are reaching. Whoever can span it arrives; whoever cannot stops
   // short along the line to it — across as well as up (ADR-0038).
   const target: HandPoint = { height, lateral };
-  const hands = {
-    beau: reachToward(b, insideShoulderX(b, separation, -1), target),
-    belle: reachToward(l, insideShoulderX(l, separation, 1), target),
+  // 🧪 Only a break spends less than the whole arm — a reshape is a hold that is being made,
+  // and a hold that must arrive arrives (see {@link BREAK_COMFORT}).
+  const comfort = accommodation === BREAK ? BREAK_COMFORT : 1;
+  const beauShoulder: HandPoint = {
+    lateral: insideShoulderX(b, separation, -1),
+    height: b.rigOriginY + b.restY,
   };
+  const belleShoulder: HandPoint = {
+    lateral: insideShoulderX(l, separation, 1),
+    height: l.rigOriginY + l.restY,
+  };
+  const reach = {
+    beau: reachToward(b, beauShoulder.lateral, target, comfort),
+    belle: reachToward(l, belleShoulder.lateral, target, comfort),
+  };
+  // 🧪 And a hand that is not going to arrive stops **short of the other dancer** rather than
+  // inside them (2026-09-30, undecided — see {@link stopClearOf}).
+  const hands =
+    accommodation === BREAK
+      ? {
+          beau: stopClearOf(reach.beau, beauShoulder, b.handRadius, l, separation / 2),
+          belle: stopClearOf(reach.belle, belleShoulder, l.handRadius, b, -separation / 2),
+        }
+      : reach;
 
   return {
     accommodation,
@@ -437,8 +599,9 @@ export function archClearance(
   width: number,
   accommodation: Accommodation,
   aim: ReshapeAim = LOW,
+  overhead = 0,
 ): number {
-  const plan = planArch(beau, belle, beauShape, belleShape, width, accommodation, aim);
+  const plan = planArch(beau, belle, beauShape, belleShape, width, accommodation, aim, overhead);
   const b = wearing(beau, beauShape, plan.bodyDeltas.beau);
   const l = wearing(belle, belleShape, plan.bodyDeltas.belle);
 
@@ -446,15 +609,35 @@ export function archClearance(
   // which way its own lateral pushes the answer. `lateral` runs toward the belle, so a hand
   // that leans her way is *closer* to her and *further* from him — hence the opposite signs.
   const hands = [
-    { hand: plan.hands.beau, radius: b.handRadius, other: l.parts, sign: 1 },
-    { hand: plan.hands.belle, radius: l.handRadius, other: b.parts, sign: -1 },
+    { hand: plan.hands.beau, radius: b.handRadius, other: l, sign: 1 },
+    { hand: plan.hands.belle, radius: l.handRadius, other: b, sign: -1 },
   ] as const;
 
   let need = 0;
   for (const { hand, radius, other, sign } of hands) {
+    // 🔴 **A hand above the other dancer's crown is cleared by going over them, and asking it
+    // to clear them *sideways* as well is unsatisfiable by construction** (found 2026-09-26,
+    // with `overhead` turned up).
+    //
+    // The inequality below wants `halfSeparation - sign * lateral >= extent + radius`. Put the
+    // join over the belle's own midline — which is the whole of what `overhead` does — and
+    // `lateral` **is** `halfSeparation`, so it reads `0 >= extent + radius` and no separation
+    // satisfies it. `archFits` then failed for every pair at every width, `sizeArch` fell
+    // through to its terminal let-go, and the couple stood at *twice* the room: the opposite
+    // of the figure, and exactly what was on screen.
+    //
+    // It was latent rather than new. The rule has always been "each hand is charged against the
+    // *other* dancer", and the premise underneath it is square-one's ADR-0018 — a joined hand
+    // **in the gap between two heads**. A hand over somebody's head is not in the gap. What
+    // keeps it off them there is `headroom`, vertically, which `archHeight`'s `lo` already
+    // guarantees, and there is no second thing for this term to buy.
+    if (hand.height >= crownOf(other)) continue;
     // The other dancer stands half a separation from the midpoint; the hand stands `lateral`
     // from it. Solve `halfSeparation - sign * lateral >= extent + radius` for the separation.
-    need = Math.max(need, 2 * (sideExtentAt(other, hand.height) + radius + sign * hand.lateral));
+    need = Math.max(
+      need,
+      2 * (sideExtentAt(other.parts, hand.height) + radius + sign * hand.lateral),
+    );
   }
   return need;
 }
@@ -480,8 +663,11 @@ export function archFits(
   belleShape: CharacterBodyShape,
   width: number,
   accommodation: Accommodation,
+  overhead = 0,
 ): boolean {
-  return archClearance(beau, belle, beauShape, belleShape, width, accommodation) < width;
+  return (
+    archClearance(beau, belle, beauShape, belleShape, width, accommodation, LOW, overhead) < width
+  );
 }
 
 /**
@@ -547,9 +733,24 @@ export function armSweepClearance(
     const shoulderX = insideShoulderX(me, s, sign);
     const shoulderY = me.rigOriginY + me.restY;
     const span = hand.height - shoulderY;
+    const theirCrown = crownOf(them);
     for (let i = 0; i <= ARM_SAMPLES; i++) {
       const t = i / ARM_SAMPLES;
       const h = shoulderY + span * t;
+      // 🔴 **Above their crown there is nothing to clear, and charging `armHalfWidth` anyway is
+      // what pinned this at 1.280** (found 2026-09-26, tracing why a duck changed nothing).
+      //
+      // `sideExtentAt` already returns 0 up there, so the old expression collapsed to
+      // `|armX - themX| < armHalfWidth` — an arm passing directly over somebody's head, with
+      // their body metres below it, was still failed for not clearing their *axis* sideways.
+      // The bisection then answered `2 * (handLateral + armHalfWidth)` for every pairing, which
+      // is why the number never moved as the belle ducked: her crown was falling, her partner's
+      // hand was not, and the sample that bound was the hand itself.
+      //
+      // Exactly the defect the hands term had one level up, and the same cure: this is a
+      // **lateral** clearance, so it is owed only where there is a cross-section to clear. What
+      // keeps an arm off a head it passes over is `headroom`, vertically.
+      if (h >= theirCrown) continue;
       const armX = shoulderX + (hand.lateral - shoulderX) * t;
       const reach = sideExtentAt(them.parts, h) + me.armHalfWidth;
       if (Math.abs(armX - themX) < reach) return false;
@@ -603,7 +804,35 @@ export interface ArchSizing {
    * *cheaper*, which is the only condition under which it is taken.
    */
   readonly aim: ReshapeAim;
+  /**
+   * 🧪 How far each dancer drops for this call, as a body-height change — negative, and `0` for
+   * anyone not dancing `DUCK_UNDER` or for a pair who did not need it (2026-09-26).
+   *
+   * 🔴 **Sized here rather than posed in `DanceFloor`, and the first attempt got that wrong.**
+   * A duck solved at pose time can only be measured against `ArchSizing.width` — which, for the
+   * pairings a duck exists to rescue, is *already* the doubled let-go width. The arm clears
+   * trivially at that separation, so every pairing came back needing a duck of one centimetre.
+   * The duck has to be tried **while the pair are still trying to keep the hold**, which is
+   * here, in the cascade, between reaching and letting go.
+   */
+  readonly duck: BodyDeltas;
 }
+
+/**
+ * How far each dancer is willing to drop — the shape editor's own room below their body height,
+ * for a dancer dancing `DUCK_UNDER`, and `0` for everyone else.
+ *
+ * Passed in rather than read from a style here, because `arch.ts` knows about bodies and holds
+ * and deliberately not about the four turn-under styles: `turn-under.ts` owns which dancer is
+ * ducking, this owns what ducking buys.
+ */
+export interface DuckRoom {
+  readonly beau: number;
+  readonly belle: number;
+}
+
+/** Nobody ducking — the default, so every existing caller sizes exactly as it did. */
+export const NO_DUCK: DuckRoom = { beau: 0, belle: 0 };
 
 /**
  * Size one execution of an arch call to the accommodation it drew (ADR-0037).
@@ -643,19 +872,32 @@ export function sizeArch(
   width: number,
   bodies: number,
   drawn: Accommodation,
+  overhead = 0,
+  close = 0,
+  duck: DuckRoom = NO_DUCK,
 ): ArchSizing {
-  const aim = cheaperAim(beau, belle, beauShape, belleShape, width, bodies);
-  const base = archRoom(beau, belle, beauShape, belleShape, width, bodies, aim);
+  // 🧪 The pair close up *before* anything is measured, because every question below is asked
+  // at a separation — the reshape, the join's height, the clearance and the arms' own sweep.
+  // Closing afterwards would size the figure for a couple standing somewhere they are not.
+  const fitsAt = (w: number): boolean => {
+    const at = archRoom(beau, belle, beauShape, belleShape, w, bodies, LOW, overhead);
+    return at(RESHAPE) < w && at(BREAK) < w;
+  };
+  const stood = closedWidth(width, bodies, close, fitsAt);
+  const aim = cheaperAim(beau, belle, beauShape, belleShape, stood, bodies, overhead);
+  const base = archRoom(beau, belle, beauShape, belleShape, stood, bodies, aim, overhead);
 
   // 🔴 **Asked of both accommodations, not of the drawn one.** `armDelta` is a fact about the
   // pair (see {@link ArchSizing.armDelta}), so the pair reach when *either* draw would need it —
   // otherwise a Twirl that drew the cheaper accommodation would stand somewhere different from
   // the one before it, which is the per-execution difference showing up in the floor plan.
-  if (base(RESHAPE) < width && base(BREAK) < width) {
-    return { accommodation: drawn, wanted: base(drawn), width, armDelta: 0, aim };
+  if (base(RESHAPE) < stood && base(BREAK) < stood) {
+    return {
+      accommodation: drawn, wanted: base(drawn), width: stood, armDelta: 0, aim, duck: NO_DELTAS,
+    };
   }
 
-  const reached = reachForIt(beauShape, belleShape);
+  const reached = reachForIt(beauShape, belleShape, overhead);
   if (reached !== null) {
     return {
       accommodation: drawn,
@@ -663,11 +905,86 @@ export function sizeArch(
       width: reached.width,
       armDelta: reached.delta,
       aim: reached.aim,
+      duck: NO_DELTAS,
+    };
+  }
+
+  // 🧪 **Then one of them ducks, if their style says they do** (2026-09-26). Last before the
+  // let-go, because it is the only lever aimed at the constraint that actually binds an
+  // overhead join — `armSweepClearance`, the partner's arm passing over a crown.
+  const ducked = duckForIt(beau, belle, beauShape, belleShape, stood, bodies, overhead, duck);
+  if (ducked !== null) {
+    return {
+      accommodation: drawn,
+      wanted: ducked.room(drawn),
+      width: stood,
+      armDelta: 0,
+      aim: ducked.aim,
+      duck: ducked.depths,
     };
   }
 
   const broken = base(BREAK);
-  return { accommodation: BREAK, wanted: broken, width: 2 * broken, armDelta: 0, aim };
+  return {
+    accommodation: BREAK, wanted: broken, width: 2 * broken, armDelta: 0, aim, duck: NO_DELTAS,
+  };
+}
+
+/**
+ * The least each ducking dancer has to drop for this pair to dance the arch at the width they
+ * are standing at — `null` when no drop within the shape editor's bounds is enough, or when
+ * nobody is ducking.
+ *
+ * 🔑 **The width is *not* re-solved, unlike {@link reachForIt}'s.** Lengthening an arm changes
+ * how far across a pair can reach and therefore where they stand; ducking does not. She drops
+ * **after** the hands are joined and the couple are placed — mid-figure, on the spot — so the
+ * stance is an input here rather than an output. Re-solving it would walk the pair apart as she
+ * folded, which is a dancer dragging her partner rather than one ducking under his arm.
+ *
+ * 🔴 **Scanned, not bisected.** Clearance is not monotone in body height: measured on
+ * `ryan/player`, growing the beau took the arm sweep 1.244 → 1.164 → back to 1.244, so a
+ * bisection could settle either side of a dip it never saw. A scan in the editor's own steps
+ * finds the **least** depth that works even when the predicate misbehaves, which is the property
+ * that makes a duck read as ducking rather than as collapsing.
+ */
+function duckForIt(
+  beau: ArmMetrics,
+  belle: ArmMetrics,
+  beauShape: CharacterBodyShape,
+  belleShape: CharacterBodyShape,
+  width: number,
+  bodies: number,
+  overhead: number,
+  room: DuckRoom,
+): { depths: BodyDeltas; aim: ReshapeAim; room: (mode: Accommodation) => number } | null {
+  const step = SHAPE_BOUNDS.body.height.step;
+  const deepest = Math.max(room.beau, room.belle);
+  if (deepest < step) return null;
+
+  const steps = Math.floor(deepest / step);
+  for (let i = 1; i <= steps; i++) {
+    const drop = i * step;
+    // Each dancer takes the drop only as far as their own room allows, so a pair where one of
+    // them is not ducking is a pair where one of these stays zero throughout.
+    // `|| 0` normalises the negative zero a dancer with no room would otherwise carry: `-0` is
+    // `=== 0` but not `Object.is` 0, and a delta that compares equal everywhere except in a test
+    // assertion is exactly the kind of value worth not creating.
+    const depths: BodyDeltas = {
+      beau: -Math.min(drop, room.beau) || 0,
+      belle: -Math.min(drop, room.belle) || 0,
+    };
+    const bs = depths.beau === 0 ? beauShape : growBody(beauShape, depths.beau);
+    const ls = depths.belle === 0 ? belleShape : growBody(belleShape, depths.belle);
+    // 🔑 **Measured on a lifted rig** (ADR-0043): a dancer who ducks keeps her feet on the
+    // floor, so the whole drop comes out of the top of her — which is the half of this that
+    // lowers the crown the partner's arm has to clear.
+    const bm = depths.beau === 0 ? beau : armMetrics(bs, NPC_BODY_CENTER_Y, standingLift(beauShape, bs));
+    const lm = depths.belle === 0 ? belle : armMetrics(ls, NPC_BODY_CENTER_Y, standingLift(belleShape, ls));
+    const aim = cheaperAim(bm, lm, bs, ls, width, bodies, overhead);
+    const at = archRoom(bm, lm, bs, ls, width, bodies, aim, overhead);
+    if (at(RESHAPE) < width && at(BREAK) < width) return { depths, aim, room: at };
+  }
+  return null;
 }
 
 /**
@@ -690,10 +1007,11 @@ function cheaperAim(
   belleShape: CharacterBodyShape,
   width: number,
   bodies: number,
+  overhead = 0,
 ): ReshapeAim {
   if (crownOf(beau) <= crownOf(belle)) return LOW;
-  const low = archRoom(beau, belle, beauShape, belleShape, width, bodies, LOW)(RESHAPE);
-  const clear = archRoom(beau, belle, beauShape, belleShape, width, bodies, CLEAR)(RESHAPE);
+  const low = archRoom(beau, belle, beauShape, belleShape, width, bodies, LOW, overhead)(RESHAPE);
+  const clear = archRoom(beau, belle, beauShape, belleShape, width, bodies, CLEAR, overhead)(RESHAPE);
   return clear < low ? CLEAR : LOW;
 }
 
@@ -706,14 +1024,15 @@ function archRoom(
   width: number,
   bodies: number,
   aim: ReshapeAim = LOW,
+  overhead = 0,
 ): (mode: Accommodation) => number {
   return (mode) => {
-    const plan = planArch(beau, belle, beauShape, belleShape, width, mode, aim);
+    const plan = planArch(beau, belle, beauShape, belleShape, width, mode, aim, overhead);
     const b = wearing(beau, beauShape, plan.bodyDeltas.beau);
     const l = wearing(belle, belleShape, plan.bodyDeltas.belle);
     return Math.max(
       // What must fit at each hand's own height (ADR-0018, ADR-0039).
-      archClearance(beau, belle, beauShape, belleShape, width, mode, aim),
+      archClearance(beau, belle, beauShape, belleShape, width, mode, aim, overhead),
       // What the arms holding those hands up sweep through on the way (ADR-0038).
       armSweepClearance(b, l, plan.hands),
       // And never less than two bodies passing hands-free (ADR-0037).
@@ -721,6 +1040,60 @@ function archRoom(
     );
   };
 }
+
+/**
+ * 🧪 **How close the pair stand while turning under** (2026-09-26, undecided) — `0` is the
+ * standing handhold's own width and changes nothing, `1` is as close as the figure can still be
+ * *delivered*.
+ *
+ * Ryan, 2026-09-26: *"the turn under we should have the pair get closer during execution of
+ * that type of move."*
+ *
+ * 🔑 **This is the other half of {@link archLateral}'s `overhead`, and neither works alone.**
+ * A join over the belle's crown is most of a separation away from the beau's inside shoulder,
+ * which is further than anybody on the cast can reach — so moving the join without letting the
+ * pair close up just breaks the hold. In the reference photographs the two are *close*, and
+ * that is what makes the reach over her head an ordinary thing to do rather than a stretch.
+ *
+ * ## 🔴 Why `1` is solved and not simply `bodies`
+ *
+ * `bodies` — the room two dancers need hands-free — looks like the obvious floor, and it is the
+ * one ADR-0044's invariant names. But it is exactly the wrong *target*: `archRoom` already
+ * floors the required clearance at `bodies`, and square-one answers a clearance at or above the
+ * couple's own width with its cap rather than with the figure (its ADR-0018). So standing the
+ * pair **at** `bodies` asks for a room equal to their width, which is undeliverable by
+ * definition — `close = 1` would push every pairing into `sizeArch`'s terminal let-go and walk
+ * them twice as far apart under a dial named *closer*.
+ *
+ * So the tightest end is bisected: the smallest width in `[bodies, standing]` at which **both**
+ * accommodations still fit. Both, for {@link ArchSizing.armDelta}'s reason — the couple stand in
+ * the same place whichever way the coin lands.
+ *
+ * Kept separate from `overhead` rather than folded into one dial, so the two effects can be told
+ * apart on screen: one moves the join, the other moves the couple.
+ */
+export function closedWidth(
+  standing: number,
+  bodies: number,
+  close: number,
+  fits: (width: number) => boolean,
+): number {
+  if (close <= 0 || bodies >= standing || !fits(standing)) return standing;
+  // Bracket: `standing` fits (just asserted) and `bodies` cannot (the required room is floored
+  // there, so it can never be strictly less than a width equal to it). Bisect toward the
+  // crossover, keeping `lo` as the tightest width known to fail and `hi` the tightest to fit.
+  let lo = bodies;
+  let hi = standing;
+  for (let i = 0; i < CLOSE_BISECTION_STEPS; i++) {
+    const mid = (lo + hi) / 2;
+    if (fits(mid)) hi = mid;
+    else lo = mid;
+  }
+  return standing + close * (hi - standing);
+}
+
+/** Enough to land the closed width well inside a millimetre of scene, like the arm sweep's. */
+const CLOSE_BISECTION_STEPS = 40;
 
 /**
  * The least upper arm, in the editor's own steps, that lets this pair dance an arch at the
@@ -733,6 +1106,7 @@ function archRoom(
 function reachForIt(
   beauShape: CharacterBodyShape,
   belleShape: CharacterBodyShape,
+  overhead = 0,
 ): { delta: number; width: number; aim: ReshapeAim; room: (mode: Accommodation) => number } | null {
   const { max } = SHAPE_BOUNDS.forearm.height;
   const room = Math.max(max - beauShape.forearm.height, max - belleShape.forearm.height);
@@ -752,8 +1126,8 @@ function reachForIt(
     const width = touchHold(bm, lm).width;
     const bodies = passingWidth(lateralClearance(rigidParts(bs), rigidParts(ls)));
     // The aim is re-chosen on the longer arms: reaching moves what each one costs.
-    const aim = cheaperAim(bm, lm, bs, ls, width, bodies);
-    const at = archRoom(bm, lm, bs, ls, width, bodies, aim);
+    const aim = cheaperAim(bm, lm, bs, ls, width, bodies, overhead);
+    const at = archRoom(bm, lm, bs, ls, width, bodies, aim, overhead);
     if (at(RESHAPE) < width && at(BREAK) < width) return { delta, width, aim, room: at };
   }
   return null;

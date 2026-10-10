@@ -9,6 +9,7 @@ import {
   reviewSceneCell,
   reviewSceneHash,
 } from "./review-route";
+import { FULL_L } from "./turn-under";
 
 describe("the review matrix", () => {
   it("pairs every character with every other, in both orders", () => {
@@ -90,7 +91,26 @@ describe("the review's hash", () => {
   it("finds a cell by the address a human would type", () => {
     const cell = findCell("california-twirl/under-arch/myco-sprout");
     expect(cell?.figure.label).toBe("California Twirl");
-    expect(cell?.step.label).toBe("belle under the arch");
+    expect(cell?.step.label).toContain("belle under the arch");
     expect(cell?.pairing).toEqual({ beau: "myco", belle: "sprout" });
+  });
+
+  it("🔑 keeps the unbranched turn addresses pointing at the happy path", () => {
+    // The turn steps are branched four ways by `TurnUnderStyle`, and the **unsuffixed** id is
+    // `FULL_L` on all three. That is load-bearing rather than tidy: every `#review=…` address
+    // written in a journal names one of these, journals are append-only and so cannot be
+    // corrected, and a link that merely falls back to the first cell would be a link that
+    // silently stopped meaning what it said.
+    for (const id of ["quarter", "under-arch", "three-quarter"]) {
+      const cell = findCell(`california-twirl/${id}/myco-sprout`);
+      expect(cell, id).not.toBeNull();
+      expect(cell?.step.turnUnder, id).toBe(FULL_L);
+    }
+    // …and the other three styles are reachable, at the same beat as the one they branch from.
+    for (const suffix of ["duck", "lazy", "casual"]) {
+      const sibling = findCell(`california-twirl/under-arch-${suffix}/myco-sprout`);
+      expect(sibling, suffix).not.toBeNull();
+      expect(sibling?.step.pose, suffix).toEqual({ kind: "beat", beat: 2 });
+    }
   });
 });

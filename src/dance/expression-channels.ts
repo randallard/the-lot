@@ -29,6 +29,7 @@ import {
   type ArmMetrics,
   type ArmPoses,
   type TouchHold,
+  type DeclaredHold,
   type GripBlend,
   type Placement,
   armPoses,
@@ -121,13 +122,16 @@ export interface ExpressionContext {
    */
   hold?: TouchHold | undefined;
   /**
-   * Whether the **figure** says these two are holding hands, rather than their placements.
+   * Whether the **figure** says these two are holding hands, rather than their placements —
+   * and which hand, when the figure names one.
    *
-   * `true` for square-one's `arch` spans, whose pair close to half their standing width and
+   * Set for square-one's `arch` spans, whose pair close to half their standing width and
    * finish facing opposite ways — placements that `standingAsCouple` reads as "not a couple"
-   * for most of a call whose hands never come apart.
+   * for most of a call whose hands never come apart. The span *names the hand* it engages, so
+   * this carries it rather than a bare `true`: a turning dancer's own bearing is not a stable
+   * way to say which hand is held (ADR-0056).
    */
-  declaredHold?: boolean | undefined;
+  declaredHold?: DeclaredHold | undefined;
   /**
    * The world height this dancer's joined forearm sits at, when the pair's hold has been
    * planned. Passed straight through to `poseArms` — see there (ADR-0033).

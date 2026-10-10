@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyCallToPair, danceCoupleSequence, flattenSequence, partnerUp } from "square-one";
-import { REVIEW_FIGURES } from "./review-steps";
+import { REVIEW_FIGURES, type StepPose } from "./review-steps";
+import { TURN_UNDER_STYLES } from "./turn-under";
 
 /** The motions a figure's steps are beats *of*, built the way `useDancePerformance` builds them. */
 function motionsOf(figure: (typeof REVIEW_FIGURES)[number]) {
@@ -42,12 +43,39 @@ describe("the review step catalog", () => {
     }
   });
 
-  it("visits distinct moments — no figure rates the same beat twice", () => {
+  it("visits distinct moments — no figure rates the same pose twice", () => {
+    // 🔑 **A moment is a beat *and* a turn-under style**, since 2026-09-21. Four cells name
+    // beat 2 of a California Twirl and they are four different poses — the belle takes her arm
+    // over her head four different ways there. The rule this test carries is unchanged and its
+    // subject is wider: no figure may rate the same pose twice, and the pose is the pair.
     for (const figure of REVIEW_FIGURES) {
-      const beats = figure.steps
+      const moments = figure.steps
         .filter((s) => s.pose.kind === "beat")
-        .map((s) => (s.pose.kind === "beat" ? s.pose.beat : -1));
-      expect(new Set(beats).size, figure.id).toBe(beats.length);
+        .map((s) => `${String(s.pose.kind === "beat" ? s.pose.beat : -1)}/${s.turnUnder ?? "-"}`);
+      expect(new Set(moments).size, figure.id).toBe(moments.length);
+    }
+  });
+
+  it("🔑 branches only the beats a dancer is actually turning under", () => {
+    // The style is what a dancer does with the arm they are winding over their own head, so it
+    // is meaningless at a beat where nobody is winding one. `stand` and `arch-up` are before the
+    // turn and `end` is after the arch has been released — branching those would be four cells
+    // asking one question.
+    const twirl = REVIEW_FIGURES.find((f) => f.id === "california-twirl")!;
+    const branched = twirl.steps.filter((s) => s.turnUnder !== undefined);
+    expect(branched).toHaveLength(TURN_UNDER_STYLES.length * 3);
+    for (const beat of [1, 2, 3]) {
+      const here = branched.filter((s) => s.pose.kind === "beat" && s.pose.beat === beat);
+      expect(here.map((s) => s.turnUnder), `beat ${String(beat)}`).toEqual(TURN_UNDER_STYLES);
+    }
+    for (const id of ["stand", "arch-up", "end"]) {
+      expect(twirl.steps.find((s) => s.id === id)?.turnUnder, id).toBeUndefined();
+    }
+    // Nothing outside the Twirl has an arch to wind an arm over.
+    for (const figure of REVIEW_FIGURES.filter((f) => f.id !== "california-twirl")) {
+      for (const step of figure.steps) {
+        expect(step.turnUnder, `${figure.id}/${step.id}`).toBeUndefined();
+      }
     }
   });
 
@@ -113,14 +141,23 @@ describe("the review step catalog", () => {
     expect(motions.b!.momentum.lastHand).not.toBe("none");
   });
 
-  it("🔑 gives the Partner Trade a control step for every Twirl step", () => {
+  it("🔑 gives the Partner Trade a control step for every Twirl moment", () => {
     // The two calls walk identical paths and differ only in the hold (square-one ADR-0017),
     // so a Trade cell is the control for its Twirl counterpart: any difference between them
     // is the hold and nothing else. That only works if the two step lists line up.
+    //
+    // 🔑 **Stated over the Twirl's distinct *moments* rather than its steps**, since the turn
+    // branched four ways. A Trade has no arch and therefore no style, so it cannot gain the
+    // same branch — and it does not need to: the control the Trade provides is for the moment,
+    // and all four styles at beat 2 are measured against the same hands-free one.
     const twirl = REVIEW_FIGURES.find((f) => f.id === "california-twirl")!;
     const trade = REVIEW_FIGURES.find((f) => f.id === "partner-trade")!;
-    expect(trade.steps).toHaveLength(twirl.steps.length);
-    expect(trade.steps.map((s) => s.pose)).toEqual(twirl.steps.map((s) => s.pose));
+    const moments = (f: (typeof REVIEW_FIGURES)[number]) => {
+      const seen = new Map<string, StepPose>();
+      for (const s of f.steps) seen.set(JSON.stringify(s.pose), s.pose);
+      return [...seen.values()];
+    };
+    expect(trade.steps.map((s) => s.pose)).toEqual(moments(twirl));
   });
 
   it("says what every step is asking", () => {

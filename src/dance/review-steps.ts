@@ -36,6 +36,13 @@
  */
 
 import type { CallName } from "square-one";
+import {
+  CASUAL,
+  DUCK_UNDER,
+  FULL_L,
+  LAZY_L,
+  type TurnUnderStyle,
+} from "./turn-under";
 
 /**
  * Which pass stands the floor at a step.
@@ -53,6 +60,19 @@ export interface ReviewStep {
   readonly id: string;
   readonly label: string;
   readonly pose: StepPose;
+  /**
+   * How the turning dancer takes their joined arm over their own head at this step, for the
+   * steps that are inside a turn — `undefined` everywhere else.
+   *
+   * 🔑 **This is the one thing that makes two steps at the same beat different steps.** Four
+   * cells name beat 2 of a California Twirl; they are four poses, not one rated four times, and
+   * this field is the whole of the difference. `review-steps.test.ts`'s "visits distinct
+   * moments" rule is stated over `(beat, turnUnder)` pairs for exactly that reason.
+   *
+   * Absent means the floor is left on its default, which is what every step outside a turn
+   * wants: there is nothing to do with an arm nobody is winding.
+   */
+  readonly turnUnder?: TurnUnderStyle;
   /**
    * What this step is on screen to answer, in one sentence.
    *
@@ -76,12 +96,63 @@ export interface ReviewFigure {
 }
 
 /**
+ * The three beats the belle is actually turning under the arch, branched by
+ * {@link TurnUnderStyle} — **twelve steps where there were three.**
+ *
+ * Ryan, 2026-09-21, naming what dancers do with the arm they are turning under: *"happy path is
+ * the L, next is to L and duck under, those both maintain contact, sometimes they lazy L and
+ * break contact, sometimes they just arm up as high as casually possible and walk around it."*
+ * The four are described in [`turn-under.ts`](turn-under.ts), which is the authority; this is
+ * where each one gets a moment and a question.
+ *
+ * 🔑 **The happy path keeps the unbranched id.** `quarter`, `under-arch` and `three-quarter` are
+ * {@link FULL_L}, and the other three styles are suffixed siblings. Every
+ * `#review=…/under-arch/…` address written in a journal still opens, and still opens the pose
+ * that journal meant — and the journals are append-only, so a link that merely *falls back*
+ * could never be corrected. Same reason `review-route.ts` gives for names over indices.
+ *
+ * 🔑 **Three beats rather than one.** A style that only reads right at the midpoint is not a
+ * style. The turn runs the whole width of the pass, so each of the three moments the exchange
+ * already had gets all four.
+ *
+ * 🔴 **Only `FULL_L` is built.** `LAZY_L` reaches the existing break (ADR-0037) and so differs on
+ * screen today; `DUCK_UNDER` and `CASUAL` currently render as `FULL_L` does, which is to say as
+ * the un-posed arch. The `watch` text below is the specification each one is owed, and the review
+ * panel marks the unbuilt ones so a rating is not taken of a pose that does not exist yet.
+ */
+function turning(
+  id: string,
+  label: string,
+  beat: number,
+  turnUnder: TurnUnderStyle,
+  watch: string,
+): ReviewStep {
+  return { id, label, pose: { kind: "beat", beat }, turnUnder, watch };
+}
+
+/** The four styles at one beat, happy path first and unsuffixed. */
+function turningFour(
+  base: string,
+  label: string,
+  beat: number,
+  watch: Readonly<Record<TurnUnderStyle, string>>,
+): readonly ReviewStep[] {
+  return [
+    turning(base, `${label} · the L`, beat, FULL_L, watch[FULL_L]),
+    turning(`${base}-duck`, `${label} · duck`, beat, DUCK_UNDER, watch[DUCK_UNDER]),
+    turning(`${base}-lazy`, `${label} · lazy`, beat, LAZY_L, watch[LAZY_L]),
+    turning(`${base}-casual`, `${label} · casual`, beat, CASUAL, watch[CASUAL]),
+  ];
+}
+
+/**
  * The couple's 180° exchange, danced holding on under a raised arch.
  *
- * 🔴 **This is the figure with the open defect** (2026-08-23): the belle's down arm
- * appears on the other side halfway through instead of turning under the arch. That
- * defect lives between `quarter` and `three-quarter` and is centred on `under-arch`,
- * which is why the exchange gets three steps across the pass rather than one.
+ * 🔴 **This is the figure the 2026-08-23 report came from.** Its first half — the belle's down
+ * arm appearing on the other side instead of turning under — is fixed
+ * ([ADR-0056](../../docs/adr/0056-a-declared-hold-keeps-the-hand-the-figure-named.md)). Its
+ * second half is not: the arm that should wind over her head is still undrawn, which is what the
+ * twelve branched steps below are for.
  *
  * 🔑 **The arch is a pose the figure passes through, not the one it ends on.**
  * square-one releases it half a beat before the call is over (`HOLD_RELEASE_BEATS`), so
@@ -102,29 +173,38 @@ const TWIRL_STEPS: readonly ReviewStep[] = [
     label: "arch raised",
     pose: { kind: "beat", beat: 0 },
     watch:
-      "The inside hands — beau's right, belle's left — lifted clear of the taller crown, both dancers still on their spots. The arch is the only thing that changed from `standing couple`.",
+      "The inside hands — beau's right, belle's left — lifted clear of the taller crown, both dancers still on their spots. The arch is the only thing that changed from `standing couple`. Unbranched on purpose: nobody is turning yet, so no style has anything to do here.",
   },
-  {
-    id: "quarter",
-    label: "quarter through",
-    pose: { kind: "beat", beat: 1 },
-    watch:
-      "Beau 45° round his semicircle, belle a quarter across the diameter and turning left. 🔴 The belle's **down** arm should still be on the side it started — this is the first step the 08-23 arm-swap could show.",
-  },
-  {
-    id: "under-arch",
-    label: "belle under the arch",
-    pose: { kind: "beat", beat: 2 },
-    watch:
-      "🔴 The moment the whole figure is for. The belle is at the couple's midpoint facing back down the line, directly under the joined hands; the beau is at the top of his arc. Her held arm should be an upside-down L — undrawn upper arm vertical, forearm horizontal over her head — and her **down** arm should be turned under, not re-labelled onto the other side.",
-  },
-  {
-    id: "three-quarter",
-    label: "three-quarters through",
-    pose: { kind: "beat", beat: 3 },
-    watch:
-      "Beau 135° round, belle three-quarters across. The down arm should have come back to the side it will finish on, and it should have got there by turning rather than by swapping.",
-  },
+  ...turningFour("quarter", "quarter through", 1, {
+    [FULL_L]:
+      "Beau 45° round his semicircle, belle a quarter across the diameter and turning left. Her held arm should be starting to fold into the L — elbow rising, forearm coming level — and her **down** arm should still be on the side it started (ADR-0056).",
+    [DUCK_UNDER]:
+      "As the L, plus the belle beginning to drop: a duck is spread across the turn, not spent at the midpoint. She should be visibly lower than she is in `quarter · the L`, and the hold should be at the same height in both — the arm is asking for less room because she is.",
+    [LAZY_L]:
+      "The L attempted and not made. The hands should already be measurably apart here rather than parting all at once under the arch — a break is two dancers each reaching as far as their own arm goes (ADR-0037), which starts as soon as the reach does.",
+    [CASUAL]:
+      "No L at all: the arm goes as high as it casually goes and she walks the line anyway. The elbow should stay low and the forearm should NOT come level. Her path must be identical to `quarter · the L` — the difference is the arm, never the walk.",
+  }),
+  ...turningFour("under-arch", "belle under the arch", 2, {
+    [FULL_L]:
+      "🔴 The moment the whole figure is for, and the pose the 08-23 report asked for. The belle is at the couple's midpoint facing back down the line, directly under the joined hands. Her held arm should be an upside-down L — undrawn upper arm vertical, forearm horizontal over her head — and it should clear her own head, which nothing currently guarantees.",
+    [DUCK_UNDER]:
+      "The L, with the belle at her lowest. The test is whether the drop reads as *ducking* rather than as a shrunken dancer: the head should come down and the feet should not leave the floor. Compare against `under-arch · the L` on the same pairing — that is the control for how much of the room the arm gave up.",
+    [LAZY_L]:
+      "🔑 The hands are apart and both arms are at full stretch toward a point neither reaches. This should read as two people who lost their grip, not as a bug — if it reads as a bug, that is the finding, and it is the same one ADR-0040's last resort has.",
+    [CASUAL]:
+      "The arm is up but not up *enough*, and she passes anyway. This is the only style where the arm and the head are expected to be in the same place — the question is whether the near-miss reads as a casual dancer or as broken geometry. On a big-headed pairing (Myco, Ember) expect the worst version of it.",
+  }),
+  ...turningFour("three-quarter", "three-quarters through", 3, {
+    [FULL_L]:
+      "Beau 135° round, belle three-quarters across. The L should be unwinding — the forearm coming off level, the elbow dropping — and the down arm should have got to the side it finishes on by turning rather than by swapping.",
+    [DUCK_UNDER]:
+      "The belle coming back up as the arm comes down. The mirror of `quarter · duck`, and it should look like one: a duck that rises faster than it fell is a dancer being released rather than standing up.",
+    [LAZY_L]:
+      "Do the hands come back together? A break is drawn for the execution (ADR-0037), so they should still be apart here — a hold that silently re-joins on the way out is the break ending early rather than being danced.",
+    [CASUAL]:
+      "The arm coming down from a height it never really left. There should be very little to see between this and `quarter · casual`, which is the point of the style — if these two differ much, something is posing an arm that was supposed to be left alone.",
+  }),
   {
     id: "end",
     label: "ending position",
