@@ -31,6 +31,8 @@ import {
   type DancerRig,
 } from "./Dancer";
 import { bodyMeshScale } from "./dancer-mesh";
+import { measurePose, type DancerSolids, type Finding, type Side } from "./pose-rules";
+import { readSolids } from "./pose-solids";
 import {
   advanceGripBlend,
   armMetrics,
@@ -83,6 +85,7 @@ import {
   drawAccommodation,
   growBody,
   growForearm,
+  growUpperArm,
   standingLift,
   type Accommodation,
   type BodyDeltas,
@@ -286,6 +289,26 @@ interface DanceFloorProps extends DancePerformanceOptions {
    * breaks the hold. Separate dials so the two effects can be told apart on screen.
    */
   archClose?: number;
+  /**
+   * 🧪 A hand on each dancer's stretch and shrink, **added to whatever the figure chose** —
+   * beau first. For the review's dials; see {@link Stretch}.
+   *
+   * 🔴 **Applied to the shape a dancer wears, not to the figure's sizing.** `sizeArch` and
+   * `planArch` have already decided where the pair stand and where the hands aim, on the bodies
+   * as they were. Turning one of these changes what the arms have to work with at that stance —
+   * which is the question the dial exists to put on screen — and does not re-solve the stance.
+   */
+  stretch?: readonly [Stretch, Stretch];
+}
+
+/** How far one dancer is stretched (positive) or shrunk (negative), in world units. */
+export interface Stretch {
+  /** Torso height — the reshape's lever (ADR-0028) and the duck's. */
+  readonly body: number;
+  /** Forearm length — the reach's lever (ADR-0040, as superseded). Drawn. */
+  readonly forearm: number;
+  /** Upper-arm length. Undrawn (ADR-0017), and nothing in the figure pulls this one. */
+  readonly upperArm: number;
 }
 
 /** One dancer's arms this frame: where they are, and what the hand has hold of. */
@@ -333,6 +356,13 @@ export interface TrackedArms {
    * units. `0` under a break, and `0` for anyone whose reach was already enough.
    */
   bodyDelta: number;
+  /** How far this dancer's forearm has been lengthened, figure and dial together. */
+  forearmDelta: number;
+  /**
+   * The natural length of the upper arm this dancer is **wearing** — `elbowReach` of the
+   * reshaped body. {@link upperArm} over this is how far the pose has stretched it.
+   */
+  upperArmNatural: number;
   readonly left: Forearm;
   readonly right: Forearm;
   /**
@@ -365,6 +395,16 @@ export interface ArmReport {
   readonly pivot: Vec3;
   /** How far apart the pair are standing. Breathes; the grip must not. */
   separation: number;
+  /**
+   * The pair as **drawn** this frame, read back off the meshes — what `pose-rules.ts` checks.
+   * `null` until both dancers have mounted, and for a floor that is not a pair.
+   */
+  solids: readonly [DancerSolids, DancerSolids] | null;
+  /**
+   * Every rule measurement for this frame's pose ({@link measurePose}), kept or broken. Empty
+   * when {@link solids} is `null`. `violations()` is the filter.
+   */
+  findings: readonly Finding[];
 }
 
 const DEFAULT_SHAPES = [MYCO_DEFAULTS, EMBER_DEFAULTS] as const;
@@ -395,10 +435,12 @@ function reshaped(
   shape: CharacterBodyShape,
   bodyDelta: number,
   armDelta: number,
+  upperDelta = 0,
 ): CharacterBodyShape {
-  if (bodyDelta === 0 && armDelta === 0) return shape;
+  if (bodyDelta === 0 && armDelta === 0 && upperDelta === 0) return shape;
   const grown = bodyDelta === 0 ? shape : growBody(shape, bodyDelta);
-  return armDelta === 0 ? grown : growForearm(grown, armDelta);
+  const reachedOut = armDelta === 0 ? grown : growForearm(grown, armDelta);
+  return upperDelta === 0 ? reachedOut : growUpperArm(reachedOut, upperDelta);
 }
 
 /** Straight-line interpolation. Named because the arch uses it four times on one hold. */
@@ -480,6 +522,7 @@ export function DanceFloor({
   turnUnder,
   archOverhead = 0,
   archClose = 0,
+  stretch,
   ...performanceOptions
 }: DanceFloorProps) {
   /**
@@ -729,6 +772,8 @@ export function DanceFloor({
         arch: null,
         accommodation: null,
         bodyDelta: 0,
+        forearmDelta: 0,
+        upperArmNatural: 0,
         left: forearm(),
         right: forearm(),
         upperArm: { left: 0, right: 0 },
@@ -830,9 +875,14 @@ export function DanceFloor({
       dancers: keys.flatMap((key) => (tracked[key] === undefined ? [] : [tracked[key]])),
       pivot: vec3(),
       separation: 0,
+      solids: null,
+      findings: [],
     }),
     [keys, tracked],
   );
+
+  /** The metrics each dancer is *wearing* this frame — reshaped, where an arch reshapes them. */
+  const worn = useRef<(ArmMetrics | undefined)[]>([]);
 
   const frameRef = useRef<DanceFrame>(makeFrame(origin, scale ?? DEFAULT_SCALE, yaw));
 
@@ -1181,15 +1231,23 @@ export function DanceFloor({
             under.duckSpan === null
               ? 0
               : duckProfile(beat, under.duckSpan.from, under.duckSpan.to);
+          // 🧪 The review's stretch dials, on top of whatever the figure chose (`stretch`).
+          const dialMe = stretch?.[i];
+          const dialThem = stretch?.[1 - i];
           const myDelta =
-            (deltas === null ? 0 : deltas[mine] * under.blend) + under.duck[mine] * duckNow;
+            (deltas === null ? 0 : deltas[mine] * under.blend) +
+            under.duck[mine] * duckNow +
+            (dialMe?.body ?? 0);
           const theirDelta =
-            (deltas === null ? 0 : deltas[theirs] * under.blend) + under.duck[theirs] * duckNow;
+            (deltas === null ? 0 : deltas[theirs] * under.blend) +
+            under.duck[theirs] * duckNow +
+            (dialThem?.body ?? 0);
           // 🔑 **Both dancers take the same arm**, unlike the torso trade, which is signed.
           // The reshape moves one *against* the other because it is closing a gap between
           // them; the reach is the pair asking the same question of both their arms.
           const armDelta = under.armDelta * under.blend;
-          const shape = reshaped(baseShape, myDelta, armDelta);
+          const myArmDelta = armDelta + (dialMe?.forearm ?? 0);
+          const shape = reshaped(baseShape, myDelta, myArmDelta, dialMe?.upperArm ?? 0);
           // 🔑 **A reshaped dancer stands on a lifted rig** (ADR-0043), so the bottom of the body
           // stays put and the whole height change goes upward. `rigOriginY` is what that is for,
           // and every height comparison in the dance already reads it.
@@ -1197,12 +1255,20 @@ export function DanceFloor({
             shape === baseShape
               ? baseMe
               : armMetrics(shape, NPC_BODY_CENTER_Y, standingLift(baseShape, shape));
-          const theirShape = reshaped(partnerShape, theirDelta, armDelta);
+          const theirShape = reshaped(
+            partnerShape,
+            theirDelta,
+            armDelta + (dialThem?.forearm ?? 0),
+            dialThem?.upperArm ?? 0,
+          );
           const them =
             theirShape === partnerShape
               ? baseThem
               : armMetrics(theirShape, NPC_BODY_CENTER_Y, standingLift(partnerShape, theirShape));
           track.bodyDelta = myDelta;
+          track.forearmDelta = myArmDelta;
+          track.upperArmNatural = me.elbowReach;
+          worn.current[i] = me;
 
           const spans = runtime.motions[key]?.grips ?? [];
           const live = spans.filter((g) => beat >= g.from && beat <= g.to);
@@ -1567,6 +1633,55 @@ export function DanceFloor({
             a.position.x - b.position.x,
             a.position.z - b.position.z,
           );
+        }
+        /*
+         * The rules (`pose-rules.ts`), asked of the pose that was just drawn. Read off the
+         * meshes rather than off `tracked`, for the reason the read-back above gives — and
+         * because a hand's place and turn are only settled on the mesh.
+         */
+        report.solids = null;
+        report.findings = [];
+        // Only when somebody is listening: this walks every mesh's world matrix.
+        if (onArms !== undefined && keys.length === 2) {
+          const pair = keys.map((key, i) => {
+            const rig = rigs[key]?.current;
+            const arms = armRigs[key];
+            const parts = expressions[key];
+            const me = worn.current[i] ?? metrics[i];
+            const ex = resolved[i];
+            if (!rig || !arms || !parts || !me || !ex) return null;
+            return readSolids(rig, arms, parts, me.elbowReach);
+          });
+          const [p0, p1] = pair;
+          const t0 = keys[0] === undefined ? undefined : tracked[keys[0]];
+          const t1 = keys[1] === undefined ? undefined : tracked[keys[1]];
+          const s0 = occupantShapes[0];
+          const s1 = occupantShapes[1];
+          const w0 = resolved[0]?.shape;
+          const w1 = resolved[1]?.shape;
+          if (p0 && p1 && t0 && t1 && s0 && s1 && w0 && w1) {
+            const hand = (g: GripHand): Side | null => (g === "left" || g === "right" ? g : null);
+            // Where a torso bottoms out standing on the floor **in the shape it is wearing**:
+            // the built shape's bottom is the floor (ADR-0043's lift keeps it there upright),
+            // and a leaning torso's lowest point is raised by its own tilt.
+            const standY = (built: CharacterBodyShape, wornShape: CharacterBodyShape) => {
+              const upright =
+                Math.cos(deg2rad(wornShape.body.leanX)) * Math.cos(deg2rad(wornShape.body.leanZ));
+              return (
+                NPC_BODY_CENTER_Y - built.body.height / 2 - built.body.radius +
+                (wornShape.body.height / 2) * (1 - upright)
+              );
+            };
+            report.solids = [p0, p1];
+            report.findings = measurePose([p0, p1], {
+              joined: [t0.arch ?? t0.touch, t1.arch ?? t1.touch],
+              raised: [t0.arch, t1.arch],
+              gripped: [hand(t0.grip), hand(t1.grip)],
+              // A break is the one thing that lets a declared hold be apart.
+              keepsContact: t0.accommodation !== BREAK,
+              standY: [standY(s0, w0), standY(s1, w1)],
+            });
+          }
         }
         report.beat = beat;
         onArms?.(report);

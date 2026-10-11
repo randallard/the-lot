@@ -159,6 +159,19 @@ export function growForearm(shape: CharacterBodyShape, delta: number): Character
   return { ...shape, forearm: { ...shape.forearm, height } };
 }
 
+/**
+ * A dancer with the **undrawn upper arm** changed by `delta`, inside the shape editor's bounds.
+ *
+ * 🧪 For the review's stretch dials only (2026-10-11). `reachForIt` does not use it, and the
+ * reason is in {@link growForearm}'s doc: a longer upper arm makes a pair stand *narrower* past
+ * a threshold, so it is not a lever a search can pull. A hand can still turn it and look.
+ */
+export function growUpperArm(shape: CharacterBodyShape, delta: number): CharacterBodyShape {
+  const { min, max } = SHAPE_BOUNDS.layout.upperArmSpacing;
+  const upperArmSpacing = Math.max(min, Math.min(max, shape.layout.upperArmSpacing + delta));
+  return { ...shape, layout: { ...shape.layout, upperArmSpacing } };
+}
+
 /** The step the shape editor's own `forearm.height` slider moves in. A dance may not put a
  *  dancer at a length the character sheet could not. */
 export const FOREARM_STEP = SHAPE_BOUNDS.forearm.height.step;

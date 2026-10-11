@@ -249,6 +249,10 @@ export interface ArmMetrics {
    * matter (Ryan, 2026-08-17: *"sometimes arms will be set wide … that type of thing we
    * don't need to build for — just bodies heads and shoulders"*). What must not happen
    * is one dancer's hand inside the *other* dancer.
+   *
+   * 🔑 That is still what the **spacing** solve owes. As of 2026-10-10 a pose is also
+   * *checked* after the fact, and there an arm through its own head or body is reported —
+   * see `pose-rules.ts`, which reads the drawn meshes and does not use these parts at all.
    */
   readonly parts: readonly RigidPart[];
 }

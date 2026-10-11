@@ -38,6 +38,8 @@
  * | **figure filter** | Narrow the walk to one figure, for when a fix has landed and only its own cells are owed a re-look. |
  * | **beat readout** | What the clock actually says, against what the step asked for. An instrument that cannot be caught lying is not an instrument. |
  * | **export** | The whole matrix as markdown, for `work/square-dance-planning/`. |
+ * | **rules** | The verdict box under the step's question: every rule the pose on screen breaks (`pose-rules.ts`), read off the drawn meshes. Grey is *not measured yet*, green *all kept*, red one line per breach. On every step. |
+ * | **🧪 stretch & shrink** | The purple dashed box: per dancer, torso / forearm / upper-arm sliders in cm **added to whatever the figure chose**, the amount actually worn beside each, and how far the pose has pulled each undrawn upper arm past its length. On every step. Reshapes the dancer only — the figure's sizing is not re-solved. `2026-10-11-1` |
  *
  * ## 🧪 The dials
  *
@@ -46,7 +48,8 @@
  * are about a couple standing still. **None of them is a decided stance**, none is ever saved
  * with a rating, and each is `0` by default and changes nothing there. The box turns amber and
  * says *don't rate it* the moment any of them is off zero, because a rating taken of a dialed
- * pose is worse than no rating.
+ * pose is worse than no rating. (The stretch sliders above are separate from these six and say
+ * the same thing when moved.)
  *
  * | Dial | Step | What it moves | Journal |
  * |---|---|---|---|
@@ -71,7 +74,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import { DanceFloor } from "./DanceFloor";
+import { DanceFloor, type ArmReport, type Stretch } from "./DanceFloor";
+import { describe, violations } from "./pose-rules";
 import { getBodyShape } from "../services/body-shapes";
 import { castRoster } from "../config/npcs";
 import { REVIEW_FIGURES, type ReviewStep } from "./review-steps";
@@ -126,6 +130,37 @@ const BUTTON: React.CSSProperties = {
   border: "1px solid #999",
   borderRadius: 4,
 };
+
+/** One dancer's stretch dials, in whole centimetres — the unit the sliders move in. */
+interface StretchCm {
+  readonly body: number;
+  readonly forearm: number;
+  readonly upperArm: number;
+}
+const NO_STRETCH: StretchCm = { body: 0, forearm: 0, upperArm: 0 };
+
+/** What one dancer is wearing and how far the pose has pulled each upper arm, in world units. */
+interface Stretched {
+  readonly body: number;
+  readonly forearm: number;
+  readonly upperLeft: number;
+  readonly upperRight: number;
+}
+
+/**
+ * The stretch dials' rows and ranges, in cm. Wide on purpose — these are for finding out what
+ * a body would have to do, and `growBody` / `growForearm` / `growUpperArm` each stop at the
+ * shape editor's own bounds whatever the slider says.
+ */
+const STRETCH_PARTS = [
+  { part: "body", label: "torso", min: -120, max: 120 },
+  { part: "forearm", label: "forearm", min: -30, max: 40 },
+  { part: "upperArm", label: "upper arm", min: -30, max: 40 },
+] as const;
+
+function signed(n: number): string {
+  return `${n > 0 ? "+" : ""}${n.toFixed(3)}`;
+}
 
 export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
   const allCells = useMemo(() => reviewCells(), []);
@@ -205,6 +240,15 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
   const [closePct, setClosePct] = useState(100);
   const [closeOn, setCloseOn] = useState(false);
   const [closeNudge, setCloseNudge] = useState(0);
+  /**
+   * 🧪 The stretch dials (2026-10-11): each dancer's torso, forearm and upper arm, in **cm added
+   * to whatever the figure chose**. Ryan: *"can we list all stretch and shrink and give me a dial
+   * to play around for those?"* — the list is `stretched` below, read back off the floor; these
+   * are the hand on it. Beau first. Unlike the amber dials they are live on every step, because
+   * a stretch is a fact about a body and not about one figure.
+   */
+  const [stretchCm, setStretchCm] = useState<readonly [StretchCm, StretchCm]>([NO_STRETCH, NO_STRETCH]);
+  const [stretchNudge, setStretchNudge] = useState(0);
 
   /**
    * The cells being walked. Filtering narrows the *walk*, never the store: a rating given
@@ -276,11 +320,12 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
         handHeightNudge +
         handForwardNudge +
         overheadNudge +
-        closeNudge,
+        closeNudge +
+        stretchNudge,
       beat: cell.step.pose.kind === "stand" ? 0 : cell.step.pose.beat,
       arch: cell.step.pose.kind === "stand" ? ("down" as const) : ("declared" as const),
     }),
-    [allCells, cell, turnNudge, staggerNudge, handHeightNudge, handForwardNudge, overheadNudge, closeNudge],
+    [allCells, cell, turnNudge, staggerNudge, handHeightNudge, handForwardNudge, overheadNudge, closeNudge, stretchNudge],
   );
 
 
@@ -523,6 +568,78 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
     if (el) el.textContent = `${beat.toFixed(2)} / ${String(totalBeats)}`;
   }, []);
 
+  /*
+   * The rules (`pose-rules.ts`), asked of the pose on screen. The floor reports every frame it
+   * poses; the panel re-renders only when the *verdict* changes, which for a seeked cell is
+   * once. `null` is "nothing measured yet", and it is not the same as an empty list — a clean
+   * pose and a floor that has not reported must not look alike.
+   */
+  const [broken, setBroken] = useState<readonly string[] | null>(null);
+  const brokenKey = useRef<string | null>(null);
+  const beauName = labels.get(cell.pairing.beau) ?? cell.pairing.beau;
+  const belleName = labels.get(cell.pairing.belle) ?? cell.pairing.belle;
+  const onArms = useCallback(
+    (report: ArmReport) => {
+      if (report.solids === null) return;
+      // A dancer paired with their own build needs telling apart by role.
+      const names: [string, string] =
+        beauName === belleName ? [`${beauName} (beau)`, `${belleName} (belle)`] : [beauName, belleName];
+      const lines = violations(report.findings).map((f) => describe(f, names));
+      const key = lines.join("\n");
+      if (key === brokenKey.current) return;
+      brokenKey.current = key;
+      setBroken(lines);
+    },
+    [beauName, belleName],
+  );
+
+  const stretch = useMemo<readonly [Stretch, Stretch]>(
+    () => [
+      { body: stretchCm[0].body / 100, forearm: stretchCm[0].forearm / 100, upperArm: stretchCm[0].upperArm / 100 },
+      { body: stretchCm[1].body / 100, forearm: stretchCm[1].forearm / 100, upperArm: stretchCm[1].upperArm / 100 },
+    ],
+    [stretchCm],
+  );
+  const stretchDialled = stretchCm.some((d) => d.body !== 0 || d.forearm !== 0 || d.upperArm !== 0);
+  const setStretch = useCallback((who: 0 | 1, part: keyof StretchCm, cm: number) => {
+    setStretchCm((now) => {
+      const next: [StretchCm, StretchCm] = [now[0], now[1]];
+      next[who] = { ...now[who], [part]: cm };
+      return next;
+    });
+    setStretchNudge((n) => n + 1);
+  }, []);
+
+  /*
+   * Every stretch and shrink on screen, **read back off the floor** rather than recomputed
+   * here: the torso and forearm changes the dancers are wearing (figure and dial together), and
+   * how far past its natural length each undrawn upper arm has been pulled by the pose. Same
+   * once-per-change rule as the rules verdict.
+   */
+  const [stretched, setStretched] = useState<readonly Stretched[] | null>(null);
+  const stretchedKey = useRef("");
+  const onStretch = useCallback((report: ArmReport) => {
+    const rows = report.dancers.slice(0, 2).map((d) => ({
+      body: d.bodyDelta,
+      forearm: d.forearmDelta,
+      upperLeft: d.upperArm.left - d.upperArmNatural,
+      upperRight: d.upperArm.right - d.upperArmNatural,
+    }));
+    const key = rows
+      .map((r) => [r.body, r.forearm, r.upperLeft, r.upperRight].map((n) => n.toFixed(3)).join(","))
+      .join("|");
+    if (key === stretchedKey.current) return;
+    stretchedKey.current = key;
+    setStretched(rows);
+  }, []);
+  const onFloor = useCallback(
+    (report: ArmReport) => {
+      onArms(report);
+      onStretch(report);
+    },
+    [onArms, onStretch],
+  );
+
   const ratedCount = allCells.filter((c) => records[c.id] !== undefined).length;
   const ratedHere = cells.filter((c) => records[c.id] !== undefined).length;
 
@@ -647,6 +764,101 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
           }}
         >
           {cell.step.watch}
+        </div>
+
+        {/* The rules verdict for the pose on screen — read off the drawn meshes, so it cannot
+            describe a figure nobody is looking at. */}
+        <div
+          style={{
+            margin: "6px 0",
+            padding: "6px 8px",
+            borderRadius: 4,
+            fontSize: 11,
+            fontVariantNumeric: "tabular-nums",
+            background: broken === null ? "#eee" : broken.length === 0 ? "#e6f4ea" : "#fdecea",
+            color: broken === null ? "#555" : broken.length === 0 ? "#2e7d32" : "#b03a2e",
+          }}
+        >
+          <strong>
+            {broken === null
+              ? "rules: not measured yet"
+              : broken.length === 0
+                ? "rules: all kept"
+                : `rules: ${String(broken.length)} broken`}
+          </strong>
+          {broken?.map((line) => <div key={line}>{line}</div>)}
+        </div>
+
+        {/* 🧪 Every stretch and shrink, and a hand on each. The number beside a slider is what
+            the dancer is wearing — figure and dial together — so a slider at 0 with a number
+            beside it is the figure's own choice. */}
+        <div
+          style={{
+            margin: "6px 0",
+            padding: "6px 8px",
+            border: "1px dashed #7a5ea8",
+            borderRadius: 4,
+            fontSize: 11,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <strong>🧪 stretch &amp; shrink</strong>
+            <button
+              type="button"
+              disabled={!stretchDialled}
+              onClick={() => { setStretchCm([NO_STRETCH, NO_STRETCH]); setStretchNudge((n) => n + 1); }}
+              style={{ fontSize: 10 }}
+            >
+              reset
+            </button>
+          </div>
+          {([0, 1] as const).map((who) => {
+            const row = stretched?.[who];
+            const name = who === 0 ? beauName : belleName;
+            return (
+              <div key={who} style={{ marginTop: 4 }}>
+                <div style={{ color: "#555" }}>
+                  {name}{beauName === belleName ? (who === 0 ? " (beau)" : " (belle)") : ""}
+                </div>
+                {STRETCH_PARTS.map(({ part, label, min, max }) => (
+                  <label key={part} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <span style={{ width: 58 }}>{label}</span>
+                    <input
+                      type="range"
+                      min={min}
+                      max={max}
+                      step={1}
+                      value={stretchCm[who][part]}
+                      onChange={(e) => { setStretch(who, part, Number(e.target.value)); }}
+                      style={{ flex: "1 1 0", minWidth: 0 }}
+                    />
+                    <span style={{ width: 34, textAlign: "right" }}>
+                      {stretchCm[who][part] > 0 ? "+" : ""}{stretchCm[who][part]}cm
+                    </span>
+                    <span style={{ width: 52, textAlign: "right", color: "#555" }}>
+                      {row === undefined
+                        ? "—"
+                        : part === "upperArm"
+                          ? ""
+                          : signed(part === "body" ? row.body : row.forearm)}
+                    </span>
+                  </label>
+                ))}
+                <div style={{ color: "#555" }}>
+                  upper arm pulled past its length: left{" "}
+                  <span style={{ color: (row?.upperLeft ?? 0) > 0.01 ? "#b03a2e" : "#555" }}>
+                    {row === undefined ? "—" : signed(Math.max(0, row.upperLeft))}
+                  </span>{" "}
+                  · right{" "}
+                  <span style={{ color: (row?.upperRight ?? 0) > 0.01 ? "#b03a2e" : "#555" }}>
+                    {row === undefined ? "—" : signed(Math.max(0, row.upperRight))}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+          {stretchDialled ? <strong>not the shipped pose — don&apos;t rate it</strong> : null}
         </div>
 
         {/* 🔴 The same guard the dials get, for the same reason: a rating of a pose that was
@@ -1030,6 +1242,8 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
             paused
             seek={seek}
             onBeat={onBeat}
+            onArms={onFloor}
+            stretch={stretch}
             shapes={shapes}
             turnIn={turnIn}
             stagger={stagger}
