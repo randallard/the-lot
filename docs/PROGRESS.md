@@ -1,6 +1,6 @@
 # Progress & Status
 
-_Last updated: 2026-10-10_
+_Last updated: 2026-10-11_
 
 ## Status / next
 
@@ -24,10 +24,32 @@ _Last updated: 2026-10-10_
 > ✅ **Checkpointed.** 09-19 through 09-30 is committed as it stood. Suite **907 / 38**, `tsc -b`
 > clean, lint 0 errors — unchanged from 09-30. No source changed on 10-10.
 >
+> 🧪 **STEP 1 IS BUILT, SEEN ONCE, AND REWRITTEN** —
+> [`journal/2026-10-10-2`](journal/2026-10-10-2-the-rules-are-asked-of-the-meshes.md), then
+> [`journal/2026-10-11-1`](journal/2026-10-11-1-the-solid-is-its-own-corners.md).
+> `pose-rules.ts` (`measurePose` / `violations` / `describe` / `signedGap`, 27 tests) checks two
+> dancers **as drawn**; `pose-solids.ts` hands it each mesh's own world-space vertices;
+> `ArmReport` carries `solids` and `findings`; the review page shows a verdict box under the
+> step's question. **Uncommitted.** Suite 934 / 38 (the same 38), `tsc -b` clean, lint 0 errors.
+>
+> Ryan read the first version on `under-arch/player-ember`: five lines right, two wrong, two
+> expected. The wrong two (a forearm "in" a head with daylight showing; Ember "off the floor")
+> were the checker rounding low-poly meshes off to capsules and spheres — hence vertices. The
+> expected two were the side rule asked of the arm she turns under — now skipped for the arm
+> raised in an arch (`PoseContext.raised`).
+>
+> 🧪 **Stretch & shrink box** (purple, under the verdict): per dancer, torso / forearm / upper-arm
+> sliders added on top of the figure's own choice, the worn amount beside each, and how far each
+> upper arm is pulled past its length. `DanceFloor`'s `stretch` prop. 🔴 The dials reshape the
+> dancer, **not** the figure's sizing — the stance is not re-solved.
+>
+> 🔴 **The rewrite and the dials are unseen.** First thing: Ryan re-reads the box on the same
+> cell — expect the two wrong and two midline lines gone, five left. 🔴 Open: Ember's upper arm
+> reads stretched 0.368 in an L that ADR-0058 says keeps its length; the upper-arm slider is the
+> experiment. 🔴 The checker runs every frame and will need throttling for the contact sheet.
+>
 > ⏳ **NEXT, in order:**
-> 1. **The rules as one checker** — a pose in, the rules it breaks out. 🔴 Arm-through-own-head
->    has no check today (worklist item 11) and arm-against-arm is unconfirmed; start by finding
->    what `ArmMetrics.parts` / `rigidParts` already give.
+> 1. ~~**The rules as one checker**~~ — built, see above; needs the look.
 > 2. **A contact sheet** — all 25 orderings at one step, same camera, the checker's verdict under
 >    each. Nothing like it exists (`review-chart.ts` is a ratings table, `#review` is single-cell).
 > 3. **Drag handles and save** on the review page — hand and elbow per arm, pair separation, duck.
@@ -3309,10 +3331,50 @@ Played and working:
 - **Backup and restore** — versioned export/import (`BACKUP_VERSION = "1.1.0"`) with fixed,
   dynamic, and optional key classes (ADR-0007).
 
-**Tests: 295 pass** (21 files), as of 2026-07-28. The two `fetch-pending-results` failures
-that stood here were fixed on 2026-07-25 (worklist item 1); the rest of the growth is M4's
-`src/dance/` — frame, body clearance, the arm channel, and the ADR-0010 expression
-channels (`expression-channels.ts`, `silhouette-limit.ts`).
+- **The radial wheel** — hold on an NPC (or right-click) for the player's own emotes and the
+  moves the pair can do; a short tap still opens chat. Watched 2026-07-29 (ADR-0013, ADR-0014).
+- **The fist bump** — player ↔ NPC, from the wheel: the approach, the twist and the fists
+  meeting head-on at shoulder height. Watched and accepted 2026-08-15 (ADR-0018–0020). Contact
+  moves are authored data with an in-game builder (ADR-0016).
+- **The dance floor** (`src/dance/`) — dancers driven from the square-one engine, in world
+  units, scaled so bodies of different sizes clear each other (ADR-0012). On the `#dance`
+  instrument scene, not in the game world:
+  - **Dosado** — watched and accepted (2026-08-21).
+  - **Pass Thru** — its lane watched at the body-derived size; no separate sign-off recorded.
+  - **Allemande Left** — the forearm grip and its CCW turn, render-validated (2026-07-27).
+  - **Partner Trade** and **California Twirl** — the *travel* was watched and accepted at the
+    single scale (2026-08-21). The Twirl's **arms** were not, and are the open work below.
+- **Emotes inside a figure** — what an emote may and may not move while a dancer is in one:
+  owned, limited and free channels (ADR-0010), with the silhouette limit enforced.
+- **The standing couple's handhold** — solved from the two bodies, wrist and palm included
+  (ADR-0025 through ADR-0054). Built and measured on all 25 orderings; reviewed cell by cell
+  rather than accepted as a whole.
+- **The instruments** — `#dance` (a figure playing, with tracking markers and readouts) and
+  `#review` (one named moment of one figure on one pairing, frozen, with a rating, a note, the
+  rules verdict and the experimental dials). Addresses are `figure/step/beau-belle`.
+
+**Built and not accepted** — on screen, not signed off:
+
+- **The California Twirl's turn-under.** Four styles (`full-l`, `duck-under`, `lazy-l`,
+  `casual`; ADR-0057), of which `casual` has no pose. No pairing's arch has been accepted, and
+  the approach to getting there changed on 2026-10-10 — see the pick-up block and worklist
+  item 17.
+- **The rules checker and the stretch dials** (`pose-rules.ts`, `pose-solids.ts`) — seen once
+  in a first version, rewritten, unseen since.
+- **Myco as the cast's short-arm case** (2026-09-20) — her re-authored arm left the fist bump
+  over-extending her and a forearm hold she cannot reach; both are failing tests, on purpose.
+
+**Not built:** a whole square dancing in the world; an NPC teaching a call (`arm-turn` is the
+first planned); the 875-cell rating sweep (Ryan's browser showed 2 rated on 2026-10-11; ratings live in
+`localStorage` and none are exported into the repo).
+
+**Tests: 934 pass, 38 fail** (42 files), as of 2026-10-11. `tsc -b` clean; eslint 0 errors,
+25 warnings. **The 38 are known and deliberate, not rot** — each asserts a stance that later
+work moved, and was left failing as an open decision rather than re-pointed: 14 in `arch`, 10
+in `arm-pose`, 6 in `hold-metrics`, 2 each in `dancer-mesh` and `standing-hold`, and 1 each in
+`duck`, `expression-channels`, `fist-bump` and `forearm-hold`. 35 predate 2026-09-26; 3 are
+from 2026-09-30. Under worklist item 17 most are expected to be deleted with the stance they
+pin. 🔴 A red suite hides a new failure, so compare the count by test name, not by eye.
 
 ### ⚠ Typechecking: `tsc -b`, never `tsc --noEmit`
 
@@ -4059,6 +4121,10 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
        its own head on every character. `clearFloor`'s sibling (ADR-0055 is the template): swing
        about the shoulder until it clears, limited channel only. `rigidParts()[1]` is already the
        head as a sphere.
+    🔑 **As of 2026-10-10 the *check* exists** — `pose-rules.ts` reports any forearm or hand in
+    its owner's head or body, on the drawn meshes (worklist item 17). What is still owed here is
+    the *guard*: something that moves the arm. Under item 17's approach that may be Ryan's drag
+    plus the carry-over's nudge rather than a solver of its own.
     2. **The owned arm** — the elbow circle, now built: ADR-0058's `standUp` turns the elbow to
        the **highest** point on it. What is left here is the *limit* — refusing a rotation that
        puts the forearm through the head, and taking the nearest one that does not. Narrower than
@@ -4119,6 +4185,27 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
 16. ⏳ **Rate the branched cells — after the poses exist.** 875 cells, and one of the four styles
     still has no pose and is marked *"don't rate it"* in the panel. The rating sweep on the
     Twirl's turn steps is blocked on items 11, 13 and 15, not on time.
+
+17. 📌 **Poses are authored and checked, not generated** (set 2026-10-10; see
+    [`journal/2026-10-10-1`](journal/2026-10-10-1-the-rules-check-and-ryan-poses.md)). Ryan: *"set
+    the rules and I could do some dragging around of the limbs to set each position every once in
+    a while then you could try with the others and we could go back and forth."* **This is the
+    live approach and it outranks items 10, 11, 13, 14 and 16**, each of which was written for the
+    rule-ladder it replaces. No ADR until the loop has produced an accepted pose. In order:
+    1. ✅ **The rules as one checker** — `pose-rules.ts` + `pose-solids.ts`, verdict box on the
+       review page (2026-10-10 (2), rewritten 2026-10-11 (1) to measure mesh vertices). Seen
+       once by Ryan in its first version; the rewrite is unseen.
+    2. 🧪 **Stretch & shrink list and dials** — asked for 2026-10-11, built, unseen.
+    3. **A contact sheet** — all 25 orderings at one step, verdict under each. 🔴 Needs the
+       checker run on pose change rather than every frame.
+    4. **Drag handles and save** — hand and elbow per arm, separation, duck; poses to a file in
+       the repo.
+    5. **Carry-over** to the other 24, and blending between Ryan's examples.
+    6. **Keyframes** — the named steps, `blendPose` between, rules on the in-betweens.
+
+    Scope frozen to `under-arch` / `full-l` on all 25 until accepted. Open rule questions:
+    whether a lengthened **forearm** breaks "arms keep their length" (Ryan: *"ok but leave it up
+    for review"*), what `SKIN` should be (0.01), and whether a raised arm wants any side rule.
 
 Deferred with reasons: physics (rapier removed — re-add deliberately when something needs it,
 and resolve its missing license declaration then); the NPC documentation "booklet" plan; the
