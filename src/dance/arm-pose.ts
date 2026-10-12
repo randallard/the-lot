@@ -2250,7 +2250,27 @@ export function reachAllowance(me: ArmMetrics, them: ArmMetrics, separation: num
 }
 
 /**
+ * 🔴 **THE SQUEEZE IS OFF** — whether a free arm is folded in off a partner who comes close
+ * ({@link constrainArm}). `false` since 2026-10-11 — an experiment, with no ADR yet; see
+ * [the journal](../../docs/journal/2026-10-11-2-one-address-two-poses.md).
+ *
+ * Ryan, watching a broken turn-under dance as a close pass: *"I don't like the squeeze anymore —
+ * can you remove that altogether … I don't want it used in the pass by either."*
+ *
+ * **To get it back, set this to `true`.** Nothing else was removed: `constrainArm`,
+ * `reachAllowance` and `PERSONAL_SPACE` are all still here and still tested, and this is the
+ * only call site that ever used them. Search for `FOLD_FREE_ARMS` or "the squeeze".
+ *
+ * What it costs to have it off: a free arm now goes where its pose puts it, so on a tight pass
+ * it can enter the partner. Nothing prevents that any more — `pose-rules.ts` *reports* it,
+ * which is the arrangement the whole posture effort moved to on 2026-10-10.
+ */
+export const FOLD_FREE_ARMS: boolean = false;
+
+/**
  * Fold an arm in until it stops trespassing — **whatever pose it is in**.
+ *
+ * 🔴 **Not called while {@link FOLD_FREE_ARMS} is `false`.** Kept whole so it can be.
  *
  * This is the difference between owning an arm and limiting one, and it is the whole
  * reason an emoting dancer can still emote in a tight square. The engine owns a
@@ -2407,9 +2427,10 @@ const _joined = armPose();
  *   grip is written outright — an emote's contribution to that arm is dropped,
  *   because a hand holding someone has somewhere it must be.
  * - **Limited.** Every other arm. `proposed` is whatever the expression layer wants
- *   it doing — a wave, a full-body swing, nothing at all — and it plays, folded in
- *   only while and only as far as it trespasses on the partner's share of the gap
- *   ({@link constrainArm}). Pass a rest pose and the fold is the plain arm tuck.
+ *   it doing — a wave, a full-body swing, nothing at all — and it plays. It *used* to be
+ *   folded in while it trespassed on the partner's share of the gap ({@link constrainArm});
+ *   that fold is switched off ({@link FOLD_FREE_ARMS}), so today the only limit
+ *   on this channel is the floor ({@link clearFloor}).
  * - **Free.** Everything else about a dancer, which this function never touches.
  *
  * Two dancers only: a grip needs a partner, and resolving *which* partner in a
@@ -2510,7 +2531,7 @@ export function poseArms(
     // {@link clearFloor}. Only the limited channel — an owned hand has somewhere it must
     // be, and where a *hold* can sit is `bandedHeight`'s question, not this one.
     clearFloor(_free, me);
-    constrainArm(_free, me, allowance, dirX, dirZ);
+    if (FOLD_FREE_ARMS) constrainArm(_free, me, allowance, dirX, dirZ);
 
     if (joined <= 0) {
       if (side === inside && hold !== undefined) {

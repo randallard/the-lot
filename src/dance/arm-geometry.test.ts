@@ -20,6 +20,7 @@ import {
   armPose,
   armPoses,
   clearFloor,
+  FOLD_FREE_ARMS,
   gripBlend,
   restPose,
   contact,
@@ -176,8 +177,21 @@ function beatsOf(call: CallName): number[] {
   return out;
 }
 
+/**
+ * 🔴 **The squeeze is off** (`FOLD_FREE_ARMS`, journal 2026-10-11 (2)), and two things in this file were
+ * properties *of* it: that arms never pass through each other on a hands-free pass, and that
+ * the passing arm folds in at the Dosado's closest point. With nothing folding a free arm, the
+ * first is simply no longer true on Dosado and Pass Thru — Ryan chose that, knowing it — and
+ * the second has no subject.
+ *
+ * Skipped on the flag rather than deleted or left red, so that turning the squeeze back on
+ * turns its guarantees back on with it. `pose-rules.ts` is what reports an arm in an arm now.
+ */
+const withSqueeze = it.skipIf(!FOLD_FREE_ARMS);
+
 describe.each(CALLS)("%s", (call) => {
-  it("never lets the two dancers' arms pass through each other", () => {
+  // The Allemande's arms are *gripped*, not free, so its guarantee never came from the squeeze.
+  (call === "allemande-left" ? it : withSqueeze)("never lets the two dancers' arms pass through each other", () => {
     for (const beat of beatsOf(call)) {
       const arms = armsAt(call, beat);
       for (const a of arms.filter((arm) => arm.dancer === 0)) {
@@ -549,7 +563,7 @@ describe("hands-free calls", () => {
     }
   });
 
-  it("folds the passing arm in at the dosado's closest pass, and only that one", () => {
+  withSqueeze("folds the passing arm in at the dosado's closest pass, and only that one", () => {
     // The defect this channel exists to fix. At the tightest beat exactly one arm on
     // each dancer — the one on the side they are passing — is folded in, and the
     // outside arm is still hanging free.
