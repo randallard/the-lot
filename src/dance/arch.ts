@@ -82,7 +82,7 @@ import {
  * Derived rather than eyeballed, and for the same reason: the thing that must visibly fit
  * between a head and a join is a hand, so a hand is the measure.
  */
-function headroom(beau: ArmMetrics, belle: ArmMetrics): number {
+export function headroom(beau: ArmMetrics, belle: ArmMetrics): number {
   return Math.max(beau.handRadius, belle.handRadius);
 }
 

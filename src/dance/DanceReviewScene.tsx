@@ -40,6 +40,7 @@
  * | **export** | The whole matrix as markdown, for `work/square-dance-planning/`. |
  * | **rules** | The verdict box under the step's question: every rule the pose on screen breaks (`pose-rules.ts`), read off the drawn meshes. Grey is *not measured yet*, green *all kept*, red one line per breach. On every step. |
  * | **🧪 coin flip** | Calls the arch's reshape-or-break draw (ADR-0037), outranking the style, and says which one is on screen. `toss` leaves it to the style: the L and duck reshape, lazy breaks, and only casual still tosses. Remounts the floor. `2026-10-11-2` |
+ * | **🧪 join over the centre** | On by default. Holds the arch's joined hands over the centre of the exchange — the couple's midpoint as the arch begins — so she walks under them instead of carrying them with her. Sizes the arch as `join overhead` at 100% and disables that dial. Arch steps only. `2026-10-12-1` |
  * | **🧪 stretch & shrink** | The purple dashed box: per dancer, torso / forearm / upper-arm sliders in cm **added to whatever the figure chose**, the amount actually worn beside each, and how far the pose has pulled each undrawn upper arm past its length. On every step. **Drawn, not solved**: whatever hangs off the stretched part moves with it, and the arm sliders act on the arm in the hold only. `2026-10-11-3` |
  *
  * ## 🧪 The dials
@@ -107,7 +108,7 @@ import { BREAK, RESHAPE, growForearm, type Accommodation } from "./accommodation
 import { passingWidth } from "./frame";
 import { lateralClearance, rigidParts } from "../services/body-shapes";
 import { armMetrics, touchHold } from "./arm-pose";
-import { DUCK_UNDER, FULL_L, LAZY_L, accommodationFor, type TurnUnderStyle } from "./turn-under";
+import { CASUAL, DUCK_UNDER, GABLE, accommodationFor, type TurnUnderStyle } from "./turn-under";
 
 const PANEL_WIDTH = 340;
 
@@ -231,6 +232,13 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
   const [overheadOn, setOverheadOn] = useState(false);
   const [overheadNudge, setOverheadNudge] = useState(0);
   /**
+   * 🧪 **The join held over the centre of the exchange** (2026-10-12) — on by default here, off
+   * by default on the floor. From Ryan's photographs of a Twirl: the hands stay put and she walks
+   * under them (`DanceFloor`'s `archOverCentre`). While it is on the arch is sized as `join
+   * overhead` at 100%, so that dial is disabled rather than left looking live.
+   */
+  const [centreOn, setCentreOn] = useState(true);
+  /**
    * 🧪 **Exploratory close-up, in percent** (2026-09-26) — Ryan: *"the turn under we should
    * have the pair get closer during execution of that type of move."*
    *
@@ -252,7 +260,7 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
   const [stretchNudge, setStretchNudge] = useState(0);
   /**
    * 🧪 The arch's coin flip, called (2026-10-11). `null` leaves it to the style — which until
-   * that day meant every cell but `lazy` tossed silently on each load, so one address showed two
+   * that day meant every cell but the casual one (then `lazy`) tossed silently on each load, so one address showed two
    * poses. The L and duck now reshape by themselves; this is for standing up the other one. Ryan found it
    * by refreshing: *"can you add a control for the coin flip."*
    */
@@ -363,18 +371,19 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
   /**
    * 🔴 Whether this cell's style has a pose of its own yet — the same honesty the dials get.
    *
-   * `FULL_L` is what the arch has always rendered as (which is to say: undrawn, ADR-0027's
-   * hanging humerus), and `LAZY_L` reaches ADR-0037's break and so genuinely differs. The other
-   * two do not exist yet, and a matrix that let them be scored anyway would fill with ratings of
+   * `GABLE` is what the arch has always rendered as (which is to say: undrawn, ADR-0027's
+   * hanging humerus), and `CASUAL` reaches ADR-0037's break and so genuinely differs. A style
+   * that does not exist yet must say so, and a matrix that let them be scored anyway would fill with ratings of
    * a pose that was never built — indistinguishable later from ratings of one that was.
    */
   const unbuiltStyle =
     cell.step.turnUnder !== undefined &&
-    cell.step.turnUnder !== FULL_L &&
-    cell.step.turnUnder !== LAZY_L &&
+    cell.step.turnUnder !== GABLE &&
+    // 🧪 2026-10-12: `CASUAL` draws its own pose — a forearm lifted from a hanging elbow.
+    cell.step.turnUnder !== CASUAL &&
     // 🧪 2026-09-26: `DUCK_UNDER` has a pose now — the torso drop `sizeArch` sizes and
     // `duckProfile` spreads across the turn. Removed from this guard one style at a time, as
-    // each lands, which is what the guard's own note asks for. `CASUAL` is still owed one.
+    // each lands, which is what the guard's own note asks for.
     cell.step.turnUnder !== DUCK_UNDER;
 
   /**
@@ -412,7 +421,8 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
   const stagger = standing && staggerOn ? staggerCm / 100 : 0;
   const handHeight = standing && handHeightOn ? handHeightCm / 100 : 0;
   const handForward = standing && handForwardOn ? handForwardCm / 100 : 0;
-  const archOverhead = arched && overheadOn ? overheadPct / 100 : 0;
+  const archOverCentre = arched && centreOn;
+  const archOverhead = archOverCentre ? 1 : arched && overheadOn ? overheadPct / 100 : 0;
   const archClose = arched && closeOn ? closePct / 100 : 0;
   /**
    * 🧪 Where the dial actually puts the join, against the two landmarks it sits between: the
@@ -923,7 +933,7 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
 
         {/* 🔴 The same guard the dials get, for the same reason: a rating of a pose that was
             never built is worse than a missing one, because later nothing distinguishes it from
-            a rating of a pose that was. `LAZY_L` is exempt — it reaches ADR-0037's break, which
+            a rating of a pose that was. `CASUAL` is exempt — it reaches ADR-0037's break, which
             is real. Removed one style at a time as each pose lands. */}
         {unbuiltStyle && (
           <div
@@ -1054,8 +1064,19 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
           <label style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
             <input
               type="checkbox"
-              checked={overheadOn}
+              checked={centreOn}
               disabled={!arched}
+              onChange={(e) => { setCentreOn(e.target.checked); setOverheadNudge((n) => n + 1); }}
+            />
+            <span title="The joined hands stay over the centre of the exchange — the couple's midpoint as the arch begins — and she walks under them. Between the two at the quarter, over her crown at the midpoint, between them again on the way out. Sized as join overhead at 100%. Off returns the hands to riding the pair.">
+              🧪 join over the centre
+            </span>
+          </label>
+          <label style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
+            <input
+              type="checkbox"
+              checked={overheadOn}
+              disabled={!arched || centreOn}
               onChange={(e) => { setOverheadOn(e.target.checked); setOverheadNudge((n) => n + 1); }}
             />
             <span title="0% is the midpoint of the two inside shoulders (ADR-0025's rule, inherited from the standing hold). 100% puts the join directly above the turning dancer's own crown, which is where it sits in every reference photograph.">
@@ -1067,7 +1088,7 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
               max={100}
               step={5}
               value={overheadPct}
-              disabled={!arched || !overheadOn}
+              disabled={!arched || !overheadOn || centreOn}
               onChange={(e) => { setOverheadPct(Number(e.target.value)); setOverheadNudge((n) => n + 1); }}
               style={{ flex: "1 1 0" }}
             />
@@ -1312,6 +1333,7 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
             handForward={handForward}
             turnUnder={turnUnder}
             archOverhead={archOverhead}
+            archOverCentre={archOverCentre}
             archClose={archClose}
           />
         </Canvas>

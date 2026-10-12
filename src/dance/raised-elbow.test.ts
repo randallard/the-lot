@@ -206,3 +206,66 @@ describe("🔑 a raised hold stands the upper arm up", () => {
     }
   });
 });
+
+/**
+ * 🧪 **…but not past the hand** (`TouchHold.forearmUp`, 2026-10-12, undecided).
+ *
+ * Once the join sits low — a hand above a short partner's crown — a tall dancer's highest elbow
+ * is well above his own hand, and the forearm comes down onto the join. Ryan: *"his arm
+ * shouldn't be pointing down."*
+ */
+describe("🧪 a raised elbow stops level with the hand", () => {
+  /** A hand at a fraction of the reach, forward and in, at `rise` × reach above the shoulder. */
+  function lowTarget(m: ArmMetrics, sign: number, fraction: number, rise: number) {
+    const s = shoulder(m, sign);
+    const reach = fraction * (m.elbowReach + m.drawnSpan);
+    const d = [-sign * 0.45, rise, 0.6];
+    const len = Math.hypot(d[0]!, d[1]!, d[2]!);
+    return {
+      x: s.x + (d[0]! / len) * reach,
+      y: s.y + (d[1]! / len) * reach,
+      z: (d[2]! / len) * reach,
+    };
+  }
+
+  it("🔴 without it, the highest elbow points the forearm down at a low hand", () => {
+    // The defect, stated: ADR-0058 at full `raised`, hand level with the shoulder.
+    const m = armMetrics(PLAYER_DEFAULTS);
+    const t = lowTarget(m, -1, 0.65, 0);
+    const p = touchPose(armPose(), m, -1, t.x, t.y, t.z, m.restX, m.drawnSpan, 1);
+    expect(p.aimY).toBeLessThan(-0.2);
+  });
+
+  it("🔑 with it, no forearm points down wherever an elbow below the hand exists", () => {
+    for (const [name, shape] of CAST) {
+      const m = armMetrics(shape);
+      for (const sign of [1, -1]) {
+        for (const f of FRACTIONS) {
+          for (const rise of [0, 0.3, 1]) {
+            const t = lowTarget(m, sign, f, rise);
+            if (!onTheCircle(m, sign, t)) continue;
+            const hang = touchPose(armPose(), m, sign, t.x, t.y, t.z, m.restX, m.drawnSpan, 0);
+            const p = touchPose(armPose(), m, sign, t.x, t.y, t.z, m.restX, m.drawnSpan, 1, true);
+            const where = `${name} ${String(sign)} f${String(f)} rise${String(rise)}`;
+            // Never lower than level — unless the arm was already pointing down while hanging,
+            // in which case it is left exactly there.
+            if (hang.aimY >= 0) expect(p.aimY, where).toBeGreaterThan(-1e-6);
+            else expect(p.aimY, where).toBeCloseTo(hang.aimY, 9);
+            // And it is still a real arm: the humerus keeps its length, the hand its place.
+            expect(upperArmStrain(p, m, sign), where).toBeCloseTo(0, 9);
+            expect(p.y + p.aimY * m.drawnSpan, where).toBeCloseTo(t.y, 9);
+          }
+        }
+      }
+    }
+  });
+
+  it("🔑 and it changes nothing where the hand is above the highest elbow", () => {
+    const m = armMetrics(PLAYER_DEFAULTS);
+    const t = archTarget(m, 1, 0.8);
+    const a = touchPose(armPose(), m, 1, t.x, t.y, t.z, m.restX, m.drawnSpan, 1);
+    const b = touchPose(armPose(), m, 1, t.x, t.y, t.z, m.restX, m.drawnSpan, 1, true);
+    if (a.aimY >= 0) expect(b).toEqual(a);
+  });
+});
+

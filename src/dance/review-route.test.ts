@@ -9,7 +9,7 @@ import {
   reviewSceneCell,
   reviewSceneHash,
 } from "./review-route";
-import { FULL_L } from "./turn-under";
+import { GABLE } from "./turn-under";
 
 describe("the review matrix", () => {
   it("pairs every character with every other, in both orders", () => {
@@ -97,20 +97,22 @@ describe("the review's hash", () => {
 
   it("🔑 keeps the unbranched turn addresses pointing at the happy path", () => {
     // The turn steps are branched four ways by `TurnUnderStyle`, and the **unsuffixed** id is
-    // `FULL_L` on all three. That is load-bearing rather than tidy: every `#review=…` address
+    // `GABLE` on all three. That is load-bearing rather than tidy: every `#review=…` address
     // written in a journal names one of these, journals are append-only and so cannot be
     // corrected, and a link that merely falls back to the first cell would be a link that
     // silently stopped meaning what it said.
     for (const id of ["quarter", "under-arch", "three-quarter"]) {
       const cell = findCell(`california-twirl/${id}/myco-sprout`);
       expect(cell, id).not.toBeNull();
-      expect(cell?.step.turnUnder, id).toBe(FULL_L);
+      expect(cell?.step.turnUnder, id).toBe(GABLE);
     }
-    // …and the other three styles are reachable, at the same beat as the one they branch from.
-    for (const suffix of ["duck", "lazy", "casual"]) {
+    // …and the other two styles are reachable, at the same beat as the one they branch from.
+    for (const suffix of ["duck", "casual"]) {
       const sibling = findCell(`california-twirl/under-arch-${suffix}/myco-sprout`);
       expect(sibling, suffix).not.toBeNull();
       expect(sibling?.step.pose, suffix).toEqual({ kind: "beat", beat: 2 });
     }
+    // 🔑 `-lazy` was folded into `-casual` on 2026-10-12 and is no longer an address.
+    expect(findCell("california-twirl/under-arch-lazy/myco-sprout")?.step.id).not.toBe("under-arch-lazy");
   });
 });

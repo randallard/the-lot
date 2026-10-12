@@ -669,6 +669,34 @@ export interface TouchHold {
    * standing its humerus up while the other's still hangs is one hold posed by two anatomies.
    */
   readonly raised?: number;
+  /**
+   * 🧪 **Exploratory (2026-10-12), not a decided stance.** A **world** point the joined hands
+   * are held over, and how far (`0`–`1`) they have moved to it from where the pair would
+   * otherwise carry them.
+   *
+   * Every other field here places the hands relative to the *pair* — off the midpoint between
+   * the two dancers, wherever they currently are. That is right for a couple standing or walking
+   * together and wrong for a turn-under: Ryan's photographs of a California Twirl
+   * ([journal](../../docs/journal/2026-10-12-1-the-l-is-a-gable.md)) show the hands staying
+   * over the **centre of the exchange** while she walks under them — between the two at the
+   * quarter, over her crown at the midpoint, between them again on the way out. A point that
+   * rides the pair cannot do that; one that stays where it is can.
+   *
+   * 🔑 **A point both dancers are given, so both still write the same place** — the property
+   * `lateral` and `forward` are built to keep.
+   */
+  readonly over?: { readonly x: number; readonly z: number; readonly weight: number };
+  /**
+   * 🧪 **Exploratory (2026-10-12).** Keep the forearm from pointing **down** at a raised hold:
+   * the elbow stands up (`raised`) only until it is level with the hand.
+   *
+   * ADR-0058 turns the elbow to the highest point it can reach, which is right when the hand is
+   * higher still. Once the join sits low — a hand above a *short* partner's crown — a tall
+   * dancer's highest elbow is far above his own hand, and his forearm comes down onto the join
+   * from over it. Ryan, of exactly that: *"his arm shouldn't be pointing down."* In his
+   * photographs both forearms lean **up** and in to the peak.
+   */
+  readonly forearmUp?: boolean;
 }
 
 /**
@@ -1075,6 +1103,8 @@ function settleTouch(
    * never checked. Both `touchPose` calls below take it for that reason.
    */
   raised = 0,
+  /** 🧪 {@link TouchHold.forearmUp}, passed straight down with `raised` and for its reason. */
+  forearmUp = false,
 ): number {
   const sign = isBeau ? -1 : 1;
   const side = isBeau ? "right" : "left";
@@ -1121,7 +1151,7 @@ function settleTouch(
       handX + ox,
       localHeight(m, height + oy),
       handZ + oz,
-      restX, m.drawnSpan, raised,
+      restX, m.drawnSpan, raised, forearmUp,
     );
     wristFrom(_next, out.aimX, out.aimY, out.aimZ);
     into.x = _next.x - ox;
@@ -1198,7 +1228,7 @@ function settleTouch(
     handX + _off.x,
     localHeight(m, height + _off.y),
     handZ + _off.z,
-    restX, m.drawnSpan, raised,
+    restX, m.drawnSpan, raised, forearmUp,
   );
   // 🔴 **The WRIST's offset from the contact plane, not the hand centre's** — the callers of
   // this are the reach budget and the stance, and what they have to know is where the arm was
@@ -1961,6 +1991,8 @@ export function touchPose(
    * own blend, so the arm stands up exactly as fast as the hands rise.
    */
   raised = 0,
+  /** 🧪 Stop the elbow standing up past the hand's own height — {@link TouchHold.forearmUp}. */
+  forearmUp = false,
 ): ArmPose {
   const sx = sign * restX;
   const sy = m.restY;
@@ -2000,7 +2032,7 @@ export function touchPose(
   // Everything above found the hanging elbow; this turns it toward the highest one the circle
   // has, which is the most vertical humerus the geometry allows — Ryan's upside-down L.
   if (raised > 0) {
-    standUp(_stand, ex, ey, ez, sx, sy, 0, ax, ay, az, d, upper, raised);
+    standUp(_stand, ex, ey, ez, sx, sy, 0, ax, ay, az, d, upper, raised, forearmUp);
     ex = _stand.x;
     ey = _stand.y;
     ez = _stand.z;
@@ -2051,6 +2083,7 @@ function standUp(
   d: number,
   upper: number,
   raised: number,
+  forearmUp = false,
 ): Vec3 {
   out.x = ex;
   out.y = ey;
@@ -2092,7 +2125,18 @@ function standUp(
   const cos = clampUnit(ux * tx + uy * ty + uz * tz);
   // `u × t` runs along ±n; its component on n gives the sign of the turn.
   const crossN = (uy * tz - uz * ty) * nx + (uz * tx - ux * tz) * ny + (ux * ty - uy * tx) * nz;
-  const angle = Math.atan2(crossN, cos) * raised;
+  const full = Math.atan2(crossN, cos);
+  let angle = full * raised;
+  // 🧪 **…but no further than level with the hand** (`TouchHold.forearmUp`, 2026-10-12). An
+  // elbow turned by `θ` of the way round sits at `C.y + off·|w|·cos(|full| − θ)`, which only
+  // climbs, so "the elbow is no higher than the hand" is one `acos`: the largest turn at which
+  // that height is still the hand's. An elbow already above the hand while hanging is left
+  // hanging — there is nothing lower on the way up.
+  if (forearmUp) {
+    const k = (ay - along * ny) / (off * wlen);
+    const most = k >= 1 ? Math.abs(full) : Math.max(0, Math.abs(full) - Math.acos(clampUnit(k)));
+    if (Math.abs(angle) > most) angle = Math.sign(angle) * most;
+  }
 
   // Rodrigues: rotate `h` about `n` by `angle`.
   const c = Math.cos(angle);
@@ -2564,16 +2608,27 @@ export function poseArms(
         // which is the original placement exactly.
         const fwdX = coupleYaw === undefined ? 0 : Math.sin(coupleYaw) * c - Math.cos(coupleYaw) * s;
         const fwdZ = coupleYaw === undefined ? 1 : Math.sin(coupleYaw) * s + Math.cos(coupleYaw) * c;
+        const carriedX =
+          coupleYaw === undefined
+            ? localX / 2 + offset * dirX
+            : localX / 2 + offset * dirX + hold.forward * fwdX;
+        const carriedZ =
+          coupleYaw === undefined
+            ? localZ / 2 + offset * dirZ + hold.forward
+            : localZ / 2 + offset * dirZ + hold.forward * fwdZ;
+        // 🧪 …unless the hold names a place on the floor to be over (`TouchHold.over`), in
+        // which case the hands ease from where the pair carry them to that point, brought into
+        // this dancer's frame the same way the partner was above.
+        const over = hold.over;
+        const overDx = over === undefined ? 0 : over.x - self.x;
+        const overDz = over === undefined ? 0 : over.z - self.z;
+        const overW = over === undefined ? 0 : Math.min(1, Math.max(0, over.weight));
         settleTouch(
           out[side],
           me,
           beau,
-          coupleYaw === undefined
-            ? localX / 2 + offset * dirX
-            : localX / 2 + offset * dirX + hold.forward * fwdX,
-          coupleYaw === undefined
-            ? localZ / 2 + offset * dirZ + hold.forward
-            : localZ / 2 + offset * dirZ + hold.forward * fwdZ,
+          carriedX + (overDx * c - overDz * s - carriedX) * overW,
+          carriedZ + (overDx * s + overDz * c - carriedZ) * overW,
           hold.height,
           // The arm hangs from where the stance left room (ADR-0049), which is the shoulder
           // the hold was solved against. Posing from the authored `restX` here would put the
@@ -2583,6 +2638,7 @@ export function poseArms(
           // …and it stops hanging as the hold goes up (ADR-0058). `0` for every standing
           // handhold, which is every caller that predates the arch.
           hold.raised ?? 0,
+          hold.forearmUp ?? false,
         );
         continue;
       }

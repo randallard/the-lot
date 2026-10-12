@@ -1,5 +1,5 @@
 /**
- * **What a dancer does with the arm they are turning under** — the four styles, named.
+ * **What a dancer does with the arm they are turning under** — the three styles, named.
  *
  * ## The problem this is about
  *
@@ -21,27 +21,50 @@
  * > lazy L and break contact, sometimes they just arm up as high as casually possible and walk
  * > around it
  *
- * - {@link FULL_L} — the upside-down L: the undrawn upper arm vertical, the forearm horizontal
- *   over the head. Ryan, 2026-08-23, in the same report that found the swap: *"the left arm need
- *   to be turned under as it makes an upside down L with the invisible upper arm and the forearm
- *   then is horizontal over the head."* Contact kept.
- * - {@link DUCK_UNDER} — the same L, and the dancer drops under it rather than asking the arm for
- *   all of the room. Contact kept.
- * - {@link LAZY_L} — the L attempted and not made; the hands come apart. Contact **lost**.
- * - {@link CASUAL} — no L at all: the arm goes as high as it casually goes and the dancer walks
- *   the same line anyway.
+ * - {@link GABLE} — what he called "the L" until he photographed it (2026-10-12): **both** arms
+ *   leaning in to a peak over the turning dancer's crown, like the two slopes of a roof. Her
+ *   elbow is out over her own shoulder at about crown height and her forearm slopes up and in;
+ *   neither forearm is ever level, and neither arm is straight. The joined hands stay over the
+ *   centre of the exchange and she walks under them. Contact kept. The 2026-08-23 words this
+ *   style was first built from — *"an upside down L with the invisible upper arm and the forearm
+ *   then is horizontal over the head"* — describe one frame of it, and loosely
+ *   ([journal](../../docs/journal/2026-10-12-1-the-l-is-a-gable.md)).
+ * - {@link DUCK_UNDER} — the same gable, and the dancer **shrinks** under it rather than asking
+ *   the arm for all of the room. Contact kept. 🔑 Ryan, 2026-10-12: *"when we say duck it's really
+ *   referring to the need to shrink the dancer to make the geometry work in the-lot"* — the
+ *   reflexive head-tip a dancer makes going under is **not** this; every style has that.
+ * - {@link CASUAL} — no gable and no trying: each lifts a forearm from a hanging elbow, over
+ *   their own shoulder, and she walks the same line anyway. Contact **lost**.
+ *
+ * ## 🔑 Three, since 2026-10-12 — and what happened to the fourth
+ *
+ * The list above named four, the last two being a "lazy L" and a "casual" arm-up. Watched side
+ * by side they were one pose, and Ryan folded them: *"cut out casual — that's the same as lazy
+ * for our purposes — I guess casual is a less judgemental term — lets go with that — replace
+ * all lazy with casual."* So today's {@link CASUAL} is what was `lazy-gable`, under the kinder
+ * name, and the old `casual` is gone.
+ *
+ * 🔑 **Which leaves three things a pair can do, and they differ in kind** (his words):
+ *
+ * - **shrink / grow** ({@link RESHAPE}) — *"creating new rules — following the rules by changing
+ *   shape."* What {@link GABLE} and {@link DUCK_UNDER} force.
+ * - **the break** ({@link BREAK}, by setting or coin flip) — *"trying with good effort … hands
+ *   getting as close as they can without changing the rules."* No style names it: it is what a
+ *   pair that meant to hold on does when they cannot.
+ * - **casual** ({@link CASUAL}) — the same accommodation as the break and *"a different
+ *   energy"*: nobody reaches. It is the pose that tells the two apart, not the outcome.
  *
  * ## 🔑 Deliberately not ordered as a ladder
  *
  * It is tempting to read these as a degradation sequence the way ADR-0040's reach → break is one.
- * They are not written as one, because **nobody has looked at them yet.** Ryan named four things
+ * They are not written as one, because **nobody has looked at them yet.** Ryan named the things
  * dancers do and said which of them breaks contact; whether they rank, and in what order, is
  * exactly what the review branch exists to find out. Encoding an order here would answer the
  * question the instrument was built to ask.
  *
  * What *is* recorded is the one property he stated outright — {@link keepsContact}.
  *
- * ## 🔑 Why the belle's path is the same in all four
+ * ## 🔑 Why the belle's path is the same in all three
  *
  * Including {@link CASUAL}, which sounds like it should be a detour round the outside. Ryan's
  * call, and it keeps the whole family on this side of the seam: square-one's `belleHalf` walks
@@ -51,7 +74,7 @@
  * alternative path, with a promotion condition for rebuilding it *from an actual named call*
  * rather than from a consumer's preference.
  *
- * ## 🔴 And why {@link LAZY_L} is not a new outcome
+ * ## 🔴 And why {@link CASUAL} is not a new outcome
  *
  * It is [ADR-0037](../../docs/adr/)'s {@link BREAK}. [`accommodation.ts`](accommodation.ts) is
  * explicit that a hold added later must *"answer which of these two rather than inventing a third
@@ -67,42 +90,37 @@ import { BREAK, RESHAPE, type Accommodation } from "./accommodation";
 
 /** How a dancer takes their joined arm over their own head while turning beneath it. */
 export type TurnUnderStyle =
-  | typeof FULL_L
+  | typeof GABLE
   | typeof DUCK_UNDER
-  | typeof LAZY_L
   | typeof CASUAL;
 
-/** Upper arm vertical, forearm horizontal over the head. The pose the figure is drawn for. */
-export const FULL_L = "full-l";
-/** The L, and the dancer drops under it instead of asking the arm for all the room. */
+/** Both arms leaning in to a peak over the turning dancer's crown. The pose the figure is drawn for. */
+export const GABLE = "gable";
+/** The gable, and the dancer shrinks under it instead of asking the arm for all the room. */
 export const DUCK_UNDER = "duck-under";
-/** The L attempted and not made — the hands come apart. */
-export const LAZY_L = "lazy-l";
-/** No L: the arm goes as high as it casually goes, and the dancer walks the line anyway. */
+/** No gable and no reach: a forearm lifted from a hanging elbow, hands apart. Was `lazy-gable`. */
 export const CASUAL = "casual";
 
 /**
- * All four, in the order Ryan named them — which is **not** a ranking (see the module doc).
+ * All three, in the order Ryan named them — which is **not** a ranking (see the module doc).
  *
  * Exported for the same reason `ACCOMMODATIONS` is: a test or a report that has to cover the
  * family should not be able to cover three of it.
  */
 export const TURN_UNDER_STYLES: readonly TurnUnderStyle[] = [
-  FULL_L,
+  GABLE,
   DUCK_UNDER,
-  LAZY_L,
   CASUAL,
 ];
 
 /**
  * Whether the hands are still joined at the end of the turn.
  *
- * The one property Ryan stated outright — *"those both maintain contact"* of the first two, and
- * *"lazy L and break contact"* of the third. {@link CASUAL} keeps contact because it keeps the
- * path and the hold and simply declines to make the shape: the arm is low, not let go.
+ * Ryan stated it outright — *"those both maintain contact"* of the first two, and *"lazy L and
+ * break contact"* of what is now {@link CASUAL}.
  */
 export function keepsContact(style: TurnUnderStyle): boolean {
-  return style !== LAZY_L;
+  return style !== CASUAL;
 }
 
 /**
@@ -112,7 +130,7 @@ export function keepsContact(style: TurnUnderStyle): boolean {
  * ## The duck has a job, and it is not decoration
  *
  * Ryan's own words for it are *"the dancer drops under it rather than asking the arm for all of
- * the room"*, and 2026-09-26 found what "the room" actually is. What fails a `FULL_L` is not a
+ * the room"*, and 2026-09-26 found what "the room" actually is. What fails a `GABLE` is not a
  * **reach** — `reshapeDeficit` correctly computes a zero torso trade for several of the failing
  * orderings, because the beau's hand *can* get to the join. What fails is `armSweepClearance`:
  * his arm, travelling from his shoulder to a join above her crown, passing through her head.
@@ -156,7 +174,7 @@ export function duckRoom(
  *
  * 🔑 **Spread across the turn rather than spent at the midpoint**, which is `review-steps`'
  * specification for the pose in as many words: *"a duck is spread across the turn, not spent at
- * the midpoint. She should be visibly lower than she is in `quarter · the L`"*. A profile that
+ * the midpoint. She should be visibly lower than she is in `quarter · the gable`"*. A profile that
  * only dipped under the arch would leave her standing upright a quarter-beat before she had to
  * fold, which reads as a dancer being deflated rather than one ducking.
  *
@@ -177,33 +195,29 @@ export function duckProfile(beat: number, from: number, to: number): number {
 /**
  * The reach accommodation this style forces, or `null` when it leaves that draw alone.
  *
- * - {@link LAZY_L} forces {@link BREAK} — because a break is already *"nobody changes shape,
- *   both dancers reach as far as they can toward the same target, and the hands come apart"*,
- *   which is the whole of what a lazy L is.
- * - {@link FULL_L} and {@link DUCK_UNDER} force {@link RESHAPE} (2026-10-11). Ryan's own words
+ * - {@link CASUAL} forces {@link BREAK} — a break is already *"nobody changes shape … and the
+ *   hands come apart"*. 🔑 What it does **not** share with a break reached by setting or coin
+ *   flip is the pose: that one reaches with good effort, this one does not reach at all.
+ * - {@link GABLE} and {@link DUCK_UNDER} force {@link RESHAPE} (2026-10-11). Ryan's own words
  *   for the pair were *"those both maintain contact"*, and a reshape is the accommodation that
  *   does; a style defined by keeping the hold cannot land on the one that lets go of it.
- * - {@link CASUAL} returns `null` and still takes `drawAccommodation()`'s coin flip. It has no
- *   pose yet, so there is nothing for a fixed answer to be true of.
  *
- * 🔴 **This reverses what stood here until 2026-10-11**, which returned `null` for all three on
+ * 🔴 **This reverses what stood here until 2026-10-11**, which returned `null` for all of them on
  * purpose: *"whether a pair reshape or break to reach each other is a different question from
  * how one of them takes their arm over their head, and collapsing the two would silently pin one
  * of ADR-0037's two styles off."* It is a fair distinction and it cost more than it bought: with
  * the L tossing, one review address showed two poses at two distances
  * ([journal](../../docs/journal/2026-10-11-2-one-address-two-poses.md)), and a pose that cannot
  * be shown twice cannot be authored, rated or carried. Nothing is pinned off silently — the
- * break is `lazy-l`, by name. No ADR yet; the posture work is still experimenting.
+ * break is `casual`, by name. No ADR yet; the posture work is still experimenting.
  */
 export function accommodationFor(style: TurnUnderStyle): Accommodation | null {
   switch (style) {
-    case LAZY_L:
+    case CASUAL:
       return BREAK;
-    case FULL_L:
+    case GABLE:
     case DUCK_UNDER:
       return RESHAPE;
-    case CASUAL:
-      return null;
   }
 }
 

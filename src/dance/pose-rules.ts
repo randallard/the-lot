@@ -151,7 +151,7 @@ export interface PoseContext {
    * under — the 09-21 defect was the belle's *down* arm changing sides. Omitted means nobody's.
    */
   readonly raised?: readonly [Side | null, Side | null];
-  /** Whether this style keeps the hold: true for `full-l` and `duck-under` (`keepsContact`). */
+  /** Whether this style keeps the hold: true for `gable` and `duck-under` (`keepsContact`). */
   readonly keepsContact: boolean;
   /**
    * The world height each dancer's torso bottoms out at **when it is standing on the floor in

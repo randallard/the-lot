@@ -24,8 +24,7 @@ import { RESHAPE, BREAK, ACCOMMODATIONS, growBody, standingLift } from "./accomm
 import {
   CASUAL,
   DUCK_UNDER,
-  FULL_L,
-  LAZY_L,
+  GABLE,
   duckProfile,
   duckRoom,
   type TurnUnderStyle,
@@ -104,7 +103,7 @@ describe("🔑 every new dial is off by default", () => {
   it.each(PAIRS)("%s nobody ducks unless their style says so", (_name, bs, ls) => {
     const { b, l, w, bodies } = room(bs, ls);
     const notDucking: readonly (TurnUnderStyle | null | undefined)[] = [
-      FULL_L, LAZY_L, CASUAL, null, undefined,
+      GABLE, CASUAL, null, undefined,
     ];
     for (const style of notDucking) {
       expect(duckRoom(style, ls.body.height, SHAPE_BOUNDS.body.height.min)).toBe(0);
@@ -224,7 +223,7 @@ describe("🧪 the duck", () => {
     const h = EMBER_DEFAULTS.body.height;
     const floor = SHAPE_BOUNDS.body.height.min;
     expect(duckRoom(DUCK_UNDER, h, floor)).toBeCloseTo(h - floor, 9);
-    expect(duckRoom(FULL_L, h, floor)).toBe(0);
+    expect(duckRoom(GABLE, h, floor)).toBe(0);
     // Never negative, even for a dancer already at the editor's floor.
     expect(duckRoom(DUCK_UNDER, floor, floor)).toBe(0);
   });
