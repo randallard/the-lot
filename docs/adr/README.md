@@ -98,7 +98,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0007](0007-localstorage-with-a-versioned-backup-file.md) | Browser `localStorage` is the only store; a versioned backup file is the escape hatch | Accepted |
 | [0008](0008-react-hooks-rules-excepted-at-the-ref-boundary.md) | `react-hooks` compiler rules are excepted at the ADR-0002 ref boundary, not worked around | Accepted |
 | [0009](0009-empty-catch-is-the-best-effort-storage-idiom.md) | `no-empty` allows empty catch, because best-effort storage is a deliberate idiom | Accepted |
-| [0010](0010-emote-choreography-channel-contract.md) | Emote and choreography share a dancer by channel, classified owned / limited / free | Accepted |
+| [0010](0010-emote-choreography-channel-contract.md) | Emote and choreography share a dancer by channel, classified owned / limited / free | Superseded by ADR-0059–0064 |
 | [0011](0011-frame-scale-derives-from-occupant-bodies.md) | The dance frame's scale derives from the occupants' bodies | Superseded by ADR-0012 |
 | [0012](0012-pair-clearance-from-the-3d-silhouette.md) | Pair clearance comes from the 3D rigid silhouette, not a flat disc | Accepted |
 | [0013](0013-pointer-events-with-capture-for-new-pointer-input.md) | New pointer input uses Pointer Events with capture, and branches on `pointerType` | Accepted |
@@ -147,6 +147,12 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0056](0056-a-declared-hold-keeps-the-hand-the-figure-named.md) | A declared hold keeps the hand the figure named | Accepted |
 | [0057](0057-the-turn-under-is-four-named-styles-and-the-review-branches-on-them.md) | The turn-under is four named styles, and the review branches on them | Accepted |
 | [0058](0058-a-raised-hold-stands-the-upper-arm-up.md) | A raised hold stands the upper arm up | Accepted |
+| [0059](0059-emote-and-choreography-share-a-dancer-by-channel.md) | Emote and choreography share a dancer by channel: owned, limited or free | Accepted |
+| [0060](0060-a-channel-is-limited-exactly-when-it-feeds-the-silhouette.md) | A channel is limited exactly when it feeds the silhouette | Accepted |
+| [0061](0061-the-choreography-owns-position-body-facing-and-a-gripped-arm.md) | The choreography owns position, body facing and a gripped arm | Accepted |
+| [0062](0062-head-facing-forward-lean-and-the-bob-are-the-emotes.md) | Head facing, forward lean and the bob are the emote's | Accepted |
+| [0063](0063-an-unclassified-expression-channel-is-owned.md) | An unclassified expression channel is owned | Accepted |
+| [0064](0064-the-channel-contract-governs-engine-driven-dancers-only.md) | The channel contract governs engine-driven dancers only | Accepted |
 
 ## Decisions this repo inherits
 

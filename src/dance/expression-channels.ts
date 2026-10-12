@@ -1,6 +1,9 @@
 /**
- * The one place [ADR-0010](../../docs/adr/0010-emote-choreography-channel-contract.md)'s
- * blend contract is decided — its **policy**, as opposed to its mechanisms.
+ * The one place the emote/choreography blend contract is decided — its **policy**, as opposed
+ * to its mechanisms. The contract was ADR-0010; since 2026-10-11 it is six ADRs, one decision
+ * each: [0059](../../docs/adr/0059-emote-and-choreography-share-a-dancer-by-channel.md) the three
+ * kinds, 0060 what is limited, 0061 what is owned, 0062 what is free, 0063 the unclassified
+ * default, 0064 its scope. Where this file says "the ADR" it means that set.
  *
  * The ADR asked for one resolver rather than scattered conditionals, and the reason is
  * narrower than tidiness. Its fail-safe rule is that **an unclassified channel is owned**:
@@ -66,8 +69,9 @@ export type Channel = "owned" | "limited" | "free";
  * **`limited` when it feeds `rigidParts`** — the ADR's derivation. Anything an emote can
  * change that ADR-0012 measured the square's spacing from can invalidate that spacing.
  *
- * The one entry that is conditional: an arm is `limited` — folded only where it trespasses
- * — until the engine engages its grip, at which point that hand is `owned` outright for as
+ * The one entry that is conditional: an arm is `limited` until the engine engages its grip
+ * (🔴 the fold that did the limiting is switched off — `FOLD_FREE_ARMS` in `arm-pose.ts` — so
+ * the floor is its only limit today, and that row has no ADR while the experiment runs), at which point that hand is `owned` outright for as
  * long as it is held. A hand holding someone has somewhere it must be. `poseArms` resolves
  * that transition; the table records the arm's resting kind.
  */

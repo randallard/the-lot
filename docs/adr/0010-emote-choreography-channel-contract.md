@@ -1,5 +1,5 @@
 # ADR-0010: Emote and choreography share a dancer by channel, classified owned / limited / free
-- Status: Accepted
+- Status: Superseded by [ADR-0059](0059-emote-and-choreography-share-a-dancer-by-channel.md) through ADR-0064, one decision each
 - Date: 2026-07-28
 - Deciders: Ryan, Claude
 
