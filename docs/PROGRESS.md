@@ -24,7 +24,7 @@ _Last updated: 2026-10-11_
 > ✅ **Checkpointed.** 09-19 through 09-30 is committed as it stood. Suite **907 / 38**, `tsc -b`
 > clean, lint 0 errors — unchanged from 09-30. No source changed on 10-10.
 >
-> 🧪 **STEP 1 IS BUILT, SEEN ONCE, AND REWRITTEN** —
+> ✅ **STEP 1 IS BUILT AND CONFIRMED ON ONE CELL** —
 > [`journal/2026-10-10-2`](journal/2026-10-10-2-the-rules-are-asked-of-the-meshes.md), then
 > [`journal/2026-10-11-1`](journal/2026-10-11-1-the-solid-is-its-own-corners.md).
 > `pose-rules.ts` (`measurePose` / `violations` / `describe` / `signedGap`, 27 tests) checks two
@@ -43,10 +43,36 @@ _Last updated: 2026-10-11_
 > upper arm is pulled past its length. `DanceFloor`'s `stretch` prop. 🔴 The dials reshape the
 > dancer, **not** the figure's sizing — the stance is not re-solved.
 >
-> 🔴 **The rewrite and the dials are unseen.** First thing: Ryan re-reads the box on the same
-> cell — expect the two wrong and two midline lines gone, five left. 🔴 Open: Ember's upper arm
-> reads stretched 0.368 in an L that ADR-0058 says keeps its length; the upper-arm slider is the
-> experiment. 🔴 The checker runs every frame and will need throttling for the contact sheet.
+> ✅ **The rewrite is seen and right** (Ryan, 2026-10-11, same cell): *"there are 4 rules broken,
+> they're all correct."* Both wrong lines and both midline lines are gone. Four, where five were
+> expected — one of the confirmed five fell under `SKIN` on the vertex measure (most likely the
+> hand 0.010 into the partner's forearm, which sat exactly on it); not chased, since nothing
+> reported is wrong. 🔴 **The stretch sliders are still unwatched**, and Ember's upper arm
+> reading stretched 0.368 in an L that ADR-0058 says keeps its length is still open — the
+> upper-arm slider is the experiment. 🔴 The checker runs every frame and will need throttling
+> for the contact sheet, which is **next**.
+>
+> 🔴 **ONE ADDRESS WAS SHOWING TWO POSES** —
+> [`journal/2026-10-11-2`](journal/2026-10-11-2-one-address-two-poses.md). Every arch cell but
+> `lazy` tossed ADR-0037's reshape-or-break coin on each load. For `player → ember`: reshape is
+> built for 0.818 of room with torsos ±0.466 and hands meeting; break for **0.576** with hands
+> 0.825 apart. 🔑 Since 09-30's `stopClearOf` the break is the *tighter* figure — nearly a
+> hands-free pass — so the free arms fold in as on a Trade. Nobody chose that.
+> ✅ A 🧪 **coin flip** control (`toss` / `reshape` / `break`, plus what is on screen) and the
+> contact rule now asked by **style**, not by draw. Uncommitted, unwatched.
+> 🔴 **THE SQUEEZE IS OFF** — no ADR, still experimenting; journal 10-11 (2).
+> Ryan: *"I don't like the squeeze anymore … I don't want it used in the pass by either."*
+> **`FOLD_FREE_ARMS = false` in `arm-pose.ts`** — one switch, and `true` brings it back whole
+> (`constrainArm` and friends are kept and tested). 🔴 Cost: arms now pass through each other on
+> **Dosado** and **Pass Thru**; those tests are skipped on the flag (3 skipped), and the Dosado's
+> 08-21 acceptance was of the folded pass. An emoting dancer's free arm is no longer limited by a
+> partner either. Unwatched.
+> ✅ **`full-l` and `duck-under` no longer toss** — they reshape, always (`accommodationFor`).
+> `lazy-l` breaks; `casual` still tosses, having no pose yet. The coin-flip control outranks all.
+> ✅ **ADR-0010 is superseded by ADR-0059–0064**, one decision each, restating what still stands.
+> 🔴 The ungripped arm is the one row with no ADR, on purpose.
+> ⏳ **One question for Ryan before the contact sheet:** is a broken turn-under meant to be a close
+> pass?
 >
 > ⏳ **NEXT, in order:**
 > 1. ~~**The rules as one checker**~~ — built, see above; needs the look.
@@ -3339,13 +3365,15 @@ Played and working:
 - **The dance floor** (`src/dance/`) — dancers driven from the square-one engine, in world
   units, scaled so bodies of different sizes clear each other (ADR-0012). On the `#dance`
   instrument scene, not in the game world:
-  - **Dosado** — watched and accepted (2026-08-21).
+  - **Dosado** — watched and accepted (2026-08-21) **with the arm fold**, which was
+    switched off on 2026-10-11 (`FOLD_FREE_ARMS`); its arms now pass through each other and it is owed a re-look.
   - **Pass Thru** — its lane watched at the body-derived size; no separate sign-off recorded.
   - **Allemande Left** — the forearm grip and its CCW turn, render-validated (2026-07-27).
   - **Partner Trade** and **California Twirl** — the *travel* was watched and accepted at the
     single scale (2026-08-21). The Twirl's **arms** were not, and are the open work below.
 - **Emotes inside a figure** — what an emote may and may not move while a dancer is in one:
-  owned, limited and free channels (ADR-0010), with the silhouette limit enforced.
+  owned, limited and free channels (ADR-0059–0064, superseding ADR-0010), with the silhouette
+  limit enforced. 🔴 The free arm's fold against a partner is switched off (2026-10-11).
 - **The standing couple's handhold** — solved from the two bodies, wrist and palm included
   (ADR-0025 through ADR-0054). Built and measured on all 25 orderings; reviewed cell by cell
   rather than accepted as a whole.
@@ -3368,7 +3396,8 @@ Played and working:
 first planned); the 875-cell rating sweep (Ryan's browser showed 2 rated on 2026-10-11; ratings live in
 `localStorage` and none are exported into the repo).
 
-**Tests: 934 pass, 38 fail** (42 files), as of 2026-10-11. `tsc -b` clean; eslint 0 errors,
+**Tests: 932 pass, 38 fail, 3 skipped** (42 files), as of 2026-10-11 — the 3 are skipped on
+`FOLD_FREE_ARMS` and return if the squeeze does. `tsc -b` clean; eslint 0 errors,
 25 warnings. **The 38 are known and deliberate, not rot** — each asserts a stance that later
 work moved, and was left failing as an open decision rather than re-pointed: 14 in `arch`, 10
 in `arm-pose`, 6 in `hold-metrics`, 2 each in `dancer-mesh` and `standing-hold`, and 1 each in
@@ -4193,8 +4222,8 @@ plugin is pinned to exact `7.0.1`; adopting 7.1.1 is worklist item 3, with play-
     live approach and it outranks items 10, 11, 13, 14 and 16**, each of which was written for the
     rule-ladder it replaces. No ADR until the loop has produced an accepted pose. In order:
     1. ✅ **The rules as one checker** — `pose-rules.ts` + `pose-solids.ts`, verdict box on the
-       review page (2026-10-10 (2), rewritten 2026-10-11 (1) to measure mesh vertices). Seen
-       once by Ryan in its first version; the rewrite is unseen.
+       review page (2026-10-10 (2), rewritten 2026-10-11 (1) to measure mesh vertices). Ryan
+       confirmed the rewrite on `under-arch/player-ember`: four lines, all correct.
     2. 🧪 **Stretch & shrink list and dials** — asked for 2026-10-11, built, unseen.
     3. **A contact sheet** — all 25 orderings at one step, verdict under each. 🔴 Needs the
        checker run on pose change rather than every frame.
