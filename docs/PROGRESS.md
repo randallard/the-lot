@@ -52,6 +52,28 @@ _Last updated: 2026-10-11_
 > upper-arm slider is the experiment. 🔴 The checker runs every frame and will need throttling
 > for the contact sheet, which is **next**.
 >
+> 🟢 **LATEST, 2026-10-11 (4) — everything committed and pushed home:**
+> [`journal/2026-10-11-4-the-l-is-a-level-forearm.md`](journal/2026-10-11-4-the-l-is-a-level-forearm.md).
+> Ryan watched (3)'s three corrections: *"all look good."* **WAITING ON RYAN'S DRAWING OF THE L.**
+> He has now said what `full-l` is for — *"the whole point is for the forearm to sit parallel to
+> the floor… maybe for the elbow to be above the head so the dancer can turn under it"* — which
+> is **not** what ADR-0058 builds (upper arm stands up, forearm goes wherever the join puts it).
+> 🔴 Do not build from the sentence; build from the picture. After it: the L to the drawing,
+> then the contact sheet (worklist 17). Dosado / Pass Thru stay parked.
+>
+> 🟣 **2026-10-11 (3) — seen and accepted in (4), committed:**
+> [`journal/2026-10-11-3-a-dial-moves-what-hangs-off-it.md`](journal/2026-10-11-3-a-dial-moves-what-hangs-off-it.md).
+> Ryan confirmed the stretch sliders and the toss buttons work; everything through (2) is
+> committed (`c6f3e0d`, `536a9cc`, `09dce01`, `8efa8b6`). Then three corrections:
+> **(a) the dials are drawn, not solved** — a stretched torso / upper arm / forearm carries
+> everything attached below it, so a hand leaves the hold instead of the elbow bending;
+> **(b) a stretch belongs to the arm in the hold** — the figure's reach and the arm dials no
+> longer lengthen the free arm (and the forearm mesh, which nothing ever scaled, now does);
+> **(c) a broken turn-under passes no closer than the pair's reshape** (`arch.ts` `passRoom`,
+> 🧪 no ADR). **Dosado / Pass Thru parked by Ryan** until the rules can be tried on them.
+> **Next:** Ryan watches `#review=california-twirl/under-arch/player-ember` → commit → the
+> contact sheet (worklist 17).
+>
 > 🔴 **ONE ADDRESS WAS SHOWING TWO POSES** —
 > [`journal/2026-10-11-2`](journal/2026-10-11-2-one-address-two-poses.md). Every arch cell but
 > `lazy` tossed ADR-0037's reshape-or-break coin on each load. For `player → ember`: reshape is
