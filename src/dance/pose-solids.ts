@@ -80,7 +80,7 @@ export function readSolids(
   rig: THREE.Group,
   arms: DancerArmRigs,
   parts: DancerExpressionRigs,
-  upperArm: number,
+  upperArm: { readonly left: number; readonly right: number },
 ): DancerSolids | null {
   const body = parts.body.current;
   const headGroup = parts.head.current;
@@ -97,7 +97,7 @@ export function readSolids(
     const arm = arms[side].current;
     const hand = arms.hands[side].current;
     if (!arm || !hand) return null;
-    return readArm(arm, hand, parts.shoulders[side].current, upperArm);
+    return readArm(arm, hand, parts.shoulders[side].current, upperArm[side]);
   };
   const left = read("left");
   const right = read("right");

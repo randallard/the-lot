@@ -40,7 +40,7 @@
  * | **export** | The whole matrix as markdown, for `work/square-dance-planning/`. |
  * | **rules** | The verdict box under the step's question: every rule the pose on screen breaks (`pose-rules.ts`), read off the drawn meshes. Grey is *not measured yet*, green *all kept*, red one line per breach. On every step. |
  * | **🧪 coin flip** | Calls the arch's reshape-or-break draw (ADR-0037), outranking the style, and says which one is on screen. `toss` leaves it to the style: the L and duck reshape, lazy breaks, and only casual still tosses. Remounts the floor. `2026-10-11-2` |
- * | **🧪 stretch & shrink** | The purple dashed box: per dancer, torso / forearm / upper-arm sliders in cm **added to whatever the figure chose**, the amount actually worn beside each, and how far the pose has pulled each undrawn upper arm past its length. On every step. Reshapes the dancer only — the figure's sizing is not re-solved. `2026-10-11-1` |
+ * | **🧪 stretch & shrink** | The purple dashed box: per dancer, torso / forearm / upper-arm sliders in cm **added to whatever the figure chose**, the amount actually worn beside each, and how far the pose has pulled each undrawn upper arm past its length. On every step. **Drawn, not solved**: whatever hangs off the stretched part moves with it, and the arm sliders act on the arm in the hold only. `2026-10-11-3` |
  *
  * ## 🧪 The dials
  *
@@ -632,8 +632,8 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
     const rows = report.dancers.slice(0, 2).map((d) => ({
       body: d.bodyDelta,
       forearm: d.forearmDelta,
-      upperLeft: d.upperArm.left - d.upperArmNatural,
-      upperRight: d.upperArm.right - d.upperArmNatural,
+      upperLeft: d.upperArm.left - d.upperArmNatural.left,
+      upperRight: d.upperArm.right - d.upperArmNatural.right,
     }));
     const landed = report.dancers[0]?.accommodation ?? null;
     const key =

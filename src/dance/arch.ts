@@ -893,7 +893,7 @@ export function sizeArch(
   // the one before it, which is the per-execution difference showing up in the floor plan.
   if (base(RESHAPE) < stood && base(BREAK) < stood) {
     return {
-      accommodation: drawn, wanted: base(drawn), width: stood, armDelta: 0, aim, duck: NO_DELTAS,
+      accommodation: drawn, wanted: passRoom(base, drawn), width: stood, armDelta: 0, aim, duck: NO_DELTAS,
     };
   }
 
@@ -901,7 +901,7 @@ export function sizeArch(
   if (reached !== null) {
     return {
       accommodation: drawn,
-      wanted: reached.room(drawn),
+      wanted: passRoom(reached.room, drawn),
       width: reached.width,
       armDelta: reached.delta,
       aim: reached.aim,
@@ -916,7 +916,7 @@ export function sizeArch(
   if (ducked !== null) {
     return {
       accommodation: drawn,
-      wanted: ducked.room(drawn),
+      wanted: passRoom(ducked.room, drawn),
       width: stood,
       armDelta: 0,
       aim: ducked.aim,
@@ -928,6 +928,23 @@ export function sizeArch(
   return {
     accommodation: BREAK, wanted: broken, width: 2 * broken, armDelta: 0, aim, duck: NO_DELTAS,
   };
+}
+
+/**
+ * 🧪 **The room a pass is given — a break's is never less than the same pair's reshape**
+ * (2026-10-11, undecided, no ADR).
+ *
+ * Ryan: *"broken turn under should be a casual pass not a close one."* Since 2026-09-30 a
+ * broken hold's hands stop short of the other dancer ({@link stopClearOf}), so nothing is left
+ * in the gap and a break came out needing barely more than two bodies — 0.576 for `you → Ember`
+ * against the reshape's 0.818 — and the pair who had let go brushed past closer than the pair
+ * who had not. Letting go buys no tighter a pass than holding on.
+ *
+ * Safe to take the larger: every caller has already established that **both** accommodations
+ * fit the width the pair stand at.
+ */
+function passRoom(room: (mode: Accommodation) => number, drawn: Accommodation): number {
+  return drawn === BREAK ? Math.max(room(BREAK), room(RESHAPE)) : room(drawn);
 }
 
 /**
