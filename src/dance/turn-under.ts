@@ -63,7 +63,7 @@
  * one body, decided at pose time. A pair can fail either independently.
  */
 
-import { BREAK, type Accommodation } from "./accommodation";
+import { BREAK, RESHAPE, type Accommodation } from "./accommodation";
 
 /** How a dancer takes their joined arm over their own head while turning beneath it. */
 export type TurnUnderStyle =
@@ -177,37 +177,58 @@ export function duckProfile(beat: number, from: number, to: number): number {
 /**
  * The reach accommodation this style forces, or `null` when it leaves that draw alone.
  *
- * Only {@link LAZY_L} forces one, and it forces {@link BREAK} — because a break is already
- * *"nobody changes shape, both dancers reach as far as they can toward the same target, and the
- * hands come apart"*, which is the whole of what a lazy L is.
+ * - {@link LAZY_L} forces {@link BREAK} — because a break is already *"nobody changes shape,
+ *   both dancers reach as far as they can toward the same target, and the hands come apart"*,
+ *   which is the whole of what a lazy L is.
+ * - {@link FULL_L} and {@link DUCK_UNDER} force {@link RESHAPE} (2026-10-11). Ryan's own words
+ *   for the pair were *"those both maintain contact"*, and a reshape is the accommodation that
+ *   does; a style defined by keeping the hold cannot land on the one that lets go of it.
+ * - {@link CASUAL} returns `null` and still takes `drawAccommodation()`'s coin flip. It has no
+ *   pose yet, so there is nothing for a fixed answer to be true of.
  *
- * 🔑 **Returning `null` rather than a default matters.** The other three must leave
- * `drawAccommodation()`'s per-execution coin flip untouched: whether a pair reshape or break to
- * *reach* each other is a different question from how one of them takes their arm over their
- * head, and collapsing the two would silently pin one of ADR-0037's two styles off.
+ * 🔴 **This reverses what stood here until 2026-10-11**, which returned `null` for all three on
+ * purpose: *"whether a pair reshape or break to reach each other is a different question from
+ * how one of them takes their arm over their head, and collapsing the two would silently pin one
+ * of ADR-0037's two styles off."* It is a fair distinction and it cost more than it bought: with
+ * the L tossing, one review address showed two poses at two distances
+ * ([journal](../../docs/journal/2026-10-11-2-one-address-two-poses.md)), and a pose that cannot
+ * be shown twice cannot be authored, rated or carried. Nothing is pinned off silently — the
+ * break is `lazy-l`, by name. No ADR yet; the posture work is still experimenting.
  */
 export function accommodationFor(style: TurnUnderStyle): Accommodation | null {
-  return style === LAZY_L ? BREAK : null;
+  switch (style) {
+    case LAZY_L:
+      return BREAK;
+    case FULL_L:
+    case DUCK_UNDER:
+      return RESHAPE;
+    case CASUAL:
+      return null;
+  }
 }
 
 /**
  * The accommodation a whole pair's styles force, or `null` to leave `drawAccommodation`'s
  * per-execution coin flip alone — {@link accommodationFor} asked of every dancer at once.
  *
- * 🔑 **Either dancer is enough.** A break is a property of the *hold*, and one person letting go
- * breaks it for two. So the first style that forces one settles it and there is no case where
- * two dancers disagree to resolve — which is why this takes the whole list rather than being
- * called per dancer and reconciled by the caller.
+ * 🔑 **Either dancer is enough to break.** A break is a property of the *hold*, and one person
+ * letting go breaks it for two — so a break anywhere in the list settles it, ahead of anybody's
+ * reshape. That is the one disagreement there is to resolve, and it is resolved here rather than
+ * by each caller, which is why this takes the whole list.
  *
  * Absent and `null` entries are dancers with no style set, which force nothing.
  */
 export function forcedAccommodation(
   styles: readonly (TurnUnderStyle | null | undefined)[] | undefined,
 ): Accommodation | null {
+  // A break outranks a reshape, whoever is listed first: one dancer letting go has let go for
+  // both, and the other's intention to keep hold does not survive it.
+  let forced: Accommodation | null = null;
   for (const style of styles ?? []) {
     if (style === null || style === undefined) continue;
-    const forced = accommodationFor(style);
-    if (forced !== null) return forced;
+    const mine = accommodationFor(style);
+    if (mine === BREAK) return BREAK;
+    if (mine !== null) forced = mine;
   }
-  return null;
+  return forced;
 }

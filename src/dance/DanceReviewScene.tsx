@@ -39,6 +39,7 @@
  * | **beat readout** | What the clock actually says, against what the step asked for. An instrument that cannot be caught lying is not an instrument. |
  * | **export** | The whole matrix as markdown, for `work/square-dance-planning/`. |
  * | **rules** | The verdict box under the step's question: every rule the pose on screen breaks (`pose-rules.ts`), read off the drawn meshes. Grey is *not measured yet*, green *all kept*, red one line per breach. On every step. |
+ * | **🧪 coin flip** | Calls the arch's reshape-or-break draw (ADR-0037), outranking the style, and says which one is on screen. `toss` leaves it to the style: the L and duck reshape, lazy breaks, and only casual still tosses. Remounts the floor. `2026-10-11-2` |
  * | **🧪 stretch & shrink** | The purple dashed box: per dancer, torso / forearm / upper-arm sliders in cm **added to whatever the figure chose**, the amount actually worn beside each, and how far the pose has pulled each undrawn upper arm past its length. On every step. Reshapes the dancer only — the figure's sizing is not re-solved. `2026-10-11-1` |
  *
  * ## 🧪 The dials
@@ -102,11 +103,11 @@ import {
 import { reviewChartMarkdown } from "./review-chart";
 import { holdMetrics } from "./hold-metrics";
 import { insideShoulderX, planArch, sizeArch } from "./arch";
-import { RESHAPE, growForearm } from "./accommodation";
+import { BREAK, RESHAPE, growForearm, type Accommodation } from "./accommodation";
 import { passingWidth } from "./frame";
 import { lateralClearance, rigidParts } from "../services/body-shapes";
 import { armMetrics, touchHold } from "./arm-pose";
-import { DUCK_UNDER, FULL_L, LAZY_L, type TurnUnderStyle } from "./turn-under";
+import { DUCK_UNDER, FULL_L, LAZY_L, accommodationFor, type TurnUnderStyle } from "./turn-under";
 
 const PANEL_WIDTH = 340;
 
@@ -249,6 +250,15 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
    */
   const [stretchCm, setStretchCm] = useState<readonly [StretchCm, StretchCm]>([NO_STRETCH, NO_STRETCH]);
   const [stretchNudge, setStretchNudge] = useState(0);
+  /**
+   * 🧪 The arch's coin flip, called (2026-10-11). `null` leaves it to the style — which until
+   * that day meant every cell but `lazy` tossed silently on each load, so one address showed two
+   * poses. The L and duck now reshape by themselves; this is for standing up the other one. Ryan found it
+   * by refreshing: *"can you add a control for the coin flip."*
+   */
+  const [called, setCalled] = useState<Accommodation | null>(null);
+  /** What the floor is actually dancing — read back, so a toss says how it landed. */
+  const [drawn, setDrawn] = useState<Accommodation | null>(null);
 
   /**
    * The cells being walked. Filtering narrows the *walk*, never the store: a rating given
@@ -625,12 +635,15 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
       upperLeft: d.upperArm.left - d.upperArmNatural,
       upperRight: d.upperArm.right - d.upperArmNatural,
     }));
-    const key = rows
-      .map((r) => [r.body, r.forearm, r.upperLeft, r.upperRight].map((n) => n.toFixed(3)).join(","))
-      .join("|");
+    const landed = report.dancers[0]?.accommodation ?? null;
+    const key =
+      rows
+        .map((r) => [r.body, r.forearm, r.upperLeft, r.upperRight].map((n) => n.toFixed(3)).join(","))
+        .join("|") + `|${String(landed)}`;
     if (key === stretchedKey.current) return;
     stretchedKey.current = key;
     setStretched(rows);
+    setDrawn(landed);
   }, []);
   const onFloor = useCallback(
     (report: ArmReport) => {
@@ -787,6 +800,53 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
                 : `rules: ${String(broken.length)} broken`}
           </strong>
           {broken?.map((line) => <div key={line}>{line}</div>)}
+        </div>
+
+        {/* 🧪 The coin flip. An arch a pair cannot simply make is answered one of two ways,
+            tossed per load (ADR-0037): they reshape and keep the hold, or they break it. The
+            two are different poses *and* different distances apart, so a cell that tosses is
+            two cells. Calling it remounts the floor — the plan is cached per execution. */}
+        <div
+          style={{
+            margin: "6px 0",
+            padding: "6px 8px",
+            border: "1px dashed #7a5ea8",
+            borderRadius: 4,
+            fontSize: 11,
+            display: "flex",
+            gap: 6,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <strong>🧪 coin flip</strong>
+          {([[null, "toss"], [RESHAPE, "reshape"], [BREAK, "break"]] as const).map(([value, label]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => { setCalled(value); }}
+              style={{
+                fontSize: 11,
+                padding: "1px 6px",
+                fontWeight: called === value ? 700 : 400,
+                background: called === value ? "#333" : "#fff",
+                color: called === value ? "#fff" : "#333",
+                border: "1px solid #999",
+                borderRadius: 4,
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+          <span style={{ color: "#555" }}>
+            on screen: <strong>{drawn ?? "no arch at this step"}</strong>
+            {called !== null || drawn === null
+              ? ""
+              : cell.step.turnUnder !== undefined && accommodationFor(cell.step.turnUnder) !== null
+                ? " (this style's own)"
+                : " (tossed)"}
+          </span>
         </div>
 
         {/* 🧪 Every stretch and shrink, and a hand on each. The number beside a slider is what
@@ -1236,7 +1296,7 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
               Myco/Sprout stand 0.829 apart square and 0.745 apart on the candidate — and the
               width is what the frame scale is built from. */}
           <DanceFloor
-            key={`${cell.pairing.beau}|${cell.pairing.belle}|${cell.figure.id}`}
+            key={`${cell.pairing.beau}|${cell.pairing.belle}|${cell.figure.id}|${called ?? "toss"}`}
             call={cell.figure.call}
             {...(cell.figure.sequence === undefined ? {} : { sequence: cell.figure.sequence })}
             paused
@@ -1244,6 +1304,7 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
             onBeat={onBeat}
             onArms={onFloor}
             stretch={stretch}
+            {...(called === null ? {} : { accommodation: called })}
             shapes={shapes}
             turnIn={turnIn}
             stagger={stagger}

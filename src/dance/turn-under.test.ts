@@ -41,15 +41,18 @@ describe("the turn-under styles", () => {
     expect(ACCOMMODATIONS).toContain(accommodationFor(LAZY_L));
   });
 
-  it("🔑 and the other three leave the reach draw alone", () => {
-    // Not a detail. Whether a pair reshape or break to *reach* each other is a different
-    // question from how one of them gets an arm over their own head, and returning a default
-    // here instead of `null` would silently pin one of ADR-0037's two styles off for three of
-    // the four — turning a coin flip into a fixed answer without anybody deciding to.
-    for (const style of TURN_UNDER_STYLES.filter((s) => s !== LAZY_L)) {
-      expect(accommodationFor(style), style).toBeNull();
-    }
-    expect(accommodationFor(FULL_L)).not.toBe(RESHAPE);
+  it("🔑 the two that keep the hold reshape, and never toss", () => {
+    // Ryan, 2026-10-11: "lets remove the flip for the L and duck." His words for the pair were
+    // "those both maintain contact", and a reshape is the accommodation that does. Until then
+    // both returned `null` and took ADR-0037's coin flip, so one review address showed two
+    // poses at two distances.
+    expect(accommodationFor(FULL_L)).toBe(RESHAPE);
+    expect(accommodationFor(DUCK_UNDER)).toBe(RESHAPE);
+    for (const style of [FULL_L, DUCK_UNDER] as const) expect(keepsContact(style)).toBe(true);
+  });
+
+  it("🧪 casual still tosses — it has no pose for a fixed answer to be true of", () => {
+    expect(accommodationFor(CASUAL)).toBeNull();
   });
 
   it("answers for every style, so a new one cannot be added silently", () => {
@@ -70,18 +73,22 @@ describe("the turn-under styles", () => {
     expect(forcedAccommodation([LAZY_L, FULL_L])).toBe(BREAK);
     expect(forcedAccommodation([FULL_L, LAZY_L])).toBe(BREAK);
     expect(forcedAccommodation([LAZY_L, LAZY_L])).toBe(BREAK);
+    // And it outranks a partner's reshape whichever of them is listed first.
+    expect(forcedAccommodation([DUCK_UNDER, LAZY_L])).toBe(BREAK);
+    expect(forcedAccommodation([FULL_L, null])).toBe(RESHAPE);
+    expect(forcedAccommodation([CASUAL, CASUAL])).toBeNull();
   });
 
-  it("🔴 and every other combination leaves the coin flip alone", () => {
-    // The gap this closes is that `drawAccommodation()` is a flip **per mount**, so a review
-    // cell showed a different pose on a second visit. Forcing it is what makes an address
-    // reproducible — but forcing it for styles that have no business deciding it would pin
-    // ADR-0037's two off for everybody, which is the opposite mistake.
-    expect(forcedAccommodation([FULL_L, DUCK_UNDER])).toBeNull();
+  it("🔴 and only a pair with no opinion leaves the coin flip alone", () => {
+    // `drawAccommodation()` is a flip **per mount**, so a review cell that reaches it shows a
+    // different pose on a second visit. Since 2026-10-11 that is `casual` and the unstyled
+    // floor only — `#dance`, where a repeated Twirl *should* vary.
     expect(forcedAccommodation([CASUAL, CASUAL])).toBeNull();
     expect(forcedAccommodation([null, null])).toBeNull();
     expect(forcedAccommodation([])).toBeNull();
     expect(forcedAccommodation(undefined)).toBeNull();
+    // The two that keep the hold answer for themselves.
+    expect(forcedAccommodation([FULL_L, DUCK_UNDER])).toBe(RESHAPE);
   });
 
   it("keeps the ids url-safe, because they are half of a review address", () => {

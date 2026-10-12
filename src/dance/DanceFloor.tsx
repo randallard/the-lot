@@ -92,6 +92,7 @@ import {
 } from "./accommodation";
 import {
   duckProfile,
+  keepsContact as styleKeepsContact,
   duckRoom as styleRoom,
   forcedAccommodation,
   type TurnUnderStyle,
@@ -299,6 +300,18 @@ interface DanceFloorProps extends DancePerformanceOptions {
    * which is the question the dial exists to put on screen — and does not re-solve the stance.
    */
   stretch?: readonly [Stretch, Stretch];
+  /**
+   * 🧪 Call the arch's coin flip instead of tossing it (ADR-0037's draw). Absent leaves the
+   * style's own answer — `lazy-l` forces a break, the others flip.
+   *
+   * Outranks the style on purpose: it is here so a reviewer can stand the *same* cell up both
+   * ways and look at each, including the way the style would not have chosen.
+   *
+   * 🔴 **Not safe to change on a mounted floor.** The plan for an execution is cached on its
+   * beat range, so a new value would re-size the figure and leave the arms posed for the old
+   * draw — ADR-0037's defect by another door. Put it in the floor's `key`, as the review does.
+   */
+  accommodation?: Accommodation;
 }
 
 /** How far one dancer is stretched (positive) or shrunk (negative), in world units. */
@@ -523,6 +536,7 @@ export function DanceFloor({
   archOverhead = 0,
   archClose = 0,
   stretch,
+  accommodation: calledAccommodation,
   ...performanceOptions
 }: DanceFloorProps) {
   /**
@@ -624,7 +638,7 @@ export function DanceFloor({
             // 🔑 And forcing it is what makes a review cell **reproducible**. This has been a
             // coin flip per mount since the draw existed, so two visits to the same address
             // could show two different poses and a rating could not say which it was of.
-            forced ?? drawAccommodation(),
+            calledAccommodation ?? forced ?? drawAccommodation(),
             // 🧪 Sized with the same dial the pose uses, or the bow is built for one arch and
             // the arms solve another (ADR-0037).
             archOverhead,
@@ -633,7 +647,10 @@ export function DanceFloor({
           )
         : null,
     );
-  }, [shapes, hold, performanceOptions.sequence, forced, archOverhead, archClose, duckRoom]);
+  }, [
+    shapes, hold, performanceOptions.sequence, forced, calledAccommodation,
+    archOverhead, archClose, duckRoom,
+  ]);
 
   const shapeAt = useCallback<ShapeAt>(
     (index) => {
@@ -1672,13 +1689,20 @@ export function DanceFloor({
                 (wornShape.body.height / 2) * (1 - upright)
               );
             };
+            const styles = (turnUnder ?? []).filter((t): t is TurnUnderStyle => t != null);
             report.solids = [p0, p1];
             report.findings = measurePose([p0, p1], {
               joined: [t0.arch ?? t0.touch, t1.arch ?? t1.touch],
               raised: [t0.arch, t1.arch],
               gripped: [hand(t0.grip), hand(t1.grip)],
-              // A break is the one thing that lets a declared hold be apart.
-              keepsContact: t0.accommodation !== BREAK,
+              // 🔑 **Asked of the style, not of the draw.** A style that keeps contact
+              // (`full-l`, `duck-under`, `casual`) is owed joined hands whichever accommodation
+              // the coin flip gave it — and it can be given a break (ADR-0037 draws one half the
+              // time), which is exactly the pose this rule should be loudest about. Ryan,
+              // 2026-10-11, of "the L": *"forearms aren't even close now."* Only with no style
+              // set does the draw decide, since then a break is all anyone asked for.
+              keepsContact:
+                styles.length > 0 ? styles.every(styleKeepsContact) : t0.accommodation !== BREAK,
               standY: [standY(s0, w0), standY(s1, w1)],
             });
           }
