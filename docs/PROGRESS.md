@@ -1,8 +1,39 @@
 # Progress & Status
 
-_Last updated: 2026-10-11_
+_Last updated: 2026-10-12_
 
 ## Status / next
+
+> ### ⏸ STOPPED HERE — 2026-10-12, end of session — committed, **unwatched**
+>
+> Everything from 2026-10-12 is **committed and pushed at Ryan's word before a break — he has
+> not watched the last round.** Treat it as 🧪: no ADR, and nothing here is accepted.
+> Full story, in order: [`journal/2026-10-12-1-the-l-is-a-gable.md`](journal/2026-10-12-1-the-l-is-a-gable.md).
+> Suite 962 passing / 38 failing (the same 38 as before the session) / 3 skipped; `tsc -b` and
+> eslint clean.
+>
+> **What exists now:** styles are `gable`, `duck-under`, `casual` (was `lazy-gable`; the old
+> casual is cut). Review page: **🧪 join over the centre** (on by default there), join clamped
+> low at the pose, raised elbow stops level with the hand, casual = forearm lifted from a
+> hanging elbow, a non-casual break reaches.
+>
+> **Ryan owes, in this order:**
+> 1. Watch `#review=california-twirl/under-arch-casual/player-ember`, and
+>    `…/under-arch/player-ember` with the coin flip on *break* (the reaching pose in its new
+>    role), and `…/quarter/player-ember` (forearm no longer pointing down).
+> 2. **Ember under shrink/grow:** the torso-only reshape that exists overlaps heads by
+>    0.17–0.27 on all four X → Ember. Did *"reduce the size"* mean scale her whole, head
+>    included? (Not built, not measured.)
+> 3. Does `duck-under` stay its own style, now that it is a shrink like the reshape?
+> 4. Should the join follow Ember's crown (forward of her feet) or stay over the centre?
+> 5. Spell `gable` into step ids? (Would break old `#review=` addresses.)
+>
+> **Then, without waiting on 2–5:** plan step 2 parts one and two — thread the low join height
+> through `arch.ts` (`archHeight`, `planArch`, `archClearance`, `archFits`, `archRoom`,
+> `cheaperAim`, `reachForIt`, `duckForIt`, `sizeArch`), and stop charging the hand in the gap
+> (ADR-0038/0039). Part three (the turning dancer's head) is on hold for item 2.
+> 🔴 ADRs 0057/0058 still say "the L" / `LAZY_L` on purpose — superseded only once the gable is
+> proven (plan step 8). The plan's ten steps are in the 🟢 LATEST block below.
 
 > ### ▶ PICK UP HERE — 2026-10-10 (1) — the rules check, and Ryan poses
 >
@@ -52,7 +83,96 @@ _Last updated: 2026-10-11_
 > upper-arm slider is the experiment. 🔴 The checker runs every frame and will need throttling
 > for the contact sheet, which is **next**.
 >
-> 🟢 **LATEST, 2026-10-11 (4) — everything committed and pushed home:**
+> 🟢 **LATEST, 2026-10-12 (1) — THE L IS A GABLE. Committed unwatched (see the top block):**
+> [`journal/2026-10-12-1-the-l-is-a-gable.md`](journal/2026-10-12-1-the-l-is-a-gable.md).
+> Ryan's picture came as eight photos of a real Twirl (🔴 not in the repo, by his word; the
+> journal's table is the record) and he confirmed the reading. **Both arms lean in to a peak over
+> her crown; no forearm is ever level; the join stays over the centre of the exchange, low, and
+> she walks under it; neither arm is straight; they pass close enough to brush.**
+> ✅ `full-l` → **`gable`** (`GABLE`) and `lazy-l` → **`lazy-gable`** (`LAZY_GABLE`). Step ids
+> never carried the name (`under-arch`, `-duck`, `-lazy`, `-casual`), so `#review=` addresses are
+> unchanged. The three gable watch texts are rewritten to the photos. Suite 932 / 38 / 3
+> skipped, `tsc -b` clean.
+> 🔴 **ADR-0057 and ADR-0058 still say "the L" / `FULL_L` / `LAZY_L` / "forearm horizontal" on
+> purpose.** Ryan: supersede them **once the gable is proven**, not before. New ADRs then, one
+> decision each, old Status flipped.
+> Rulings: the **head-tip is normal in every style** (not built, owner undecided vs ADR-0062);
+> **"duck" means shrinking the dancer**, not the head-tip; the squeeze is not needed.
+> 📏 Measured: she is exactly at the centre at beat 2, and neither `overhead` 0 nor 1 keeps the
+> join over the centre — 0 leaves it 0.07–0.83 off at the midpoint, 1 follows her at beats 1
+> and 3. Pairs stand 0.42–1.71 apart at beat 2.
+>
+> 🧪 **STEP 1 IS BUILT, unwatched, uncommitted** (same journal, last section): `TouchHold.over`
+> + `DanceFloor` `archOverCentre` (default off) + review switch **🧪 join over the centre**
+> (default **on** there). Both hands land within 0.16 of the centre at beats 1–3 in all 25.
+> 🔴 **12 of 25 beaus stretch the upper arm to get there** — he passes `wanted` from the centre.
+> 🔑 For step 2: `wanted` already equals the bodies' room for half the cast (heads, not torsos,
+> are what pass), and when `wanted` nears the width square-one stands him off ~1.5 widths, so
+> `pair closes` makes the pass *wider*. 🔴 The low join height is **not** done.
+> Suite 960 / 38 (the same) / 3 skipped. **Ryan watches**
+> `#review=california-twirl/under-arch/player-player`, `quarter`, `three-quarter`, switch on/off.
+>
+> 🟠 **RYAN'S FIRST LOOK, and three corrections built on it — unwatched, uncommitted** (journal,
+> last section). `under-arch/player-ember` *"looks good"*. Then: **(1) a made join sits low** —
+> clamped to her crown + a hand, 🔴 at the pose only, `sizeArch` still sizes the higher join;
+> **(2) a break points up, not out** — his hand over his own shoulder, her forearm lifted from a
+> hanging elbow, 🔴 sizing still assumes the old reach; **(3) casual is a break** like lazy, no
+> contact owed, nothing tosses, and the two draw the same pose for now.
+> 🔴 Open: **Ember's lean** puts her crown forward of the midline the join is over (Ryan's
+> observation); the head-tip. **Ryan re-watches** `quarter/player-ember`, `under-arch-casual`,
+> `under-arch-lazy`.
+>
+> 🟠 **SECOND LOOK, three more — unwatched, uncommitted** (journal, last section): **casual's
+> beau does no more than she does** (lazy's still holds an arm up — the first difference between
+> the two); **a raised elbow stops level with the hand** (`TouchHold.forearmUp`), so a tall beau
+> no longer reaches *down* onto a low join; 🔴 **her head goes through his body — found, not
+> fixed**: `rigidParts` leaves forward overhangs out of the passing room on purpose, right for a
+> side-on pass and wrong for a dancer who turns. **Step 2 is now three parts:** the low join in
+> `arch.ts`, the hand out of the gap, the turning dancer's forward overhang.
+>
+> 🟠 **LAZY DROPS TOO — unwatched, uncommitted** (journal, last section). Ryan: *"lazy should
+> drop too."* In any break **both** dancers now only lift a forearm from a hanging elbow; the
+> arm-up pose is gone. 🔴 So `lazy-gable` and `casual` draw the **same pose** again — what
+> separates them, or whether they are one style, is Ryan's and is not blocking the gable.
+> **Ryan re-watches** `quarter/player-ember`, `under-arch-casual/player-ember`,
+> `under-arch-lazy/player-ember`. **Then step 2**, three parts.
+>
+> 🔴 **HER HEAD THROUGH HIS BODY, MEASURED — nothing built** (journal, last section). Only
+> **X → Ember** overlaps (0.17–0.27), it is **head in head at beat ~1.25**, and the main cause is
+> the **reshape levelling their heads** (±0.8), with her forward head second. Widening the pass
+> to clear it nearly **doubles** the midpoint distance (you → Ember 0.61 → 1.15); a smaller
+> reshape does not clear it. **Step 2 part three is ON HOLD for Ryan's ruling**: head-tip
+> (step 5) brought forward, accept the brush, or pay the distance. Parts one and two stand.
+>
+> 🟠 **THREE STYLES, NOT FOUR — unwatched, uncommitted** (journal, last section). Ryan folded
+> the old `casual` into `lazy-gable` and kept the kinder name: styles are now **`gable`,
+> `duck-under`, `casual`** (`CASUAL` = what was `LAZY_GABLE`). Cells `…-lazy` are gone; `…-casual`
+> is the old lazy. 🔑 **Three things a pair can do:** *shrink/grow* (`RESHAPE` — "following the
+> rules by changing shape"), *the break* (`BREAK` by setting or coin flip — "trying with good
+> effort", arms **reach**), *casual* (`BREAK` by style — nobody reaches, forearm lifted from a
+> hanging elbow). The pose tells the last two apart, so the reaching pose is **back** for a
+> non-casual break. 🔴 **Ember:** Ryan's answer is shrink/grow unless casual — but shrink/grow as
+> built (torso only) **is** the case that overlaps 0.17–0.27. **Open with Ryan.**
+> **Ryan watches** `under-arch-casual/player-ember`, and `under-arch/player-ember` with the coin
+> on *break*.
+> Suite 963 / 38 (the same) / 3 skipped.
+>
+> ⏳ **THE PLAN, in order** (full text in the journal). Scope frozen to the gable on the Twirl:
+> 1. **Join fixed over the centre of the exchange, at the low height** (a hand above her
+>    crown); replaces the `overhead` dial.
+> 2. **Brush-close pass** — stop charging a hand in the gap; the bow shrinks to the bodies.
+> 3. **Elbow direction per beat** — forward, up beside, trailing — only what 1–2 leave wrong.
+> 4. **The lift happens during the turn**; decides whether `arch-up` at beat 0 survives.
+> 5. **Head-tip in every style** (owner first).
+> 6. **Contact sheet** (worklist 17); Ryan accepts the gable on it.
+> 7. **Duck and casual** built from the gable (casual is what was the lazy gable — see below).
+> 8. **ADRs supersede 0057 / 0058** and whatever 1–2 turned over (0025 for the arch, 0041,
+>    0038/0039).
+> 9. The 10-10 track resumes: drag handles and save, carry-over, keyframes.
+>
+> The 10-11 (4) block below is superseded where it says the forearm is level.
+>
+> 🟣 **2026-10-11 (4) — committed and pushed home:**
 > [`journal/2026-10-11-4-the-l-is-a-level-forearm.md`](journal/2026-10-11-4-the-l-is-a-level-forearm.md).
 > Ryan watched (3)'s three corrections: *"all look good."* **WAITING ON RYAN'S DRAWING OF THE L.**
 > He has now said what `full-l` is for — *"the whole point is for the forearm to sit parallel to
@@ -108,7 +228,7 @@ _Last updated: 2026-10-11_
 > 5. **Keyframes** — the named steps are the keyframes, `blendPose` goes between; run the rules on
 >    the in-betweens.
 >
-> **Scope is frozen to `under-arch`, `full-l`, all 25, until Ryan accepts it.** Parked and not to
+> **Scope is frozen to `under-arch`, `gable` (was `full-l`), all 25, until Ryan accepts it.** Parked and not to
 > be picked up first: `BREAK_COMFORT`'s value, the overhead-join default, `CASUAL`'s pose, the
 > head guard as a solver, the selection rule (item 13), and the three tests 09-30 left failing —
 > which are more likely deleted with the stance they pin than re-pointed.
