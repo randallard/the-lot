@@ -290,7 +290,7 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
           hanging inside it at the elbow. The driver is handed the inner group only, so
           a bump can bend this arm and cannot pull the shoulder off the body
           (ADR-0017). */}
-      <group ref={leftArmRef} position={[-pos.forearmX, pos.shoulderY, 0]}>
+      <group ref={leftArmRef} position={[-pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
         <group ref={leftForearmRef} position={[0, elbowLocalY, 0]}>
           <mesh position={[0, forearmLocalY, 0]} castShadow>
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
@@ -304,7 +304,7 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
       </group>
 
       {/* Right arm — same split. */}
-      <group ref={rightArmRef} position={[pos.forearmX, pos.shoulderY, 0]}>
+      <group ref={rightArmRef} position={[pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
         <group ref={rightForearmRef} position={[0, elbowLocalY, 0]}>
           <mesh position={[0, forearmLocalY, 0]} castShadow>
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />

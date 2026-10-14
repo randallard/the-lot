@@ -286,7 +286,7 @@ describe("the fists actually touch", () => {
       expect(upperArmStrain(pose, a, RIGHT)).toBeCloseTo(0, 10);
       const dx = pose.x - RIGHT * a.restX;
       const dy = pose.y - a.restY;
-      expect(Math.hypot(dx, dy, pose.z)).toBeCloseTo(a.elbowReach, 10);
+      expect(Math.hypot(dx, dy, pose.z - a.restZ)).toBeCloseTo(a.elbowReach, 10);
     }
   });
 

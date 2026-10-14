@@ -48,8 +48,10 @@
 
 import {
   armMetrics,
+  armPose,
   sideExtentAt,
   touchHold,
+  touchPose,
   type ArmMetrics,
 } from "./arm-pose";
 import {
@@ -58,6 +60,7 @@ import {
   NPC_BODY_CENTER_Y,
   SHAPE_BOUNDS,
   type CharacterBodyShape,
+  type RigidPart,
 } from "../services/body-shapes";
 import { passingWidth } from "./frame";
 import {
@@ -366,6 +369,18 @@ export const LOW = "low";
 export const CLEAR = "clear";
 
 /**
+ * 🧪 **The join held over the centre of the exchange** (2026-10-12/13, undecided) — what
+ * `DanceFloor`'s `archOverCentre` sizes with, in place of a number on the `overhead` dial.
+ *
+ * Read by {@link planArch} alone: the arch is planned at **the quarter** — the join at the
+ * couple's midpoint (the centre of the exchange) and at the **low** height, her crown and a hand —
+ * rather than over her at the full standing width.
+ */
+export const OVER_CENTRE = "centre";
+/** Where the join sits across: a dial from the shoulders' midpoint (`0`) to over her (`1`), or {@link OVER_CENTRE}. */
+export type Overhead = number | typeof OVER_CENTRE;
+
+/**
  * The signed torso trade a reshape takes — positive grows the beau and shrinks the belle.
  *
  * 🔑 **Whoever sets the height cannot reshape their own way up to it.** Growing a dancer raises
@@ -485,10 +500,19 @@ export function planArch(
   separation: number,
   accommodation: Accommodation,
   aim: ReshapeAim = LOW,
-  overhead = 0,
+  overhead: Overhead = 0,
+  /**
+   * 🧪 {@link OVER_CENTRE} only: how far the join sits off her midline **toward him** at the
+   * midpoint (2026-10-13) — still at her crown height, over the near side of her head.
+   */
+  toward = 0,
 ): ArchPlan {
   const clear = headroom(beau, belle);
-  const lateral = archLateral(beau, belle, separation, overhead);
+  const centre = overhead === OVER_CENTRE;
+  // 🧪 Over the centre (2026-10-13) the plan is of **the midpoint**: she is under the join, and
+  // `separation` is how far he passes from her — {@link centrePass}'s answer, not the standing
+  // width. So the hands are over her, as at `overhead = 1`, less any `toward`.
+  const lateral = archLateral(beau, belle, separation, centre ? 1 : overhead) - (centre ? toward : 0);
 
   const deficit = reshapeDeficit(beau, belle, clear, separation, aim, lateral);
   const bodyDeltas =
@@ -505,7 +529,12 @@ export function planArch(
   const b = wearing(beau, beauShape, bodyDeltas.beau);
   const l = wearing(belle, belleShape, bodyDeltas.belle);
 
-  const height = archHeight(b, l, clear, separation, lateral);
+  // 🧪 Over the centre the join is the low one — her crown and a hand — and does not rise toward
+  // clearing the taller dancer (2026-10-12, Ryan: *"whys his arm way up there"*). This is the
+  // height `DanceFloor` was clamping the pose to while the sizing still used the high one.
+  const height = centre
+    ? crownOf(l) + clear
+    : archHeight(b, l, clear, separation, lateral);
   // Where both of them are reaching. Whoever can span it arrives; whoever cannot stops
   // short along the line to it — across as well as up (ADR-0038).
   const target: HandPoint = { height, lateral };
@@ -599,9 +628,11 @@ export function archClearance(
   width: number,
   accommodation: Accommodation,
   aim: ReshapeAim = LOW,
-  overhead = 0,
+  overhead: Overhead = 0,
+  /** 🧪 {@link planArch}'s `toward`, for an {@link OVER_CENTRE} join held off her midline. */
+  toward = 0,
 ): number {
-  const plan = planArch(beau, belle, beauShape, belleShape, width, accommodation, aim, overhead);
+  const plan = planArch(beau, belle, beauShape, belleShape, width, accommodation, aim, overhead, toward);
   const b = wearing(beau, beauShape, plan.bodyDeltas.beau);
   const l = wearing(belle, belleShape, plan.bodyDeltas.belle);
 
@@ -663,7 +694,7 @@ export function archFits(
   belleShape: CharacterBodyShape,
   width: number,
   accommodation: Accommodation,
-  overhead = 0,
+  overhead: Overhead = 0,
 ): boolean {
   return (
     archClearance(beau, belle, beauShape, belleShape, width, accommodation, LOW, overhead) < width
@@ -816,6 +847,22 @@ export interface ArchSizing {
    * here, in the cascade, between reaching and letting go.
    */
   readonly duck: BodyDeltas;
+  /**
+   * 🧪 Sized as {@link OVER_CENTRE} at the midpoint (2026-10-13): plan the arch with
+   * `planArch(…, wanted, …, OVER_CENTRE)` — at the **pass**, not the standing width. Absent, the
+   * pair fell back to the overhead-1 cascade and the plan is `planArch(…, width, …, 1)`.
+   */
+  readonly centre?: true;
+  /** 🧪 With `centre`: how far the join sits off her midline toward him — {@link planArch}'s `toward`. */
+  readonly toward?: number;
+  /**
+   * 🧪 A made hold was asked for over the centre and **nothing seated it** — not the join over
+   * her crown, not off toward him, not with longer arms — so this pairing breaks (2026-10-13,
+   * Ryan: *"if we can't accommodate with one of these then we'll just assign a break to those
+   * pairings … the gable just won't connect, but shows a bit of effort towards it"*). The
+   * hands are not owed contact.
+   */
+  readonly unseated?: true;
 }
 
 /**
@@ -872,10 +919,24 @@ export function sizeArch(
   width: number,
   bodies: number,
   drawn: Accommodation,
-  overhead = 0,
+  overhead: Overhead = 0,
   close = 0,
   duck: DuckRoom = NO_DUCK,
 ): ArchSizing {
+  // 🧪 Over the centre a made hold is sized at the midpoint pass (`centrePass`); anything it
+  // cannot seat — and every break — goes through the cascade below as the overhead-1 join.
+  if (overhead === OVER_CENTRE) {
+    const seat = drawn === RESHAPE ? seatOverCentre(beauShape, belleShape) : null;
+    if (seat !== null) {
+      return {
+        accommodation: RESHAPE, wanted: seat.pass, width: seat.width, armDelta: seat.delta,
+        aim: LOW, duck: NO_DELTAS, centre: true, toward: seat.toward,
+      };
+    }
+    // Nothing seats it, or a break was drawn: the overhead-1 break, which reaches toward the join.
+    const broken = sizeArch(beau, belle, beauShape, belleShape, width, bodies, BREAK, 1, close, duck);
+    return drawn === RESHAPE ? { ...broken, unseated: true } : broken;
+  }
   // 🧪 The pair close up *before* anything is measured, because every question below is asked
   // at a separation — the reshape, the join's height, the clearance and the arms' own sweep.
   // Closing afterwards would size the figure for a couple standing somewhere they are not.
@@ -931,6 +992,180 @@ export function sizeArch(
 }
 
 /**
+ * 🧪 **Where a dancer's hand goes in a gable that will not connect** — toward the join, as far as
+ * their own arm comfortably reaches, and no further (2026-10-13, undecided). World space.
+ *
+ * Ryan: *"the gable just won't connect, but shows a bit of effort towards it."* Each dancer
+ * reaches from their **own held shoulder** along the straight line to the join, stopping at
+ * {@link BREAK_COMFORT} of their reach. Asked of where they actually are each frame — not of a
+ * plan made at the standing width, which was the reaching break's pose and stretched Myco-as-
+ * belle's arm 0.77 once the pair were at the midpoint pass instead.
+ *
+ * `shoulder` is the held shoulder in world space; `join` is the point over the centre at the
+ * join's height. The return is written into `out`.
+ */
+export function breakEffort(
+  out: { x: number; y: number; z: number },
+  m: ArmMetrics,
+  shoulder: { readonly x: number; readonly y: number; readonly z: number },
+  join: { readonly x: number; readonly y: number; readonly z: number },
+): { x: number; y: number; z: number } {
+  const dx = join.x - shoulder.x;
+  const dy = join.y - shoulder.y;
+  const dz = join.z - shoulder.z;
+  const d = Math.hypot(dx, dy, dz);
+  const spend = BREAK_COMFORT * m.handReach;
+  const f = d <= spend || d < 1e-9 ? 1 : spend / d;
+  out.x = shoulder.x + dx * f;
+  out.y = shoulder.y + dy * f;
+  out.z = shoulder.z + dz * f;
+  return out;
+}
+
+/**
+ * 🧪 **Seat a made gable over the centre, or say it cannot be** (2026-10-13, undecided) — the
+ * {@link OVER_CENTRE} sizing. `null` means the pairing breaks ({@link ArchSizing.unseated}).
+ *
+ * The pose holds the hands over the centre of the exchange and she walks under them, so at the
+ * midpoint she *is* the centre and he passes her at whatever the figure bowed him to. Everything
+ * is asked **there**, of a plan made there: two bodies passing, the hands meeting, and both
+ * forearms **as drawn** clear of her head, his and her own ({@link drawnArmClears}).
+ *
+ * Three levers, tried in Ryan's order of preference (*"I think 2 is good — take a look at 1 and
+ * 2 … let's make this the last look — really that's what the break is for"*):
+ *
+ * - **Longer arms** (outermost, least first) — `reachForIt`'s lever: both forearms by the
+ *   editor's own step, the stance re-solved on them.
+ * - **The join off her midline toward him** (`toward`, least first, never past her head's own
+ *   radius) — still a palm above her crown, over the near side of her head.
+ * - **The pass** (least first) — the brush-close one.
+ *
+ * Both arms must reach the join with a hand's width to spare ({@link comfortablyReaches}) — a
+ * hold seated at full stretch has nothing left for the palm's own offset, and the pose stretches it.
+ *
+ * 🔑 **Why a forearm "as drawn" and not {@link armSweepClearance}'s chord.** A forearm leaning
+ * up at the gable's lean into a point a palm over her crown crosses the top of her head; the
+ * chord from his shoulder missed that and passed it. A join high enough to clear is out of a
+ * big-headed belle's own reach. On the shipped cast this seats 12 of 25; Ember and Myco as belle
+ * never seat. Measured 2026-10-13, journal §8.
+ *
+ * Scanned, not bisected — the reshape changes with every lever, so nothing here is monotone.
+ */
+const SEAT_PASS_STEP = 0.01;
+const SEAT_TOWARD_STEP = 0.04;
+function seatOverCentre(
+  beauShape: CharacterBodyShape,
+  belleShape: CharacterBodyShape,
+): { delta: number; width: number; pass: number; toward: number } | null {
+  const { max } = SHAPE_BOUNDS.forearm.height;
+  const steps = Math.round(
+    Math.max(max - beauShape.forearm.height, max - belleShape.forearm.height) / FOREARM_STEP,
+  );
+  for (let i = 0; i <= steps; i++) {
+    const delta = i * FOREARM_STEP;
+    const bs = i === 0 ? beauShape : growForearm(beauShape, delta);
+    const ls = i === 0 ? belleShape : growForearm(belleShape, delta);
+    const beau = armMetrics(bs);
+    const belle = armMetrics(ls);
+    const width = touchHold(beau, belle).width;
+    const bodies = passingWidth(lateralClearance(rigidParts(bs), rigidParts(ls)));
+    const radius = headOf(belle).radius;
+    for (let toward = 0; toward <= radius + 1e-9; toward += SEAT_TOWARD_STEP) {
+      for (let pass = bodies; pass < width; pass += SEAT_PASS_STEP) {
+        const plan = planArch(beau, belle, bs, ls, pass, RESHAPE, LOW, OVER_CENTRE, toward);
+        if (plan.gap > 1e-6) continue;
+        if (archClearance(beau, belle, bs, ls, pass, RESHAPE, LOW, OVER_CENTRE, toward) > pass) continue;
+        const b = wearing(beau, bs, plan.bodyDeltas.beau);
+        const l = wearing(belle, ls, plan.bodyDeltas.belle);
+        // With room to spare: a hold seated at full stretch has nothing left for the palm's own
+        // offset off the join, and the pose stretched Ryan-as-belle 0.36 on exactly that.
+        if (
+          !comfortablyReaches(b, insideShoulderX(b, pass, -1), plan.hands.beau) ||
+          !comfortablyReaches(l, insideShoulderX(l, pass, 1), plan.hands.belle)
+        ) {
+          continue;
+        }
+        if (
+          drawnArmClears(b, plan.hands.beau, -1, pass, l, pass / 2, false) &&
+          drawnArmClears(l, plan.hands.belle, 1, pass, b, -pass / 2, false) &&
+          drawnArmClears(l, plan.hands.belle, 1, pass, l, pass / 2, true)
+        ) {
+          return { delta, width, pass, toward };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Whether `hand` is within this arm's reach from a shoulder at `shoulderX` **with a hand's width
+ * to spare** — the palm sits a hand off the join (hers on top), so a hold seated with less than
+ * that is drawn stretched. A fraction of the reach was tried first and was too little for the
+ * big-handed (Ryan's 0.11 hand, 0.038 of slack at 95%).
+ */
+function comfortablyReaches(m: ArmMetrics, shoulderX: number, hand: HandPoint): boolean {
+  const d = Math.hypot(hand.lateral - shoulderX, hand.height - (m.rigOriginY + m.restY));
+  return d + 2 * m.handRadius <= m.handReach;
+}
+
+/** The part whose top is a dancer's crown — the head, on every shipped character. */
+function headOf(m: ArmMetrics): RigidPart {
+  return m.parts.reduce((a, p) => (p.y1 + p.radius > a.y1 + a.radius ? p : a));
+}
+
+/** Scratch for {@link drawnArmClears}. */
+const _drawn = armPose();
+
+/**
+ * 🧪 **Does `me`'s raised forearm and hand, as the pose will draw them, clear `body`** standing
+ * at couple-lateral `bodyX` — the pair `s` apart, `me` on the `sign` side of the midpoint (`-1`
+ * the beau, `+1` the belle), the hand at `hand` (2026-10-13, undecided). `headOnly` checks just
+ * the head, which is how a dancer's arm is asked about their own body.
+ *
+ * The elbow comes from the solver the floor poses with — `touchPose` at full `raised` with the
+ * gable's lean cap — and the forearm is checked at its drawn radius, tapering elbow to wrist,
+ * then the hand. The upper arm is not drawn (ADR-0017) and is not checked.
+ *
+ * 🔑 **Side-on, at `z = 0`, because that is the midpoint.** Measured through the pose path on all
+ * 25 orderings: at beat 2 the join sits on the beau's own `−x` axis at exactly the pass, forward
+ * 0. Lateral only, as {@link armSweepClearance} is: an elbow swung back out of that plane is only
+ * further away, so ignoring it is the stricter test. Nothing above the crown is charged.
+ */
+function drawnArmClears(
+  me: ArmMetrics,
+  hand: HandPoint,
+  sign: -1 | 1,
+  s: number,
+  body: ArmMetrics,
+  bodyX: number,
+  headOnly: boolean,
+): boolean {
+  const mine = sign * (s / 2);
+  touchPose(
+    _drawn, me, -sign,
+    hand.lateral - mine, hand.height - me.rigOriginY, 0,
+    me.restX, me.forearmSpan, 1, true,
+  );
+  const crown = crownOf(body);
+  const parts = headOnly ? [headOf(body)] : body.parts;
+  for (let i = 0; i <= ARM_SAMPLES + 1; i++) {
+    // `0 … ARM_SAMPLES` along the drawn forearm, then the hand.
+    const onHand = i > ARM_SAMPLES;
+    const f = i / ARM_SAMPLES;
+    const t = onHand ? me.forearmSpan : f * me.drawnSpan;
+    const w = onHand
+      ? me.handRadius
+      : me.forearmElbowRadius + (me.forearmWristRadius - me.forearmElbowRadius) * f;
+    const h = me.rigOriginY + _drawn.y + _drawn.aimY * t;
+    if (h - (onHand ? me.handRadius : 0) >= crown) continue;
+    const x = mine + _drawn.x + _drawn.aimX * t;
+    if (Math.abs(x - bodyX) < sideExtentAt(parts, h) + w) return false;
+  }
+  return true;
+}
+
+/**
  * 🧪 **The room a pass is given — a break's is never less than the same pair's reshape**
  * (2026-10-11, undecided, no ADR).
  *
@@ -971,7 +1206,7 @@ function duckForIt(
   belleShape: CharacterBodyShape,
   width: number,
   bodies: number,
-  overhead: number,
+  overhead: Overhead,
   room: DuckRoom,
 ): { depths: BodyDeltas; aim: ReshapeAim; room: (mode: Accommodation) => number } | null {
   const step = SHAPE_BOUNDS.body.height.step;
@@ -1024,9 +1259,10 @@ function cheaperAim(
   belleShape: CharacterBodyShape,
   width: number,
   bodies: number,
-  overhead = 0,
+  overhead: Overhead = 0,
 ): ReshapeAim {
-  if (crownOf(beau) <= crownOf(belle)) return LOW;
+  // 🧪 Over the centre the join is the low one by definition — nothing aims at his crown.
+  if (overhead === OVER_CENTRE || crownOf(beau) <= crownOf(belle)) return LOW;
   const low = archRoom(beau, belle, beauShape, belleShape, width, bodies, LOW, overhead)(RESHAPE);
   const clear = archRoom(beau, belle, beauShape, belleShape, width, bodies, CLEAR, overhead)(RESHAPE);
   return clear < low ? CLEAR : LOW;
@@ -1041,7 +1277,7 @@ function archRoom(
   width: number,
   bodies: number,
   aim: ReshapeAim = LOW,
-  overhead = 0,
+  overhead: Overhead = 0,
 ): (mode: Accommodation) => number {
   return (mode) => {
     const plan = planArch(beau, belle, beauShape, belleShape, width, mode, aim, overhead);
@@ -1123,7 +1359,7 @@ const CLOSE_BISECTION_STEPS = 40;
 function reachForIt(
   beauShape: CharacterBodyShape,
   belleShape: CharacterBodyShape,
-  overhead = 0,
+  overhead: Overhead = 0,
 ): { delta: number; width: number; aim: ReshapeAim; room: (mode: Accommodation) => number } | null {
   const { max } = SHAPE_BOUNDS.forearm.height;
   const room = Math.max(max - beauShape.forearm.height, max - belleShape.forearm.height);

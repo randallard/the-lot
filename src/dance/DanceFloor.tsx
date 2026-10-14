@@ -74,6 +74,9 @@ import {
   LOW,
   crownOf,
   headroom,
+  breakEffort,
+  OVER_CENTRE,
+  type Overhead,
   planArch,
   sizeArch,
   type ArchPlan,
@@ -499,6 +502,10 @@ const DOWN = new THREE.Vector3(0, -1, 0);
 const _read = armPose();
 const _elbow = vec3();
 const _self: Placement = { x: 0, z: 0, yaw: 0 };
+/** Scratch for a break's reach toward the join (`breakEffort`) — from, to, and where it lands. */
+const _effortFrom = { x: 0, y: 0, z: 0 };
+const _effortTo = { x: 0, y: 0, z: 0 };
+const _effort = { x: 0, y: 0, z: 0 };
 const _partner: Placement = { x: 0, z: 0, yaw: 0 };
 const _aim = new THREE.Vector3();
 /** Scratch for the wrist (ADR-0052). Frame-loop code allocates nothing; this is that rule. */
@@ -644,7 +651,7 @@ export function DanceFloor({
 
   // 🧪 Over the centre, the join is over her crown at the midpoint — the moment the figure is
   // sized for — so the solve is asked for exactly that (see `archOverCentre`).
-  const joinOverhead = archOverCentre ? 1 : archOverhead;
+  const joinOverhead: Overhead = archOverCentre ? OVER_CENTRE : archOverhead;
 
   const arches = useMemo<readonly (ArchSizing | null)[]>(() => {
     const a = shapes[0];
@@ -911,9 +918,14 @@ export function DanceFloor({
      * of a span and the rigs are then already somewhere else.
      */
     centre: { x: number; z: number } | null;
+    /**
+     * 🧪 The sizing could not seat a made hold over the centre and gave this pairing a break
+     * (`ArchSizing.unseated`) — so the joined hands are not owed contact.
+     */
+    unseated: boolean;
   }>({
     span: null, accommodation: BREAK, plan: null, forearm: null, armDelta: 0,
-    stance: undefined, blend: 0, duck: NO_DELTAS, duckSpan: null, centre: null,
+    stance: undefined, blend: 0, duck: NO_DELTAS, duckSpan: null, centre: null, unseated: false,
   });
 
   // The only eased quantity in the arm channel: how far each hand is into its grip.
@@ -1104,8 +1116,7 @@ export function DanceFloor({
           // re-size the figure and leave the arms posed for the arch before it.
           const id =
             `${heldSpan.grip}:${String(heldSpan.from)}:${String(heldSpan.to)}` +
-            (joinOverhead === 0 ? "" : `:oh${joinOverhead.toFixed(3)}`) +
-            (archOverCentre ? ":centre" : "") +
+            (archOverCentre ? ":centre" : archOverhead === 0 ? "" : `:oh${archOverhead.toFixed(3)}`) +
             (archClose === 0 ? "" : `:cl${archClose.toFixed(3)}`);
           if (under.span !== id) {
             under.span = id;
@@ -1160,12 +1171,16 @@ export function DanceFloor({
               pair && hold && heldSpan.grip === "arch"
                 ? planArch(
                     beauM, belleM, beauS, belleS,
-                    stood ?? hold.width,
+                    // 🧪 Sized over the centre, the plan is of the midpoint pass (`ArchSizing.centre`).
+                    chosen?.centre ? chosen.wanted : (stood ?? hold.width),
                     under.accommodation,
                     // Same aim `sizeArch` chose (ADR-0042) — a reshape posed at one height while
                     // the bow was built for another is the whole class of defect ADR-0037 closed.
                     chosen == null ? LOW : chosen.aim,
-                    joinOverhead,
+                    // …and the same join: a pair `sizeArch` could not seat over the centre fell
+                    // back to the overhead-1 cascade, so their plan is that one.
+                    chosen?.centre ? OVER_CENTRE : archOverCentre ? 1 : archOverhead,
+                    chosen?.toward ?? 0,
                   )
                 : null;
             under.forearm =
@@ -1191,10 +1206,25 @@ export function DanceFloor({
             // 🧪 Where the hands stay while she walks under them (`archOverCentre`).
             const ma = runtime.motions[keys[0] ?? ""];
             const mb = runtime.motions[keys[1] ?? ""];
+            under.unseated = chosen?.unseated === true;
             if (archOverCentre && archSpan !== undefined && ma && mb) {
               const pa = toWorld(frameRef.current, sampleMotion(ma, archSpan.from).position);
               const pb = toWorld(frameRef.current, sampleMotion(mb, archSpan.from).position);
-              under.centre = { x: (pa.x + pb.x) / 2, z: (pa.z + pb.z) / 2 };
+              const cx = (pa.x + pb.x) / 2;
+              const cz = (pa.z + pb.z) / 2;
+              // 🧪 …moved `toward` him (`ArchSizing.toward`): the sizing seated the join off her
+              // midline, over the near side of her head, at the midpoint — so it is moved along
+              // the line from the centre to where he is at the middle of the span.
+              const toward = chosen?.toward ?? 0;
+              const mid = toWorld(
+                frameRef.current,
+                sampleMotion(ma, (archSpan.from + archSpan.to) / 2).position,
+              );
+              const len = Math.hypot(mid.x - cx, mid.z - cz);
+              under.centre =
+                toward === 0 || len < 1e-9
+                  ? { x: cx, z: cz }
+                  : { x: cx + ((mid.x - cx) / len) * toward, z: cz + ((mid.z - cz) / len) * toward };
             } else {
               under.centre = null;
             }
@@ -1413,43 +1443,60 @@ export function DanceFloor({
            * rulings, both 2026-10-12. Of the casual pose: *"just be arm pointing up — not out …
            * she wouldn't work that hard … maybe just pointing into the air a little but not
            * raise her elbow"*, then *"beau same … just like hers"* and *"lazy should drop too"*.
-           * So in `CASUAL` both leave the elbow hanging and lift a forearm over their own held
-           * shoulder. And of the break a pair reach by setting or coin flip: *"the break is
+           * So in `CASUAL` both keep the elbow where the standing hold has it and lift only the
+           * forearm (`TouchHold.lift`, 2026-10-13 — the first version aimed the hand at a point
+           * above the shoulder and let the solve find an elbow, which swung it up and back). And of the break a pair reach by setting or coin flip: *"the break is
            * trying with good effort … hands getting as close as they can without changing the
            * rules … it's a different energy."* That one keeps `planArch`'s reach, each hand
-           * going as far toward the join as its arm allows.
+           * going as far toward the join as its arm allows — or, held over the centre, reaches
+           * from the dancer's own shoulder toward the join itself (`breakEffort`, 2026-10-13:
+           * *"the gable just won't connect, but shows a bit of effort towards it"*).
            */
           const belleWorn = i === 1 ? me : them;
           const lowJoin = crownOf(belleWorn) + headroom(me, them);
           const broken = plan !== null && plan.accommodation === BREAK;
           // 🔑 The style, not the accommodation: both are a `BREAK`, and only one of them reaches.
           const casual = broken && (turnUnder ?? []).includes(CASUAL);
-          // The held arm's own shoulder: the beau's right, the belle's left (`+x` is left).
-          const heldX =
-            standing === undefined ? 0 : i === 0 ? -standing.insideBeau : standing.insideBelle;
-          // Forward of the shoulder, in this dancer's own frame, far enough that a forearm
-          // lifted from a hanging elbow has somewhere to point.
-          //
-          const heldZ = 0.4 * me.drawnSpan;
-          const yawC = Math.cos(_self.yaw);
-          const yawS = Math.sin(_self.yaw);
-          const up = {
-            x: _self.x + heldX * yawC + heldZ * yawS,
-            z: _self.z - heldX * yawS + heldZ * yawC,
-            height: me.rigOriginY + me.restY + 0.85 * me.drawnSpan - me.elbowReach,
-          };
+          // 🧪 A break held over the centre reaches from this dancer's own held shoulder toward
+          // the join over it, as far as comfortable (`breakEffort`). World space, every frame,
+          // because the shoulder walks round the turn.
+          let effort: { x: number; y: number; z: number } | null = null;
+          if (broken && !casual && under.centre !== null && standing !== undefined) {
+            const heldX = i === 0 ? -standing.insideBeau : standing.insideBelle;
+            const yawC = Math.cos(_self.yaw);
+            const yawS = Math.sin(_self.yaw);
+            _effortFrom.x = _self.x + heldX * yawC + me.restZ * yawS;
+            _effortFrom.y = me.rigOriginY + me.restY;
+            _effortFrom.z = _self.z - heldX * yawS + me.restZ * yawC;
+            _effortTo.x = under.centre.x;
+            _effortTo.y = lowJoin;
+            _effortTo.z = under.centre.z;
+            effort = breakEffort(_effort, me, _effortFrom, _effortTo);
+          }
           const planned =
             plan === null
               ? 0
-              : casual
-                ? up.height
-                : under.centre === null
-                  ? plan.hands[mine].height
-                  : Math.min(plan.hands[mine].height, lowJoin);
+              : under.centre === null
+                ? plan.hands[mine].height
+                : Math.min(plan.hands[mine].height, lowJoin);
           const archHold: TouchHold | undefined =
             standing === undefined || plan === null || under.blend <= 0
               ? undefined
-              : {
+              : casual
+                // 🧪 The elbow stays where the standing hold has it and the forearm lifts
+                // (`TouchHold.lift`, 2026-10-13): *"if my elbow was frozen in place … my wrist
+                // and hand move just fine, and the elbow bends."*
+                ? { ...standing, lift: under.blend }
+                : effort !== null
+                  ? {
+                      ...standing,
+                      height: lerp(standing.height, effort.y, under.blend),
+                      forward: lerp(standing.forward, 0, under.blend),
+                      raised: under.blend,
+                      forearmUp: true,
+                      over: { x: effort.x, z: effort.z, weight: under.blend },
+                    }
+                  : {
                   width: standing.width,
                   height: lerp(standing.height, planned, under.blend),
                   lateral: lerp(standing.lateral, plan.hands[mine].lateral, under.blend),
@@ -1464,18 +1511,16 @@ export function DanceFloor({
                   // arch's own blend, reused rather than a second easing: a hold that is half
                   // raised should be posed by an anatomy that is half raised, and anything with
                   // a threshold in it would pop the elbow across partway up.
-                  // 🧪 Except in `CASUAL`, where the arm only lifts a forearm and the elbow stays hanging.
-                  raised: casual ? 0 : under.blend,
-                  // 🧪 A made join held low must not be reached *down* onto (`forearmUp`).
+                  raised: under.blend,
+                  // 🧪 A made join is reached with the forearm leaning *up* into it (`forearmUp`).
                   ...(under.centre !== null && !broken ? { forearmUp: true } : {}),
                   // 🧪 …and, when asked, the hands leave the pair for the centre of the
-                  // exchange on the same blend (`archOverCentre`) — or, in `CASUAL`, each for the
-                  // air above its own shoulder.
-                  ...(casual
-                    ? { over: { x: up.x, z: up.z, weight: under.blend } }
-                    : under.centre === null
-                      ? {}
-                      : { over: { x: under.centre.x, z: under.centre.z, weight: under.blend } }),
+                  // exchange on the same blend (`archOverCentre`).
+                  // A break is not held over anything: each hand goes as far toward the join as
+                  // its own arm comfortably allows (`planArch`'s break), which is the effort.
+                  ...(under.centre === null || broken
+                    ? {}
+                    : { over: { x: under.centre.x, z: under.centre.z, weight: under.blend } }),
                 };
           // 🧪 The exploratory hand-height and hands-forward dials (see `handHeight`,
           // `handForward`). Shared, not per-dancer — moving one for only one of them is the
@@ -1571,7 +1616,7 @@ export function DanceFloor({
             );
             track.upperArmNatural[side] = Math.max(MIN_DRAWN_FOREARM, me.elbowReach + dialUpper);
             // The pose names the elbow in rig space; the group it goes on hangs inside
-            // a shoulder pinned at `(±restX, restY, 0)`. ADR-0017 — and `+x` is the
+            // a shoulder pinned at `(±restX, restY, restZ)`. ADR-0017 — and `+x` is the
             // anatomical **left** shoulder here, which is what `SIGN` carries.
             elbowLocal(_elbow, pose, me, SIGN[side], shoulderX(side));
             // The upper-arm dial: the same direction out of the shoulder, further along it, so
@@ -1717,7 +1762,11 @@ export function DanceFloor({
             for (const side of SIDES) {
               const shoulder = parts.shoulders[side].current;
               if (!shoulder) continue;
-              shoulder.position.y = ex.shoulderY + rise;
+              // 🔑 Along the torso's own axis, which leans (`shoulderZ`, 2026-10-13): a body
+              // that grows lengthens toward where its top is pointing.
+              const lean = deg2rad(wornShape.body.leanX);
+              shoulder.position.y = ex.shoulderY + rise * Math.cos(lean);
+              shoulder.position.z = ex.shoulderZ + rise * Math.sin(lean);
               // 🔴 And sideways, for the same reason (ADR-0049): a dancer whose arms are
               // authored wider than the couple is standing draws them in, or the inside
               // shoulder hangs over the partner and the forearm through their hand. Still
@@ -1751,7 +1800,7 @@ export function DanceFloor({
             _read.x =
               arm.position.x + (shoulder?.position.x ?? SIGN[side] * me.restX);
             _read.y = arm.position.y + (shoulder?.position.y ?? me.restY);
-            _read.z = arm.position.z;
+            _read.z = arm.position.z + (shoulder?.position.z ?? me.restZ);
             _aim.copy(DOWN).applyQuaternion(arm.quaternion);
             _read.aimX = _aim.x;
             _read.aimY = _aim.y;
@@ -1851,7 +1900,10 @@ export function DanceFloor({
               // 2026-10-11, of "the L": *"forearms aren't even close now."* Only with no style
               // set does the draw decide, since then a break is all anyone asked for.
               keepsContact:
-                styles.length > 0 ? styles.every(styleKeepsContact) : t0.accommodation !== BREAK,
+                // 🧪 …unless the sizing found nothing that seats the hold and gave the pairing a
+                // break (`ArchSizing.unseated`): *"the gable just won't connect."*
+                !under.unseated &&
+                (styles.length > 0 ? styles.every(styleKeepsContact) : t0.accommodation !== BREAK),
               standY: [standY(s0, w0), standY(s1, w1)],
             });
           }

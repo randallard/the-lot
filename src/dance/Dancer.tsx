@@ -199,7 +199,7 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
           driver chooses where a shoulder is. What the ref is for is the shoulder staying
           attached to a torso whose height has changed, which is a derivation and not a
           pose, and which nothing was doing. */}
-      <group ref={expression?.shoulders.right} position={[-pos.forearmX, pos.shoulderY, 0]}>
+      <group ref={expression?.shoulders.right} position={[-pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
         <group ref={arms?.right} position={[0, elbowLocalY, 0]}>
           <mesh position={[0, forearmLocalY, 0]} castShadow>
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
@@ -213,7 +213,7 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
       </group>
 
       {/* Anatomical LEFT arm (at +x). */}
-      <group ref={expression?.shoulders.left} position={[pos.forearmX, pos.shoulderY, 0]}>
+      <group ref={expression?.shoulders.left} position={[pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
         <group ref={arms?.left} position={[0, elbowLocalY, 0]}>
           <mesh position={[0, forearmLocalY, 0]} castShadow>
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />

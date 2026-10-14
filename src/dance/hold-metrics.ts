@@ -294,7 +294,7 @@ export function holdMetrics(
         const inside = side === "right" ? hold.insideBeau : hold.insideBelle;
         const ex = pose.x - (side === "left" ? 1 : -1) * inside;
         const ey = pose.y - m.restY;
-        const len = Math.hypot(ex, ey, pose.z);
+        const len = Math.hypot(ex, ey, pose.z - m.restZ);
         return len < 1e-9 ? 0 : (180 / Math.PI) * Math.acos(Math.min(1, Math.max(-1, -ey / len)));
       })(),
       strain: upperArmStrain(pose, m, side === "left" ? 1 : -1),

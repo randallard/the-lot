@@ -534,7 +534,7 @@ describe("the two-segment arm — a pinned shoulder and a free elbow", () => {
 
   /** The shoulder this sign names, in rig-local space. */
   function shoulder(m: ArmMetrics, sign: number) {
-    return { x: sign * m.restX, y: m.restY, z: 0 };
+    return { x: sign * m.restX, y: m.restY, z: m.restZ };
   }
 
   function handOf(pose: ArmPose, m: ArmMetrics) {
@@ -664,7 +664,7 @@ describe("the rig's two groups compose back to the rest pose", () => {
       const e = elbowLocal(vec3(), p, m, sign);
       expect(e.x + sign * m.restX).toBeCloseTo(p.x, 12);
       expect(e.y + m.restY).toBeCloseTo(p.y, 12);
-      expect(e.z).toBeCloseTo(p.z, 12);
+      expect(e.z + m.restZ).toBeCloseTo(p.z, 12);
       // A resting forearm hangs at exactly the offset the JSX pins it at.
       expect(e.y).toBeCloseTo(-m.elbowReach, 12);
       expect(e.x).toBeCloseTo(0, 12);

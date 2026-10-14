@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { armMetrics, armPose, touchPose, upperArmStrain, type ArmMetrics } from "./arm-pose";
+import { GABLE_FOREARM_LEAN, armMetrics, armPose, touchPose, upperArmStrain, type ArmMetrics } from "./arm-pose";
 import {
   PLAYER_DEFAULTS, MYCO_DEFAULTS, EMBER_DEFAULTS, RYAN_DEFAULTS, SPROUT_DEFAULTS,
   type CharacterBodyShape,
@@ -28,7 +28,7 @@ const CAST: readonly (readonly [string, CharacterBodyShape])[] = [
 
 /** Where the shoulder is, in the dancer's own rig frame, for a `sign`-side arm at `restX`. */
 function shoulder(m: ArmMetrics, sign: number) {
-  return { x: sign * m.restX, y: m.restY, z: 0 };
+  return { x: sign * m.restX, y: m.restY, z: m.restZ };
 }
 
 /**
@@ -208,25 +208,28 @@ describe("🔑 a raised hold stands the upper arm up", () => {
 });
 
 /**
- * 🧪 **…but not past the hand** (`TouchHold.forearmUp`, 2026-10-12, undecided).
+ * 🧪 **…and only as far as leaves the forearm leaning up into the hand** (`TouchHold.forearmUp`;
+ * level on 2026-10-12, {@link GABLE_FOREARM_LEAN} since 10-13).
  *
  * Once the join sits low — a hand above a short partner's crown — a tall dancer's highest elbow
  * is well above his own hand, and the forearm comes down onto the join. Ryan: *"his arm
- * shouldn't be pointing down."*
+ * shouldn't be pointing down."* Then, of the level forearm that fixed it, the elbow was his pick
+ * next: his photographs have both forearms leaning up and in, his at ~35° at the quarter.
  */
-describe("🧪 a raised elbow stops level with the hand", () => {
+describe("🧪 a raised elbow stops short of the hand, so the forearm leans up", () => {
   /** A hand at a fraction of the reach, forward and in, at `rise` × reach above the shoulder. */
-  function lowTarget(m: ArmMetrics, sign: number, fraction: number, rise: number) {
+  function lowTarget(m: ArmMetrics, sign: number, fraction: number, rise: number, back = 1) {
     const s = shoulder(m, sign);
     const reach = fraction * (m.elbowReach + m.drawnSpan);
-    const d = [-sign * 0.45, rise, 0.6];
+    const d = [-sign * 0.45, rise, 0.6 * back];
     const len = Math.hypot(d[0]!, d[1]!, d[2]!);
     return {
       x: s.x + (d[0]! / len) * reach,
       y: s.y + (d[1]! / len) * reach,
-      z: (d[2]! / len) * reach,
+      z: s.z + (d[2]! / len) * reach,
     };
   }
+  const lean = Math.sin(GABLE_FOREARM_LEAN);
 
   it("🔴 without it, the highest elbow points the forearm down at a low hand", () => {
     // The defect, stated: ADR-0058 at full `raised`, hand level with the shoulder.
@@ -236,36 +239,61 @@ describe("🧪 a raised elbow stops level with the hand", () => {
     expect(p.aimY).toBeLessThan(-0.2);
   });
 
-  it("🔑 with it, no forearm points down wherever an elbow below the hand exists", () => {
+  it("🔑 with it, every forearm leans up at least the gable's lean, or as near as any elbow gets", () => {
+    let turnedDown = 0;
     for (const [name, shape] of CAST) {
       const m = armMetrics(shape);
       for (const sign of [1, -1]) {
         for (const f of FRACTIONS) {
           for (const rise of [0, 0.3, 1]) {
-            const t = lowTarget(m, sign, f, rise);
-            if (!onTheCircle(m, sign, t)) continue;
-            const hang = touchPose(armPose(), m, sign, t.x, t.y, t.z, m.restX, m.drawnSpan, 0);
-            const p = touchPose(armPose(), m, sign, t.x, t.y, t.z, m.restX, m.drawnSpan, 1, true);
-            const where = `${name} ${String(sign)} f${String(f)} rise${String(rise)}`;
-            // Never lower than level — unless the arm was already pointing down while hanging,
-            // in which case it is left exactly there.
-            if (hang.aimY >= 0) expect(p.aimY, where).toBeGreaterThan(-1e-6);
-            else expect(p.aimY, where).toBeCloseTo(hang.aimY, 9);
-            // And it is still a real arm: the humerus keeps its length, the hand its place.
-            expect(upperArmStrain(p, m, sign), where).toBeCloseTo(0, 9);
-            expect(p.y + p.aimY * m.drawnSpan, where).toBeCloseTo(t.y, 9);
+            for (const back of [1, -1]) {
+              const t = lowTarget(m, sign, f, rise, back);
+              if (!onTheCircle(m, sign, t)) continue;
+              const hang = touchPose(armPose(), m, sign, t.x, t.y, t.z, m.restX, m.drawnSpan, 0);
+              const p = touchPose(armPose(), m, sign, t.x, t.y, t.z, m.restX, m.drawnSpan, 1, true);
+              const where = `${name} ${String(sign)} f${String(f)} rise${String(rise)} back${String(back)}`;
+              // Never worse than hanging, and the full lean wherever the hang is short of it
+              // and some elbow on the circle gives it.
+              expect(p.aimY, where).toBeGreaterThan(Math.min(lean, hang.aimY) - 1e-6);
+              if (hang.aimY < lean - 1e-6 && p.aimY > lean - 1e-6) turnedDown++;
+              // And it is still a real arm: the humerus keeps its length, the hand its place.
+              expect(upperArmStrain(p, m, sign), where).toBeCloseTo(0, 9);
+              expect(p.y + p.aimY * m.drawnSpan, where).toBeCloseTo(t.y, 9);
+            }
           }
         }
       }
     }
+    // 🔑 The other way round the circle is used: a hanging elbow too high is turned down.
+    expect(turnedDown).toBeGreaterThan(0);
   });
 
-  it("🔑 and it changes nothing where the hand is above the highest elbow", () => {
-    const m = armMetrics(PLAYER_DEFAULTS);
-    const t = archTarget(m, 1, 0.8);
-    const a = touchPose(armPose(), m, 1, t.x, t.y, t.z, m.restX, m.drawnSpan, 1);
-    const b = touchPose(armPose(), m, 1, t.x, t.y, t.z, m.restX, m.drawnSpan, 1, true);
-    if (a.aimY >= 0) expect(b).toEqual(a);
+  it("🔑 eases in with the arch: at raised 0 it is the hang exactly", () => {
+    for (const [, shape] of CAST) {
+      const m = armMetrics(shape);
+      for (const back of [1, -1]) {
+        const t = lowTarget(m, -1, 0.65, 0, back);
+        const hang = touchPose(armPose(), m, -1, t.x, t.y, t.z, m.restX, m.drawnSpan, 0);
+        const p = touchPose(armPose(), m, -1, t.x, t.y, t.z, m.restX, m.drawnSpan, 0, true);
+        expect(p).toEqual(hang);
+      }
+    }
+  });
+
+  it("🔑 and it changes nothing where the highest elbow already leans the forearm up enough", () => {
+    let checked = 0;
+    for (const [, shape] of CAST) {
+      const m = armMetrics(shape);
+      for (const f of FRACTIONS) {
+        const t = archTarget(m, 1, f);
+        const a = touchPose(armPose(), m, 1, t.x, t.y, t.z, m.restX, m.drawnSpan, 1);
+        if (a.aimY < lean + 1e-6) continue;
+        const b = touchPose(armPose(), m, 1, t.x, t.y, t.z, m.restX, m.drawnSpan, 1, true);
+        expect(b).toEqual(a);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 });
 

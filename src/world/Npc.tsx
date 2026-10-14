@@ -286,7 +286,7 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
             defect that put the forearm's near end inside the torso at bump range was a
             driver writing the shoulder's own position. Rest hangs down local −y, which
             is the frame `arm-pose` and `fist-bump` assume. */}
-        <group position={[-pos.forearmX, pos.shoulderY, 0]}>
+        <group position={[-pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
           <group ref={forearms?.left} position={[0, elbowLocalY, 0]}>
             <mesh position={[0, forearmLocalY, 0]} castShadow>
               <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
@@ -299,7 +299,7 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
           </group>
         </group>
 
-        <group position={[pos.forearmX, pos.shoulderY, 0]}>
+        <group position={[pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
           <group ref={forearms?.right} position={[0, elbowLocalY, 0]}>
             <mesh position={[0, forearmLocalY, 0]} castShadow>
               <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />

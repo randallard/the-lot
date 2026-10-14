@@ -217,7 +217,7 @@ function release(bodies: BodyOwnership): void {
 /**
  * Write one side's pose onto its **forearm** group, the way `DanceFloor` does.
  *
- * The group hangs inside a shoulder pinned at `(±restX, restY, 0)` and the pose is
+ * The group hangs inside a shoulder pinned at `(±restX, restY, restZ)` and the pose is
  * rig-local, so the elbow has to come back into the shoulder's frame first —
  * {@link elbowLocal}, named rather than inlined for the reason that function gives.
  * `sign` is the same one the pose was solved with; passing a different one would put a

@@ -170,6 +170,8 @@ export interface ResolvedExpression {
    * onto the pinned shoulder groups, never a pose, and ADR-0017 is untouched by it.
    */
   shoulderY: number;
+  /** How far forward the shoulders sit for {@link shape} — they ride the torso's lean. */
+  shoulderZ: number;
   /** The bob. */
   bodyDeltaY: number;
   /** Head turn in degrees — the emote's alone; a dancer does not wear caricature. */
@@ -184,6 +186,7 @@ export function resolvedExpression(shape: CharacterBodyShape): ResolvedExpressio
     shape,
     headY: 0,
     shoulderY: 0,
+    shoulderZ: 0,
     bodyDeltaY: 0,
     headRotation: [0, 0, 0],
     silhouetteKept: 1,
@@ -229,7 +232,7 @@ function proposeArms(out: ArmPoses, m: ArmMetrics, rp: ResolvedPose): ArmPoses {
     // — is the path a resting dance arm actually takes.
     target.x = sign * m.restX + _swing.x * m.elbowReach;
     target.y = m.restY + _swing.y * m.elbowReach;
-    target.z = _swing.z * m.elbowReach;
+    target.z = m.restZ + _swing.z * m.elbowReach;
     target.aimX = _swing.x;
     target.aimY = _swing.y;
     target.aimZ = _swing.z;
@@ -284,6 +287,7 @@ export function resolveExpression(
   const positions = computePositions(out.shape, ctx.bodyCenterY);
   out.headY = positions.headY;
   out.shoulderY = positions.shoulderY;
+  out.shoulderZ = positions.shoulderZ;
 
   // free — straight through
   out.bodyDeltaY = pose.bodyDeltaY;

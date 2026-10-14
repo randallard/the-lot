@@ -104,7 +104,7 @@ function Rig({ shape, bodyCenterY, hand, placement, leftRef, rightRef }: RigProp
   const arm = (side: "left" | "right") => (
     <group
       // Anatomical: facing +z, the right hand is at -x.
-      position={[side === "left" ? pos.forearmX : -pos.forearmX, pos.shoulderY, 0]}
+      position={[side === "left" ? pos.forearmX : -pos.forearmX, pos.shoulderY, pos.shoulderZ]}
     >
       <group ref={side === "left" ? leftRef : rightRef} position={[0, elbowLocalY, 0]}>
         <mesh position={[0, forearmLocalY, 0]}>

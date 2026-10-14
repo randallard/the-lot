@@ -169,6 +169,12 @@ export interface ArmMetrics {
    * always enough — an arm pulled in past this is an arm inside its owner's chest.
    */
   readonly tuckFloorX: number;
+  /**
+   * How far forward of the rig's origin the shoulder sits — `0` upright, forward on a body
+   * that leans (`ComputedPositions.shoulderZ`, 2026-10-13). Every solver here measures the
+   * arm from `(±restX, restY, restZ)`.
+   */
+  readonly restZ: number;
   /** Height of the group's pivot: the shoulder. */
   readonly restY: number;
   /** Group origin → elbow, along the aim. The upper arm that isn't drawn. */
@@ -320,6 +326,7 @@ export function armMetrics(
     restX: Math.max(pos.forearmX, bodyBeside + armHalfWidth),
     tuckFloorX: bodyBeside + armHalfWidth,
     restY: pos.shoulderY,
+    restZ: pos.shoulderZ,
     elbowReach: pos.upperArmLength,
     handReach,
     forearmSpan: handReach - pos.upperArmLength,
@@ -687,8 +694,10 @@ export interface TouchHold {
    */
   readonly over?: { readonly x: number; readonly z: number; readonly weight: number };
   /**
-   * 🧪 **Exploratory (2026-10-12).** Keep the forearm from pointing **down** at a raised hold:
-   * the elbow stands up (`raised`) only until it is level with the hand.
+   * 🧪 **Exploratory (2026-10-12, leaning since 10-13).** Keep the forearm leaning **up** into a
+   * raised hold: the elbow stands up (`raised`) only until the forearm is {@link GABLE_FOREARM_LEAN}
+   * above level. (It stopped at level on 10-12; Ryan, 10-13, of the level forearm at the quarter,
+   * chose this — the elbow — next.)
    *
    * ADR-0058 turns the elbow to the highest point it can reach, which is right when the hand is
    * higher still. Once the join sits low — a hand above a *short* partner's crown — a tall
@@ -697,7 +706,31 @@ export interface TouchHold {
    * photographs both forearms lean **up** and in to the peak.
    */
   readonly forearmUp?: boolean;
+  /**
+   * 🧪 **Exploratory (2026-10-13).** The casual break: the elbow stays **frozen** where this
+   * standing hold puts it, and only the forearm lifts, `0`–`1` of the way to
+   * {@link CASUAL_FOREARM_LIFT}.
+   *
+   * Ryan, of the casual pose: *"here's how I'd do the move if my elbow was frozen in place and I
+   * know I have to bring it back here for the standing couple anyway but my wrist and hand move
+   * just fine, and the elbow bends."* Placing a hand *above* the hanging elbow and solving the
+   * arm to it did not do that: a forearm longer than its upper arm cannot fold onto a point
+   * that close to the shoulder, so the solve swung the elbow up and back instead — above the
+   * player's own shoulder, forearm pointing down.
+   *
+   * 🔑 **Frozen in the standing couple's frame, not the live one.** The elbow is solved as if
+   * the partner still stood beside this dancer at `width`, so it does not chase a partner who
+   * has walked round behind during the turn.
+   */
+  readonly lift?: number;
 }
+
+/**
+ * 🧪 How far above level a casual forearm ends up, in radians, keeping the heading it had in
+ * the standing hold — forward and in, toward where the arch would be. A guess at *"pointing
+ * into the air a little"*; Ryan's to tune.
+ */
+export const CASUAL_FOREARM_LIFT = (60 * Math.PI) / 180;
 
 /**
  * How far the **drawn** hand reaches straight up (or down — it is symmetric) from its own
@@ -1784,12 +1817,13 @@ export function reachPose(
 ): ArmPose {
   const sx = sign * restX;
   const sy = m.restY;
+  const sz = m.restZ;
   const upper = m.elbowReach;
   const fore = span;
 
   const vx = handX - sx;
   const vy = handY - sy;
-  const vz = handZ;
+  const vz = handZ - sz;
   const d = Math.hypot(vx, vy, vz);
 
   // The hand is on the shoulder. No axis, no aim — hang the arm and let the strain
@@ -1858,7 +1892,7 @@ export function reachPose(
     if (len < 1e-6) {
       out.x = sx + along * ux;
       out.y = sy + along * uy;
-      out.z = along * uz;
+      out.z = sz + along * uz;
       out.aimX = ux;
       out.aimY = uy;
       out.aimZ = uz;
@@ -1868,7 +1902,7 @@ export function reachPose(
 
   const ex = sx + along * ux + (off * px) / len;
   const ey = sy + along * uy + (off * py) / len;
-  const ez = along * uz + (off * pz) / len;
+  const ez = sz + along * uz + (off * pz) / len;
   out.x = ex;
   out.y = ey;
   out.z = ez;
@@ -1991,17 +2025,18 @@ export function touchPose(
    * own blend, so the arm stands up exactly as fast as the hands rise.
    */
   raised = 0,
-  /** 🧪 Stop the elbow standing up past the hand's own height — {@link TouchHold.forearmUp}. */
+  /** 🧪 Stop the elbow standing up before the forearm leans less than {@link GABLE_FOREARM_LEAN} — {@link TouchHold.forearmUp}. */
   forearmUp = false,
 ): ArmPose {
   const sx = sign * restX;
   const sy = m.restY;
+  const sz = m.restZ;
   const upper = m.elbowReach;
   const fore = span;
 
   const ax = handX - sx;
   const ay = handY - sy;
-  const az = handZ;
+  const az = handZ - sz;
   const d = Math.hypot(ax, ay, az);
   if (d < 1e-9 || d >= upper + fore) return reachPose(out, m, sign, handX, handY, handZ, restX, span);
 
@@ -2026,13 +2061,13 @@ export function touchPose(
 
   let ex = sx;
   let ey = sy + along * ny + swing * py;
-  let ez = along * nz + swing * pz;
+  let ez = sz + along * nz + swing * pz;
 
   // 🔑 **Stand the upper arm up, by rotating the elbow along its own circle** (ADR-0058).
   // Everything above found the hanging elbow; this turns it toward the highest one the circle
   // has, which is the most vertical humerus the geometry allows — Ryan's upside-down L.
   if (raised > 0) {
-    standUp(_stand, ex, ey, ez, sx, sy, 0, ax, ay, az, d, upper, raised, forearmUp);
+    standUp(_stand, ex, ey, ez, sx, sy, sz, ax, ay, az, d, upper, raised, forearmUp);
     ex = _stand.x;
     ey = _stand.y;
     ez = _stand.z;
@@ -2051,6 +2086,16 @@ export function touchPose(
   out.aimZ = bz / blen;
   return out;
 }
+
+/**
+ * 🧪 How far above level a raised forearm leans into a made join, at least, in radians — the
+ * elbow stops standing up short of it (`TouchHold.forearmUp`, 2026-10-13, undecided).
+ *
+ * From Ryan's photographs of a California Twirl: *"neither forearm is ever level"*; at the quarter
+ * his arm slopes up ~35° with a slight bend, and at the midpoint both forearms lean up and in. 35°
+ * is that reading, by eye from one camera — Ryan's to tune.
+ */
+export const GABLE_FOREARM_LEAN = (35 * Math.PI) / 180;
 
 /** Scratch for the raised elbow. Frame-loop code allocates nothing. */
 const _stand = vec3();
@@ -2127,15 +2172,28 @@ function standUp(
   const crossN = (uy * tz - uz * ty) * nx + (uz * tx - ux * tz) * ny + (ux * ty - uy * tx) * nz;
   const full = Math.atan2(crossN, cos);
   let angle = full * raised;
-  // 🧪 **…but no further than level with the hand** (`TouchHold.forearmUp`, 2026-10-12). An
-  // elbow turned by `θ` of the way round sits at `C.y + off·|w|·cos(|full| − θ)`, which only
-  // climbs, so "the elbow is no higher than the hand" is one `acos`: the largest turn at which
-  // that height is still the hand's. An elbow already above the hand while hanging is left
-  // hanging — there is nothing lower on the way up.
+  // 🧪 **…but only as far as leaves the forearm leaning up into the hand** at
+  // {@link GABLE_FOREARM_LEAN} (`TouchHold.forearmUp`; level on 2026-10-12, leaning on 10-13).
+  // Measured as `φ`, the angle round the circle from its highest point, an elbow sits at
+  // `C.y + off·|w|·cos φ` — so "at least `fore·sin(lean)` below the hand" is `φ ≥ acos(k)`, one
+  // `acos`. The hanging elbow is at `φ = |full|`.
+  //
+  // 🔑 **Both ways round.** Where the hanging elbow is low enough, standing up stops at `acos(k)`.
+  // Where it is already too high — the three-quarter, where the hand has gone behind — it turns
+  // *down* the circle to `acos(k)`, eased by `raised` so the arch still blends in from the hang.
+  // A hand with no elbow low enough (`k ≤ −1`) gets the lowest one there is.
   if (forearmUp) {
-    const k = (ay - along * ny) / (off * wlen);
-    const most = k >= 1 ? Math.abs(full) : Math.max(0, Math.abs(full) - Math.acos(clampUnit(k)));
-    if (Math.abs(angle) > most) angle = Math.sign(angle) * most;
+    // Elbow → hand, from `|a − e|² = d² + upper² − 2·d·along`.
+    const fore = Math.sqrt(Math.max(0, d * d + upper * upper - 2 * d * along));
+    const k = (ay - fore * Math.sin(GABLE_FOREARM_LEAN) - along * ny) / (off * wlen);
+    const dir = full < 0 ? -1 : 1;
+    // How far toward the highest point the hanging elbow may turn; negative is away from it.
+    const most = Math.abs(full) - Math.acos(clampUnit(k));
+    if (most >= 0) {
+      if (Math.abs(angle) > most) angle = dir * most;
+    } else {
+      angle = dir * most * raised;
+    }
   }
 
   // Rodrigues: rotate `h` about `n` by `angle`.
@@ -2150,6 +2208,27 @@ function standUp(
   out.y = sy + along * ny + ry;
   out.z = sz + along * nz + rz;
   return out;
+}
+
+/**
+ * 🧪 Bend a posed arm at the elbow only: the elbow stays put and the forearm's elevation eases
+ * from where it is toward {@link CASUAL_FOREARM_LIFT}, keeping its heading (`TouchHold.lift`).
+ * The hand goes wherever the forearm takes it — nothing is being reached for.
+ */
+function liftForearm(pose: ArmPose, lift: number): ArmPose {
+  const k = clamp01(lift);
+  if (k <= 0) return pose;
+  const flat = Math.hypot(pose.aimX, pose.aimZ);
+  // A forearm hanging straight down has no heading; lift it straight forward.
+  const hx = flat < 1e-9 ? 0 : pose.aimX / flat;
+  const hz = flat < 1e-9 ? 1 : pose.aimZ / flat;
+  const from = Math.asin(clampUnit(pose.aimY));
+  const elevation = from + (CASUAL_FOREARM_LIFT - from) * k;
+  const c = Math.cos(elevation);
+  pose.aimX = hx * c;
+  pose.aimY = Math.sin(elevation);
+  pose.aimZ = hz * c;
+  return pose;
 }
 
 /** Clamps to `[-1, 1]`, so a degenerate triangle folds instead of returning NaN. */
@@ -2197,7 +2276,7 @@ export function blendPose(out: ArmPose, from: ArmPose, to: ArmPose, t: number): 
 export function restPose(out: ArmPose, m: ArmMetrics, sign: number): ArmPose {
   out.x = sign * m.restX;
   out.y = m.elbowY;
-  out.z = 0;
+  out.z = m.restZ;
   out.aimX = 0;
   out.aimY = -1;
   out.aimZ = 0;
@@ -2208,7 +2287,7 @@ export function restPose(out: ArmPose, m: ArmMetrics, sign: number): ArmPose {
 export function shoulderOf(out: Vec3, m: ArmMetrics, sign: number): Vec3 {
   out.x = sign * m.restX;
   out.y = m.restY;
-  out.z = 0;
+  out.z = m.restZ;
   return out;
 }
 
@@ -2217,7 +2296,7 @@ export function shoulderOf(out: Vec3, m: ArmMetrics, sign: number): Vec3 {
  * `position` needs.
  *
  * A pose is rig-local and the forearm group hangs off a shoulder group pinned at
- * `(±restX, restY, 0)`, so the write site has to subtract one from the other. Named
+ * `(±restX, restY, restZ)`, so the write site has to subtract one from the other. Named
  * rather than inlined for the same reason {@link localHeight} is: the two frame
  * conversions in this subsystem have each already produced a defect that looked right
  * and measured wrong, and an unnamed subtraction at a call site is where the last one
@@ -2233,7 +2312,7 @@ export function elbowLocal(
 ): Vec3 {
   out.x = pose.x - sign * restX;
   out.y = pose.y - m.restY;
-  out.z = pose.z;
+  out.z = pose.z - m.restZ;
   return out;
 }
 
@@ -2255,7 +2334,7 @@ export function elbowLocal(
 export function upperArmStrain(pose: ArmPose, m: ArmMetrics, sign: number): number {
   const dx = pose.x - sign * m.restX;
   const dy = pose.y - m.restY;
-  const excess = Math.hypot(dx, dy, pose.z) - m.elbowReach;
+  const excess = Math.hypot(dx, dy, pose.z - m.restZ) - m.elbowReach;
   return excess > 0 ? excess : 0;
 }
 
@@ -2595,6 +2674,17 @@ export function poseArms(
         // is me if I am not, so the offset flips with the role and both dancers write the
         // same point on the floor.
         const offset = beau ? hold.lateral : -hold.lateral;
+        // 🧪 The casual break (`TouchHold.lift`): pose the standing hold as if the partner were
+        // still beside this dancer, then lift the forearm about its elbow.
+        if (hold.lift !== undefined) {
+          settleTouch(
+            out[side], me, beau,
+            sign * (hold.width / 2 + offset), hold.forward, hold.height,
+            beau ? hold.insideBeau : hold.insideBelle,
+          );
+          liftForearm(out[side], hold.lift);
+          continue;
+        }
         // Settled **here**, against the live placements, rather than taken from the hold:
         // the pair breathe (square-one's Partner Trade bows them off their radius), which
         // turns the forearms, which moves how much hand is between centre and plane. A lift

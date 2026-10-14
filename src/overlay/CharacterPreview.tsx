@@ -256,8 +256,8 @@ function Scene({
       <directionalLight position={[2, 4, 3]} intensity={1.3} />
       <directionalLight position={[-2, 1, -2]} intensity={0.3} color="#8888cc" />
       <BodyMesh shape={animShape} color={color} handPose={handPose} bodyDeltaY={rp.bodyDeltaY} />
-      <ArmGroup shoulderPos={[sX, sY, 0]}  mirror={false} shape={animShape} color={color} handPose={handPose} armPose={rightPose} />
-      <ArmGroup shoulderPos={[-sX, sY, 0]} mirror={true}  shape={animShape} color={color} handPose={handPose} armPose={leftPose} />
+      <ArmGroup shoulderPos={[sX, sY, pos.shoulderZ]}  mirror={false} shape={animShape} color={color} handPose={handPose} armPose={rightPose} />
+      <ArmGroup shoulderPos={[-sX, sY, pos.shoulderZ]} mirror={true}  shape={animShape} color={color} handPose={handPose} armPose={leftPose} />
       <Eyes
         eyes={animShape.eyes}
         headY={pos.headY + rp.bodyDeltaY + animShape.head.offsetY}

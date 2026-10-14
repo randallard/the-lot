@@ -36,7 +36,11 @@ export interface BodyShape {
   height: number;
   capSegments: number;
   radialSegments: number;
-  /** Body tilt in degrees. leanX: + = lean back, - = lean forward */
+  /**
+   * Body tilt in degrees. leanX: + = lean **forward**, − = lean back. (Said the opposite until
+   * 2026-10-13; the rig turns `+x`, which tips the top toward `+z`, the way characters face —
+   * Ember's 14° and her head 0.28 forward agree.)
+   */
   leanX: number;
   /** Body tilt in degrees. leanZ: + = lean right, - = lean left */
   leanZ: number;
@@ -343,8 +347,21 @@ export const WAIST_OF_SHOULDER = 0.5;
 
 export interface ComputedPositions {
   headY: number;
-  /** Top of body = shoulder joint height */
+  /** Top of body = shoulder joint height — carried round with the body's forward lean. */
   shoulderY: number;
+  /**
+   * How far **forward** of the rig's origin the shoulders sit: `0` for an upright body.
+   *
+   * The torso mesh tilts by `body.leanX` about its own centre, and the shoulders have to go
+   * with it or they hang in the air behind the top of the body. Ryan, 2026-10-13, of Ember's
+   * 14° lean: *"shoulders should stay at the top of the body, following when it leans."* Before
+   * this they sat at `z = 0` on every character, 0.224 behind the top of her torso.
+   *
+   * 🔴 `leanZ` (side lean) is **not** followed: it would put the two shoulders at different
+   * heights, and every arm measure here is one number for both sides. No shipped character has
+   * a side lean.
+   */
+  shoulderZ: number;
   /** Top of forearm = elbow joint height */
   elbowY: number;
   /** Length of the invisible upper arm (shoulder → elbow) */
@@ -390,7 +407,12 @@ export function computePositions(
   // `layout.shoulderY` overrides where the joint sits; absent, it's the body's own top, as
   // it always was. The head stays keyed to `bodyTop` either way — moving the shoulder is not
   // the head-body relationship changing, it's where the arm attaches.
-  const shoulderY = layout.shoulderY !== undefined ? bodyCenterY + layout.shoulderY : bodyTop;
+  const authoredShoulderY = layout.shoulderY !== undefined ? bodyCenterY + layout.shoulderY : bodyTop;
+  // The shoulder rides the torso's forward lean: the same rotation about the body's centre that
+  // the mesh is drawn with (`rotation.x = leanX`, which tips the top toward `+z`, the facing).
+  const lean = deg2rad(body.leanX);
+  const shoulderY = bodyCenterY + (authoredShoulderY - bodyCenterY) * Math.cos(lean);
+  const shoulderZ = (authoredShoulderY - bodyCenterY) * Math.sin(lean);
   const elbowY = shoulderY - layout.upperArmSpacing;
   const upperArmLength = layout.upperArmSpacing;
   const forearmCenterY = elbowY - forearm.height / 2;
@@ -403,6 +425,7 @@ export function computePositions(
   return {
     headY: headCenterY,
     shoulderY,
+    shoulderZ,
     elbowY,
     upperArmLength,
     forearmCenterY,
