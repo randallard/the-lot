@@ -1,8 +1,50 @@
 # Progress & Status
 
-_Last updated: 2026-10-12_
+_Last updated: 2026-10-13_
 
 ## Status / next
+
+> ### ▶ PICK UP HERE — 2026-10-13 (1) — frozen elbow, leaning shoulders, leaning forearm, seat-or-break
+>
+> [`journal/2026-10-13-1-a-frozen-elbow-and-a-grown-shoulder.md`](journal/2026-10-13-1-a-frozen-elbow-and-a-grown-shoulder.md)
+> · 🧪 no ADR · **uncommitted, unwatched.** Suite 1046 / 38 (the same 38) / 3 skipped, `tsc -b`
+> and eslint clean.
+>
+> Ryan watched the 10-12 cells. Measured, then:
+> - **Casual, fixed:** the elbow stays where the standing hold has it and only the forearm lifts
+>   (`TouchHold.lift`, `CASUAL_FOREARM_LIFT` = 60°, `casual-lift.test.ts`). Before, the player's
+>   elbow rode **above** his shoulder with the forearm 23° down — his forearm is longer than his
+>   upper arm and the old aim point was too close to fold onto.
+> - **Gable quarter `player → ember`, explained (then resized, below):** the reshape grows him +0.768 for the
+>   *high* join, the pose clamps the hand to the *low* one, and the join ends 0.218 below his
+>   shoulder with a 0.220 upper arm — no elbow can give a forearm that leans up. That is the
+>   shrug.
+> - **Shoulders now follow the lean** (Ryan ruled yes): `computePositions` gives `shoulderZ`
+>   (Ember 0.224 forward), every renderer and arm solver uses it (`ArmMetrics.restZ`),
+>   `shoulder-lean.test.ts`. A look change for Ember everywhere. Not followed: side lean
+>   (`leanZ`), an emote's lean in the world, `arch.ts`'s plan. `leanX` doc fixed (`+` = forward).
+>   Suite then 1017 / 38.
+> - **Resizing (step 2 part one):** over the centre a made hold is sized **at the midpoint pass**
+>   (`OVER_CENTRE`, `ArchSizing.centre`), at the low join — the bug was the across (priced over
+>   her at the full standing width, beyond his arm), not the height. Superseded by seat-or-break
+>   below.
+> - **The elbow (Ryan: *"elbow first"*):** the `forearmUp` cap stops the raised elbow where the
+>   forearm leans `GABLE_FOREARM_LEAN` = 35° up (not level), and turns a too-high hanging elbow
+>   *down* to it. You → Ember's forearm 0/61/−9° → **35/61/35°** at beats 1/2/3. Straight,
+>   stretched arms (Myco, Sprout) are still their own angle.
+> - **Drawn-arm sweep** showed the chord was passing forearms drawn *through her head* (§7).
+> - **Seat or break — the last look (Ryan, §8):** `seatOverCentre` tries longer forearms × the
+>   join off her midline toward him × the pass, checking both forearms *as drawn* and a hand's
+>   width of reach to spare. Seated → `ArchSizing.centre` (+`toward`, `armDelta`); nothing seats
+>   → a break, `ArchSizing.unseated`, which the rules box does not ask for joined hands. A break
+>   over the centre reaches from each dancer's own shoulder toward the join (`breakEffort`).
+>   **8 of 25 seat** (forearms +0.27–0.36); **17 break**, incl. every Ember/Myco belle and
+>   you → Ember. Derived from shapes, so custom pairings get the same answer.
+>
+> **Ryan owes:** watch a seated cell (e.g. `under-arch/ryan-player`), a broken one
+> (`under-arch/player-ember`), Ember's shoulders (editor, world, floor) and
+> `under-arch-casual/player-ember` — switch on. Then, if accepted, the ADRs (plan step 8). Still
+> open from 10-12: the duck's standing, step ids.
 
 > ### ⏸ STOPPED HERE — 2026-10-12, end of session — committed, **unwatched**
 >
