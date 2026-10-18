@@ -4,7 +4,24 @@ _Last updated: 2026-10-18_
 
 ## Status / next
 
-> ### ▶ PICK UP HERE — 2026-10-18 (1) — `#review2`, a posing screen beside the review
+> ### ▶ PICK UP HERE — 2026-10-18 (2) — a dial moves the picture, and keyframes play
+>
+> [`journal/2026-10-18-2-a-dial-moves-the-picture.md`](journal/2026-10-18-2-a-dial-moves-the-picture.md)
+> · ✅ committed and pushed home; **not yet looked at in a browser**.
+>
+> Turning a dial on `#review2` now moves the drawn dancers (`applyToRigs`, the inverse of the
+> readings, applied after the floor poses). Keyframes show on every couple at their moment, and
+> with nothing highlighted a dial shows on every unlocked couple at once. Elbow bend is a readout
+> only. Each keyframe card has an "active on this couple" switch for troubleshooting (session
+> only). **Play: my keyframes** eases every couple in and out through its own timeline
+> (`sampleTrack`), blending from the solver over the tenth of the move before its first keyframe and
+> back out over the tenth after its last. ⏳ **Next:** Ryan tries it all: dials, the per-couple
+> switch, playback, and the edge blends. Then the game's state refactor (ADR-0065; supersedes
+> ADR-0004). Suite 1084 / the same 38.
+>
+> ---
+>
+> ### 2026-10-18 (1) — `#review2`, a posing screen beside the review
 >
 > [`journal/2026-10-18-1-a-posing-screen-beside-the-review.md`](journal/2026-10-18-1-a-posing-screen-beside-the-review.md)
 > · plan + ADR in `work/square-dance-planning/review2/` · 🧪 **uncommitted, not yet looked at.**
