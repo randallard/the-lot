@@ -153,6 +153,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0062](0062-head-facing-forward-lean-and-the-bob-are-the-emotes.md) | Head facing, forward lean and the bob are the emote's | Accepted |
 | [0063](0063-an-unclassified-expression-channel-is-owned.md) | An unclassified expression channel is owned | Accepted |
 | [0064](0064-the-channel-contract-governs-engine-driven-dancers-only.md) | The channel contract governs engine-driven dancers only | Accepted |
+| [0065](0065-state-is-managed-facts-managed-position-and-derived-values.md) | State is managed facts, a managed position, and derived values — and a screen's transitions go through one pure reducer | Accepted |
 
 ## Decisions this repo inherits
 

@@ -1,9 +1,40 @@
 # Progress & Status
 
-_Last updated: 2026-10-13_
+_Last updated: 2026-10-18_
 
 ## Status / next
 
+> ### ▶ PICK UP HERE — 2026-10-18 (1) — `#review2`, a posing screen beside the review
+>
+> [`journal/2026-10-18-1-a-posing-screen-beside-the-review.md`](journal/2026-10-18-1-a-posing-screen-beside-the-review.md)
+> · plan + ADR in `work/square-dance-planning/review2/` · 🧪 **uncommitted, not yet looked at.**
+> `tsc -b` and eslint clean; `review2-route.test.ts` passes.
+>
+> A prototype of every control Ryan asked for. Real: pairing, transport, click-a-part, dials that
+> **read the drawn rig**, and keyframes in an **IndexedDB event log** with save/load and a
+> pairings drawer (layered apply to all, per-couple review marks). Still record-only: turning
+> a dial doesn't move the pose, and keyframes don't play yet. New: `src/dance/Review2Scene.tsx`,
+> `review2-route.ts`, `pose-events.ts`, `pose-store.ts`, `pose-dials.ts` (+ tests). Touched:
+> `src/main.tsx` (the branch), `src/dance/Dancer.tsx` (mesh `name`s). Suite 1055 / 38 (the same 38).
+> 🔑 **ADR-0065 (state):** managed facts, managed position (never derived), derived values, and
+> one pure reducer per screen. It builds on ADR-0004 and came from spaces-game's derived-phase
+> bugs.
+>
+> ✅ **Session reducer done** (`review2-session.ts` + 9 tests): `t` has one owner, edits are tied
+> to their moment, `arrive()` is gone, reload-on-a-keyframe is fixed. Suite 1064 / the same 38.
+>
+> ✅ **All 25 couples on the floor** in a filled hex disk around the focus couple (`couple-disk.ts`,
+> 5 tests). The camera follows the focus, movers fade out and in, and the spacing is a dial
+> (Ctrl+↑/↓). Suite 1071 / the same 38. ⚠️ Watch frame rate while playing: 25 floors pose at once.
+>
+> ⏳ **Next, in order:** (1) Ryan walks `#review2`; (2) wire one dial end to end; (3) play the
+> keyframes.
+> **Then the game's own state refactor (planned 10-18):** routes out of `phaseOverride`, with a
+> real back stack for the phone screens. That supersedes ADR-0004. The 10-13 block below is
+> committed (`9b54eb1`, `65efb04`).
+>
+> ---
+>
 > ### ▶ PICK UP HERE — 2026-10-13 (1) — frozen elbow, leaning shoulders, leaning forearm, seat-or-break
 >
 > [`journal/2026-10-13-1-a-frozen-elbow-and-a-grown-shoulder.md`](journal/2026-10-13-1-a-frozen-elbow-and-a-grown-shoulder.md)

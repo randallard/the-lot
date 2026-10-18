@@ -140,6 +140,7 @@ Two routes on the dev server, neither part of the game:
 |---|---|
 | `#dance`, `#dance=two-twirls`, … | The debug scene: a figure playing on a pair, with tracking markers and readouts. |
 | `#review`, `#review=california-twirl/under-arch/ryan-ember` | The pose review: one named moment of one figure on one pairing of the cast, frozen. Rate it, note it, read the rules verdict, turn the experimental dials. The address is `figure/step/beau-belle`. |
+| `#review2`, `#review2=california-twirl/player-myco`, `…/only` | 🧪 The posing screen (prototype): play / step / scrub a whole figure on one pairing, the other 24 couples dance around it in a filled disk (click one to focus it; Ctrl+↑/↓ spacing), click a body part for dials read off the drawn pose, set keyframes into a figure-wide draft or (`/only`) for one couple, apply to all from the pairings drawer, save / load the keyframes as a file. Dials record but don't move the pose yet. |
 
 **Start at [`docs/PROGRESS.md`](docs/PROGRESS.md)** for current state and what's next — its
 first block is always the place to pick up.
