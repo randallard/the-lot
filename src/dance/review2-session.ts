@@ -70,6 +70,12 @@ export interface Session {
   readonly couples: readonly string[];
   /** Metres between neighbouring couples. */
   readonly spacing: number;
+  /**
+   * Keyframes switched off for one couple while troubleshooting, as `figure|pairing|t`. Session
+   * only and never saved: it's for seeing what a couple does without one keyframe, not a decision
+   * about its timeline (that's "hide for this couple").
+   */
+  readonly muted: Readonly<Record<string, true>>;
   /** A one-line message, with a counter so the same text twice still restarts its timer. */
   readonly notice: { readonly text: string; readonly n: number } | null;
 }
@@ -78,6 +84,9 @@ export type Action =
   /** The URL changed. `focus` is the pairing on screen, which the disk re-forms around. */
   | { readonly type: "retarget"; readonly scope: string; readonly loaded: string; readonly focus: string }
   | { readonly type: "spacing"; readonly by: number }
+  | { readonly type: "mute"; readonly figure: string; readonly pairing: string; readonly t: number; readonly on: boolean }
+  /** Tell every floor to stand at `t` again: the solver's pose, before any dial values go back on. */
+  | { readonly type: "repose" }
   | { readonly type: "seek"; readonly to: number }
   | { readonly type: "step"; readonly dir: 1 | -1; readonly from: number }
   | { readonly type: "play" }
@@ -108,6 +117,7 @@ export function initialSession(scope: string, loaded: string, couples: readonly 
     edits: null, selected: null, anchor: null, drawerOpen: false,
     openFrame: null, everything: false, mode: "solver", notice: null,
     couples, layout: couples.length === 0 ? {} : initialLayout(couples, focus), spacing: SPACING.initial,
+    muted: {},
   };
 }
 
@@ -141,6 +151,15 @@ export function reduce(s: Session, a: Action): Session {
         layout: s.couples.length === 0 ? s.layout : refocus(s.layout, s.couples, a.focus),
       };
     }
+    case "mute": {
+      const k = muteKey(a.figure, a.pairing, a.t);
+      const muted = { ...s.muted };
+      if (a.on) muted[k] = true;
+      else Reflect.deleteProperty(muted, k);
+      return { ...s, muted, seekToken: s.seekToken + 1 };
+    }
+    case "repose":
+      return { ...s, seekToken: s.seekToken + 1 };
     case "spacing": {
       const to = Math.round((s.spacing + a.by) * 100) / 100;
       return { ...s, spacing: Math.min(SPACING.max, Math.max(SPACING.min, to)) };
@@ -192,6 +211,9 @@ export function reduce(s: Session, a: Action): Session {
       return { ...s, selected: null, openFrame: null };
   }
 }
+
+export const muteKey = (figure: string, pairing: string, t: number) => `${figure}|${pairing}|${String(Math.round(t * 1000))}`;
+export const isMuted = (s: Session, figure: string, pairing: string, t: number) => s.muted[muteKey(figure, pairing, t)] === true;
 
 // ── Derived: what the screen shows, from the session plus the facts ───────────────────────────
 

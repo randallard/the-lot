@@ -13,10 +13,10 @@
  * | pairing — figure, the 25-pairing list, swap | ✅ real (the live `DanceFloor`) |
  * | play / pause · step ±1/10 · scrub | ✅ real (the floor's own clock and `seek`) |
  * | click a body part → its name and dials | ✅ real — every dial **reads** the drawn pose (`pose-dials.ts`) |
- * | turning a dial, couple width | 🧪 records the value; the pose does not move yet |
+ * | turning a dial, couple width | ✅ moves the **drawn** pose (`applyToRigs`), not the solver; no rule keeps anything else right |
  * | keyframes, the drawer, accept & lock | ✅ real — an event log in IndexedDB (`pose-events.ts`, `pose-store.ts`) |
  * | save / load | ✅ real — an event bundle; load merges, never overwrites |
- * | play the keyframes | 🧪 not built — waits on a dial driving the pose |
+ * | play: my keyframes | ✅ each couple eases in and out between its own keyframes (`sampleTrack`), blending with the solver at the edges |
  *
  * **Every couple vs one couple.** With no pairing highlighted in the drawer, a keyframe goes
  * straight to **every couple that isn't locked**. With a pairing highlighted, it goes to that
@@ -41,7 +41,7 @@ import { castRoster } from "../config/npcs";
 import { REVIEW_FIGURES } from "./review-steps";
 import { pairingId, reviewPairings } from "./review-route";
 import { poseTargetId, review2Hash, review2Target, type PoseTarget } from "./review2-route";
-import { PARTS, WIDTH_KEY, dialKey, isPartId, readRigs, type Aspect, type PartId } from "./pose-dials";
+import { EDGE_BLEND, PARTS, WIDTH_KEY, applyToRigs, dialKey, isPartId, readRigs, sampleTrack, type Aspect, type PartId } from "./pose-dials";
 import {
   fromBundle,
   lockedBehind,
@@ -63,6 +63,7 @@ import { hexToWorld, type Coord } from "./couple-disk";
 import {
   editsHere,
   initialSession,
+  isMuted,
   keyframeHere,
   keyframeToKeep,
   reduce as reduceSession,
@@ -197,6 +198,47 @@ function RigReader({ focus, shapes, onRead }: { focus: string; shapes: readonly 
     last.current = clock.elapsedTime;
     const couple = scene.getObjectByName(`couple:${focus}`);
     if (couple !== undefined) onRead(readRigs(couple.getObjectsByProperty("name", "dancer"), shapes));
+  });
+  return null;
+}
+
+/**
+ * Puts one couple's pose onto its drawn rigs, every frame, **after** the floor has posed them.
+ * Mounted after the couple's `DanceFloor`, so its frame callback runs second.
+ *
+ * - `track`: playing my keyframes. The couple's timeline is sampled at the floor's clock, eased
+ *   in and out between keyframes, and blended with the solver's pose into the first and out of the
+ *   last. That pose is read off the rig **before** this writes over it: every frame while playing
+ *   (the floor re-poses every frame), and on the frame of each seek while paused (the floor poses
+ *   once, then holds).
+ * - `values`: what's set at this moment (a keyframe here, unkept edits), on top of either.
+ *
+ * When either goes away the screen re-seeks every floor, which puts the solver's pose back.
+ */
+function PoseOverride({ id, shapes, values, track, clock, playing, seekToken }: {
+  id: string;
+  shapes: readonly CharacterBodyShape[];
+  values: Readonly<Record<DialKey, number>> | undefined;
+  track: readonly Keyframe[] | undefined;
+  clock: { readonly current: number };
+  playing: boolean;
+  seekToken: number;
+}) {
+  const { scene } = useThree();
+  const solver = useRef<Record<DialKey, number> | undefined>(undefined);
+  const seen = useRef<number | null>(null);
+  useFrame(() => {
+    if (values === undefined && track === undefined) return;
+    const couple = scene.getObjectByName(`couple:${id}`);
+    if (couple === undefined) return;
+    const rigs = couple.children.filter((c) => c.name === "dancer");
+    if (track !== undefined && (playing || seen.current !== seekToken)) {
+      solver.current = readRigs(rigs, shapes);
+      seen.current = seekToken;
+    }
+    const sampled = track === undefined ? undefined : sampleTrack(track, clock.current, solver.current);
+    if (values === undefined && sampled === undefined) return;
+    applyToRigs(rigs, shapes, { ...sampled, ...values });
   });
   return null;
 }
@@ -395,10 +437,53 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
     setReadings(v);
   }, []);
 
-  const here = keyframeHere(session, timeline);
+  const hereRaw = keyframeHere(session, timeline);
+  const here = hereRaw !== undefined && !isMuted(session, figure.id, pid, hereRaw.keyframe.t) ? hereRaw : undefined;
   const edits = editsHere(session);
   const set = setHere(here?.keyframe, edits);
   const valueOf = (k: DialKey) => set[k] ?? readings[k];
+
+  /*
+   * What each couple wears on top of the solver right now, paused: its own keyframe at this
+   * moment (unless muted for it), plus the unkept dial edits wherever they'd land if kept. That's
+   * the highlighted couple alone, or with nothing highlighted every unlocked couple without a
+   * keyframe of its own here. Derived; the floors are re-posed whenever it changes.
+   */
+  const overrides = useMemo(() => {
+    const out = new Map<string, Record<DialKey, number>>();
+    if (playing) return out;
+    for (const id of allIds) {
+      const tl = only && id === pid ? timeline : pairingTimeline(fig, id);
+      const k = tl.find((f) => f.source !== "hidden" && sameMoment(f.keyframe.t, t));
+      const kept = k !== undefined && !isMuted(session, figure.id, id, t) ? k.keyframe : undefined;
+      const takesEdits = only ? id === pid : !fig.locked.has(id) && k?.source !== "own";
+      const v = setHere(kept, takesEdits ? edits : {});
+      if (Object.keys(v).length > 0) out.set(id, v);
+    }
+    return out;
+  }, [playing, allIds, only, pid, timeline, fig, t, session, figure.id, edits]);
+  /** Playing my keyframes: each couple's timeline, less what it hides and what's muted for it. */
+  const tracks = useMemo(() => {
+    const out = new Map<string, readonly Keyframe[]>();
+    if (mode !== "keyframes") return out;
+    for (const id of allIds) {
+      const frames = pairingTimeline(fig, id)
+        .filter((f) => f.source !== "hidden" && !isMuted(session, figure.id, id, f.keyframe.t))
+        .map((f) => f.keyframe);
+      if (frames.length > 0) out.set(id, frames);
+    }
+    return out;
+  }, [mode, allIds, fig, session, figure.id]);
+  const overridesKey = useMemo(
+    () => JSON.stringify([[...overrides.entries()], mode, events.length, session.muted]),
+    [overrides, mode, events.length, session.muted],
+  );
+  const firstKey = useRef(overridesKey);
+  useEffect(() => {
+    if (overridesKey === firstKey.current) return;
+    firstKey.current = overridesKey;
+    dispatch({ type: "repose" });
+  }, [overridesKey]);
   const setEdit = (k: DialKey, v: number | null) => { dispatch({ type: "edit", key: k, value: v }); };
 
   useEffect(() => {
@@ -617,6 +702,16 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
     const k = dialKey(dancer, part, a.id);
     const v = valueOf(k);
     const isSet = set[k] !== undefined;
+    if (a.readOnly === true) {
+      return (
+        <div key={k} style={{ display: "grid", gridTemplateColumns: "128px 1fr 58px 20px", gap: 6, alignItems: "center", margin: "3px 0", color: "#777" }}>
+          <span style={{ fontSize: 12 }}>{a.label}</span>
+          <span style={{ fontSize: 11, fontStyle: "italic" }}>readout — follows the upper arm and forearm</span>
+          <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 12 }}>{v === undefined ? "—" : `${signed(v)}${a.unit}`}</span>
+          <span />
+        </div>
+      );
+    }
     return (
       <label key={k} style={{ display: "grid", gridTemplateColumns: "128px 1fr 58px 20px", gap: 6, alignItems: "center", margin: "3px 0" }}>
         <span style={{ fontSize: 12, fontWeight: isSet ? 600 : 400 }}>{isSet ? "● " : ""}{a.label}</span>
@@ -686,12 +781,13 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
               <b>Real:</b> the pairing, play / pause / step / scrub, clicking a part, every dial&apos;s
               reading, and the keyframes (kept in this browser, and saved / loaded as a file).
               <br />
-              <b>Record only:</b> turning a dial or the couple width records the value. The dancers
-              don&apos;t move yet.
+              <b>Dials move the drawn pose</b> while paused: exactly what you dial, on top of the
+              solver, with nothing keeping holds or shoulders right. Keyframes show on every couple
+              at their moment, and <b>play: my keyframes</b> eases every couple through its own.
             </>
           }
         >
-          🧪 prototype — dials record; the pose does not move yet
+          🧪 prototype — dials move the drawn pose; keyframes play
         </Explain>
       </div>
 
@@ -730,6 +826,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
                     {...(id === pid ? { onBeat } : {})}
                     shapes={coupleShapes}
                   />
+                  <PoseOverride key={`${id}|${figure.id}`} id={id} shapes={coupleShapes} values={overrides.get(id)} track={tracks.get(id)} clock={clock} playing={playing} seekToken={session.seekToken} />
                 </CoupleSlot>
               );
             })}
@@ -830,6 +927,15 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
               </>
             );
           })()}
+          <label style={{ display: "flex", gap: 6, marginTop: 8, fontSize: 12, cursor: "pointer", alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={!isMuted(session, figure.id, pid, shown.keyframe.t)}
+              onChange={(e) => { dispatch({ type: "mute", figure: figure.id, pairing: pid, t: shown.keyframe.t, on: !e.target.checked }); }}
+            />
+            active on {pairName(pairing)}
+            <span style={{ color: "#999" }}>— troubleshooting only, not saved</span>
+          </label>
           <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
             <button style={btn} onClick={() => { seekTo(shown.keyframe.t); }}>go to</button>
             {!only && shown.source === "general" && (
@@ -943,19 +1049,22 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
           <button style={btn} onClick={setKeyframe} title="k" disabled={frozen}>◆ set keyframe</button>
           <select value={mode} onChange={(e) => { dispatch({ type: "setMode", mode: e.target.value as "solver" | "keyframes" }); }} title="what play shows">
             <option value="solver">play: the move as solved</option>
-            <option value="keyframes" disabled={timeline.length === 0}>play: my keyframes</option>
+            <option value="keyframes">play: my keyframes</option>
           </select>
           {mode === "keyframes" && (
             <Explain
               why={
                 <>
-                  <b>What it will do:</b> play the move through the keyframes on this timeline, easing
-                  between them, instead of the pose the solver works out. The solver fills in before
-                  the first keyframe and after the last. For now play still shows the solver.
+                  Every couple plays its <b>own</b> timeline: its own keyframes over everyone&apos;s, or
+                  its locked copy, less what it hides and what&apos;s switched off for it. Between two
+                  keyframes each value eases in and out (angles the short way round). Over the tenth
+                  of the move before a couple&apos;s first keyframe it blends in from the solver, and
+                  over the tenth after its last it blends back out; further out the solver plays.
+                  It moves the picture only: nothing keeps holds or shoulders right in between.
                 </>
               }
             >
-              🧪 not built — still plays the solver
+              ▶ keyframes — eased, blended with the solver at the edges
             </Explain>
           )}
           {notice !== null && <span style={{ fontSize: 12, color: "#a35d00" }}>{notice.text}</span>}
@@ -976,6 +1085,25 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
             {Array.from({ length: 11 }, (_, i) => (
               <div key={i} style={{ position: "absolute", left: pct(i / 10), top: 0, bottom: 0, borderLeft: "1px dotted #ccc" }} />
             ))}
+            {/* Playing my keyframes: where this couple's keyframes are in charge, not the solver. */}
+            {(() => {
+              const tr = tracks.get(pid);
+              const lo = tr?.[0]?.t;
+              const hi = tr?.[tr.length - 1]?.t;
+              if (lo === undefined || hi === undefined) return null;
+              const inFrom = Math.max(0, lo - EDGE_BLEND);
+              const outTo = Math.min(1, hi + EDGE_BLEND);
+              const band = (from: number, to: number, background: string, title: string) => (
+                <div title={title} style={{ position: "absolute", left: pct(from), width: `${((to - from) * 100).toFixed(2)}%`, bottom: 0, height: 4, background, opacity: 0.6, minWidth: 2 }} />
+              );
+              return (
+                <>
+                  {band(inFrom, lo, "linear-gradient(to right, transparent, #cc8a22)", "blending in from the solver")}
+                  {band(lo, hi, "#cc8a22", "keyframes play here")}
+                  {band(hi, outTo, "linear-gradient(to right, #cc8a22, transparent)", "blending back out to the solver")}
+                </>
+              );
+            })()}
             {landmarks.map(([f, names]) => (
               <div key={f} title={names.join("\n")} style={{ position: "absolute", left: pct(f), top: 0, transform: "translateX(-50%)", fontSize: 10, color: "#888", whiteSpace: "nowrap" }}>
                 <div style={{ width: 1, height: 10, background: "#aaa", margin: "0 auto" }} />

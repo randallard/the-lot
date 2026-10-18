@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Keyframe } from "./pose-events";
 import {
   editsHere,
+  isMuted,
   initialSession,
   keyframeHere,
   keyframeToKeep,
@@ -100,5 +101,14 @@ describe("the posing session", () => {
     let s = s0;
     for (let i = 0; i < 100; i++) s = reduce(s, { type: "spacing", by: -0.25 });
     expect(s.spacing).toBe(1.5);
+  });
+
+  it("a keyframe muted for one couple is off for that couple only, and asks the floors to re-pose", () => {
+    const s = run({ type: "mute", figure: "dosado", pairing: "player-myco", t: 0.5, on: true });
+    expect(isMuted(s, "dosado", "player-myco", 0.5)).toBe(true);
+    expect(isMuted(s, "dosado", "ember-ember", 0.5)).toBe(false);
+    expect(isMuted(s, "dosado", "player-myco", 0.6)).toBe(false);
+    expect(s.seekToken).toBe(1);
+    expect(isMuted(reduce(s, { type: "mute", figure: "dosado", pairing: "player-myco", t: 0.5, on: false }), "dosado", "player-myco", 0.5)).toBe(false);
   });
 });

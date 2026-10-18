@@ -13,11 +13,19 @@
  *
  * The hand's three angles are its mesh rotation inside the forearm group, rest styling included.
  * They are approximate and will move when the hand is modelled properly.
+ *
+ * ## Writing a dial back (`applyToRigs`)
+ *
+ * The inverse, onto the drawn rig, after the floor has posed it: a dial **moves the picture**,
+ * not the solver. So it's what you dial, exactly, with no rule keeping anything else right. The
+ * shoulders don't follow a torso lean, and a hand stays where its forearm puts it even if that
+ * breaks a hold. **Elbow bend is a readout only**: it's fixed by where the upper arm and the
+ * forearm point, which are the dials that move it.
  */
 
 import * as THREE from "three";
 import type { CharacterBodyShape } from "../services/body-shapes";
-import type { DialKey } from "./pose-events";
+import type { DialKey, Keyframe } from "./pose-events";
 
 export type PartId =
   | "torso"
@@ -36,6 +44,8 @@ export interface Aspect {
   readonly max: number;
   readonly step: number;
   readonly unit: "°" | "cm";
+  /** Measured, not set: follows from other dials. */
+  readonly readOnly?: true;
 }
 
 export interface PartSpec {
@@ -67,7 +77,7 @@ function forearm(side: "left" | "right"): PartSpec {
   return {
     label: `Forearm (${side})`,
     aspects: [
-      deg("bend", "elbow bend (0 straight)", 0, 180),
+      { ...deg("bend", "elbow bend (0 straight)", 0, 180), readOnly: true },
       deg("pitch", "points up / down (0 level)", -90, 90),
       deg("heading", "points toward (0 fwd, 90 side)", -180, 180),
       cm("length", "elbow to hand", 0, 80),
@@ -196,3 +206,186 @@ export function readRigs(rigs: readonly THREE.Object3D[], shapes: readonly Chara
   }
   return out;
 }
+
+const D2R = Math.PI / 180;
+const _dir = new THREE.Vector3();
+
+/**
+ * Put dial values onto the drawn rigs, beau first — the inverse of `readRigs`. Only the keys
+ * present are written; everything else stays as the floor posed it.
+ */
+export function applyToRigs(rigs: readonly THREE.Object3D[], shapes: readonly CharacterBodyShape[], values: Readonly<Record<DialKey, number>>): void {
+  const get = (k: DialKey) => values[k];
+  rigs.forEach((rig, d) => {
+    const v = (part: PartId, aspect: string) => get(dialKey(d, part, aspect));
+    const torso = rig.getObjectByName("torso");
+    const shape = shapes[d];
+    if (torso !== undefined) {
+      const lf = v("torso", "lean-fwd");
+      const ls = v("torso", "lean-side");
+      const len = v("torso", "length");
+      if (lf !== undefined) torso.rotation.x = lf * D2R;
+      if (ls !== undefined) torso.rotation.z = ls * D2R;
+      if (len !== undefined && shape !== undefined && shape.body.height > 0) torso.scale.y = len / 100 / shape.body.height;
+    }
+    const facing = v("torso", "facing");
+    const x = v("torso", "x");
+    const z = v("torso", "z");
+    if (facing !== undefined) rig.rotation.y = facing * D2R;
+    if (x !== undefined) rig.position.x = x / 100;
+    if (z !== undefined) rig.position.z = z / 100;
+
+    const head = rig.getObjectByName("head")?.parent;
+    if (head != null) {
+      const turn = v("head", "turn");
+      const nod = v("head", "nod");
+      const tilt = v("head", "tilt");
+      if (turn !== undefined) head.rotation.y = turn * D2R;
+      if (nod !== undefined) head.rotation.x = nod * D2R;
+      if (tilt !== undefined) head.rotation.z = tilt * D2R;
+    }
+
+    for (const side of ["left", "right"] as const) {
+      const sign = side === "left" ? 1 : -1;
+      const fore = rig.getObjectByName(`forearm-${side}`);
+      const handMesh = rig.getObjectByName(`hand-${side}`);
+      const arm = fore?.parent;
+      if (fore === undefined || handMesh === undefined || arm == null) continue;
+      const upper = `upper-arm-${side}` as const;
+      const forearmId = `forearm-${side}` as const;
+
+      // Upper arm: the elbow's place out of the shoulder (the shoulder group isn't rotated).
+      const raise = v(upper, "raise");
+      const toward = v(upper, "toward");
+      const ulen = v(upper, "length");
+      if (raise !== undefined || toward !== undefined || ulen !== undefined) {
+        const cur = arm.position;
+        const len = ulen !== undefined ? ulen / 100 : cur.length();
+        const r = (raise ?? cur.clone().angleTo(_down) / D2R) * D2R;
+        const tw = (toward ?? Math.atan2(sign * cur.x, cur.z) / D2R) * D2R;
+        const h = Math.sin(r);
+        arm.position.set(sign * h * Math.sin(tw) * len, -Math.cos(r) * len, h * Math.cos(tw) * len);
+      }
+
+      // Forearm: where it points, in the rig's frame — the elbow group's own rotation.
+      const pitch = v(forearmId, "pitch");
+      const heading = v(forearmId, "heading");
+      if (pitch !== undefined || heading !== undefined) {
+        _dir.set(0, -1, 0).applyQuaternion(arm.quaternion);
+        const p = (pitch ?? Math.asin(Math.max(-1, Math.min(1, _dir.y))) / D2R) * D2R;
+        const hd = (heading ?? Math.atan2(sign * _dir.x, _dir.z) / D2R) * D2R;
+        _dir.set(sign * Math.cos(p) * Math.sin(hd), Math.sin(p), Math.cos(p) * Math.cos(hd));
+        arm.quaternion.setFromUnitVectors(_down, _dir);
+      }
+      const flen = v(forearmId, "length");
+      if (flen !== undefined) {
+        const now = handMesh.position.length();
+        if (now > 1e-6) {
+          const k = flen / 100 / now;
+          handMesh.position.multiplyScalar(k);
+          fore.scale.y *= k;
+          fore.position.y *= k;
+        }
+      }
+
+      const bend = v(`hand-${side}`, "bend");
+      const sideA = v(`hand-${side}`, "side");
+      const roll = v(`hand-${side}`, "roll");
+      if (bend !== undefined || sideA !== undefined || roll !== undefined) {
+        _euler.setFromQuaternion(handMesh.quaternion, "YXZ");
+        _euler.set((bend ?? _euler.x / D2R) * D2R, (roll ?? _euler.y / D2R) * D2R, (sideA ?? _euler.z / D2R) * D2R, "YXZ");
+        handMesh.quaternion.setFromEuler(_euler);
+      }
+    }
+  });
+
+  // The couple's width last: both dancers move apart along the line between them, about its middle.
+  const w = get(WIDTH_KEY);
+  const [a, b] = rigs;
+  if (w !== undefined && a !== undefined && b !== undefined) {
+    const mx = (a.position.x + b.position.x) / 2;
+    const mz = (a.position.z + b.position.z) / 2;
+    let dx = b.position.x - a.position.x;
+    let dz = b.position.z - a.position.z;
+    const n = Math.hypot(dx, dz);
+    if (n > 1e-6) {
+      dx /= n;
+      dz /= n;
+      const half = w / 200;
+      a.position.set(mx - dx * half, a.position.y, mz - dz * half);
+      b.position.set(mx + dx * half, b.position.y, mz + dz * half);
+    }
+  }
+}
+
+
+/** Whether a dial key is an angle, so it's eased the short way round. */
+function isAngle(k: DialKey): boolean {
+  if (k === WIDTH_KEY) return false;
+  const [, part, aspect] = k.split(".");
+  if (part === undefined || !isPartId(part)) return false;
+  return PARTS[part].aspects.find((a) => a.id === aspect)?.unit === "°";
+}
+
+/** Ease in and out: slow leaving a keyframe, slow arriving at the next. */
+export const ease = (u: number) => u * u * (3 - 2 * u);
+
+/** How much of the move a couple spends blending from the solver into its keyframes, and back out. */
+export const EDGE_BLEND = 0.1;
+
+/** `a` toward `b` by `u`, each value; angles the short way round. A key missing from one side keeps the other's. */
+export function mixPoses(a: Readonly<Record<DialKey, number>>, b: Readonly<Record<DialKey, number>>, u: number): Record<DialKey, number> {
+  const out: Record<DialKey, number> = {};
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    const va = a[k];
+    const vb = b[k];
+    if (va === undefined || vb === undefined) {
+      const only = va ?? vb;
+      if (only !== undefined) out[k] = only;
+      continue;
+    }
+    if (isAngle(k)) {
+      const d = ((((vb - va + 180) % 360) + 360) % 360) - 180;
+      out[k] = va + d * u;
+    } else out[k] = va + (vb - va) * u;
+  }
+  return out;
+}
+
+/**
+ * A couple's pose at moment `t` from its keyframes.
+ *
+ * - **Between two keyframes**, each value eases in and out from one to the next (`ease`), angles
+ *   the short way round.
+ * - **Into the first and out of the last**, given the solver's pose underneath (`solver`), it
+ *   blends from the solver over the `EDGE_BLEND` of the move before the first keyframe, and back
+ *   over the same after the last, so the keyframes neither pop in nor out.
+ * - **Further out**, or with no solver pose to blend from, `undefined`: the solver plays.
+ */
+export function sampleTrack(
+  frames: readonly Keyframe[],
+  t: number,
+  solver?: Readonly<Record<DialKey, number>>,
+): Record<DialKey, number> | undefined {
+  const first = frames[0];
+  const last = frames[frames.length - 1];
+  if (first === undefined || last === undefined) return undefined;
+  if (t < first.t - 1e-6) {
+    const w = (t - (first.t - EDGE_BLEND)) / EDGE_BLEND;
+    if (solver === undefined || w <= 0) return undefined;
+    return mixPoses(solver, first.values, ease(Math.min(1, w)));
+  }
+  if (t > last.t + 1e-6) {
+    const w = 1 - (t - last.t) / EDGE_BLEND;
+    if (solver === undefined || w <= 0) return undefined;
+    return mixPoses(solver, last.values, ease(Math.min(1, w)));
+  }
+  let i = 0;
+  while (i < frames.length - 1 && frames[i + 1]!.t <= t) i++;
+  const a = frames[i]!;
+  const b = frames[Math.min(i + 1, frames.length - 1)]!;
+  const span = b.t - a.t;
+  const u = span <= 1e-9 ? 0 : Math.min(1, Math.max(0, (t - a.t) / span));
+  return mixPoses(a.values, b.values, ease(u));
+}
+
