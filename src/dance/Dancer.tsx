@@ -125,7 +125,7 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
   const facingMarkerRadius = Math.max(body.radius * 0.16, MIN_FACING_MARKER_RADIUS);
 
   return (
-    <group ref={rig}>
+    <group ref={rig} name="dancer">
       {/* 🔴 The torso is seated at `NPC_BODY_CENTER_Y`, and it had been sitting at the
           rig origin — half a world unit low, with nothing else moved to match. Every
           other height in this component comes from `computePositions(shape,
@@ -140,6 +140,7 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
           constant and was therefore right the whole time. Only the picture was wrong,
           which is why no test caught it and looking did. */}
       <mesh
+        name="torso"
         ref={expression?.body}
         position={[0, NPC_BODY_CENTER_Y, 0]}
         rotation={[deg2rad(body.leanX), 0, deg2rad(body.leanZ)]}
@@ -172,7 +173,7 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
           rather than on each mesh so it stays right on caricature heads with
           offsets. */}
       <group ref={expression?.head} position={[head.offsetX, pos.headY + head.offsetY, head.offsetZ]}>
-        <mesh castShadow>
+        <mesh name="head" castShadow>
           <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
           <meshStandardMaterial color={COLOR} />
         </mesh>
@@ -201,11 +202,11 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
           pose, and which nothing was doing. */}
       <group ref={expression?.shoulders.right} position={[-pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
         <group ref={arms?.right} position={[0, elbowLocalY, 0]}>
-          <mesh position={[0, forearmLocalY, 0]} castShadow>
+          <mesh name="forearm-right" position={[0, forearmLocalY, 0]} castShadow>
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
             <meshStandardMaterial color={COLOR} />
           </mesh>
-          <mesh ref={arms?.hands.right} position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.left}>
+          <mesh name="hand-right" ref={arms?.hands.right} position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.left}>
             <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
             <meshStandardMaterial color={COLOR} />
           </mesh>
@@ -215,11 +216,11 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
       {/* Anatomical LEFT arm (at +x). */}
       <group ref={expression?.shoulders.left} position={[pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
         <group ref={arms?.left} position={[0, elbowLocalY, 0]}>
-          <mesh position={[0, forearmLocalY, 0]} castShadow>
+          <mesh name="forearm-left" position={[0, forearmLocalY, 0]} castShadow>
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
             <meshStandardMaterial color={COLOR} />
           </mesh>
-          <mesh ref={arms?.hands.left} position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.right}>
+          <mesh name="hand-left" ref={arms?.hands.left} position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.right}>
             <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
             <meshStandardMaterial color={COLOR} />
           </mesh>

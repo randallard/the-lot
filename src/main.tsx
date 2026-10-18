@@ -5,6 +5,8 @@ import { DanceDebugScene } from "./dance/DanceDebugScene.tsx";
 import { danceSceneFigure } from "./dance/dance-route.ts";
 import { DanceReviewScene } from "./dance/DanceReviewScene.tsx";
 import { reviewSceneCell } from "./dance/review-route.ts";
+import { Review2Scene } from "./dance/Review2Scene.tsx";
+import { review2Target } from "./dance/review2-route.ts";
 
 // The M4 dance debug scene and the pose review are chosen here rather than inside App,
 // because App calls hooks on its first line and an early return there would break the
@@ -12,13 +14,17 @@ import { reviewSceneCell } from "./dance/review-route.ts";
 // scene can touch the game's state machine.
 //
 // `#review` is checked first only because the two patterns are disjoint and something has
-// to go first; neither hash can match the other's parser.
+// to go first; neither hash can match the other's parser. `#review2` (the posing screen) is
+// disjoint from both for the same reason.
+const pose = review2Target(window.location.hash);
 const reviewCell = reviewSceneCell(window.location.hash);
 const danceFigure = reviewCell === null ? danceSceneFigure(window.location.hash) : null;
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {reviewCell !== null ? (
+    {pose !== null ? (
+      <Review2Scene initialTarget={pose} />
+    ) : reviewCell !== null ? (
       <DanceReviewScene initialCell={reviewCell} />
     ) : danceFigure === null ? (
       <App />
