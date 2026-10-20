@@ -59,7 +59,7 @@ import {
   type Source,
 } from "./pose-events";
 import { downloadText, openPoseStore, type PoseStore } from "./pose-store";
-import { hexToWorld, type Coord } from "./couple-disk";
+import { toWorld, type Coord } from "./couple-disk";
 import {
   editsHere,
   initialSession,
@@ -244,6 +244,9 @@ function PoseOverride({ id, shapes, values, track, clock, playing, seekToken }: 
 }
 
 const FADE_SECONDS = 0.35;
+/** A move shorter than this (spacing units) glides; anything longer fades out and back in. */
+const GLIDE_UNDER = 0.75;
+const GLIDE_RATE = 6;
 
 /** Every material under a couple, faded together. Transparent only while fading, so a couple at rest draws exactly as before. */
 function setOpacity(root: THREE.Object3D, opacity: number): void {
@@ -262,9 +265,9 @@ function setOpacity(root: THREE.Object3D, opacity: number): void {
 }
 
 /**
- * One couple's place on the floor. A change of **lattice point** fades the couple out where it
- * was and back in where it's going. A change of **spacing** moves it straight there, because
- * nobody changed places.
+ * One couple's place on the floor. A short change of spot (a ring settling round a new focus)
+ * glides there; a long one fades the couple out where it was and back in where it's going. A
+ * change of **spacing** moves it straight there, because nobody changed places.
  */
 function CoupleSlot({ id, coord, spacing, children }: { id: string; coord: Coord; spacing: number; children: ReactNode }) {
   const group = useRef<THREE.Group>(null);
@@ -275,8 +278,15 @@ function CoupleSlot({ id, coord, spacing, children }: { id: string; coord: Coord
     const g = group.current;
     if (g === null) return;
     const target = coord;
-    if (fade.current === null && (drawnAt.current[0] !== target[0] || drawnAt.current[1] !== target[1])) {
-      fade.current = { phase: "out", t: 0 };
+    const off = Math.hypot(target[0] - drawnAt.current[0], target[1] - drawnAt.current[1]);
+    if (fade.current === null && off > 1e-6) {
+      if (off >= GLIDE_UNDER) fade.current = { phase: "out", t: 0 };
+      else if (off < 1e-3) drawnAt.current = target;
+      else {
+        const k = Math.min(1, dt * GLIDE_RATE);
+        const [x0, z0] = drawnAt.current;
+        drawnAt.current = [x0 + (target[0] - x0) * k, z0 + (target[1] - z0) * k];
+      }
     }
     const f = fade.current;
     if (f !== null) {
@@ -292,7 +302,7 @@ function CoupleSlot({ id, coord, spacing, children }: { id: string; coord: Coord
       setOpacity(g, opacity);
       if (label.current) label.current.style.opacity = String(opacity);
     }
-    const { x, z } = hexToWorld(drawnAt.current, spacing);
+    const { x, z } = toWorld(drawnAt.current, spacing);
     g.position.set(x, 0, z);
   });
   return (
@@ -392,7 +402,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
     () => new Map(reviewPairings().map((p) => [pairingId(p), [getBodyShape(p.beau), getBodyShape(p.belle)] as const])),
     [],
   );
-  const focusAt = useMemo(() => hexToWorld(layout[pid] ?? [0, 0], spacing), [layout, pid, spacing]);
+  const focusAt = useMemo(() => toWorld(layout[pid] ?? [0, 0], spacing), [layout, pid, spacing]);
 
   // ── The event log ────────────────────────────────────────────────────────────────────────
 

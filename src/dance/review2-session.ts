@@ -64,7 +64,7 @@ export interface Session {
   readonly openFrame: number | null;
   readonly everything: boolean;
   readonly mode: "solver" | "keyframes";
-  /** Which lattice point each couple stands on; the focus couple is the disk's centre. */
+  /** Where each couple stands, in spacing units; the focus couple is the disk's centre. */
   readonly layout: Layout;
   /** Every couple on the floor, in matrix order — what `layout` places. */
   readonly couples: readonly string[];
