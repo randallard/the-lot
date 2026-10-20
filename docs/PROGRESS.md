@@ -4,7 +4,20 @@ _Last updated: 2026-10-18_
 
 ## Status / next
 
-> ### ▶ PICK UP HERE — 2026-10-18 (2) — a dial moves the picture, and keyframes play
+> ### ▶ PICK UP HERE — 2026-10-19 (1) — the disk becomes rings
+>
+> [`journal/2026-10-19-1-the-disk-becomes-rings.md`](journal/2026-10-19-1-the-disk-becomes-rings.md)
+> · ✅ Ryan looked: *"ring disk is perfect."* Committed and pushed home.
+>
+> `#review2`'s floor is now the focus couple with evenly spaced rings of 5, 9 and 10 around it,
+> replacing the hex disk. Short moves on a refocus glide, and long ones fade. California twirl
+> reference photos (both ways round) are in `work/square-dance-planning/review2/reference/`.
+> ⏳ **Next:** Ryan carries on walking `#review2` (dials, per-couple switch, playback, edge blends),
+> then the game's state refactor (ADR-0065; supersedes ADR-0004). Suite 1085 / the same 38.
+>
+> ---
+>
+> ### 2026-10-18 (2) — a dial moves the picture, and keyframes play
 >
 > [`journal/2026-10-18-2-a-dial-moves-the-picture.md`](journal/2026-10-18-2-a-dial-moves-the-picture.md)
 > · ✅ committed and pushed home; **not yet looked at in a browser**.
@@ -40,7 +53,7 @@ _Last updated: 2026-10-18_
 > ✅ **Session reducer done** (`review2-session.ts` + 9 tests): `t` has one owner, edits are tied
 > to their moment, `arrive()` is gone, reload-on-a-keyframe is fixed. Suite 1064 / the same 38.
 >
-> ✅ **All 25 couples on the floor** in a filled hex disk around the focus couple (`couple-disk.ts`,
+> ✅ **All 25 couples on the floor** in a filled hex disk (rings of 5/9/10 since 10-19) around the focus couple (`couple-disk.ts`,
 > 5 tests). The camera follows the focus, movers fade out and in, and the spacing is a dial
 > (Ctrl+↑/↓). Suite 1071 / the same 38. ⚠️ Watch frame rate while playing: 25 floors pose at once.
 >
