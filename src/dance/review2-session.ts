@@ -64,6 +64,11 @@ export interface Session {
   readonly openFrame: number | null;
   readonly everything: boolean;
   readonly mode: "solver" | "keyframes";
+  /**
+   * 🧪 The joined hands travel one arc in one upright plane (`DanceFloor`'s `joinArc`, 10-19).
+   * On by default here; off is the solver's own arch.
+   */
+  readonly handsOnArc: boolean;
   /** Where each couple stands, in spacing units; the focus couple is the disk's centre. */
   readonly layout: Layout;
   /** Every couple on the floor, in matrix order — what `layout` places. */
@@ -101,6 +106,7 @@ export type Action =
   | { readonly type: "toggleDrawer" }
   | { readonly type: "setEverything"; readonly on: boolean }
   | { readonly type: "setMode"; readonly mode: "solver" | "keyframes" }
+  | { readonly type: "handsOnArc"; readonly on: boolean }
   | { readonly type: "notify"; readonly text: string }
   | { readonly type: "dismissNotice"; readonly n: number }
   | { readonly type: "escape" };
@@ -115,7 +121,7 @@ export function initialSession(scope: string, loaded: string, couples: readonly 
   return {
     t: 0, playing: false, seekToken: 0, scope, loaded,
     edits: null, selected: null, anchor: null, drawerOpen: false,
-    openFrame: null, everything: false, mode: "solver", notice: null,
+    openFrame: null, everything: false, mode: "solver", handsOnArc: true, notice: null,
     couples, layout: couples.length === 0 ? {} : initialLayout(couples, focus), spacing: SPACING.initial,
     muted: {},
   };
@@ -203,6 +209,9 @@ export function reduce(s: Session, a: Action): Session {
       return { ...s, everything: a.on };
     case "setMode":
       return { ...s, mode: a.mode };
+    // A paused floor writes nothing, so the floors are asked to pose again.
+    case "handsOnArc":
+      return { ...s, handsOnArc: a.on, seekToken: s.seekToken + 1 };
     case "notify":
       return { ...s, notice: notify(s, a.text) };
     case "dismissNotice":

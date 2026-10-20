@@ -366,7 +366,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
 
   const allIds = useMemo(() => reviewPairings().map(pairingId), []);
   const [session, dispatch] = useReducer(reduceSession, undefined, () => initialSession(targetId, loadedKey, allIds, pid));
-  const { t, playing, selected, anchor, drawerOpen, openFrame, mode, everything, notice, layout, spacing } = session;
+  const { t, playing, selected, anchor, drawerOpen, openFrame, mode, everything, notice, layout, spacing, handsOnArc } = session;
   useEffect(() => { dispatch({ type: "retarget", scope: targetId, loaded: loadedKey, focus: pid }); }, [targetId, loadedKey, pid]);
 
   useEffect(() => {
@@ -835,6 +835,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
                     seek={seek}
                     {...(id === pid ? { onBeat } : {})}
                     shapes={coupleShapes}
+                    joinArc={handsOnArc}
                   />
                   <PoseOverride key={`${id}|${figure.id}`} id={id} shapes={coupleShapes} values={overrides.get(id)} track={tracks.get(id)} clock={clock} playing={playing} seekToken={session.seekToken} />
                 </CoupleSlot>
@@ -1077,6 +1078,23 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
               ▶ keyframes — eased, blended with the solver at the edges
             </Explain>
           )}
+          <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={handsOnArc} onChange={(e) => { dispatch({ type: "handsOnArc", on: e.target.checked }); }} />
+            <Explain
+              why={
+                <>
+                  The joined hands travel one arc in one upright plane through the centre of the
+                  exchange: low and a little in front of the couple, up over the centre as she
+                  passes under, down a little in front of their new facing. How far along it they
+                  are is how far she has turned. The bodies walk their own paths; the arms reach
+                  for wherever the hands are. Off is the solver&apos;s own arch. A break (hands
+                  apart) isn&apos;t touched.
+                </>
+              }
+            >
+              🧪 hands on the arc
+            </Explain>
+          </label>
           {notice !== null && <span style={{ fontSize: 12, color: "#a35d00" }}>{notice.text}</span>}
         </div>
 

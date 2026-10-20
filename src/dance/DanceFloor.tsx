@@ -106,6 +106,7 @@ import { useDancePerformance, type DancePerformanceOptions } from "./useDancePer
 import type { AnimationController } from "../services/animation-controller";
 import { NEUTRAL_POSE } from "../services/emotes";
 import { restClearance, silhouetteMetrics } from "./silhouette-limit";
+import { joinArcAt, planJoinArc, type JoinArc } from "./join-arc";
 import {
   type ExpressionContext,
   resolveExpression,
@@ -312,6 +313,19 @@ interface DanceFloorProps extends DancePerformanceOptions {
    * reach the centre at the quarter or three-quarter.
    */
   archOverCentre?: boolean;
+  /**
+   * 🧪 **Exploratory (2026-10-19), not a decided stance.** The arch's joined hands travel one arc
+   * in the upright plane through the centre of the exchange, along the couple's facing: low and a
+   * little in front at the start, over the centre as she passes under, low and a little in front
+   * of the new facing at the end. How far along it they are is how far she has turned
+   * (`join-arc.ts`). `false` (the default) changes nothing.
+   *
+   * Ryan, 2026-10-19, of the California Twirl video: *"her arm doesn't switch sides or cross
+   * over, she walks around it while he holds her hand, his arm up and over."* Sets where the hands
+   * are and nothing else. The arms solve onto it as they do onto any hold, and a break (hands
+   * apart) is left alone.
+   */
+  joinArc?: boolean;
   /**
    * 🧪 A hand on each dancer's stretch and shrink, **added to whatever the figure chose** —
    * beau first. For the review's dials; see {@link Stretch}.
@@ -567,6 +581,7 @@ export function DanceFloor({
   archOverhead = 0,
   archClose = 0,
   archOverCentre = false,
+  joinArc = false,
   stretch,
   accommodation: calledAccommodation,
   ...performanceOptions
@@ -923,9 +938,12 @@ export function DanceFloor({
      * (`ArchSizing.unseated`) — so the joined hands are not owed contact.
      */
     unseated: boolean;
+    /** 🧪 The joined hands' arc for this execution (`joinArc`), else `null`. */
+    arc: JoinArc | null;
   }>({
     span: null, accommodation: BREAK, plan: null, forearm: null, armDelta: 0,
     stance: undefined, blend: 0, duck: NO_DELTAS, duckSpan: null, centre: null, unseated: false,
+    arc: null,
   });
 
   // The only eased quantity in the arm channel: how far each hand is into its grip.
@@ -1117,7 +1135,8 @@ export function DanceFloor({
           const id =
             `${heldSpan.grip}:${String(heldSpan.from)}:${String(heldSpan.to)}` +
             (archOverCentre ? ":centre" : archOverhead === 0 ? "" : `:oh${archOverhead.toFixed(3)}`) +
-            (archClose === 0 ? "" : `:cl${archClose.toFixed(3)}`);
+            (archClose === 0 ? "" : `:cl${archClose.toFixed(3)}`) +
+            (joinArc ? ":arc" : "");
           if (under.span !== id) {
             under.span = id;
             // 🔴 **The arch's accommodation is not drawn here** (ADR-0037). It was drawn before
@@ -1227,6 +1246,17 @@ export function DanceFloor({
                   : { x: cx + ((mid.x - cx) / len) * toward, z: cz + ((mid.z - cz) / len) * toward };
             } else {
               under.centre = null;
+            }
+            // 🧪 The arc the joined hands travel (`joinArc`), solved once per execution.
+            if (joinArc && archSpan !== undefined && ma && mb) {
+              const sampler = (m: typeof ma) => (b: number) => {
+                const s = sampleMotion(m, b);
+                const w = toWorld(frameRef.current, s.position);
+                return { x: w.x, z: w.z, yaw: facingToRotationY(frameRef.current, s.facing) };
+              };
+              under.arc = planJoinArc(sampler(ma), sampler(mb), archSpan.from, archSpan.to);
+            } else {
+              under.arc = null;
             }
           }
         }
@@ -1487,6 +1517,20 @@ export function DanceFloor({
                 // (`TouchHold.lift`, 2026-10-13): *"if my elbow was frozen in place … my wrist
                 // and hand move just fine, and the elbow bends."*
                 ? { ...standing, lift: under.blend }
+                : under.arc !== null && !broken
+                  // 🧪 The hands on the arc (`joinArc`): a point both dancers are given, at the
+                  // height the arc has reached, and the upper arms stand up as it climbs.
+                  ? (() => {
+                      const at = joinArcAt(under.arc, beat, standing.height, lowJoin, standing.forward);
+                      return {
+                        ...standing,
+                        height: at.height,
+                        forward: 0,
+                        raised: at.rise,
+                        forearmUp: true,
+                        over: { x: at.x, z: at.z, weight: 1 },
+                      };
+                    })()
                 : effort !== null
                   ? {
                       ...standing,

@@ -103,6 +103,14 @@ describe("the posing session", () => {
     expect(s.spacing).toBe(1.5);
   });
 
+  it("the hands-on-the-arc switch is on by default and asks the floors to re-pose", () => {
+    const s0 = run();
+    expect(s0.handsOnArc).toBe(true);
+    const s1 = reduce(s0, { type: "handsOnArc", on: false });
+    expect(s1.handsOnArc).toBe(false);
+    expect(s1.seekToken).toBe(s0.seekToken + 1);
+  });
+
   it("a keyframe muted for one couple is off for that couple only, and asks the floors to re-pose", () => {
     const s = run({ type: "mute", figure: "dosado", pairing: "player-myco", t: 0.5, on: true });
     expect(isMuted(s, "dosado", "player-myco", 0.5)).toBe(true);
