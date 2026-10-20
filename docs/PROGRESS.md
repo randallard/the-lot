@@ -4,7 +4,21 @@ _Last updated: 2026-10-18_
 
 ## Status / next
 
-> ### ▶ PICK UP HERE — 2026-10-19 (1) — the disk becomes rings
+> ### ▶ PICK UP HERE — 2026-10-19 (2) — the twirl's hands travel one arc
+>
+> [`journal/2026-10-19-2-the-hands-travel-one-arc.md`](journal/2026-10-19-2-the-hands-travel-one-arc.md)
+> · 🧪 **committed unverified**, not yet looked at in a browser.
+>
+> The California Twirl's joined hands now travel one arc in the upright plane through the centre of
+> the exchange: low and in front, over her head as she passes under, low and in front of the new
+> facing. How far along it they are follows how far she has turned (`join-arc.ts`; `DanceFloor`'s
+> `joinArc`). `#review2` has **🧪 hands on the arc**, on by default. ⏳ **Next:** Ryan watches it
+> and adjusts the arms with the dials. Look for arms that can't reach the arc (short pairs, the
+> top) and for beats 3.5–4. Suite 1090 / the same 38.
+>
+> ---
+>
+> ### 2026-10-19 (1) — the disk becomes rings
 >
 > [`journal/2026-10-19-1-the-disk-becomes-rings.md`](journal/2026-10-19-1-the-disk-becomes-rings.md)
 > · ✅ Ryan looked: *"ring disk is perfect."* Committed and pushed home.
