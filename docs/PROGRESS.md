@@ -1,10 +1,94 @@
 # Progress & Status
 
-_Last updated: 2026-10-18_
+_Last updated: 2026-10-25_
 
 ## Status / next
 
-> ### ▶ PICK UP HERE — 2026-10-19 (2) — the twirl's hands travel one arc
+**Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, uncommitted ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
+
+> ### ▶ PICK UP HERE — 2026-10-25 (1) — the loaded keyframes weren't being drawn; fixed
+>
+> [`journal/2026-10-25-1-the-keyframes-were-not-being-drawn.md`](journal/2026-10-25-1-the-keyframes-were-not-being-drawn.md)
+> · 🧪 **uncommitted**
+>
+> 🔴 Since 10-24's turn-around group, `PoseOverride` found no dancers, so **no loaded keyframe
+> was drawn**. Every margin looked the same, and the 37–40% twitch was the floor's own pose. Also
+> fixed: the hand drew beside the forearm (10–20° off), and the hand's turn came from the floor.
+> Every dial now draws within 0.5° of its keyframe. The 6 cm bundle is re-solved with neutral
+> hands.
+> ⚠️ **Watch it with "play: my keyframes".** "The move as solved" is square-one's engine, and it
+> draws a keyframe only when paused exactly on one, so the solve just flickers
+> ([10-25-2](journal/2026-10-25-2-play-my-keyframes.md)). That dropdown label wants renaming.
+> ⏳ **Next:** Ryan reloads the page, loads the bundle and looks. That's the first real look at
+> the solver's pose. Then: the clearance by eye, whether playback pulses (smoothstep per keyframe),
+> the 24 failing tests, commit.
+>
+> ---
+>
+> ### ▶ 2026-10-24 (5) — 6 cm round the heads; small standards gaps closed
+>
+> [`journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md`](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md)
+> · 🧪 **uncommitted**
+>
+> Ryan saw a little clipping as the belle turns under. `solve.ts` now takes `--margin=<m>` (it
+> was a fixed 2 cm) and reports the closest approach to a head, on the samples and halfway
+> between them. At 2 cm, a pose halfway between two samples came within **0.6 cm**. The bundle is
+> re-solved at **6 cm** (3000 it): 5.5 cm or more everywhere, for 1.60× stretch and a 26 cm step
+> out at the end. The small compliance gaps are fixed (see the journal).
+> ⚠️ **24 tests fail at HEAD** (`arch.test.ts`, `arm-pose.test.ts`), 38 in the working tree.
+> They predate today and aren't explained yet.
+> ⏳ **Next:** Ryan loads the 6 cm bundle (it overwrites `ryan-ryan`'s 41 keyframes) and looks.
+> If there's still contact, re-solve with a bigger `--margin`. Then look into the failing tests,
+> commit, and carry on with 10-24 (4)'s list.
+>
+> ---
+>
+> ### ▶ PICK UP HERE — 2026-10-24 (4) — the whole-move test run: a twirl solved with no clipping
+>
+> [`journal/2026-10-24-4-the-whole-move-test-run.md`](journal/2026-10-24-4-the-whole-move-test-run.md)
+> · brief: `work/square-dance-planning/briefs/solve-the-whole-move.md` · 🧪 **uncommitted**
+>
+> `src/dance/whole-move.ts` (+5 tests) solves both dancers over all 41 samples at once.
+> `scripts/whole-move/solve.ts` writes a `#review2` bundle. On ryan → ryan: **0 clipping** (floor
+> 35/41 samples, 19 cm worst), **23° max jump** (floor 122°), stretch 1.48× (floor 2.38×), and the
+> beau steps out ≤ 15 cm. The arch peaks over her crown at beat 2, and the timing was **inferred**.
+> 🔑 The **topology** (hands over her, not round her) had to come from the starting shape. A local
+> optimiser refines and can't discover.
+> ⏳ **Next:** Ryan watches it. Loading `scripts/whole-move/ryan-ryan-california-twirl.solved.json`
+> with 📂 load writes 41 keyframes to `ryan-ryan` in his store: ask first, or add a load that
+> doesn't save. Then fix the gaps (elbow hinge, low handhold at the ends, the fast drop at 3.5),
+> then `myco → ember`.
+>
+> ---
+>
+> ### ▶ PICK UP HERE — 2026-10-24 (2) — the arch peaks at beat 2; each loop turns around
+>
+> [`journal/2026-10-24-2-the-arch-peaks-at-beat-two.md`](journal/2026-10-24-2-the-arch-peaks-at-beat-two.md)
+> (corrects [10-24-1](journal/2026-10-24-1-the-hands-start-down.md)) · 🧪 **uncommitted**,
+> waits for Ryan's look. Claude watched it play in a browser.
+>
+> - **The arch rises and falls over the whole call**: handhold at 0, full arch at **beat 2** with
+>   the belle under it, handhold at 4 (`archLift` / `ARCH_CYCLE_BEATS` in `turn-under.ts`, the
+>   arch-blend target in `DanceFloor`). The arms no longer stop at beat 1. It covers every floor.
+> - **`#review2`: 🧪 turn around each loop** (default on). Each loop is drawn turned π, so it starts
+>   where the last ended: front, back, front. The floor wraps by itself, so the wrap is detected in
+>   `onBeat`.
+> - **`#review2`: all couples** checkbox (default on). Hidden couples keep dancing and don't take
+>   clicks.
+>
+> 📏 **10-24 (3), measured:** at beat 2 the hands can't sit over her crown at natural arm length for
+> 4 of 5 bodies; only Ember can ([journal](journal/2026-10-24-3-the-crown-is-out-of-reach.md)).
+> Decide stretch, duck, lower hands, or calibrate on Ember before setting the beat-1 spacing.
+>
+> ⏳ **Next:** Ryan watches the twirl play in `#review2`. **Open, Ryan's call:**
+> (1) **spacing**: the engine brings the pair *closer* into the arch (0.90 → 0.60 at beat 2), and
+> the stills move *apart* by beat 1. That's a square-one path change. (2) `#review`'s `arch-up`
+> step (beat 0) is now the handhold: drop it, or re-point it at beat 2? (3) Should the engine own
+> the lift?
+>
+> ---
+>
+> ### 2026-10-19 (2) — the twirl's hands travel one arc
 >
 > [`journal/2026-10-19-2-the-hands-travel-one-arc.md`](journal/2026-10-19-2-the-hands-travel-one-arc.md)
 > · 🧪 **committed unverified**, not yet looked at in a browser.

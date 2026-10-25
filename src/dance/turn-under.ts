@@ -193,6 +193,35 @@ export function duckProfile(beat: number, from: number, to: number): number {
 }
 
 /**
+ * 🧪 **One turn-under's beats: the hands rise for the first half and lower for the second**
+ * (2026-10-24).
+ *
+ * square-one declares a turn-under's arch from the call's first beat, and the floor used to
+ * read that as "raised at beat 0". The reference stills say otherwise
+ * (`work/square-dance-planning/review2/reference/twirl2/`, beat-counted by Ryan): at beat 0
+ * the couple are in the ordinary handhold, hands low (`01`). By beat 1 the joined hands are up
+ * between them (`02`), the arch is full at beat 2 with the belle under it (`04`, `09`), and the
+ * hands are back down in the handhold at beat 4 (`06`, `11`). Ryan: *"the move starts with hands
+ * raised - they should start down in a handhold"*, and then *"the full arch is at beat two when
+ * the belle is under it … they stop at beat one and they should keep moving into position."*
+ */
+export const ARCH_CYCLE_BEATS = 4;
+
+/**
+ * How far into the arch the hold is at `beat`, `0`–`1`: `0` where the span starts, `1` half a
+ * {@link ARCH_CYCLE_BEATS} later, `0` again at the end of it. A raised cosine like
+ * {@link duckProfile}, so the arms never stop between the handhold and the peak.
+ *
+ * It repeats every cycle, so a span that square-one merged across two turn-unders in a row
+ * (ADR-0026: the hold continues; the hands stay *joined*) lifts and lowers once per call.
+ */
+export function archLift(beat: number, from: number): number {
+  if (beat <= from) return 0;
+  const t = ((beat - from) % ARCH_CYCLE_BEATS) / ARCH_CYCLE_BEATS;
+  return (1 - Math.cos(2 * Math.PI * t)) / 2;
+}
+
+/**
  * The reach accommodation this style forces, or `null` when it leaves that draw alone.
  *
  * - {@link CASUAL} forces {@link BREAK} — a break is already *"nobody changes shape … and the

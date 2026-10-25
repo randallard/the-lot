@@ -69,6 +69,20 @@ export interface Session {
    * On by default here; off is the solver's own arch.
    */
   readonly handsOnArc: boolean;
+  /**
+   * Every couple on the floor, or only the focus couple. The others stay mounted and keep
+   * dancing while hidden, so they come back in step.
+   */
+  readonly allCouples: boolean;
+  /**
+   * 🧪 Each loop starts where the last one ended (2026-10-24). A turn-under ends with the couple
+   * turned half way round, so the next loop is drawn turned by π: front, then back, then front.
+   * Ryan: *"have the dancers remain facing the way they are when the move ends … so we can
+   * watch first from the front and then from the back."*
+   */
+  readonly turnAround: boolean;
+  /** Whether this loop is the turned one. Flipped by `wrapped` while `turnAround` is on. */
+  readonly turned: boolean;
   /** Where each couple stands, in spacing units; the focus couple is the disk's centre. */
   readonly layout: Layout;
   /** Every couple on the floor, in matrix order — what `layout` places. */
@@ -97,6 +111,8 @@ export type Action =
   | { readonly type: "play" }
   | { readonly type: "pause"; readonly at: number }
   | { readonly type: "loop" }
+  /** The playing floor came round to the start again (it wraps by itself). */
+  | { readonly type: "wrapped" }
   | { readonly type: "edit"; readonly key: DialKey; readonly value: number | null }
   | { readonly type: "nudge"; readonly key: DialKey; readonly by: number; readonly base: number; readonly min: number; readonly max: number }
   | { readonly type: "kept"; readonly at: number }
@@ -107,6 +123,8 @@ export type Action =
   | { readonly type: "setEverything"; readonly on: boolean }
   | { readonly type: "setMode"; readonly mode: "solver" | "keyframes" }
   | { readonly type: "handsOnArc"; readonly on: boolean }
+  | { readonly type: "allCouples"; readonly on: boolean }
+  | { readonly type: "turnAround"; readonly on: boolean }
   | { readonly type: "notify"; readonly text: string }
   | { readonly type: "dismissNotice"; readonly n: number }
   | { readonly type: "escape" };
@@ -121,7 +139,7 @@ export function initialSession(scope: string, loaded: string, couples: readonly 
   return {
     t: 0, playing: false, seekToken: 0, scope, loaded,
     edits: null, selected: null, anchor: null, drawerOpen: false,
-    openFrame: null, everything: false, mode: "solver", handsOnArc: true, notice: null,
+    openFrame: null, everything: false, mode: "solver", handsOnArc: true, allCouples: true, turnAround: true, turned: false, notice: null,
     couples, layout: couples.length === 0 ? {} : initialLayout(couples, focus), spacing: SPACING.initial,
     muted: {},
   };
@@ -188,6 +206,8 @@ export function reduce(s: Session, a: Action): Session {
       return s.playing ? { ...s, playing: false, t: clamp01(a.at) } : s;
     case "loop":
       return { ...s, t: 0, seekToken: s.seekToken + 1 };
+    case "wrapped":
+      return s.turnAround ? { ...s, turned: !s.turned } : s;
     case "edit":
       return { ...s, edits: withEdit(s, a.key, a.value) };
     case "nudge": {
@@ -212,6 +232,10 @@ export function reduce(s: Session, a: Action): Session {
     // A paused floor writes nothing, so the floors are asked to pose again.
     case "handsOnArc":
       return { ...s, handsOnArc: a.on, seekToken: s.seekToken + 1 };
+    case "allCouples":
+      return { ...s, allCouples: a.on };
+    case "turnAround":
+      return { ...s, turnAround: a.on, turned: a.on && s.turned };
     case "notify":
       return { ...s, notice: notify(s, a.text) };
     case "dismissNotice":

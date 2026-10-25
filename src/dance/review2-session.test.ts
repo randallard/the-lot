@@ -111,6 +111,24 @@ describe("the posing session", () => {
     expect(s1.seekToken).toBe(s0.seekToken + 1);
   });
 
+  it("all couples show by default, and the switch can narrow the floor to the focus couple", () => {
+    const s0 = run();
+    expect(s0.allCouples).toBe(true);
+    expect(reduce(s0, { type: "allCouples", on: false }).allCouples).toBe(false);
+  });
+
+  it("each loop starts turned the other way while turn-around is on, and never once it's off", () => {
+    const s0 = run();
+    expect(s0.turnAround).toBe(true);
+    expect(s0.turned).toBe(false);
+    const s1 = reduce(s0, { type: "wrapped" });
+    expect(s1.turned).toBe(true);
+    expect(reduce(s1, { type: "wrapped" }).turned).toBe(false);
+    const off = reduce(s1, { type: "turnAround", on: false });
+    expect(off.turned).toBe(false);
+    expect(reduce(off, { type: "wrapped" }).turned).toBe(false);
+  });
+
   it("a keyframe muted for one couple is off for that couple only, and asks the floors to re-pose", () => {
     const s = run({ type: "mute", figure: "dosado", pairing: "player-myco", t: 0.5, on: true });
     expect(isMuted(s, "dosado", "player-myco", 0.5)).toBe(true);

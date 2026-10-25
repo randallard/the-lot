@@ -231,7 +231,8 @@ function PoseOverride({ id, shapes, values, track, clock, playing, seekToken }: 
     if (values === undefined && track === undefined) return;
     const couple = scene.getObjectByName(`couple:${id}`);
     if (couple === undefined) return;
-    const rigs = couple.children.filter((c) => c.name === "dancer");
+    // Deep: the dancers sit inside the turn-around group, not directly under the couple.
+    const rigs = couple.getObjectsByProperty("name", "dancer");
     if (track !== undefined && (playing || seen.current !== seekToken)) {
       solver.current = readRigs(rigs, shapes);
       seen.current = seekToken;
@@ -269,7 +270,7 @@ function setOpacity(root: THREE.Object3D, opacity: number): void {
  * glides there; a long one fades the couple out where it was and back in where it's going. A
  * change of **spacing** moves it straight there, because nobody changed places.
  */
-function CoupleSlot({ id, coord, spacing, children }: { id: string; coord: Coord; spacing: number; children: ReactNode }) {
+function CoupleSlot({ id, coord, spacing, shown, turned, children }: { id: string; coord: Coord; spacing: number; shown: boolean; turned: boolean; children: ReactNode }) {
   const group = useRef<THREE.Group>(null);
   const label = useRef<HTMLDivElement>(null);
   const drawnAt = useRef<Coord>(coord);
@@ -306,10 +307,11 @@ function CoupleSlot({ id, coord, spacing, children }: { id: string; coord: Coord
     g.position.set(x, 0, z);
   });
   return (
-    <group ref={group} name={`couple:${id}`}>
-      {children}
+    <group ref={group} name={`couple:${id}`} visible={shown}>
+      {/* The couple stand centred on the slot, so half a turn here is exactly where a turn-under left them. */}
+      <group rotation={[0, turned ? Math.PI : 0, 0]}>{children}</group>
       <Html position={[0, 2.5, 0]} center style={{ pointerEvents: "none" }} zIndexRange={[1, 0]}>
-        <div ref={label} style={{ fontSize: 11, color: "#444", background: "rgba(255,255,255,0.75)", padding: "1px 5px", borderRadius: 4, whiteSpace: "nowrap" }}>
+        <div ref={label} style={{ display: shown ? undefined : "none", fontSize: 11, color: "#444", background: "rgba(255,255,255,0.75)", padding: "1px 5px", borderRadius: 4, whiteSpace: "nowrap" }}>
           {id.replace("-", " → ")}
         </div>
       </Html>
@@ -366,7 +368,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
 
   const allIds = useMemo(() => reviewPairings().map(pairingId), []);
   const [session, dispatch] = useReducer(reduceSession, undefined, () => initialSession(targetId, loadedKey, allIds, pid));
-  const { t, playing, selected, anchor, drawerOpen, openFrame, mode, everything, notice, layout, spacing, handsOnArc } = session;
+  const { t, playing, selected, anchor, drawerOpen, openFrame, mode, everything, notice, layout, spacing, handsOnArc, allCouples, turnAround, turned } = session;
   useEffect(() => { dispatch({ type: "retarget", scope: targetId, loaded: loadedKey, focus: pid }); }, [targetId, loadedKey, pid]);
 
   useEffect(() => {
@@ -512,6 +514,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
   // step. Not a copy of `t`: while paused the two agree because the floor is standing at `t`.
   const clock = useRef(0);
   const looping = useRef(false);
+  const lastBeat = useRef(0);
   const scrubRef = useRef<HTMLInputElement>(null);
   const headRef = useRef<HTMLDivElement>(null);
   const readRef = useRef<HTMLSpanElement>(null);
@@ -530,6 +533,10 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
       if (headRef.current) headRef.current.style.left = pct(frac);
       if (scrubRef.current && playing) scrubRef.current.value = String(frac);
       if (readRef.current) readRef.current.textContent = `${pct(frac)} · beat ${beat.toFixed(2)} / ${String(figure.beats)}`;
+      // The floor wraps by itself, so a loop is seen as the beat jumping from near the end back
+      // to near the start while playing; a scrub or step doesn't jump like that.
+      if (playing && lastBeat.current > figure.beats * 0.8 && beat < figure.beats * 0.2) dispatch({ type: "wrapped" });
+      lastBeat.current = beat;
       if (playing && beat >= figure.beats && !looping.current) {
         looping.current = true;
         setTimeout(() => { looping.current = false; dispatch({ type: "loop" }); }, 250);
@@ -581,11 +588,13 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
   }, []);
 
   const onPick = useCallback((e: ThreeEvent<MouseEvent>) => {
-    e.stopPropagation();
     const obj = e.object;
-    if (!isPartId(obj.name)) return;
     let couple: THREE.Object3D | null = obj;
     while (couple !== null && !couple.name.startsWith("couple:")) couple = couple.parent;
+    // A hidden couple is still in the scene: let the click through to whatever is behind it.
+    if (couple !== null && !couple.visible) return;
+    e.stopPropagation();
+    if (!isPartId(obj.name)) return;
     const clicked = couple?.name.slice("couple:".length);
     if (clicked !== undefined && clicked !== pidRef.current) {
       // Another couple: bring it to the centre rather than open its dials.
@@ -826,7 +835,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
               const id = pairingId(p);
               const coupleShapes = allShapes.get(id) ?? shapes;
               return (
-                <CoupleSlot key={id} id={id} coord={layout[id] ?? [0, 0]} spacing={spacing}>
+                <CoupleSlot key={id} id={id} coord={layout[id] ?? [0, 0]} spacing={spacing} shown={allCouples || id === pid} turned={turned}>
                   <DanceFloor
                     key={`${id}|${figure.id}`}
                     call={figure.call}
@@ -1093,6 +1102,34 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
               }
             >
               🧪 hands on the arc
+            </Explain>
+          </label>
+          <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={allCouples} onChange={(e) => { dispatch({ type: "allCouples", on: e.target.checked }); }} />
+            <Explain
+              why={
+                <>
+                  On, all 25 couples dance round the focus couple. Off, only the focus couple is
+                  drawn. The others keep dancing out of sight, so they come back in step, and
+                  clicks go through them to the focus couple.
+                </>
+              }
+            >
+              all couples
+            </Explain>
+          </label>
+          <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={turnAround} onChange={(e) => { dispatch({ type: "turnAround", on: e.target.checked }); }} />
+            <Explain
+              why={
+                <>
+                  A turn-under ends with the couple turned half way round. On, each loop starts
+                  where the last one ended, so playing shows the move from the front, then from the
+                  back, then the front again. Off, every loop starts as the first did.
+                </>
+              }
+            >
+              🧪 turn around each loop{turned ? " (turned)" : ""}
             </Explain>
           </label>
           {notice !== null && <span style={{ fontSize: 12, color: "#a35d00" }}>{notice.text}</span>}

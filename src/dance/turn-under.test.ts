@@ -4,7 +4,9 @@ import {
   DUCK_UNDER,
   GABLE,
   TURN_UNDER_STYLES,
+  ARCH_CYCLE_BEATS,
   accommodationFor,
+  archLift,
   forcedAccommodation,
   keepsContact,
   type TurnUnderStyle,
@@ -95,6 +97,28 @@ describe("the turn-under styles", () => {
     }
   });
 
+});
+
+describe("archLift", () => {
+  // Ryan's twirl2 stills: handhold at beat 0, the full arch at beat 2, the handhold again at 4.
+  it("is the handhold at the start and end of a turn-under and the full arch half way", () => {
+    expect(archLift(0, 0)).toBe(0);
+    expect(archLift(-1, 0)).toBe(0);
+    expect(archLift(ARCH_CYCLE_BEATS / 2, 0)).toBeCloseTo(1, 12);
+    expect(archLift(ARCH_CYCLE_BEATS, 0)).toBeCloseTo(0, 12);
+  });
+
+  it("keeps rising until the peak, not stopping at beat 1", () => {
+    expect(archLift(1, 0)).toBeCloseTo(0.5, 12);
+    expect(archLift(1.5, 0)).toBeGreaterThan(archLift(1, 0));
+    expect(archLift(2, 0)).toBeGreaterThan(archLift(1.5, 0));
+    expect(archLift(3, 0)).toBeCloseTo(0.5, 12);
+  });
+
+  it("lifts and lowers once per call across a span merged over two calls", () => {
+    expect(archLift(6, 0)).toBeCloseTo(1, 12);
+    expect(archLift(4.5, 4)).toBeCloseTo(archLift(0.5, 0), 12);
+  });
 });
 
 /** A compile-time check that the union and the roster cannot drift apart. */

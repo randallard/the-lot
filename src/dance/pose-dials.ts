@@ -276,6 +276,11 @@ export function applyToRigs(rigs: readonly THREE.Object3D[], shapes: readonly Ch
         const hd = (heading ?? Math.atan2(sign * _dir.x, _dir.z) / D2R) * D2R;
         _dir.set(sign * Math.cos(p) * Math.sin(hd), Math.sin(p), Math.cos(p) * Math.cos(hd));
         arm.quaternion.setFromUnitVectors(_down, _dir);
+        // The hand goes on the forearm's axis, at the reach the floor gave it. The floor's own
+        // solve can leave it beside the axis (ADR-0054), and keeping that offset under a dialled
+        // direction draws the hand 10–20° off where the dial (and `readRigs`) say it is.
+        const reach = handMesh.position.length();
+        handMesh.position.set(0, -reach, 0);
       }
       const flen = v(forearmId, "length");
       if (flen !== undefined) {

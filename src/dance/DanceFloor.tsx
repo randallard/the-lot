@@ -95,6 +95,7 @@ import {
   type BodyDeltas,
 } from "./accommodation";
 import {
+  archLift,
   CASUAL,
   duckProfile,
   keepsContact as styleKeepsContact,
@@ -1297,7 +1298,8 @@ export function DanceFloor({
               ? 0
               : archSpan === undefined
                 ? 0
-                : 1;
+                // Up from the handhold to the full arch half way through the call, and back (`archLift`).
+                : archLift(beat, archSpan.from);
           const next = under.blend + (target - under.blend) * Math.min(1, Math.max(0, ease));
           under.blend = Math.abs(target - next) < 1e-3 ? target : next;
         }
@@ -1519,16 +1521,18 @@ export function DanceFloor({
                 ? { ...standing, lift: under.blend }
                 : under.arc !== null && !broken
                   // 🧪 The hands on the arc (`joinArc`): a point both dancers are given, at the
-                  // height the arc has reached, and the upper arms stand up as it climbs.
+                  // height the arc has reached, and the upper arms stand up as it climbs. Blended
+                  // in from the standing hold by `under.blend`, so beat 0 is the handhold.
                   ? (() => {
                       const at = joinArcAt(under.arc, beat, standing.height, lowJoin, standing.forward);
+                      const k = under.blend;
                       return {
                         ...standing,
-                        height: at.height,
-                        forward: 0,
-                        raised: at.rise,
+                        height: lerp(standing.height, at.height, k),
+                        forward: lerp(standing.forward, 0, k),
+                        raised: at.rise * k,
                         forearmUp: true,
-                        over: { x: at.x, z: at.z, weight: 1 },
+                        over: { x: at.x, z: at.z, weight: k },
                       };
                     })()
                 : effort !== null
