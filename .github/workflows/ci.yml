@@ -27,6 +27,7 @@ jobs:
   detect:
     name: detect languages
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # ADR-1005
     outputs:
       rust: ${{ steps.d.outputs.rust }}
       ts: ${{ steps.d.outputs.ts }}
@@ -50,6 +51,7 @@ jobs:
     needs: detect
     if: needs.detect.outputs.rust == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # ADR-1005
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -70,6 +72,7 @@ jobs:
     needs: detect
     if: needs.detect.outputs.rust == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30 # ADR-1005: proofs get room; a non-terminating harness still stops here, not at GitHub's 360
     # Deliberately its own job: a slow or cranky proof run must never delay the
     # fast-gate feedback loop, and a separate check name says at a glance which
     # tier failed. Runs on every push — no paths filter, no schedule.
@@ -88,6 +91,7 @@ jobs:
     needs: detect
     if: needs.detect.outputs.rust == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # ADR-1005
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -102,6 +106,7 @@ jobs:
     needs: detect
     if: needs.detect.outputs.ts == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # ADR-1005
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -125,6 +130,7 @@ jobs:
     needs: detect
     if: needs.detect.outputs.ts == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # ADR-1005
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -160,6 +166,7 @@ jobs:
     name: SBOM
     needs: detect
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # ADR-1005
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -204,6 +211,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # ADR-1005
     steps:
       - id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5

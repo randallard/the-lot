@@ -4,7 +4,6 @@
 # `pnpm install` from stopping on ERR_PNPM_IGNORED_BUILDS, in CI and locally.
 allowBuilds:
   esbuild: true
-  square-one@https://codeload.github.com/randallard/square-one/tar.gz/1f0ee7ae83a3502b71e9159c646798599746bbe9: set this to true or false
   # square-one is consumed as a pinned git dependency (planning ADR-0006) and its
   # dist/ is gitignored, so pnpm must run its `prepare` (a plain `tsc`) after cloning.
   #
@@ -33,6 +32,21 @@ allowBuilds:
 # so a future default change cannot move it silently, and so the value is visible
 # to anyone reading the repo. Verify with `pnpm config get minimumReleaseAge`.
 minimumReleaseAge: 1440
+
+# Also stated explicitly so a default change can't move them (template ADR-1016).
+# trustPolicy: a package whose new version drops the provenance or trusted-publisher evidence
+# its earlier versions had fails to install, the shape a hijacked maintainer account leaves.
+trustPolicy: no-downgrade
+# One reviewed exception, pinned to the exact version so a later semver@6 release is still checked.
+# semver 6.3.1 is npm's own backport of the ReDoS fix (CVE-2022-25883), published 2023-07-10
+# from the 6.x branch after 7.x had started carrying provenance, so it reads as a downgrade. It
+# arrives via @babel/core (vite's react plugin, eslint-plugin-react-hooks), dev-path only. Retire
+# this when @babel/core stops depending on semver@6.
+trustPolicyExclude:
+  - semver@6.3.1
+# blockExoticSubdeps: only direct dependencies may come from git or a tarball URL. square-one is
+# direct, so it's allowed; a transitive dependency pulling from git is refused.
+blockExoticSubdeps: true
 
 overrides:
   # Every entry here is a **bounded** range, and the bound is load-bearing.
