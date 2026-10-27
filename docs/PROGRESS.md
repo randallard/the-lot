@@ -6,7 +6,25 @@ _Last updated: 2026-10-26_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-26 (3) — exact gradients, and the solve in a web worker
+> ### ▶ PICK UP HERE — 2026-10-26 (4) — a model for the twirl: the nearest solve, polished
+>
+> [`journal/2026-10-26-4-a-model-for-the-twirl.md`](journal/2026-10-26-4-a-model-for-the-twirl.md)
+> · 🧪 **uncommitted**
+>
+> Step 3 is measured. `couplePaths` gives any couple's paths without a browser (it matches the
+> hand capture). The 600 sampled couples were solved in 5 minutes.
+> - **The nearest known solve plus a 300-iteration polish** is clean on 17 of 19 held-out couples,
+>   at 1.04× the full solve's cost, in **47 ms** (the full solve is 5.5 s). For 20 couples that's
+>   about 0.3 s on 4 workers, so proof 1 passes for the twirl. Ridge regression fails, because the
+>   solves sit in different valleys.
+> - **But only 3 of the 25 stock couples twirl cleanly as built.** The floor fits the others with
+>   a reshape or a break, and the solver doesn't model accommodations (10-26-1 turned the reshape
+>   off under a bake).
+>
+> ⏳ **Next:** Ryan decides how the solver should accommodate (see the journal's question). Then
+> ship the library and the polish to the floor.
+
+> ### 2026-10-26 (3) — exact gradients, and the solve in a web worker
 >
 > [`journal/2026-10-26-3-exact-gradients-and-a-worker.md`](journal/2026-10-26-3-exact-gradients-and-a-worker.md)
 > · 🧪 committed with this entry

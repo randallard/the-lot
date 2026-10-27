@@ -196,6 +196,32 @@ export function shapesOf(b: Body, f: DancerFrame): Shape[] {
   return out;
 }
 
+/**
+ * 🧪 How clear an upper arm is of its own torso (`own` 0) or head (1) at rest, before any margin
+ * (m; negative is inside). Some bodies attach the arm against or inside their own head: blends
+ * of the stock cast do (2026-10-26, step 3), and the upper arm isn't drawn. **An upper arm needn't
+ * be clearer of its own body than it is at rest**, so its own-body margin is the smaller of the
+ * margin and this. The stock cast has 15 cm, more than any margin used, so nothing changes for it.
+ */
+const REST_GAP = new WeakMap<Body, number[]>();
+export function restGap(b: Body, side: 0 | 1, own: 0 | 1): number {
+  let g = REST_GAP.get(b);
+  if (g === undefined) {
+    g = [];
+    for (const sd of [0, 1] as const) {
+      const p = armPoints(b, sd, restArm(b));
+      g.push(segSeg(p.s, p.e, b.torso.a, b.torso.b) - b.torso.r - b.forearmR);
+      g.push(segSeg(p.s, p.e, b.head.c, b.head.c) - b.head.r - b.forearmR);
+    }
+    REST_GAP.set(b, g);
+  }
+  return g[side * 2 + own] ?? 0;
+}
+
+/** The margin an arm shape (`shapesOf` index 2–7) keeps from its own torso or head. */
+const ownMargin = (b: Body, shape: number, own: 0 | 1, margin: number) =>
+  shape === 2 || shape === 5 ? Math.min(margin, restGap(b, shape === 2 ? 0 : 1, own)) : margin;
+
 // ── The move ─────────────────────────────────────────────────────────────────────────────────
 
 /** A held pair of hands over a stretch of the move (fractions 0–1), from the engine's grips. */
@@ -305,7 +331,14 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
   for (const s1 of A) for (const s2 of B) if (!exempt(m, t, s1.name, s2.name)) pen(s1, s2, w.margin);
   // Each dancer's own arms against their own head and torso (an arm overhead goes round the head;
   // no arm goes through its own body). The upper arm starts at the shoulder, clear of the torso.
-  for (const S of [A, B]) for (const s of S.slice(2)) for (const own of S.slice(0, 2)) pen(s, own, w.margin);
+  [A, B].forEach((S, k) => {
+    const body = m.bodies[k as 0 | 1];
+    for (let j = 2; j < S.length; j++) for (const own of [0, 1] as const) {
+      const s1 = S[j];
+      const s2 = S[own];
+      if (s1 !== undefined && s2 !== undefined) pen(s1, s2, ownMargin(body, j, own, w.margin));
+    }
+  });
   // Hands above the floor.
   for (const S of [A, B]) for (const s of S) if (s.name.startsWith("hand")) {
     const under = s.r - s.a[1];
@@ -668,11 +701,11 @@ export function frameCostGrad(
     r[q + 4] = r[q + 7] = b.handR;
   }
   let cost = 0;
-  const pen = (da: number, sa: number, db: number, sb: number) => {
+  const pen = (da: number, sa: number, db: number, sb: number, margin: number) => {
     const p1 = (da * NPT + SHAPE_PTS[sa * 2]!) * 3, q1 = (da * NPT + SHAPE_PTS[sa * 2 + 1]!) * 3;
     const p2 = (db * NPT + SHAPE_PTS[sb * 2]!) * 3, q2 = (db * NPT + SHAPE_PTS[sb * 2 + 1]!) * 3;
     const dist = segSegAt(p1, q1, p2, q2);
-    const over = SHAPE_R[da * 8 + sa]! + SHAPE_R[db * 8 + sb]! + w.margin - dist;
+    const over = SHAPE_R[da * 8 + sa]! + SHAPE_R[db * 8 + sb]! + margin - dist;
     if (over <= 0) return;
     cost += w.clip * over * over;
     const k = -2 * w.clip * over;
@@ -682,8 +715,8 @@ export function frameCostGrad(
     addPt(p2, -k * (1 - segT), nx, ny, nz);
     addPt(q2, -k * segT, nx, ny, nz);
   };
-  for (let a = 0; a < 8; a++) for (let b = 0; b < 8; b++) if (plan.exempt[a * 8 + b] === 0) pen(0, a, 1, b);
-  for (let d = 0; d < 2; d++) for (let s = 2; s < 8; s++) for (let own = 0; own < 2; own++) pen(d, s, d, own);
+  for (let a = 0; a < 8; a++) for (let b = 0; b < 8; b++) if (plan.exempt[a * 8 + b] === 0) pen(0, a, 1, b, w.margin);
+  for (let d = 0; d < 2; d++) for (let s = 2; s < 8; s++) for (const own of [0, 1] as const) pen(d, s, d, own, ownMargin(m.bodies[d as 0 | 1], s, own, w.margin));
   // Hands above the floor.
   for (let d = 0; d < 2; d++) for (let sd = 0; sd < 2; sd++) {
     const p = (d * NPT + HAND_PT(sd as 0 | 1)) * 3;
@@ -845,6 +878,12 @@ export interface SolveOptions {
   jitter?: number;
   /** 🧪 The jitter's seed: a solve is deterministic for a seed; different seeds try other valleys. */
   seed?: number;
+  /**
+   * 🧪 A starting point for every variable (`PER` per sample, as `v` comes back), in place of
+   * `m.frames`' arms and no step (2026-10-26, step 3: a model's prediction, polished). `m.frames`
+   * stays the floor's path, so the step is still measured from it.
+   */
+  init?: Float64Array;
   onProgress?: (it: number, cost: number) => void;
 }
 
@@ -853,11 +892,12 @@ export interface SolveOptions {
  * gradient is exact (`frameCostGrad`), or by central differences with `gradient: "numeric"`.
  * Smoothness is exact either way.
  */
-export function solve(m: Move, o: SolveOptions = {}): { frames: Frame[]; cost: number } {
+export function solve(m: Move, o: SolveOptions = {}): { frames: Frame[]; cost: number; v: Float64Array } {
   const w = o.weights ?? WEIGHTS;
   const n = m.frames.length;
   const base = m.frames;
-  const v = pack(base);
+  if (o.init !== undefined && o.init.length !== n * PER) throw new Error(`solve: init has ${String(o.init.length)} values, wants ${String(n * PER)}`);
+  const v = o.init !== undefined ? Float64Array.from(o.init) : pack(base);
   const iters = o.iterations ?? 1500;
   const lr0 = o.rate ?? 0.02;
   const lrEnd = o.rateEnd ?? lr0;
@@ -919,7 +959,7 @@ export function solve(m: Move, o: SolveOptions = {}): { frames: Frame[]; cost: n
     if (o.onProgress && (it % 100 === 0 || it === iters)) o.onProgress(it, cost);
   }
   const frames = base.map((f, i) => unpackOne(v, i, f));
-  return { frames, cost };
+  return { frames, cost, v };
 }
 
 /**
@@ -933,12 +973,15 @@ export function solve(m: Move, o: SolveOptions = {}): { frames: Frame[]; cost: n
  */
 export const SCHEDULE = { iterations: 6000, rate: 0.04, rateEnd: 0.001, jitter: 0.5, tries: 4 } as const;
 
-/** `solve` once per seed (1…`tries`), keeping the cheapest. In a browser, give each seed its own worker. */
-export function solveBest(m: Move, o: SolveOptions = {}, tries: number = SCHEDULE.tries): { frames: Frame[]; cost: number; seed: number; costs: number[] } {
-  let best: { frames: Frame[]; cost: number; seed: number } | undefined;
+/**
+ * `solve` once per seed (1…`tries`), keeping the cheapest, on `SCHEDULE` unless `o` says otherwise.
+ * In a browser, give each seed its own worker (`whole-move-client.ts`).
+ */
+export function solveBest(m: Move, o: SolveOptions = {}, tries: number = SCHEDULE.tries): { frames: Frame[]; cost: number; v: Float64Array; seed: number; costs: number[] } {
+  let best: { frames: Frame[]; cost: number; v: Float64Array; seed: number } | undefined;
   const costs: number[] = [];
   for (let seed = 1; seed <= Math.max(1, tries); seed++) {
-    const r = solve(m, { ...o, seed });
+    const r = solve(m, { ...SCHEDULE, ...o, seed });
     costs.push(r.cost);
     if (best === undefined || r.cost < best.cost) best = { ...r, seed };
   }
@@ -976,8 +1019,8 @@ export function metrics(m: Move, frames: readonly Frame[], path?: readonly Frame
     const t = n > 1 ? i / (n - 1) : 0;
     const A = shapesOf(m.bodies[0], f[0]);
     const B = shapesOf(m.bodies[1], f[1]);
-    const check = (s1: Shape, s2: Shape, who: string) => {
-      const over = s1.r + s2.r + noMargin.margin - segSeg(s1.a, s1.b, s2.a, s2.b);
+    const check = (s1: Shape, s2: Shape, who: string, margin = noMargin.margin) => {
+      const over = s1.r + s2.r + margin - segSeg(s1.a, s1.b, s2.a, s2.b);
       if (over > out.clip) {
         out.clip = over;
         out.clipAt = `t=${t.toFixed(3)} ${who} ${s1.name}/${s2.name}`;
@@ -985,7 +1028,12 @@ export function metrics(m: Move, frames: readonly Frame[], path?: readonly Frame
     };
     for (const s1 of A) for (const s2 of B) if (!exempt(m, t, s1.name, s2.name)) check(s1, s2, "beau/belle");
     [A, B].forEach((S, k) => {
-      for (const s of S.slice(2)) for (const own of S.slice(0, 2)) check(s, own, k === 0 ? "beau" : "belle");
+      const body = m.bodies[k as 0 | 1];
+      for (let j = 2; j < S.length; j++) for (const own of [0, 1] as const) {
+        const s1 = S[j];
+        const s2 = S[own];
+        if (s1 !== undefined && s2 !== undefined) check(s1, s2, k === 0 ? "beau" : "belle", ownMargin(body, j, own, noMargin.margin));
+      }
     });
     for (const h of held(m, t)) {
       const ha = A.find((s) => s.name === `hand-${SIDES[h.beau]}`);
