@@ -420,12 +420,12 @@ export function targetsFromKeyframes(
 const ARM_KEYS = ["raise", "toward", "ulen", "pitch", "heading", "flen"] as const;
 export type ArmKey = (typeof ARM_KEYS)[number];
 /** Per sample: 2 dancers × 2 arms × 6, then the beau's step out (away from her) and sideways. */
-const PER = 2 * 2 * 6 + 2;
+export const PER = 2 * 2 * 6 + 2;
 /** Lengths and offsets are metres; weigh their smoothness as if a metre were this many radians. */
 const METRE = 3;
 const isMetric = (k: number) => k >= 24 || ARM_KEYS[k % 6] === "ulen" || ARM_KEYS[k % 6] === "flen";
 
-function pack(frames: readonly Frame[]): Float64Array {
+export function pack(frames: readonly Frame[]): Float64Array {
   const v = new Float64Array(frames.length * PER);
   frames.forEach((f, i) => {
     let k = i * PER;
@@ -436,7 +436,7 @@ function pack(frames: readonly Frame[]): Float64Array {
   return v;
 }
 
-function unpackOne(v: Float64Array, i: number, base: Frame): Frame {
+export function unpackOne(v: Float64Array, i: number, base: Frame): Frame {
   let k = i * PER;
   const dancer = (d: DancerFrame, dx: number, dz: number): DancerFrame => {
     const arms = d.arms.map(() => {
@@ -490,6 +490,343 @@ function smoothCost(v: Float64Array, n: number, w: Weights, grad?: Float64Array)
   return c;
 }
 
+// ── The exact gradient (2026-10-26, step 2) ──────────────────────────────────────────────────
+//
+// `frameCost` again, with its gradient worked out by hand: each term's derivative with respect to
+// the shapes' end points, then back through `toFloor` and `armPoints` to the dials and the beau's
+// step. A clearance's derivative is the closest-points direction (the closest points are a
+// minimum, so they don't move the distance to first order). It's checked against `frameCost` by
+// central differences in the tests. Flat arrays and no allocation in the loop: this is what runs
+// 120,000 times a solve.
+//
+// Per dancer, points: 0 torso foot, 1 torso top, 2 head, then per side 3 + 4·side + (shoulder,
+// elbow, wrist, hand). Shapes, in `shapesOf`'s order: torso, head, then per side upper arm,
+// forearm, hand.
+
+const NPT = 11;
+/** Each shape's two end points (a sphere's are the same point). */
+const SHAPE_PTS = [0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10] as const;
+const HAND_PT = (side: 0 | 1) => 6 + 4 * side;
+const PTS = new Float64Array(2 * NPT * 3);
+const GPT = new Float64Array(2 * NPT * 3);
+/** Per arm: d elbow / d (raise, toward, ulen), the forearm's direction, d dir / d (pitch, heading). */
+const JAC = new Float64Array(4 * 18);
+const SHAPE_R = new Float64Array(16);
+
+/** What about a sample doesn't change during a solve: what's held, and what may touch. */
+export interface SamplePlan {
+  holds: Hold[];
+  /** Beau shape × belle shape, 8 × 8: 1 where a held hand may touch. */
+  exempt: Uint8Array;
+  /** dancer · 2 + side: that arm is held. */
+  heldArm: [boolean, boolean, boolean, boolean];
+  targets: Target[];
+}
+
+export function planOf(m: Move): SamplePlan[] {
+  const n = m.frames.length;
+  return m.frames.map((_, i) => {
+    const t = n > 1 ? i / (n - 1) : 0;
+    const holds = held(m, t);
+    const exempt = new Uint8Array(64);
+    for (const h of holds) {
+      const ha = 4 + 3 * h.beau;
+      const hb = 4 + 3 * h.belle;
+      exempt[ha * 8 + hb] = 1;
+      exempt[ha * 8 + hb - 1] = 1;
+      exempt[(ha - 1) * 8 + hb] = 1;
+    }
+    const heldArm: SamplePlan["heldArm"] = [false, false, false, false];
+    for (const h of holds) {
+      heldArm[h.beau] = true;
+      heldArm[2 + h.belle] = true;
+    }
+    return { holds, exempt, heldArm, targets: (m.targets ?? []).filter((g) => g.i === i) };
+  });
+}
+
+let segS = 0;
+let segT = 0;
+const SEG_N = new Float64Array(3);
+
+/** `segSeg` on `PTS` by point index; leaves the closest points' parameters and their unit direction. */
+function segSegAt(p1: number, q1: number, p2: number, q2: number): number {
+  const P = PTS;
+  const d1x = P[q1]! - P[p1]!, d1y = P[q1 + 1]! - P[p1 + 1]!, d1z = P[q1 + 2]! - P[p1 + 2]!;
+  const d2x = P[q2]! - P[p2]!, d2y = P[q2 + 1]! - P[p2 + 1]!, d2z = P[q2 + 2]! - P[p2 + 2]!;
+  const rx = P[p1]! - P[p2]!, ry = P[p1 + 1]! - P[p2 + 1]!, rz = P[p1 + 2]! - P[p2 + 2]!;
+  const a = d1x * d1x + d1y * d1y + d1z * d1z;
+  const e = d2x * d2x + d2y * d2y + d2z * d2z;
+  const f = d2x * rx + d2y * ry + d2z * rz;
+  let s = 0;
+  let t = 0;
+  if (a <= 1e-12 && e <= 1e-12) {
+    // Two points.
+  } else if (a <= 1e-12) {
+    t = clamp01(f / e);
+  } else {
+    const c = d1x * rx + d1y * ry + d1z * rz;
+    if (e <= 1e-12) {
+      s = clamp01(-c / a);
+    } else {
+      const b = d1x * d2x + d1y * d2y + d1z * d2z;
+      const den = a * e - b * b;
+      s = den > 1e-12 ? clamp01((b * f - c * e) / den) : 0;
+      t = (b * s + f) / e;
+      if (t < 0) {
+        t = 0;
+        s = clamp01(-c / a);
+      } else if (t > 1) {
+        t = 1;
+        s = clamp01((b - c) / a);
+      }
+    }
+  }
+  const x = rx + d1x * s - d2x * t;
+  const y = ry + d1y * s - d2y * t;
+  const z = rz + d1z * s - d2z * t;
+  const d = Math.sqrt(x * x + y * y + z * z);
+  segS = s;
+  segT = t;
+  const inv = d > 1e-12 ? 1 / d : 0;
+  SEG_N[0] = x * inv;
+  SEG_N[1] = y * inv;
+  SEG_N[2] = z * inv;
+  return d;
+}
+
+const addPt = (p: number, k: number, x: number, y: number, z: number) => {
+  GPT[p] = GPT[p]! + k * x;
+  GPT[p + 1] = GPT[p + 1]! + k * y;
+  GPT[p + 2] = GPT[p + 2]! + k * z;
+};
+
+/**
+ * `frameCost` of sample `i` (its variables at `v[i·PER…]`), and its gradient added into `grad` at
+ * the same place. Same terms, same weights; `frameCost` stays as the readable statement of them.
+ */
+export function frameCostGrad(
+  m: Move, plan: SamplePlan, i: number, v: Float64Array, base: Frame, w: Weights,
+  guide: { at: Vec; weight: number } | undefined, grad: Float64Array,
+): number {
+  const o = i * PER;
+  GPT.fill(0);
+  // The beau's step: along the line from her to him, plus sideways.
+  const ux0 = base[0].x - base[1].x;
+  const uz0 = base[0].z - base[1].z;
+  const ul = Math.hypot(ux0, uz0) || 1;
+  const ux = ux0 / ul;
+  const uz = uz0 / ul;
+  const out = v[o + 24]!;
+  const side = v[o + 25]!;
+  // Forward: every point in the floor frame.
+  for (let d = 0; d < 2; d++) {
+    const b = m.bodies[d as 0 | 1];
+    const f = base[d as 0 | 1];
+    const c = Math.cos(f.yaw);
+    const s = Math.sin(f.yaw);
+    const tx = f.x + (d === 0 ? ux * out - uz * side : 0);
+    const tz = f.z + (d === 0 ? uz * out + ux * side : 0);
+    const put = (p: number, x: number, y: number, z: number) => {
+      const j = (d * NPT + p) * 3;
+      PTS[j] = x * c + z * s + tx;
+      PTS[j + 1] = y;
+      PTS[j + 2] = -x * s + z * c + tz;
+    };
+    put(0, b.torso.a[0], b.torso.a[1], b.torso.a[2]);
+    put(1, b.torso.b[0], b.torso.b[1], b.torso.b[2]);
+    put(2, b.head.c[0], b.head.c[1], b.head.c[2]);
+    for (let sd = 0; sd < 2; sd++) {
+      const k = o + d * 12 + sd * 6;
+      const raise = v[k]!, toward = v[k + 1]!, ulen = v[k + 2]!, pitch = v[k + 3]!, heading = v[k + 4]!, flen = v[k + 5]!;
+      const S = b.shoulder[sd as 0 | 1];
+      const g = sign(sd as 0 | 1);
+      const sr = Math.sin(raise), cr = Math.cos(raise), st = Math.sin(toward), ct = Math.cos(toward);
+      const sp = Math.sin(pitch), cp = Math.cos(pitch), sh = Math.sin(heading), ch = Math.cos(heading);
+      const ex = S[0] + g * sr * st * ulen, ey = S[1] - cr * ulen, ez = S[2] + sr * ct * ulen;
+      const dx = g * cp * sh, dy = sp, dz = cp * ch;
+      const wl = (b.forearm * flen) / b.fore0;
+      put(3 + 4 * sd, S[0], S[1], S[2]);
+      put(4 + 4 * sd, ex, ey, ez);
+      put(5 + 4 * sd, ex + dx * wl, ey + dy * wl, ez + dz * wl);
+      put(6 + 4 * sd, ex + dx * flen, ey + dy * flen, ez + dz * flen);
+      const J = (d * 2 + sd) * 18;
+      JAC[J] = g * cr * st * ulen; JAC[J + 1] = sr * ulen; JAC[J + 2] = cr * ct * ulen;
+      JAC[J + 3] = g * sr * ct * ulen; JAC[J + 4] = 0; JAC[J + 5] = -sr * st * ulen;
+      JAC[J + 6] = g * sr * st; JAC[J + 7] = -cr; JAC[J + 8] = sr * ct;
+      JAC[J + 9] = dx; JAC[J + 10] = dy; JAC[J + 11] = dz;
+      JAC[J + 12] = -g * sp * sh; JAC[J + 13] = cp; JAC[J + 14] = -sp * ch;
+      JAC[J + 15] = g * cp * ch; JAC[J + 16] = 0; JAC[J + 17] = -cp * sh;
+    }
+  }
+  for (let d = 0; d < 2; d++) {
+    const b = m.bodies[d as 0 | 1];
+    const r = SHAPE_R;
+    const q = d * 8;
+    r[q] = b.torso.r; r[q + 1] = b.head.r;
+    r[q + 2] = r[q + 3] = r[q + 5] = r[q + 6] = b.forearmR;
+    r[q + 4] = r[q + 7] = b.handR;
+  }
+  let cost = 0;
+  const pen = (da: number, sa: number, db: number, sb: number) => {
+    const p1 = (da * NPT + SHAPE_PTS[sa * 2]!) * 3, q1 = (da * NPT + SHAPE_PTS[sa * 2 + 1]!) * 3;
+    const p2 = (db * NPT + SHAPE_PTS[sb * 2]!) * 3, q2 = (db * NPT + SHAPE_PTS[sb * 2 + 1]!) * 3;
+    const dist = segSegAt(p1, q1, p2, q2);
+    const over = SHAPE_R[da * 8 + sa]! + SHAPE_R[db * 8 + sb]! + w.margin - dist;
+    if (over <= 0) return;
+    cost += w.clip * over * over;
+    const k = -2 * w.clip * over;
+    const nx = SEG_N[0]!, ny = SEG_N[1]!, nz = SEG_N[2]!;
+    addPt(p1, k * (1 - segS), nx, ny, nz);
+    addPt(q1, k * segS, nx, ny, nz);
+    addPt(p2, -k * (1 - segT), nx, ny, nz);
+    addPt(q2, -k * segT, nx, ny, nz);
+  };
+  for (let a = 0; a < 8; a++) for (let b = 0; b < 8; b++) if (plan.exempt[a * 8 + b] === 0) pen(0, a, 1, b);
+  for (let d = 0; d < 2; d++) for (let s = 2; s < 8; s++) for (let own = 0; own < 2; own++) pen(d, s, d, own);
+  // Hands above the floor.
+  for (let d = 0; d < 2; d++) for (let sd = 0; sd < 2; sd++) {
+    const p = (d * NPT + HAND_PT(sd as 0 | 1)) * 3;
+    const under = m.bodies[d as 0 | 1].handR - PTS[p + 1]!;
+    if (under > 0) {
+      cost += w.clip * under * under;
+      GPT[p + 1] = GPT[p + 1]! - 2 * w.clip * under;
+    }
+  }
+  // Held hands meet, in their plane, and (early in the run) near the guide.
+  for (const h of plan.holds) {
+    const pa = HAND_PT(h.beau) * 3;
+    const pb = (NPT + HAND_PT(h.belle)) * 3;
+    const x = PTS[pa]! - PTS[pb]!, y = PTS[pa + 1]! - PTS[pb + 1]!, z = PTS[pa + 2]! - PTS[pb + 2]!;
+    const dist = Math.sqrt(x * x + y * y + z * z);
+    const want = w.clasp * (m.bodies[0].handR + m.bodies[1].handR);
+    cost += w.hold * (dist - want) * (dist - want);
+    if (dist > 1e-12) {
+      const k = (2 * w.hold * (dist - want)) / dist;
+      addPt(pa, k, x, y, z);
+      addPt(pb, -k, x, y, z);
+    }
+    const mx = (PTS[pa]! + PTS[pb]!) / 2, my = (PTS[pa + 1]! + PTS[pb + 1]!) / 2, mz = (PTS[pa + 2]! + PTS[pb + 2]!) / 2;
+    if (h.plane !== undefined) {
+      const { p, n } = h.plane;
+      const off = (mx - p[0]) * n[0] + (my - p[1]) * n[1] + (mz - p[2]) * n[2];
+      cost += w.plane * off * off;
+      const k = w.plane * off; // 2·w·off, half to each hand
+      addPt(pa, k, n[0], n[1], n[2]);
+      addPt(pb, k, n[0], n[1], n[2]);
+    }
+    if (guide !== undefined && guide.weight > 0) {
+      const gx = mx - guide.at[0], gy = my - guide.at[1], gz = mz - guide.at[2];
+      cost += guide.weight * (gx * gx + gy * gy + gz * gz);
+      addPt(pa, guide.weight, gx, gy, gz);
+      addPt(pb, guide.weight, gx, gy, gz);
+    }
+  }
+  // Natural, straight on the dials (gravity on the elbow's and hand's height).
+  for (let d = 0; d < 2; d++) {
+    const b = m.bodies[d as 0 | 1];
+    for (let sd = 0; sd < 2; sd++) {
+      const k = o + d * 12 + sd * 6;
+      const raise = v[k]!, toward = v[k + 1]!, ulen = v[k + 2]!, pitch = v[k + 3]!, heading = v[k + 4]!, flen = v[k + 5]!;
+      const su = ulen / b.upper0 - 1;
+      const sf = flen / b.fore0 - 1;
+      cost += w.stretch * (su * su + sf * sf);
+      grad[k + 2] = grad[k + 2]! + (2 * w.stretch * su) / b.upper0;
+      grad[k + 5] = grad[k + 5]! + (2 * w.stretch * sf) / b.fore0;
+      if (plan.heldArm[d * 2 + sd] === true) {
+        const pe = (d * NPT + 4 + 4 * sd) * 3;
+        const ph = (d * NPT + 6 + 4 * sd) * 3;
+        cost += w.gravity * (PTS[pe + 1]! + PTS[ph + 1]! - 2 * b.shoulder[0][1]);
+        GPT[pe + 1] = GPT[pe + 1]! + w.gravity;
+        GPT[ph + 1] = GPT[ph + 1]! + w.gravity;
+      } else {
+        const dp = pitch + Math.PI / 2;
+        cost += w.rest * (raise * raise + dp * dp + 0.1 * (heading * heading + toward * toward));
+        grad[k] = grad[k]! + 2 * w.rest * raise;
+        grad[k + 1] = grad[k + 1]! + 0.2 * w.rest * toward;
+        grad[k + 3] = grad[k + 3]! + 2 * w.rest * dp;
+        grad[k + 4] = grad[k + 4]! + 0.2 * w.rest * heading;
+      }
+      const back = -Math.sin(raise) * Math.cos(toward);
+      if (back > 0.3) {
+        cost += w.range * (back - 0.3) ** 2;
+        const g = 2 * w.range * (back - 0.3);
+        grad[k] = grad[k]! - g * Math.cos(raise) * Math.cos(toward);
+        grad[k + 1] = grad[k + 1]! + g * Math.sin(raise) * Math.sin(toward);
+      }
+      if (raise < 0) {
+        cost += w.range * raise * raise;
+        grad[k] = grad[k]! + 2 * w.range * raise;
+      }
+      if (raise > Math.PI) {
+        cost += w.range * (raise - Math.PI) ** 2;
+        grad[k] = grad[k]! + 2 * w.range * (raise - Math.PI);
+      }
+      if (pitch > Math.PI / 2) {
+        cost += w.range * (pitch - Math.PI / 2) ** 2;
+        grad[k + 3] = grad[k + 3]! + 2 * w.range * (pitch - Math.PI / 2);
+      }
+      if (pitch < -Math.PI / 2) {
+        cost += w.range * (pitch + Math.PI / 2) ** 2;
+        grad[k + 3] = grad[k + 3]! + 2 * w.range * (pitch + Math.PI / 2);
+      }
+    }
+  }
+  // Ryan's keyframes.
+  for (const g of plan.targets) {
+    const k = o + g.dancer * 12 + g.side * 6 + ARM_KEYS.indexOf(g.key);
+    const x = v[k]!;
+    const scale = isLength(g.key) ? METRE : 1;
+    const dv = isLength(g.key) ? (x - g.value) * METRE : wrapRad(x - g.value);
+    cost += w.target * g.weight * dv * dv;
+    grad[k] = grad[k]! + 2 * w.target * g.weight * dv * scale;
+  }
+  // Back: points → dials and the beau's step.
+  for (let d = 0; d < 2; d++) {
+    const b = m.bodies[d as 0 | 1];
+    const f = base[d as 0 | 1];
+    const c = Math.cos(f.yaw);
+    const s = Math.sin(f.yaw);
+    let sumX = 0;
+    let sumZ = 0;
+    // Each point's floor gradient, turned into the rig's frame, in place.
+    for (let p = 0; p < NPT; p++) {
+      const j = (d * NPT + p) * 3;
+      const gx = GPT[j]!, gz = GPT[j + 2]!;
+      sumX += gx;
+      sumZ += gz;
+      GPT[j] = gx * c - gz * s;
+      GPT[j + 2] = gx * s + gz * c;
+    }
+    if (d === 0) {
+      grad[o + 24] = grad[o + 24]! + sumX * ux + sumZ * uz;
+      grad[o + 25] = grad[o + 25]! - sumX * uz + sumZ * ux;
+    }
+    for (let sd = 0; sd < 2; sd++) {
+      const k = o + d * 12 + sd * 6;
+      const flen = v[k + 5]!;
+      const J = (d * 2 + sd) * 18;
+      const je = (d * NPT + 4 + 4 * sd) * 3;
+      const jw = je + 3;
+      const jh = je + 6;
+      // Elbow dials move the elbow, wrist and hand alike.
+      const Sx = GPT[je]! + GPT[jw]! + GPT[jh]!;
+      const Sy = GPT[je + 1]! + GPT[jw + 1]! + GPT[jh + 1]!;
+      const Sz = GPT[je + 2]! + GPT[jw + 2]! + GPT[jh + 2]!;
+      grad[k] = grad[k]! + Sx * JAC[J]! + Sy * JAC[J + 1]! + Sz * JAC[J + 2]!;
+      grad[k + 1] = grad[k + 1]! + Sx * JAC[J + 3]! + Sy * JAC[J + 4]! + Sz * JAC[J + 5]!;
+      grad[k + 2] = grad[k + 2]! + Sx * JAC[J + 6]! + Sy * JAC[J + 7]! + Sz * JAC[J + 8]!;
+      // Forearm dials: the wrist sits forearm/fore0 of the way along the hand's reach.
+      const kl = b.forearm / b.fore0;
+      const Tx = GPT[jw]! * kl + GPT[jh]!, Ty = GPT[jw + 1]! * kl + GPT[jh + 1]!, Tz = GPT[jw + 2]! * kl + GPT[jh + 2]!;
+      grad[k + 3] = grad[k + 3]! + flen * (Tx * JAC[J + 12]! + Ty * JAC[J + 13]! + Tz * JAC[J + 14]!);
+      grad[k + 4] = grad[k + 4]! + flen * (Tx * JAC[J + 15]! + Ty * JAC[J + 16]! + Tz * JAC[J + 17]!);
+      grad[k + 5] = grad[k + 5]! + Tx * JAC[J + 9]! + Ty * JAC[J + 10]! + Tz * JAC[J + 11]!;
+    }
+  }
+  return cost;
+}
+
 export interface SolveOptions {
   iterations?: number;
   rate?: number;
@@ -497,12 +834,24 @@ export interface SolveOptions {
   /** A warm-start pull for the joined hands, faded out over the first `guideFor` of the run. */
   guide?: (i: number) => Vec;
   guideFor?: number;
+  /**
+   * 🧪 How the gradient is had (2026-10-26, step 2): `exact` (`frameCostGrad`, the default) or
+   * `numeric`, central differences on `frameCost` as before, kept to compare against.
+   */
+  gradient?: "exact" | "numeric";
+  /** 🧪 The step size at the end of the run; it falls geometrically from `rate`. Default: `rate`. */
+  rateEnd?: number;
+  /** 🧪 Gaussian noise on each step, in units of the step, falling with it (default 0). */
+  jitter?: number;
+  /** 🧪 The jitter's seed: a solve is deterministic for a seed; different seeds try other valleys. */
+  seed?: number;
   onProgress?: (it: number, cost: number) => void;
 }
 
 /**
- * Adam over every sample at once. The gradient of a sample's own cost is by central differences
- * on that sample's variables only (its cost doesn't depend on the others); smoothness is exact.
+ * Adam over every sample at once. A sample's own cost depends on its own variables only; its
+ * gradient is exact (`frameCostGrad`), or by central differences with `gradient: "numeric"`.
+ * Smoothness is exact either way.
  */
 export function solve(m: Move, o: SolveOptions = {}): { frames: Frame[]; cost: number } {
   const w = o.weights ?? WEIGHTS;
@@ -510,12 +859,26 @@ export function solve(m: Move, o: SolveOptions = {}): { frames: Frame[]; cost: n
   const base = m.frames;
   const v = pack(base);
   const iters = o.iterations ?? 1500;
-  const lr = o.rate ?? 0.02;
+  const lr0 = o.rate ?? 0.02;
+  const lrEnd = o.rateEnd ?? lr0;
+  const jitter = o.jitter ?? 0;
+  let seed = Math.abs(Math.floor(o.seed ?? 1)) % 2147483648;
+  const gauss = () => {
+    // Box–Muller on a fixed LCG: the solve stays deterministic.
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    const u = (seed + 1) / 2147483649;
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    const w = seed / 2147483648;
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * w);
+  };
   const mom = new Float64Array(v.length);
   const vel = new Float64Array(v.length);
   const b1 = 0.9;
   const b2 = 0.999;
   const h = 1e-4;
+  const exact = o.gradient !== "numeric";
+  const plans = exact ? planOf(m) : [];
+  const guides = o.guide ? base.map((_, i) => o.guide?.(i)) : [];
   let cost = 0;
   for (let it = 1; it <= iters; it++) {
     const grad = new Float64Array(v.length);
@@ -524,7 +887,13 @@ export function solve(m: Move, o: SolveOptions = {}): { frames: Frame[]; cost: n
     for (let i = 0; i < n; i++) {
       const baseF = base[i];
       if (baseF === undefined) continue;
-      const g = o.guide && fade > 0 ? { at: o.guide(i), weight: 400 * fade } : undefined;
+      const at = guides[i];
+      const g = at !== undefined && fade > 0 ? { at, weight: 400 * fade } : undefined;
+      const plan = plans[i];
+      if (plan !== undefined) {
+        cost += frameCostGrad(m, plan, i, v, baseF, w, g, grad);
+        continue;
+      }
       const f0 = frameCost(m, i, unpackOne(v, i, baseF), w, g);
       cost += f0;
       for (let k = 0; k < PER; k++) {
@@ -538,18 +907,43 @@ export function solve(m: Move, o: SolveOptions = {}): { frames: Frame[]; cost: n
         grad[j] = (grad[j] ?? 0) + (up - dn) / (2 * h);
       }
     }
+    const lr = lr0 * (lrEnd / lr0) ** ((it - 1) / Math.max(1, iters - 1));
     for (let j = 0; j < v.length; j++) {
       const g = grad[j] ?? 0;
       mom[j] = b1 * (mom[j] ?? 0) + (1 - b1) * g;
       vel[j] = b2 * (vel[j] ?? 0) + (1 - b2) * g * g;
       const mh = (mom[j] ?? 0) / (1 - b1 ** it);
       const vh = (vel[j] ?? 0) / (1 - b2 ** it);
-      v[j] = (v[j] ?? 0) - (lr * mh) / (Math.sqrt(vh) + 1e-8);
+      v[j] = (v[j] ?? 0) - (lr * mh) / (Math.sqrt(vh) + 1e-8) + (jitter > 0 ? jitter * lr * gauss() : 0);
     }
     if (o.onProgress && (it % 100 === 0 || it === iters)) o.onProgress(it, cost);
   }
   const frames = base.map((f, i) => unpackOne(v, i, f));
   return { frames, cost };
+}
+
+/**
+ * 🧪 The schedule for the exact gradient (2026-10-26, step 2, measured on the ryan → ryan twirl).
+ * An exact gradient has none of central differences' rounding noise, and Adam, which scales each
+ * variable's step by its own gradient, had been turning that noise into a useful shake: plain
+ * exact Adam settled in a worse valley (cost 159, worst jump 31°) than the numeric run (148,
+ * 26°). So the shake is put back on purpose: noise of half a step, with the step falling from 0.04
+ * to 0.001 so it settles. Over 8 seeds, 5 land at cost about 137 (jumps 17–23°) and 3 at 147–162;
+ * none clip. The best of 4 seeds finds the good valley about 98% of the time.
+ */
+export const SCHEDULE = { iterations: 6000, rate: 0.04, rateEnd: 0.001, jitter: 0.5, tries: 4 } as const;
+
+/** `solve` once per seed (1…`tries`), keeping the cheapest. In a browser, give each seed its own worker. */
+export function solveBest(m: Move, o: SolveOptions = {}, tries: number = SCHEDULE.tries): { frames: Frame[]; cost: number; seed: number; costs: number[] } {
+  let best: { frames: Frame[]; cost: number; seed: number } | undefined;
+  const costs: number[] = [];
+  for (let seed = 1; seed <= Math.max(1, tries); seed++) {
+    const r = solve(m, { ...o, seed });
+    costs.push(r.cost);
+    if (best === undefined || r.cost < best.cost) best = { ...r, seed };
+  }
+  if (best === undefined) throw new Error("solveBest: no tries");
+  return { ...best, costs };
 }
 
 // ── Reading it: the same numbers for the floor's pose and the solver's ────────────────────────

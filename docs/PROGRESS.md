@@ -6,7 +6,22 @@ _Last updated: 2026-10-26_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-26 (2) — Ryan's keyframes steer the solve
+> ### ▶ PICK UP HERE — 2026-10-26 (3) — exact gradients, and the solve in a web worker
+>
+> [`journal/2026-10-26-3-exact-gradients-and-a-worker.md`](journal/2026-10-26-3-exact-gradients-and-a-worker.md)
+> · 🧪 committed with this entry
+>
+> Step 2 of the reordered plan is done. `frameCostGrad` gives the exact gradient: it matches
+> central differences and runs 87× faster. Plain Adam with it settled in a worse valley, so
+> `SCHEDULE` adds a falling step and a little noise, and the default is the best of 4 seeds.
+> ryan → ryan twirl: **cost 137, worst jump 20.5°, step-out 20.5 cm** (the committed solve: 148,
+> 26°, 26 cm), in 5.4 s in node, or **1.6 s in the browser with 4 workers**
+> (`whole-move-client.ts`).
+> ⏳ **Next:** Ryan 📂 loads `scripts/whole-move/ryan-ryan-california-twirl.exact.json` in `#review2` beside the committed solve, and we decide
+> whether it replaces the committed bundle and bake. Then step 3: a small model for the twirl,
+> with the solver as teacher, and measure how few polish iterations a good guess needs.
+
+> ### 2026-10-26 (2) — Ryan's keyframes steer the solve
 >
 > [`journal/2026-10-26-2-keyframes-steer-the-solve.md`](journal/2026-10-26-2-keyframes-steer-the-solve.md)
 > · 🧪 committed with this entry

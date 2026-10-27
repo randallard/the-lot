@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computePositions, getBodyShape, NPC_BODY_CENTER_Y } from "../services/body-shapes";
-import { armPoints, bodyOf, fromDials, reachArm, restArm, segSeg, solve, targetsFromKeyframes, toDials, toFloor, toRig, type DancerFrame, type Frame, type Move, type Vec } from "./whole-move";
+import { armPoints, bodyOf, frameCost, frameCostGrad, fromDials, pack, PER, planOf, reachArm, restArm, segSeg, solve, targetsFromKeyframes, toDials, toFloor, toRig, unpackOne, WEIGHTS, type DancerFrame, type Frame, type Move, type Vec } from "./whole-move";
 
 const near = (a: Vec, b: Vec, eps = 1e-9) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < eps;
 
@@ -112,5 +112,93 @@ describe("🧪 Ryan's keyframes steer the solve (2026-10-26)", () => {
     // Smooth into and out of it: the samples beside it rise too, the ends least.
     expect(raise(steered, 3)).toBeGreaterThan(raise(steered, 0));
     expect(raise(steered, 3)).toBeLessThan(raise(steered, 4) + 1e-6);
+  });
+});
+
+describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
+  const ryan = bodyOf(getBodyShape("ryan"));
+  const myco = bodyOf(getBodyShape("myco"));
+  // A seeded generator, so a failure repeats.
+  let seed = 7;
+  const rnd = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+  const arm = (b: typeof ryan) => ({
+    raise: rnd() * 3.4 - 0.2,
+    toward: rnd() * 6 - 3,
+    ulen: b.upper0 * (0.8 + rnd() * 0.6),
+    pitch: rnd() * 3.6 - 1.8,
+    heading: rnd() * 6 - 3,
+    flen: b.fore0 * (0.8 + rnd() * 0.6),
+  });
+
+  it("is frameCost's cost and frameCost's gradient, with every term in play", () => {
+    // Close enough that bodies, arms and heads overlap; a hold with a plane; a guide; targets.
+    const frames: Frame[] = Array.from({ length: 5 }, (_, i) => [
+      { x: -0.25 + 0.02 * i, z: 0.05, yaw: Math.PI / 2 + 0.3 * i, arms: [arm(ryan), arm(ryan)] },
+      { x: 0.25, z: -0.03 * i, yaw: -Math.PI / 2 - 0.2 * i, arms: [arm(myco), arm(myco)] },
+    ]);
+    const m: Move = {
+      bodies: [ryan, myco],
+      frames,
+      holds: [
+        { from: 0, to: 0.6, beau: 1, belle: 0, plane: { p: [0, 0, 0.1], n: [0.6, 0, 0.8] } },
+        { from: 0.4, to: 1, beau: 0, belle: 1 },
+      ],
+      targets: [
+        { i: 2, dancer: 0, side: 1, key: "raise", value: 2.6, weight: 1 },
+        { i: 2, dancer: 1, side: 0, key: "flen", value: 0.3, weight: 0.5 },
+        { i: 3, dancer: 1, side: 1, key: "heading", value: -3, weight: 2 },
+      ],
+    };
+    const v = pack(frames);
+    for (let i = 0; i < v.length; i += PER) {
+      v[i + 24] = rnd() * 0.2 - 0.1;
+      v[i + 25] = rnd() * 0.1 - 0.05;
+    }
+    const plans = planOf(m);
+    const guide = { at: [0.05, 1.7, 0] as Vec, weight: 120 };
+    let clipping = 0;
+    for (let i = 0; i < frames.length; i++) {
+      const base = frames[i]!;
+      const g = new Float64Array(v.length);
+      const c = frameCostGrad(m, plans[i]!, i, v, base, WEIGHTS, guide, g);
+      expect(c).toBeCloseTo(frameCost(m, i, unpackOne(v, i, base), WEIGHTS, guide), 6);
+      if (c > 50) clipping++;
+      const h = 1e-6;
+      for (let k = 0; k < PER; k++) {
+        const j = i * PER + k;
+        const x = v[j]!;
+        v[j] = x + h;
+        const up = frameCost(m, i, unpackOne(v, i, base), WEIGHTS, guide);
+        v[j] = x - h;
+        const dn = frameCost(m, i, unpackOne(v, i, base), WEIGHTS, guide);
+        v[j] = x;
+        const num = (up - dn) / (2 * h);
+        expect(Math.abs(g[j]! - num)).toBeLessThan(1e-4 * Math.max(1, Math.abs(num)));
+      }
+      // Only its own sample's variables.
+      for (let j = 0; j < v.length; j++) if (j < i * PER || j >= (i + 1) * PER) expect(g[j]).toBe(0);
+    }
+    // The poses really do clip, so the clearance terms were tested, not skipped.
+    expect(clipping).toBeGreaterThan(2);
+  });
+
+  it("solves the same as the numerical gradient", () => {
+    const frame = (): Frame => [
+      { x: -0.35, z: 0, yaw: Math.PI / 2, arms: [restArm(ryan), restArm(ryan)] },
+      { x: 0.35, z: 0, yaw: -Math.PI / 2, arms: [restArm(myco), restArm(myco)] },
+    ];
+    const m: Move = { bodies: [ryan, myco], frames: Array.from({ length: 7 }, frame), holds: [{ from: 0, to: 1, beau: 1, belle: 0 }] };
+    const a = solve(m, { iterations: 200 });
+    const b = solve(m, { iterations: 200, gradient: "numeric" });
+    // Adam's steps are normalised, so tiny differences near the clearance kinks drift a little
+    // mid-run (the cost is still falling at 200); every dial agrees within about a degree.
+    let worst = 0;
+    for (let i = 0; i < 7; i++) for (const d of [0, 1] as const) for (const s of [0, 1] as const)
+      for (const k of ["raise", "toward", "ulen", "pitch", "heading", "flen"] as const)
+        worst = Math.max(worst, Math.abs(a.frames[i]![d].arms[s][k] - b.frames[i]![d].arms[s][k]));
+    expect(worst).toBeLessThan(0.02);
   });
 });

@@ -4,8 +4,13 @@
  * `work/square-dance-planning/briefs/solve-the-whole-move.md`.
  *
  *   npx vite-node scripts/whole-move/solve.ts [paths.json] [iterations] [--margin=0.06]
- *     [--targets=<bundle.json>] [--target-weight=1] [--out=<file>]
+ *     [--targets=<bundle.json>] [--target-weight=1] [--out=<file>] [--gradient=exact|numeric]
+ *     [--tries=4 | --seed=N] [--rate=] [--rate-end=] [--jitter=]
  *
+ * `--gradient` (2026-10-26, step 2): `exact` (the default) is `frameCostGrad`, run on
+ * `SCHEDULE` (a falling step with a little noise, best of 4 seeds: about 6 s, 1.4 s a seed).
+ * `numeric` is the central differences the solver started with (about 44 s), kept to compare
+ * against. `--tries`, `--seed`, `--rate`, `--rate-end` and `--jitter` override the schedule.
  * `--targets` (2026-10-26) steers the solve by Ryan's keyframes: a `#review2` 📂 export (or any
  * bundle). The pairing's timeline is folded as `#review2` folds it, and each dial he **set** pulls
  * the solve toward his value at that moment (a locked pairing's pull 10×). Soft: clearance and held
@@ -31,28 +36,20 @@ import {
   armPoints,
   bodyOf,
   metrics,
-  restArm,
   segSeg,
   shapesOf,
+  SCHEDULE,
   solve,
-  startOnPath,
+  solveBest,
   targetsFromKeyframes,
   toDials,
   toFloor,
   WEIGHTS,
   type DancerFrame,
   type Frame,
-  type Move,
-  type Vec,
 } from "../../src/dance/whole-move";
+import { twirlMove, type TwirlPaths } from "../../src/dance/whole-move-twirl";
 
-interface PathFile {
-  pairing: string;
-  figure: string;
-  shapes: [string, string];
-  beau: { x: number; z: number; facing: number }[];
-  belle: { x: number; z: number; facing: number }[];
-}
 
 const flags = process.argv.slice(2).filter((a) => a.startsWith("--"));
 const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
@@ -64,38 +61,22 @@ const targetsFile = flag("targets");
 const targetWeight = Number(flag("target-weight") ?? 1);
 if (!Number.isFinite(targetWeight) || targetWeight < 0) throw new Error(`bad --target-weight: ${String(flag("target-weight"))}`);
 const outFlag = flag("out");
+const iterationsArg = args[1];
+const gradient = flag("gradient") ?? "exact";
+if (gradient !== "exact" && gradient !== "numeric") throw new Error(`bad --gradient: ${gradient}`);
+// The exact gradient runs `SCHEDULE`; the numeric one runs as it did before 10-26 (one try, 1500
+// iterations at a steady 0.02, no shake). Any flag overrides either.
+const plain = gradient === "numeric";
+const iterations = Number(iterationsArg ?? (plain ? 1500 : SCHEDULE.iterations));
+const rate = Number(flag("rate") ?? (plain ? 0.02 : SCHEDULE.rate));
+if (!Number.isFinite(rate) || rate <= 0) throw new Error(`bad --rate: ${String(flag("rate"))}`);
+const rateEnd = Number(flag("rate-end") ?? (plain ? rate : SCHEDULE.rateEnd));
+const jitter = Number(flag("jitter") ?? (plain ? 0 : SCHEDULE.jitter));
+const seedFlag = flag("seed");
+const tries = seedFlag !== undefined ? 1 : Number(flag("tries") ?? (plain ? 1 : SCHEDULE.tries));
 const file = args[0] ?? join(dirname(new URL(import.meta.url).pathname), "ryan-ryan-twirl.paths.json");
-const iterations = Number(args[1] ?? 1500);
-const P = JSON.parse(readFileSync(file, "utf8")) as PathFile;
+const P = JSON.parse(readFileSync(file, "utf8")) as TwirlPaths;
 const bodies = [bodyOf(getBodyShape(P.shapes[0])), bodyOf(getBodyShape(P.shapes[1]))] as const;
-const D2R = Math.PI / 180;
-
-const frames: Frame[] = P.beau.map((b, i) => {
-  const g = P.belle[i]!;
-  return [
-    { x: b.x / 100, z: b.z / 100, yaw: b.facing * D2R, arms: [restArm(bodies[0]), restArm(bodies[0])] },
-    { x: g.x / 100, z: g.z / 100, yaw: g.facing * D2R, arms: [restArm(bodies[1]), restArm(bodies[1])] },
-  ];
-});
-// Facing is unwrapped so the path doesn't jump ±360° between samples.
-for (const k of [0, 1] as const) for (let i = 1; i < frames.length; i++) {
-  const prev = frames[i - 1]![k].yaw;
-  let y = frames[i]![k].yaw;
-  while (y - prev > Math.PI) y -= 2 * Math.PI;
-  while (y - prev < -Math.PI) y += 2 * Math.PI;
-  frames[i]![k].yaw = y;
-}
-
-// The California Twirl: the beau's right holds the belle's left for the whole call (the arch
-// span, then the ordinary handhold it releases into; square-one ADR-0026).
-// The arch's plane: through the couple's midpoint at the start, along their facing (normal: the
-// line between their spots). square-one declares the grip an arch for 0–3.5 of 4 beats; after
-// that it's the ordinary handhold, still joined.
-const f0 = frames[0]!;
-const plane = {
-  p: [(f0[0].x + f0[1].x) / 2, 0, (f0[0].z + f0[1].z) / 2] as Vec,
-  n: (() => { const dx = f0[1].x - f0[0].x; const dz = f0[1].z - f0[0].z; const l = Math.hypot(dx, dz); return [dx / l, 0, dz / l] as Vec; })(),
-};
 // Ryan's keyframes, if given: the ones with dials he set.
 const LOCKED_WEIGHT = 10;
 let his: Keyframe[] = [];
@@ -111,47 +92,35 @@ if (targetsFile !== undefined) {
 }
 const { targets, unused } = targetsFromKeyframes(
   his.map((k) => ({ ...k, weight: targetWeight * (hisLocked ? LOCKED_WEIGHT : 1) })),
-  frames.length,
+  P.beau.length,
 );
 if (targetsFile !== undefined) {
   console.log(`targets: ${String(his.length)} keyframe(s) with set dials${hisLocked ? " (locked: 10× pull)" : ""}, ${String(targets.length)} pulls`);
   if (unused.length > 0) console.log(`  not solver variables, left out: ${unused.join(", ")}`);
 }
 
-const move: Move = {
-  bodies: [bodies[0], bodies[1]],
-  frames,
-  holds: [
-    { from: 0, to: 3.5 / 4, beau: 1, belle: 0, plane },
-    { from: 3.5 / 4 + 1e-6, to: 1, beau: 1, belle: 0 },
-  ],
-  ...(targets.length > 0 ? { targets } : {}),
-};
-
+const { move, path: frames, start } = twirlMove(P, [bodies[0], bodies[1]], targets);
 const n = frames.length;
-const crown = bodies[1].head.c[1] + bodies[1].head.r;
-const guide = (i: number): Vec => {
-  const f = frames[i]!;
-  const sb = toFloor(armPoints(bodies[0], 1, restArm(bodies[0])).s, f[0]);
-  const sg = toFloor(armPoints(bodies[1], 0, restArm(bodies[1])).s, f[1]);
-  const t = i / (n - 1);
-  const low = 0.6;
-  const top = crown + bodies[1].handR + 0.05;
-  return [(sb[0] + sg[0]) / 2, low + (top - low) * Math.sin(Math.PI * t), (sb[2] + sg[2]) / 2];
-};
 
 // The start: held hands on the guide arc (two-bone IK, elbows out). Then no guide at all.
-const start = startOnPath(move, guide);
 console.log("start:", JSON.stringify(metrics(move, start, frames)));
 const t0 = Date.now();
-console.log(`margin ${(margin * 100).toFixed(1)} cm`);
-const { frames: out, cost } = solve({ ...move, frames: start }, {
+console.log(`margin ${(margin * 100).toFixed(1)} cm, ${gradient} gradient`);
+const options = {
   iterations,
   weights: { ...WEIGHTS, margin },
-  onProgress: (it, c) => { if (it % 250 === 0) console.log(`  it ${String(it)}  cost ${c.toFixed(2)}`); },
-});
+  gradient,
+  rate,
+  rateEnd,
+  jitter,
+  ...(tries === 1 ? { onProgress: (it: number, c: number) => { if (it % 1000 === 0) console.log(`  it ${String(it)}  cost ${c.toFixed(2)}`); } } : {}),
+} as const;
+const solved = seedFlag !== undefined
+  ? { ...solve({ ...move, frames: start }, { ...options, seed: Number(seedFlag) }), seed: Number(seedFlag), costs: [] as number[] }
+  : solveBest({ ...move, frames: start }, options, tries);
+const { frames: out, cost } = solved;
 const m = metrics(move, out, frames);
-console.log(`solved in ${((Date.now() - t0) / 1000).toFixed(1)} s, cost ${cost.toFixed(2)}`);
+console.log(`solved in ${((Date.now() - t0) / 1000).toFixed(1)} s, cost ${cost.toFixed(2)}${solved.costs.length > 1 ? ` (seed ${String(solved.seed)}; tries ${solved.costs.map((c) => c.toFixed(0)).join(", ")})` : ""}`);
 console.log(JSON.stringify(m, null, 1));
 
 // How close anything comes to either head: on the samples, and halfway between them, since
