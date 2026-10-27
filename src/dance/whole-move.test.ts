@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computePositions, getBodyShape, NPC_BODY_CENTER_Y } from "../services/body-shapes";
-import { armPoints, bodyOf, fromDials, reachArm, restArm, segSeg, toDials, toFloor, toRig, type DancerFrame, type Vec } from "./whole-move";
+import { armPoints, bodyOf, fromDials, reachArm, restArm, segSeg, solve, targetsFromKeyframes, toDials, toFloor, toRig, type DancerFrame, type Frame, type Move, type Vec } from "./whole-move";
 
 const near = (a: Vec, b: Vec, eps = 1e-9) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < eps;
 
@@ -55,5 +55,62 @@ describe("the whole-move forward model", () => {
     const q = armPoints(body, 1, f.arms[1]);
     expect(near(p.h, q.h, 0.005)).toBe(true);
     expect(back.x).toBeCloseTo(0.25);
+  });
+});
+
+describe("🧪 Ryan's keyframes steer the solve (2026-10-26)", () => {
+  const body = bodyOf(getBodyShape("ryan"));
+  const D2R = Math.PI / 180;
+
+  it("takes only the dials he set, in solver units, split between the two nearest samples", () => {
+    const { targets, unused } = targetsFromKeyframes(
+      [{
+        t: 0.50625, // a quarter of the way from sample 20 to 21 of 41 (20.25 / 40)
+        values: { "1.upper-arm-left.raise": 150, "1.forearm-left.length": 40, "0.upper-arm-right.raise": 99, "1.torso.lean-fwd": 5 },
+        setKeys: ["1.upper-arm-left.raise", "1.forearm-left.length", "1.torso.lean-fwd"],
+      }],
+      41,
+    );
+    // The beau's raise wasn't set, so it doesn't pull.
+    expect(targets.some((g) => g.dancer === 0)).toBe(false);
+    const raise = targets.filter((g) => g.key === "raise");
+    expect(raise.map((g) => g.i)).toEqual([20, 21]);
+    expect(raise[0]!.weight).toBeCloseTo(0.75);
+    expect(raise[1]!.weight).toBeCloseTo(0.25);
+    expect(raise[0]!.value).toBeCloseTo(150 * D2R);
+    expect(raise[0]).toMatchObject({ dancer: 1, side: 0 });
+    expect(targets.find((g) => g.key === "flen")!.value).toBeCloseTo(0.4);
+    // The torso isn't a solver variable: reported, not dropped silently.
+    expect(unused).toEqual(["1.torso.lean-fwd"]);
+  });
+
+  it("a keyframe on a sample pulls only that sample, and a locked one pulls harder", () => {
+    const { targets } = targetsFromKeyframes(
+      [{ t: 0.5, values: { "0.forearm-right.pitch": 30 }, setKeys: ["0.forearm-right.pitch"], weight: 10 }],
+      41,
+    );
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({ i: 20, weight: 10, key: "pitch" });
+  });
+
+  it("bends the solve toward the dial, and smoothness carries it to the samples around it", () => {
+    // Two dancers far apart, nothing held: alone, a free arm hangs at rest.
+    const frame = (): Frame => [
+      { x: -2, z: 0, yaw: 0, arms: [restArm(body), restArm(body)] },
+      { x: 2, z: 0, yaw: 0, arms: [restArm(body), restArm(body)] },
+    ];
+    const base: Move = { bodies: [body, body], frames: Array.from({ length: 9 }, frame), holds: [] };
+    const free = solve(base, { iterations: 300 }).frames;
+    const { targets } = targetsFromKeyframes(
+      [{ t: 0.5, values: { "0.upper-arm-left.raise": 90 }, setKeys: ["0.upper-arm-left.raise"] }],
+      9,
+    );
+    const steered = solve({ ...base, targets }, { iterations: 300 }).frames;
+    const raise = (fs: Frame[], i: number) => fs[i]![0].arms[0].raise / D2R;
+    expect(raise(free, 4)).toBeLessThan(5);
+    expect(raise(steered, 4)).toBeGreaterThan(60);
+    // Smooth into and out of it: the samples beside it rise too, the ends least.
+    expect(raise(steered, 3)).toBeGreaterThan(raise(steered, 0));
+    expect(raise(steered, 3)).toBeLessThan(raise(steered, 4) + 1e-6);
   });
 });

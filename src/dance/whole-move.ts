@@ -213,11 +213,32 @@ export interface Hold {
   plane?: { p: Vec; n: Vec };
 }
 
+/**
+ * 🧪 One of Ryan's keyframe dials as a pull on the solve (2026-10-26): at sample `i`, dancer
+ * `dancer`'s `side` arm wants `key` at `value` (radians, or metres for the lengths). `weight`
+ * scales `WEIGHTS.target`: 1 for a dial he set, more for a locked keyframe, and a keyframe between
+ * two samples splits its weight between them.
+ */
+export interface Target {
+  i: number;
+  dancer: 0 | 1;
+  side: 0 | 1;
+  key: ArmKey;
+  value: number;
+  weight: number;
+}
+
 export interface Move {
   bodies: [Body, Body];
   /** One per sample, evenly over t = 0…1. Arms are the starting guess. */
   frames: Frame[];
   holds: Hold[];
+  /**
+   * 🧪 Ryan's keyframes, as pulls (see {@link targetsFromKeyframes}). Soft: the hard terms
+   * (clearance, held hands) and smoothness still win, so a pose that would clip is got as close
+   * to as it can be without clipping.
+   */
+  targets?: readonly Target[];
 }
 
 export interface Weights {
@@ -234,6 +255,12 @@ export interface Weights {
   step: number;
   range: number;
   plane: number;
+  /**
+   * A keyframe dial's pull, per radian² (lengths count a metre as `METRE` radians). 600 honours a
+   * set dial closely: on the twirl, a beau's raise asked 14° below the solve's landed within 2°,
+   * still clear of every head (60 moved it 4°; 10-26-2). A locked keyframe pulls 10× that.
+   */
+  target: number;
 }
 
 export const WEIGHTS: Weights = {
@@ -249,6 +276,7 @@ export const WEIGHTS: Weights = {
   step: 4,
   range: 200,
   plane: 400,
+  target: 600,
 };
 
 const held = (m: Move, t: number) => m.holds.filter((h) => t >= h.from - 1e-9 && t <= h.to + 1e-9);
@@ -328,12 +356,69 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
       if (a.pitch < -Math.PI / 2) c += w.range * (a.pitch + Math.PI / 2) ** 2;
     });
   });
+  // Ryan's keyframes: each dial he set pulls its variable toward his value.
+  if (m.targets !== undefined) for (const g of m.targets) {
+    if (g.i !== i) continue;
+    const a = f[g.dancer].arms[g.side];
+    const v = a[g.key];
+    const d = isLength(g.key) ? (v - g.value) * METRE : wrapRad(v - g.value);
+    c += w.target * g.weight * d * d;
+  }
   return c;
+}
+
+const isLength = (k: ArmKey) => k === "ulen" || k === "flen";
+const wrapRad = (d: number) => Math.atan2(Math.sin(d), Math.cos(d));
+
+/** A `#review2` arm dial (`<dancer>.<part>.<aspect>`) → the solver variable it is, in solver units. */
+const DIAL_TO_ARM: Readonly<Record<string, { key: ArmKey; scale: number }>> = {
+  "upper-arm.raise": { key: "raise", scale: D2R },
+  "upper-arm.toward": { key: "toward", scale: D2R },
+  "upper-arm.length": { key: "ulen", scale: 0.01 },
+  "forearm.pitch": { key: "pitch", scale: D2R },
+  "forearm.heading": { key: "heading", scale: D2R },
+  "forearm.length": { key: "flen", scale: 0.01 },
+};
+
+/**
+ * 🧪 Ryan's keyframes → {@link Target}s on `n` samples (2026-10-26). Only the dials he **set**
+ * (`setKeys`) pull: the rest of a keyframe is what the figure happened to show, and pulling toward
+ * that would pull the solve back to the floor's pose. A keyframe between two samples splits its
+ * weight between them by nearness. Dials the solver has no variable for (torso, head, hand turn)
+ * come back in `unused`, so a caller can say they were left out.
+ */
+export function targetsFromKeyframes(
+  keyframes: readonly { t: number; values: Readonly<Record<string, number>>; setKeys: readonly string[]; weight?: number }[],
+  n: number,
+): { targets: Target[]; unused: string[] } {
+  const targets: Target[] = [];
+  const unused = new Set<string>();
+  for (const k of keyframes) {
+    const u = Math.min(1, Math.max(0, k.t)) * (n - 1);
+    const i0 = Math.floor(u);
+    const i1 = Math.min(n - 1, i0 + 1);
+    const frac = u - i0;
+    for (const key of k.setKeys) {
+      const value = k.values[key];
+      const m = /^([01])\.(upper-arm|forearm)-(left|right)\.(\w+)$/.exec(key);
+      const spec = m === null ? undefined : DIAL_TO_ARM[`${m[2] ?? ""}.${m[4] ?? ""}`];
+      if (m === null || spec === undefined || value === undefined) {
+        unused.add(key);
+        continue;
+      }
+      const base = { dancer: (m[1] === "0" ? 0 : 1) as 0 | 1, side: (m[3] === "left" ? 0 : 1) as 0 | 1, key: spec.key, value: value * spec.scale };
+      const w = k.weight ?? 1;
+      if (1 - frac > 1e-6) targets.push({ ...base, i: i0, weight: w * (1 - frac) });
+      if (frac > 1e-6 && i1 !== i0) targets.push({ ...base, i: i1, weight: w * frac });
+    }
+  }
+  return { targets, unused: [...unused].sort() };
 }
 
 // ── Variables ────────────────────────────────────────────────────────────────────────────────
 
 const ARM_KEYS = ["raise", "toward", "ulen", "pitch", "heading", "flen"] as const;
+export type ArmKey = (typeof ARM_KEYS)[number];
 /** Per sample: 2 dancers × 2 arms × 6, then the beau's step out (away from her) and sideways. */
 const PER = 2 * 2 * 6 + 2;
 /** Lengths and offsets are metres; weigh their smoothness as if a metre were this many radians. */

@@ -4,6 +4,14 @@
  * `work/square-dance-planning/briefs/solve-the-whole-move.md`.
  *
  *   npx vite-node scripts/whole-move/solve.ts [paths.json] [iterations] [--margin=0.06]
+ *     [--targets=<bundle.json>] [--target-weight=1] [--out=<file>]
+ *
+ * `--targets` (2026-10-26) steers the solve by Ryan's keyframes: a `#review2` 📂 export (or any
+ * bundle). The pairing's timeline is folded as `#review2` folds it, and each dial he **set** pulls
+ * the solve toward his value at that moment (a locked pairing's pull 10×). Soft: clearance and held
+ * hands still win, and the run reports how close it got to each one. `--target-weight` scales the
+ * pull. In the bundle written, the solve's keyframes mark nothing as set, so his stay
+ * distinguishable. At a moment where he has a keyframe, his set dials are kept as he set them.
  *
  * `--margin` is the clearance (m) every pair of shapes keeps beyond touching: arms round heads,
  * hands off bodies. It defaults to `WEIGHTS.margin` (2 cm), which left the hands brushing the
@@ -18,7 +26,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getBodyShape } from "../../src/services/body-shapes";
-import { toBundle, makeEvent, type PoseEvent } from "../../src/dance/pose-events";
+import { fromBundle, lockedBehind, pairingTimeline, reduce, timelinesOf, toBundle, makeEvent, type Keyframe, type PoseEvent } from "../../src/dance/pose-events";
 import {
   armPoints,
   bodyOf,
@@ -28,6 +36,7 @@ import {
   shapesOf,
   solve,
   startOnPath,
+  targetsFromKeyframes,
   toDials,
   toFloor,
   WEIGHTS,
@@ -50,6 +59,11 @@ const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const marginFlag = flags.find((a) => a.startsWith("--margin="));
 const margin = marginFlag === undefined ? WEIGHTS.margin : Number(marginFlag.slice("--margin=".length));
 if (!Number.isFinite(margin) || margin < 0) throw new Error(`bad --margin: ${String(marginFlag)}`);
+const flag = (name: string) => flags.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
+const targetsFile = flag("targets");
+const targetWeight = Number(flag("target-weight") ?? 1);
+if (!Number.isFinite(targetWeight) || targetWeight < 0) throw new Error(`bad --target-weight: ${String(flag("target-weight"))}`);
+const outFlag = flag("out");
 const file = args[0] ?? join(dirname(new URL(import.meta.url).pathname), "ryan-ryan-twirl.paths.json");
 const iterations = Number(args[1] ?? 1500);
 const P = JSON.parse(readFileSync(file, "utf8")) as PathFile;
@@ -82,6 +96,28 @@ const plane = {
   p: [(f0[0].x + f0[1].x) / 2, 0, (f0[0].z + f0[1].z) / 2] as Vec,
   n: (() => { const dx = f0[1].x - f0[0].x; const dz = f0[1].z - f0[0].z; const l = Math.hypot(dx, dz); return [dx / l, 0, dz / l] as Vec; })(),
 };
+// Ryan's keyframes, if given: the ones with dials he set.
+const LOCKED_WEIGHT = 10;
+let his: Keyframe[] = [];
+let hisLocked = false;
+if (targetsFile !== undefined) {
+  const parsed = fromBundle(readFileSync(targetsFile, "utf8"));
+  if ("error" in parsed) throw new Error(`${targetsFile}: ${parsed.error}`);
+  const tl = timelinesOf(reduce(parsed.events), P.figure);
+  hisLocked = tl.locked.has(P.pairing) || lockedBehind(tl, P.pairing);
+  his = pairingTimeline(tl, P.pairing)
+    .filter((p) => p.source !== "hidden" && p.keyframe.setKeys.length > 0)
+    .map((p) => p.keyframe);
+}
+const { targets, unused } = targetsFromKeyframes(
+  his.map((k) => ({ ...k, weight: targetWeight * (hisLocked ? LOCKED_WEIGHT : 1) })),
+  frames.length,
+);
+if (targetsFile !== undefined) {
+  console.log(`targets: ${String(his.length)} keyframe(s) with set dials${hisLocked ? " (locked: 10× pull)" : ""}, ${String(targets.length)} pulls`);
+  if (unused.length > 0) console.log(`  not solver variables, left out: ${unused.join(", ")}`);
+}
+
 const move: Move = {
   bodies: [bodies[0], bodies[1]],
   frames,
@@ -89,6 +125,7 @@ const move: Move = {
     { from: 0, to: 3.5 / 4, beau: 1, belle: 0, plane },
     { from: 3.5 / 4 + 1e-6, to: 1, beau: 1, belle: 0 },
   ],
+  ...(targets.length > 0 ? { targets } : {}),
 };
 
 const n = frames.length;
@@ -161,19 +198,58 @@ const rows = out.map((f, i) => {
 });
 console.log(rows.filter((_, i) => i % 4 === 0).join("\n"));
 
+// How close the solve came to each dial Ryan set (sampled where his keyframe sits).
+if (his.length > 0) {
+  const lerpF = (u: number): Frame => {
+    const x = Math.min(1, Math.max(0, u)) * (n - 1);
+    const i = Math.min(n - 2, Math.floor(x));
+    const f = x - i;
+    const a = out[i]!;
+    const b = out[i + 1]!;
+    const l = (p: number, q: number) => p + (q - p) * f;
+    const mixD = (p: DancerFrame, q: DancerFrame): DancerFrame => ({
+      x: l(p.x, q.x),
+      z: l(p.z, q.z),
+      yaw: l(p.yaw, q.yaw),
+      arms: [0, 1].map((side) => {
+        const u = p.arms[side]!;
+        const v = q.arms[side]!;
+        return { raise: l(u.raise, v.raise), toward: l(u.toward, v.toward), ulen: l(u.ulen, v.ulen), pitch: l(u.pitch, v.pitch), heading: l(u.heading, v.heading), flen: l(u.flen, v.flen) };
+      }) as DancerFrame["arms"],
+    });
+    return [mixD(a[0], b[0]), mixD(a[1], b[1])];
+  };
+  console.log("his keyframes, wanted → solved:");
+  for (const k of his) {
+    const f = lerpF(k.t);
+    const got = { ...toDials(f[0], 0), ...toDials(f[1], 1) };
+    const parts = k.setKeys.filter((key) => got[key] !== undefined && !unused.includes(key))
+      .map((key) => `${key} ${String(k.values[key])} → ${String(got[key])}`);
+    console.log(`  t=${k.t.toFixed(3)}  ${parts.join("  ·  ")}`);
+  }
+}
+
+// The solve's keyframes mark nothing as set: they're what the solve shows, not what Ryan chose.
+// Where he has a keyframe at the same moment, his set dials stay his, as he set them.
+const hisAt = new Map(his.map((k) => [Math.round(k.t * 1000), k]));
 const stamp = Date.now();
 const events: PoseEvent[] = out.map((f, i) => {
-  const values = { ...toDials(f[0], 0), ...toDials(f[1], 1) };
+  const t = Math.round((i / (n - 1)) * 1000) / 1000;
+  const solved = { ...toDials(f[0], 0), ...toDials(f[1], 1) };
+  const mine = hisAt.get(Math.round(t * 1000));
+  const setKeys = mine?.setKeys ?? [];
+  const values = { ...solved };
+  for (const key of setKeys) if (mine?.values[key] !== undefined) values[key] = mine.values[key];
   return makeEvent(
     {
       kind: "keyframe-set",
       figure: P.figure,
       scope: { pairing: P.pairing },
-      keyframe: { t: Math.round((i / (n - 1)) * 1000) / 1000, values, setKeys: Object.keys(values) },
+      keyframe: { t, values, setKeys: [...setKeys] },
     },
     new Date(stamp + i),
   );
 });
-const outFile = join(dirname(file), `${P.pairing}-${P.figure}.solved.json`);
+const outFile = outFlag ?? join(dirname(file), `${P.pairing}-${P.figure}.solved.json`);
 writeFileSync(outFile, JSON.stringify(toBundle(events), null, 1));
 console.log(`wrote ${outFile} (${String(events.length)} keyframes)`);

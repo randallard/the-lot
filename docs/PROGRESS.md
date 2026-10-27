@@ -1,12 +1,27 @@
 # Progress & Status
 
-_Last updated: 2026-10-25_
+_Last updated: 2026-10-26_
 
 ## Status / next
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-26 (1) — a bake owns its spacing and its bodies
+> ### ▶ PICK UP HERE — 2026-10-26 (2) — Ryan's keyframes steer the solve
+>
+> [`journal/2026-10-26-2-keyframes-steer-the-solve.md`](journal/2026-10-26-2-keyframes-steer-the-solve.md)
+> · 🧪 committed with this entry
+>
+> Step 1 of the reordered plan is done. `solve.ts --targets=<review2 export>`: each dial Ryan set
+> pulls the solve toward his value, softly (clearance and held hands still win), and the run
+> prints *wanted → solved*. Test: the beau's under-arch raise asked at 150° (solve 164°) lands at
+> **152°**, with no clipping and at least 5.1 cm round the heads. The solve's own keyframes now mark
+> nothing as set, so his dials stay his through a load and a re-solve.
+> ⏳ **Next:** Ryan sets real keyframes in `#review2` and runs it (the steps are in the journal).
+> Then step 2: a faster solver (exact gradients) running in a web worker, measured.
+>
+> ---
+>
+> ### ▶ 2026-10-26 (1) — a bake owns its spacing and its bodies
 >
 > [`journal/2026-10-26-1-a-bake-owns-its-spacing-and-bodies.md`](journal/2026-10-26-1-a-bake-owns-its-spacing-and-bodies.md)
 > · 🧪 committed 2026-10-26, with 10-25-3
@@ -18,8 +33,7 @@ _Last updated: 2026-10-25_
 > A gap guard leaves the bake off (and says so in review 1's panel) if the engine is more than 5 cm
 > off the solve's spacing. Review 1 now holds hands at every twirl step (13–14 cm centre to
 > centre) with the join over her head.
-> ⏳ **Next:** step 1 of the reordered plan, **keyframe targets** in `whole-move.ts` (started
-> 2026-10-26; see the next journal entry).
+> ⏳ Then: step 1, keyframe targets (10-26-2, above).
 >
 > ---
 >
