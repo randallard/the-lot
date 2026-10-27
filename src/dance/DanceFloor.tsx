@@ -30,6 +30,7 @@ import {
   type DancerExpressionRigs,
   type DancerRig,
 } from "./Dancer";
+import { applyBaked, BAKED_TRACKS, bakeFits, findBake, gapOff, sampleBaked, spanAt } from "./baked-tracks";
 import { bodyMeshScale } from "./dancer-mesh";
 import { measurePose, type DancerSolids, type Finding, type Side } from "./pose-rules";
 import { readSolids } from "./pose-solids";
@@ -75,6 +76,7 @@ import {
   crownOf,
   headroom,
   breakEffort,
+  NO_DUCK,
   OVER_CENTRE,
   type Overhead,
   planArch,
@@ -87,6 +89,7 @@ import { pairGripRadius, planForearm, type ForearmPlan } from "./forearm-hold";
 import {
   BREAK,
   NO_DELTAS,
+  RESHAPE,
   drawAccommodation,
   growBody,
   growForearm,
@@ -127,6 +130,12 @@ import {
 } from "../services/body-shapes";
 
 interface DanceFloorProps extends DancePerformanceOptions {
+  /**
+   * 🧪 Draw a baked whole-move solve where one exists for the call and these two bodies
+   * (`baked-tracks.ts`). On by default, so every screen shows the solve; off to compare with the
+   * floor's own pose.
+   */
+  baked?: boolean;
   /** Where the square sits on the floor. */
   origin?: WorldPoint;
   /**
@@ -459,6 +468,11 @@ export interface ArmReport {
    * when {@link solids} is `null`. `violations()` is the filter.
    */
   findings: readonly Finding[];
+  /**
+   * 🧪 The baked track this frame (`baked-tracks.ts`): drawn, or left off because the engine's
+   * gap is `off` cm from the solve's. `null` when the call being danced has no bake.
+   */
+  bake: { readonly drawn: boolean; readonly off: number } | null;
 }
 
 const DEFAULT_SHAPES = [MYCO_DEFAULTS, EMBER_DEFAULTS] as const;
@@ -585,6 +599,7 @@ export function DanceFloor({
   joinArc = false,
   stretch,
   accommodation: calledAccommodation,
+  baked = true,
   ...performanceOptions
 }: DanceFloorProps) {
   /**
@@ -643,6 +658,19 @@ export function DanceFloor({
    * width**: they stand at twice the room they need, where the arc's own radius delivers it with
    * no bow at all (ADR-0014's relationship, used the other way round).
    */
+  /**
+   * 🧪 The bake for each call danced (`baked-tracks.ts`), matched on the two bodies' geometry, in
+   * the order the calls are danced (the same order as the performance's `steps`). Found **before**
+   * the figure is sized, because a bake says how its figure was sized: the arms were solved
+   * across the gap the engine walked then, and a floor that sizes the arch its own way (review 1's
+   * over-the-centre dial, the coin flip) walks a different gap the arms can't reach across.
+   */
+  const bakes = useMemo(() => {
+    if (!baked) return [];
+    const calls = performanceOptions.sequence ?? [performanceOptions.call];
+    return calls.map((c) => findBake(BAKED_TRACKS, c, shapes));
+  }, [baked, performanceOptions.sequence, performanceOptions.call, shapes]);
+
   /** What the pair's {@link turnUnder} styles force on the reach draw — see `turn-under.ts`. */
   const forced = useMemo<Accommodation | null>(
     () => forcedAccommodation(turnUnder),
@@ -677,8 +705,19 @@ export function DanceFloor({
     const am = armMetrics(a);
     const bm = armMetrics(b);
     const bodies = passingWidth(lateralClearance(rigidParts(a), rigidParts(b)));
-    return seq.map((call) =>
-      call === "california-twirl"
+    return seq.map((call, i) => {
+      const sizing = bakes[i]?.sizing;
+      if (call === "california-twirl" && sizing !== undefined) {
+        // 🧪 Sized as the bake was solved, so the engine walks the paths its arms reach across.
+        return sizeArch(
+          am, bm, a, b, hold.width, bodies,
+          sizing.accommodation === "break" ? BREAK : RESHAPE,
+          sizing.overhead,
+          sizing.close,
+          NO_DUCK,
+        );
+      }
+      return call === "california-twirl"
         ? sizeArch(
             am, bm, a, b, hold.width, bodies,
             // 🔴 **Forced here and nowhere downstream, because this is where the draw *is***
@@ -697,11 +736,11 @@ export function DanceFloor({
             archClose,
             duckRoom,
           )
-        : null,
-    );
+        : null;
+    });
   }, [
     shapes, hold, performanceOptions.sequence, forced, calledAccommodation,
-    joinOverhead, archClose, duckRoom,
+    joinOverhead, archClose, duckRoom, bakes,
   ]);
 
   const shapeAt = useCallback<ShapeAt>(
@@ -962,6 +1001,7 @@ export function DanceFloor({
       separation: 0,
       solids: null,
       findings: [],
+      bake: null,
     }),
     [keys, tracked],
   );
@@ -1086,6 +1126,27 @@ export function DanceFloor({
           if (rig) actual.push({ x: rig.position.x, z: rig.position.z });
         }
         frameRef.current = refit(frameRef.current, actual);
+      }
+
+      // 🧪 Whether a baked track (`baked-tracks.ts`) draws this frame, decided **before** the arms:
+      // a drawn bake owns the bodies as well as the arms, so the floor's own reshape and duck are
+      // left off below. The solve was done on the bodies as built, and its arms hang from those
+      // shoulders (10-26: review 1's over-the-centre reshape lifted his shoulders 16 cm and
+      // dropped hers 8, and the solve's hands missed by 40 cm).
+      let bakeNow: { values: Record<string, number>; off: number; drawn: boolean } | null = null;
+      if (keys.length === 2) {
+        const span = spanAt(runtime.steps, runtime.beat());
+        const bake = span === undefined ? undefined : bakes[span.index];
+        const ra = keys[0] === undefined ? null : rigs[keys[0]]?.current;
+        const rb = keys[1] === undefined ? null : rigs[keys[1]]?.current;
+        if (span !== undefined && bake !== undefined && ra && rb) {
+          const t = span.beats > 0 ? (runtime.beat() - span.startBeat) / span.beats : 0;
+          const values = sampleBaked(bake, t);
+          // Only where the engine has the pair as far apart as the solve did: arms solved across
+          // one gap can't hold hands across another, and the floor's own pose beats hands that miss.
+          const off = gapOff([ra, rb], values);
+          bakeNow = { values, off, drawn: bakeFits(off) };
+        }
       }
 
       // Arms. Two channels, both from `arm-pose`: the engine's grip spans
@@ -1371,14 +1432,18 @@ export function DanceFloor({
           // carries the hand. Solving with the dial in instead is what kept the hand pinned to
           // the hold and bent the elbow to absorb the change.
           const dialMe = stretch?.[i];
-          const myDelta =
-            (deltas === null ? 0 : deltas[mine] * under.blend) + under.duck[mine] * duckNow;
-          const theirDelta =
-            (deltas === null ? 0 : deltas[theirs] * under.blend) + under.duck[theirs] * duckNow;
+          // 🧪 No reshape and no duck under a drawn bake: the solve's bodies are the built ones.
+          const bodyFree = bakeNow?.drawn !== true;
+          const myDelta = !bodyFree
+            ? 0
+            : (deltas === null ? 0 : deltas[mine] * under.blend) + under.duck[mine] * duckNow;
+          const theirDelta = !bodyFree
+            ? 0
+            : (deltas === null ? 0 : deltas[theirs] * under.blend) + under.duck[theirs] * duckNow;
           // 🔑 **Both dancers take the same arm**, unlike the torso trade, which is signed.
           // The reshape moves one *against* the other because it is closing a gap between
           // them; the reach is the pair asking the same question of both their arms.
-          const armDelta = under.armDelta * under.blend;
+          const armDelta = bodyFree ? under.armDelta * under.blend : 0;
           const shape = reshaped(baseShape, myDelta, armDelta);
           // 🔑 **A reshaped dancer stands on a lifted rig** (ADR-0043), so the bottom of the body
           // stays put and the whole height change goes upward. `rigOriginY` is what that is for,
@@ -1884,6 +1949,17 @@ export function DanceFloor({
           );
           track.holding = true;
         });
+
+        // 🧪 The baked track (decided above), over the floor's own arms and onto the engine's
+        // spots. After the read-back above, so the floor's own tracking carries on from its own
+        // pose and a call with no bake picks up where the floor would have been; before the
+        // rules below, so they measure what is drawn.
+        if (bakeNow?.drawn === true) {
+          const ra = keys[0] === undefined ? null : rigs[keys[0]]?.current;
+          const rb = keys[1] === undefined ? null : rigs[keys[1]]?.current;
+          if (ra && rb) applyBaked([ra, rb], occupantShapes, bakeNow.values);
+        }
+        report.bake = bakeNow === null ? null : { drawn: bakeNow.drawn, off: bakeNow.off };
 
         const a = keys[0] === undefined ? null : rigs[keys[0]]?.current;
         const b = keys[1] === undefined ? null : rigs[keys[1]]?.current;

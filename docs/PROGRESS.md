@@ -4,12 +4,50 @@ _Last updated: 2026-10-25_
 
 ## Status / next
 
-**Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, uncommitted ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
+**Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-25 (1) — the loaded keyframes weren't being drawn; fixed
+> ### ▶ PICK UP HERE — 2026-10-26 (1) — a bake owns its spacing and its bodies
+>
+> [`journal/2026-10-26-1-a-bake-owns-its-spacing-and-bodies.md`](journal/2026-10-26-1-a-bake-owns-its-spacing-and-bodies.md)
+> · 🧪 committed 2026-10-26, with 10-25-3
+>
+> Ryan's review 1 screenshot showed the bake drawn on the wrong bodies. Review 1's
+> over-the-centre arch sizing stood the pair 171 cm apart (the solve's paths are 91), and its
+> reshape stretched his torso 1.40× and shrank hers 0.78×. **Fixed:** a bake records its figure's
+> sizing, and `DanceFloor` sizes a baked call that way. A drawn bake also takes no reshape or duck.
+> A gap guard leaves the bake off (and says so in review 1's panel) if the engine is more than 5 cm
+> off the solve's spacing. Review 1 now holds hands at every twirl step (13–14 cm centre to
+> centre) with the join over her head.
+> ⏳ **Next:** step 1 of the reordered plan, **keyframe targets** in `whole-move.ts` (started
+> 2026-10-26; see the next journal entry).
+>
+> ---
+>
+> ### ▶ 2026-10-25 (3) — baked tracks: the solve on every floor
+>
+> [`journal/2026-10-25-3-baked-tracks-on-every-floor.md`](journal/2026-10-25-3-baked-tracks-on-every-floor.md)
+> · plan: `work/square-dance-planning/briefs/solve-the-whole-move.md` ("The plan from here")
+> · 🧪 committed 2026-10-26 with 10-26-1
+>
+> Ryan on the 6 cm solve: *"that's gorgeous."* Path A, steps 1–2 are done. A solve is baked into
+> `src/dance/baked/<call>.<pairing>.json` (`scripts/whole-move/bake.ts`), matched by body
+> geometry, and **`DanceFloor` draws it**, so review 1, `#dance`, both of `#review2`'s modes and
+> later exercises all show it. Checked in review 1 at beat 2: every dial is within 0.5° of the
+> bake.
+> ⏳ **Next:** Ryan looks at `#review=california-twirl/…/ryan-ryan` and plays `#review2` in either
+> mode, then commits. 🧭 **The plan was reordered 2026-10-26** toward the north star (5 squares
+> dancing live calls: `work/square-dance-planning/briefs/north-star-caller-practice.md`). Step 1
+> is **keyframe targets** in `whole-move.ts` (the dials Ryan set pull the solve; locked ones are
+> firm). Then exact gradients and a web-worker solve, a small trained model for the twirl, and
+> standard formation poses for chaining. The order is in `briefs/solve-the-whole-move.md`,
+> "Order, revised 2026-10-26".
+>
+> ---
+>
+> ### ▶ 2026-10-25 (1) — the loaded keyframes weren't being drawn; fixed
 >
 > [`journal/2026-10-25-1-the-keyframes-were-not-being-drawn.md`](journal/2026-10-25-1-the-keyframes-were-not-being-drawn.md)
-> · 🧪 **uncommitted**
+> · committed `4abbdb6`
 >
 > 🔴 Since 10-24's turn-around group, `PoseOverride` found no dancers, so **no loaded keyframe
 > was drawn**. Every margin looked the same, and the 37–40% twitch was the floor's own pose. Also

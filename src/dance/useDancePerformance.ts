@@ -108,12 +108,24 @@ export interface DancePerformanceOptions {
   readonly externallyDriven?: readonly string[];
 }
 
+export interface CallSpan {
+  readonly call: CallName;
+  readonly startBeat: number;
+  readonly beats: number;
+}
+
 export interface DanceRuntime {
   /** Advance by `dtSeconds` and return every dancer's state. */
   readonly advance: (dtSeconds: number) => readonly DancerState[];
   /** The motions the square is performing, keyed the same way the states are. */
   readonly motions: Readonly<Record<string, Motion>>;
   readonly beats: number;
+  /**
+   * Each call's span on the beat axis, in order: one for a single call, one per call of a
+   * sequence. What a per-call overlay (a baked track, `baked-tracks.ts`) needs to say which call
+   * a beat is in and how far through it.
+   */
+  readonly steps: readonly CallSpan[];
   /**
    * Current position on the beat axis — 0 until the first advance, and resets
    * to 0 when a looping performance restarts. A getter, not a snapshot: read it
@@ -170,12 +182,12 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
     externallyDriven,
   } = options;
 
-  const motions = useMemo<Record<string, Motion>>(() => {
+  const { motions, steps } = useMemo<{ motions: Record<string, Motion>; steps: readonly CallSpan[] }>(() => {
     if (sequence !== undefined && sequence.length > 0) {
       // `a` is the beau and `b` the belle, so the keys match the pair case and
       // everything downstream — shapes, rigs, the arm report — is indifferent to which
       // formation is being danced.
-      return flattenSequence(
+      const seq =
         danceCoupleSequence(
           sequence,
           // Positional, not the shape object square-one also accepts: the object form landed
@@ -191,8 +203,11 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
             gripRadius,
           ),
           shapeAt,
-        ),
-      );
+        );
+      return {
+        motions: flattenSequence(seq),
+        steps: seq.steps.map((st) => ({ call: st.call, startBeat: st.startBeat, beats: st.beats })),
+      };
     }
     // 🔴 The facing-pair path takes a shape too, as of square-one v0.3.0. Allemande Left is
     // the call that reads `gripRadius` and a facing pair is who dances it, so passing bodies
@@ -213,7 +228,7 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
         DEFAULT_PAIR_SHAPE,
       ),
     );
-    return { a, b };
+    return { motions: { a, b }, steps: [{ call, startBeat: 0, beats: Math.max(a.beats, b.beats) }] };
   }, [call, sequence, coupleWidth, clearance, archClearance, gripRadius, shapeAt]);
 
   const beats = useMemo(
@@ -275,5 +290,5 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
     [makePerformance],
   );
 
-  return { advance, motions, beats, beat, home, poseAt };
+  return { advance, motions, beats, steps, beat, home, poseAt };
 }

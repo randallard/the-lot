@@ -655,10 +655,17 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
     setStretched(rows);
     setDrawn(landed);
   }, []);
+  /** 🧪 The baked solve (`baked-tracks.ts`), as the floor last reported it: drawn, left off, or none. */
+  const [bake, setBake] = useState<ArmReport["bake"]>(null);
   const onFloor = useCallback(
     (report: ArmReport) => {
       onArms(report);
       onStretch(report);
+      setBake((was) =>
+        was?.drawn === report.bake?.drawn && Math.round(was?.off ?? -1) === Math.round(report.bake?.off ?? -1)
+          ? was
+          : report.bake === null ? null : { ...report.bake },
+      );
     },
     [onArms, onStretch],
   );
@@ -811,6 +818,29 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
           </strong>
           {broken?.map((line) => <div key={line}>{line}</div>)}
         </div>
+
+        {/* 🧪 The baked solve for this call and these bodies, if there is one (10-25-3). When it's
+            drawn, the arms are the solve's and the style buttons and arch dials below don't
+            change them. */}
+        {bake !== null && (
+          <div
+            style={{
+              margin: "6px 0",
+              padding: "6px 8px",
+              borderRadius: 4,
+              fontSize: 11,
+              background: bake.drawn ? "#e8eefc" : "#fff4e0",
+              color: bake.drawn ? "#2a4a8a" : "#8a5a00",
+            }}
+          >
+            <strong>{bake.drawn ? "baked solve: drawn" : "baked solve: left off"}</strong>
+            <div>
+              {bake.drawn
+                ? "the arms are the whole-move solve's; the styles and arch dials don't move them"
+                : `the engine has the pair ${bake.off.toFixed(0)} cm off the solve's spacing, so the floor poses this one`}
+            </div>
+          </div>
+        )}
 
         {/* 🧪 The coin flip. An arch a pair cannot simply make is answered one of two ways,
             tossed per load (ADR-0037): they reshape and keep the hold, or they break it. The
