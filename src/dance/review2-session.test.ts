@@ -120,6 +120,14 @@ describe("the posing session", () => {
     expect(reduce(s1, { type: "accommodation", to: "coin" }).accommodation).toBe("coin");
   });
 
+  it("🧪 draws the solves by default, and can show the floor's own pose to compare", () => {
+    const s0 = run();
+    expect(s0.baked).toBe(true);
+    const s1 = reduce(s0, { type: "baked", on: false });
+    expect(s1.baked).toBe(false);
+    expect(s1.seekToken).toBe(s0.seekToken + 1);
+  });
+
   it("all couples show by default, and the switch can narrow the floor to the focus couple", () => {
     const s0 = run();
     expect(s0.allCouples).toBe(true);

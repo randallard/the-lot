@@ -285,9 +285,11 @@ export function tradeCost(gb: number, gg: number, hb: number, hg: number, room: 
 /**
  * 🧪 What a change of height costs at sample `i`: `WEIGHTS.grow`, and `clip` on the first and last
  * samples, so a call starts and ends as built and the next call doesn't begin with a pop. Left
- * free, the ryan → ryan duck started 9 cm down (10-27).
+ * free, the ryan → ryan duck started 9 cm down (10-27). With the arms pinned too (`Move.home`), 10 ×
+ * `clip`: at 1 ×, myco → sprout ended 4.4 cm tall against the standing couple's arms.
  */
-const growEnds = (m: Move, i: number, w: Weights) => (i === 0 || i === m.frames.length - 1 ? w.clip : w.grow);
+const growEnds = (m: Move, i: number, w: Weights) =>
+  i === 0 || i === m.frames.length - 1 ? (m.home === true ? 10 : 1) * w.clip : w.grow;
 
 /** The margin an arm shape (`shapesOf` index 2–7) keeps from its own torso or head. */
 const ownMargin = (b: Body, shape: number, own: 0 | 1, margin: number) =>
@@ -384,6 +386,12 @@ export interface Move {
   grow?: [GrowRoom, GrowRoom];
   /** 🧪 The two changes are one trade, split in proportion to their heights (`meet`). */
   trade?: boolean;
+  /**
+   * 🧪 The beau starts and ends on his spot (step 4, 2026-10-27): his step costs 10 × `WEIGHTS.clip` on
+   * the first and last samples, so the next call's floor pose starts where this one ends. The
+   * arms' ends are pinned by targets (`standingTargets`, `whole-move-twirl.ts`).
+   */
+  home?: boolean;
 }
 
 export interface Weights {
@@ -432,12 +440,18 @@ export const WEIGHTS: Weights = {
 
 const held = (m: Move, t: number) => m.holds.filter((h) => t >= h.from - 1e-9 && t <= h.to + 1e-9);
 
-/** Pairs that may touch: a held hand on its partner's held hand, and on the wrist behind it. */
+/**
+ * Pairs that may touch: a held hand on its partner's held hand, and on the wrist behind it; and
+ * the two held forearms (10-27, step 4), whose wrists are only a clasp apart, so no margin between
+ * them can hold. The floor's standing handhold has them 1–3 cm apart.
+ */
 function exempt(m: Move, t: number, a: string, b: string): boolean {
   return held(m, t).some((h) => {
     const ha = `hand-${SIDES[h.beau]}`;
     const hb = `hand-${SIDES[h.belle]}`;
-    return (a === ha && (b === hb || b === `forearm-${SIDES[h.belle]}`)) || (b === hb && a === `forearm-${SIDES[h.beau]}`);
+    const fa = `forearm-${SIDES[h.beau]}`;
+    const fb = `forearm-${SIDES[h.belle]}`;
+    return (a === ha && (b === hb || b === fb)) || (b === hb && a === fa) || (a === fa && b === fb);
   });
 }
 
@@ -633,7 +647,7 @@ export function unpackOne(v: Float64Array, i: number, base: Frame): Frame {
   return [{ ...beau, grow: grow(0) }, { ...belle, grow: grow(1) }];
 }
 
-function smoothCost(v: Float64Array, n: number, w: Weights, grad?: Float64Array): number {
+function smoothCost(v: Float64Array, n: number, w: Weights, grad?: Float64Array, home = false): number {
   let c = 0;
   for (let k = 0; k < PER; k++) {
     const sc = isMetric(k) ? METRE * METRE : 1;
@@ -658,7 +672,7 @@ function smoothCost(v: Float64Array, n: number, w: Weights, grad?: Float64Array)
     // The beau's offset costs for itself, not only for changing.
     if (k === 24 || k === 25) for (let i = 0; i < n; i++) {
       const x = v[i * PER + k] ?? 0;
-      const ws = k === 25 ? w.step * 25 : w.step;
+      const ws = home && (i === 0 || i === n - 1) ? 10 * w.clip : k === 25 ? w.step * 25 : w.step;
       c += ws * x * x;
       if (grad) grad[i * PER + k] = (grad[i * PER + k] ?? 0) + 2 * ws * x;
     }
@@ -711,6 +725,7 @@ export function planOf(m: Move): SamplePlan[] {
       exempt[ha * 8 + hb] = 1;
       exempt[ha * 8 + hb - 1] = 1;
       exempt[(ha - 1) * 8 + hb] = 1;
+      exempt[(ha - 1) * 8 + hb - 1] = 1;
     }
     const heldArm: SamplePlan["heldArm"] = [false, false, false, false];
     for (const h of holds) {
@@ -1068,6 +1083,11 @@ export interface SolveOptions {
    * stays the floor's path, so the step is still measured from it.
    */
   init?: Float64Array;
+  /**
+   * 🧪 Samples whose variables stay as `init` has them (10-27, step 4): the edges of a window
+   * re-solved inside a longer track (`chain-join.ts`), so the window joins what's either side.
+   */
+  frozen?: readonly number[];
   onProgress?: (it: number, cost: number) => void;
 }
 
@@ -1109,10 +1129,12 @@ export function solve(m: Move, o: SolveOptions = {}): { frames: Frame[]; cost: n
     const r = m.grow?.[d];
     return r === undefined || (r.min === 0 && r.max === 0);
   });
+  const frozen = new Uint8Array(n);
+  for (const i of o.frozen ?? []) if (i >= 0 && i < n) frozen[i] = 1;
   let cost = 0;
   for (let it = 1; it <= iters; it++) {
     const grad = new Float64Array(v.length);
-    cost = smoothCost(v, n, w, grad);
+    cost = smoothCost(v, n, w, grad, m.home === true);
     const fade = o.guide && o.guideFor ? Math.max(0, 1 - it / (iters * o.guideFor)) : 0;
     for (let i = 0; i < n; i++) {
       const baseF = base[i];
@@ -1141,6 +1163,7 @@ export function solve(m: Move, o: SolveOptions = {}): { frames: Frame[]; cost: n
     for (let j = 0; j < v.length; j++) {
       const kk = j % PER;
       if (kk >= 26 && fixed[kk - 26] === true) continue;
+      if (frozen[Math.floor(j / PER)] === 1) continue;
       const g = grad[j] ?? 0;
       mom[j] = b1 * (mom[j] ?? 0) + (1 - b1) * g;
       vel[j] = b2 * (vel[j] ?? 0) + (1 - b2) * g * g;

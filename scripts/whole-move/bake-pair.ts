@@ -3,12 +3,14 @@
  * held, with the torsos meeting in the middle (a reach when the arms stretch past `REACH_LIMIT`),
  * and a break. No bundle in between: the solve goes straight to `src/dance/baked/`.
  *
- *   npx vite-node scripts/whole-move/bake-pair.ts <beau> <belle> [meet|duck] [--only=held|break]
+ *   npx vite-node scripts/whole-move/bake-pair.ts <beau> <belle> [meet|duck] [--only=held|break] [--home]
  *
  * Writes `california-twirl.<beau>-<belle>.<style>.json` (with the solve's worst `stretch`, which
  * decides whether the floor tosses for it) and `california-twirl.<beau>-<belle>.break.json`.
  * Paths come from the engine (`couplePaths`), sized as `#review2` sizes each accommodation. Margin
- * 6 cm, best of 4 seeds. Prints one line per bake.
+ * 6 cm, best of 4 seeds. `--home` pins both ends to the floor's standing couple (step 4, 10-27),
+ * the pose a couple settles into when a call is followed by a wait. Shipped bakes have free ends:
+ * in a chain the dancers flow into the next call without settling. Prints one line per bake.
  */
 
 import { writeFileSync } from "node:fs";
@@ -21,9 +23,10 @@ import { twirlMove } from "../../src/dance/whole-move-twirl";
 
 const args = process.argv.slice(2);
 const [a, b, style = "meet"] = args.filter((x) => !x.startsWith("--"));
-if (a === undefined || b === undefined) throw new Error("usage: bake-pair.ts <beau> <belle> [meet|duck] [--only=held|break]");
+if (a === undefined || b === undefined) throw new Error("usage: bake-pair.ts <beau> <belle> [meet|duck] [--only=held|break] [--home]");
 if (style !== "meet" && style !== "duck") throw new Error(`bad style: ${style}`);
 const only = args.find((x) => x.startsWith("--only="))?.slice(7);
+const home = args.includes("--home");
 const shapes = [getBodyShape(a), getBodyShape(b)] as const;
 const bodies = [bodyOf(shapes[0]), bodyOf(shapes[1])] as [ReturnType<typeof bodyOf>, ReturnType<typeof bodyOf>];
 const weights = { ...WEIGHTS, margin: 0.06 };
@@ -37,7 +40,7 @@ for (const broken of [false, true]) {
   const paths = couplePaths("california-twirl", shapes, sizing);
   const { move, path, start } = twirlMove(
     { pairing, figure: "california-twirl", shapes: [a, b], beau: paths.beau, belle: paths.belle },
-    bodies, [], broken ? "none" : (style as GrowStyle), broken ? "break" : "reshape",
+    bodies, [], broken ? "none" : (style as GrowStyle), broken ? "break" : "reshape", home ? shapes : undefined,
   );
   const r = solveBest({ ...move, frames: start }, { weights });
   const m = metrics(move, r.frames, path);
@@ -53,6 +56,7 @@ for (const broken of [false, true]) {
     note: `bake-pair.ts ${name}, cost ${r.cost.toFixed(0)}, clip ${(m.clip * 100).toFixed(1)} cm, hands ${(m.holdGap * 100).toFixed(1)} cm, jump ${m.jump.toFixed(0)}°, baked ${new Date().toISOString().slice(0, 10)}`,
     sizing,
     ...(broken ? {} : { grow: style, stretch: Math.round(m.stretch * 100) / 100, clean: m.clip <= 0.005 && m.holdGap <= 0.02 }),
+    ...(home ? { home: true } : {}),
     keyframes: relativeKeyframes(absolute, [paths.beau, paths.belle]),
   };
   const out = join(here, "../../src/dance/baked", `california-twirl.${pairing}.${name}.json`);

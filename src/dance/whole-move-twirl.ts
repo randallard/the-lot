@@ -5,8 +5,10 @@
  * `work/square-dance-planning/briefs/solve-the-whole-move.md`.
  */
 
+import type { CharacterBodyShape } from "../services/body-shapes";
+import { armMetrics, touchHold } from "./arm-pose";
 import type { PathSample } from "./baked-tracks";
-import { armPoints, growRoom, restArm, startOnPath, toFloor, type Body, type Frame, type GrowStyle, type Move, type Target, type Vec } from "./whole-move";
+import { armPoints, growRoom, reachArm, restArm, startOnPath, toFloor, WEIGHTS, type Arm, type Body, type DancerFrame, type Frame, type GrowStyle, type Move, type Target, type Vec } from "./whole-move";
 
 /** A pairing's floor paths, as captured from `#review2` (`scripts/whole-move/*.paths.json`). */
 export interface TwirlPaths {
@@ -21,6 +23,64 @@ const D2R = Math.PI / 180;
 
 /** 🧪 A break's pull between the hands, as a fraction of a hold's (10-27, measured on the stock cast). */
 export const BREAK_HOLD = 0.02;
+
+/** 🧪 How firmly a call's ends hold the standing couple: a locked keyframe's pull (`WEIGHTS.target` × 10). */
+export const HOME_WEIGHT = 10;
+
+const ARM_KEYS = ["raise", "toward", "ulen", "pitch", "heading", "flen"] as const;
+
+/**
+ * 🧪 The floor's standing couple at one sample (step 4, 2026-10-27): the two dancers on their
+ * spots, the beau's right hand in the belle's left where the floor holds them (`touchHold`:
+ * the taller dancer's waist, ADR-0046; a little in front, ADR-0027), the upper arms hanging
+ * back from it, and the free arms at rest. It's what the floor draws between calls, so a solve
+ * that starts and ends here hands over to the floor, and to the next bake, without a pop.
+ *
+ * The floor tucks an inside shoulder in (ADR-0049) and places the wrist rather than the hand's
+ * centre; this doesn't, so it lands within a few centimetres of the floor rather than on it.
+ */
+export function standingFrame(shapes: readonly [CharacterBodyShape, CharacterBodyShape], bodies: readonly [Body, Body], f: Frame): Frame {
+  const hold = touchHold(armMetrics(shapes[0]), armMetrics(shapes[1]));
+  const [b, g] = f;
+  const dx = g.x - b.x;
+  const dz = g.z - b.z;
+  const l = Math.hypot(dx, dz) || 1;
+  const o = toFloor([0, 0, 0], b);
+  const z = toFloor([0, 0, 1], b);
+  const fwd: Vec = [z[0] - o[0], 0, z[2] - o[2]];
+  const at: Vec = [
+    (b.x + g.x) / 2 + (dx / l) * hold.lateral + fwd[0] * hold.forward,
+    hold.height,
+    (b.z + g.z) / 2 + (dz / l) * hold.lateral + fwd[2] * hold.forward,
+  ];
+  const back: Vec = [-fwd[0], -0.5, -fwd[2]];
+  // The hand centres sit a clasp apart across the hold, as the solver holds them (`WEIGHTS.clasp`).
+  const half = (WEIGHTS.clasp * (bodies[0].handR + bodies[1].handR)) / 2;
+  const pose = (d: DancerFrame, body: Body, heldSide: 0 | 1, toward: number): DancerFrame => {
+    const hand: Vec = [at[0] + (toward * half * dx) / l, at[1], at[2] + (toward * half * dz) / l];
+    const arms = [0, 1].map((side) =>
+      side === heldSide ? reachArm(body, heldSide, d, hand, back) : restArm(body),
+    ) as [Arm, Arm];
+    return { x: d.x, z: d.z, yaw: d.yaw, arms };
+  };
+  return [pose(b, bodies[0], 1, -1), pose(g, bodies[1], 0, 1)];
+}
+
+/** {@link standingFrame} as pulls on every arm dial at the first and last samples. */
+export function standingTargets(shapes: readonly [CharacterBodyShape, CharacterBodyShape], bodies: readonly [Body, Body], path: readonly Frame[]): Target[] {
+  const out: Target[] = [];
+  const n = path.length;
+  for (const i of n > 1 ? [0, n - 1] : [0]) {
+    const f = path[i];
+    if (f === undefined) continue;
+    standingFrame(shapes, bodies, f).forEach((d, dancer) => {
+      d.arms.forEach((a, side) => {
+        for (const key of ARM_KEYS) out.push({ i, dancer: dancer as 0 | 1, side: side as 0 | 1, key, value: a[key], weight: HOME_WEIGHT });
+      });
+    });
+  }
+  return out;
+}
 
 /**
  * The move, the floor's path (arms at rest: what `metrics` measures the step-out against), and
@@ -41,6 +101,7 @@ export function twirlMove(
   targets: readonly Target[] = [],
   grow: GrowStyle = "none",
   accommodation: "reshape" | "break" = "reshape",
+  home?: readonly [CharacterBodyShape, CharacterBodyShape],
 ): { move: Move; path: Frame[]; start: Frame[] } {
   const broken = accommodation === "break";
   const path: Frame[] = P.beau.map((b, i) => {
@@ -78,8 +139,10 @@ export function twirlMove(
           { from: 0, to: 3.5 / 4, beau: 1, belle: 0, plane },
           { from: 3.5 / 4 + 1e-6, to: 1, beau: 1, belle: 0 },
         ],
-    ...(targets.length > 0 ? { targets } : {}),
   };
+  const ends = home === undefined ? [] : standingTargets(home, bodies, path);
+  if (targets.length + ends.length > 0) move.targets = [...targets, ...ends];
+  if (home !== undefined) move.home = true;
   if (!broken) Object.assign(move, growRoom(grow, bodies));
   if (broken) return { move, path, start: path };
 

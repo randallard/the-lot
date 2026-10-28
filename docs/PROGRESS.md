@@ -6,7 +6,43 @@ _Last updated: 2026-10-27_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-27 (2) — reach or break, a coin flip
+> ### ▶ PICK UP HERE — 2026-10-27 (4) — calls chain
+>
+> [`journal/2026-10-27-4-calls-chain.md`](journal/2026-10-27-4-calls-chain.md)
+> · 🧪 **uncommitted** (with 10-27-3's checkbox), waits for Ryan's look
+>
+> Step 4. Each sequence's bakes are joined when the floor plans it (`chain-join.ts`), following
+> square-one ADR-0026:
+> - **Into the next bake:** a one-beat window each side of the join is re-solved, with the hands
+>   held across it. Two twirls are one arch.
+> - **The start and end, or next to an unbaked call:** the couple is waiting, in the standing
+>   couple (`standingFrame`).
+>
+> Results:
+> - **The join's jump is gone** (ryan → ryan 154° → 28° worst over the chain), and both ends sit on
+>   the standing couple.
+> - **About 80 ms a window.**
+> - **The bakes are the committed, free-ended ones.**
+>
+> Ryan corrected the first attempt (a handhold at every boundary): *"during the chain they don't go
+> all the way to hand hold between moves but if there's a beat or more after the next call should
+> be called then they go to handhold"*.
+>
+> ⏳ **Next:**
+> 1. Ryan watches `#dance=two-twirls` and `#dance=trade-twirl` (beau and belle NPC Ryan) across
+>    the join, and a twirl's start and end in `#review2`.
+> 2. Commit (with the 🧪 solved checkbox).
+> 3. Mid-chain waits need a gap from the engine or the caller. Then step 5: a 4-dancer call.
+
+> ### 2026-10-27 (3) — compare the solver's reach with ADR-0048
+>
+> [`journal/2026-10-27-3-compare-the-solver-with-adr-0048.md`](journal/2026-10-27-3-compare-the-solver-with-adr-0048.md)
+> · 🧪 uncommitted. Ryan: *"let's leave it and move to the next step"*: no ADR yet; the checkbox stays
+>
+> `#review2` has a 🧪 solved checkbox. On, couples dance their bakes. Off, the floor's own reshape,
+> reach (ADR-0048) and break.
+
+> ### 2026-10-27 (2) — reach or break, a coin flip
 >
 > [`journal/2026-10-27-2-reach-or-break-a-coin-flip.md`](journal/2026-10-27-2-reach-or-break-a-coin-flip.md)
 > · 🧪 committed with this entry (with 10-27-1). Ryan looked: *"I like the solver over 48 - but let's compare before we supersede"*

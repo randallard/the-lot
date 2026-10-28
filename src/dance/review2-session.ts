@@ -77,6 +77,13 @@ export interface Session {
    */
   readonly accommodation: "coin" | "reshape" | "break";
   /**
+   * 🧪 Draw the baked solves (`baked-tracks.ts`), or the floor's own pose (`arm-pose.ts`: its
+   * reshape, ADR-0048's forearm reach, its break). Off is for comparing the two before the solver's
+   * reach supersedes ADR-0048 (Ryan, 10-27: *"I like the solver over 48 - but let's compare before
+   * we supersede"*).
+   */
+  readonly baked: boolean;
+  /**
    * Every couple on the floor, or only the focus couple. The others stay mounted and keep
    * dancing while hidden, so they come back in step.
    */
@@ -131,6 +138,7 @@ export type Action =
   | { readonly type: "setMode"; readonly mode: "solver" | "keyframes" }
   | { readonly type: "handsOnArc"; readonly on: boolean }
   | { readonly type: "accommodation"; readonly to: "coin" | "reshape" | "break" }
+  | { readonly type: "baked"; readonly on: boolean }
   | { readonly type: "allCouples"; readonly on: boolean }
   | { readonly type: "turnAround"; readonly on: boolean }
   | { readonly type: "notify"; readonly text: string }
@@ -147,7 +155,7 @@ export function initialSession(scope: string, loaded: string, couples: readonly 
   return {
     t: 0, playing: false, seekToken: 0, scope, loaded,
     edits: null, selected: null, anchor: null, drawerOpen: false,
-    openFrame: null, everything: false, mode: "solver", handsOnArc: true, accommodation: "coin", allCouples: true, turnAround: true, turned: false, notice: null,
+    openFrame: null, everything: false, mode: "solver", handsOnArc: true, accommodation: "coin", baked: true, allCouples: true, turnAround: true, turned: false, notice: null,
     couples, layout: couples.length === 0 ? {} : initialLayout(couples, focus), spacing: SPACING.initial,
     muted: {},
   };
@@ -243,6 +251,8 @@ export function reduce(s: Session, a: Action): Session {
     // The floors remount on a new draw (it's in their key), so they're asked to pose again.
     case "accommodation":
       return { ...s, accommodation: a.to, seekToken: s.seekToken + 1 };
+    case "baked":
+      return { ...s, baked: a.on, seekToken: s.seekToken + 1 };
     case "allCouples":
       return { ...s, allCouples: a.on };
     case "turnAround":

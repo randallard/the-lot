@@ -30,7 +30,9 @@ import {
   type DancerExpressionRigs,
   type DancerRig,
 } from "./Dancer";
-import { applyBaked, BAKED_TRACKS, bakedGrow, bakeFits, chooseBake, gapOff, sampleBaked, spanAt } from "./baked-tracks";
+import { joinChain } from "./chain-join";
+import { couplePaths } from "./engine-paths";
+import { applyBaked, BAKED_TRACKS, REVIEW2_SIZING, bakedGrow, bakeFits, chooseBake, gapOff, sampleBaked, spanAt } from "./baked-tracks";
 import { bodyMeshScale } from "./dancer-mesh";
 import { measurePose, type DancerSolids, type Finding, type Side } from "./pose-rules";
 import { readSolids } from "./pose-solids";
@@ -680,8 +682,21 @@ export function DanceFloor({
     const grow = turnUnder?.[1] === DUCK_UNDER ? "duck" : "meet";
     // 🧪 A called or forced accommodation picks its own bake; otherwise a pair who reach past
     // `REACH_LIMIT` toss for reach or break, once per execution (10-27, `chooseBake`).
-    return calls.map((c) =>
+    const chosen = calls.map((c) =>
       chooseBake(BAKED_TRACKS, c, shapes, { grow, called: calledAccommodation ?? forced, draw: drawAccommodation }),
+    );
+    // 🧪 Each bake's ends re-solved to join what's either side (10-27, step 4; square-one
+    // ADR-0026): into the next bake with the hands held across the join, and out of or into the
+    // standing couple at the sequence's start and end, or beside a call the floor poses itself.
+    return joinChain(
+      chosen.map((bake, i) => {
+        const c = calls[i];
+        return {
+          bake,
+          paths: bake === undefined || c === undefined ? undefined : couplePaths(c, shapes, bake.sizing ?? REVIEW2_SIZING),
+        };
+      }),
+      shapes,
     );
   }, [baked, performanceOptions.sequence, performanceOptions.call, shapes, turnUnder, calledAccommodation, forced]);
 

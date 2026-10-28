@@ -368,7 +368,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
 
   const allIds = useMemo(() => reviewPairings().map(pairingId), []);
   const [session, dispatch] = useReducer(reduceSession, undefined, () => initialSession(targetId, loadedKey, allIds, pid));
-  const { t, playing, selected, anchor, drawerOpen, openFrame, mode, everything, notice, layout, spacing, handsOnArc, accommodation, allCouples, turnAround, turned } = session;
+  const { t, playing, selected, anchor, drawerOpen, openFrame, mode, everything, notice, layout, spacing, handsOnArc, accommodation, baked, allCouples, turnAround, turned } = session;
   useEffect(() => { dispatch({ type: "retarget", scope: targetId, loaded: loadedKey, focus: pid }); }, [targetId, loadedKey, pid]);
 
   useEffect(() => {
@@ -837,8 +837,9 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
               return (
                 <CoupleSlot key={id} id={id} coord={layout[id] ?? [0, 0]} spacing={spacing} shown={allCouples || id === pid} turned={turned}>
                   <DanceFloor
-                    key={`${id}|${figure.id}|${accommodation}`}
+                    key={`${id}|${figure.id}|${accommodation}|${String(baked)}`}
                     {...(accommodation === "coin" ? {} : { accommodation })}
+                    baked={baked}
                     call={figure.call}
                     {...(figure.sequence === undefined ? {} : { sequence: figure.sequence })}
                     paused={!playing}
@@ -1127,6 +1128,21 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
               <option value="reshape">reach</option>
               <option value="break">break</option>
             </select>
+          </label>
+          <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <input type="checkbox" checked={baked} onChange={(e) => { dispatch({ type: "baked", on: e.target.checked }); }} />
+            <Explain
+              why={
+                <>
+                  On, every couple with a solve dances it: the arms, the step and the torsos as the
+                  solver found them. Off, the floor poses them itself: its own reshape, its reach
+                  (ADR-0048, the forearm lengthens) and its break. Flip it with the twirl set to
+                  reach or break to compare the two on the same couple.
+                </>
+              }
+            >
+              🧪 solved
+            </Explain>
           </label>
           <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
             <input type="checkbox" checked={allCouples} onChange={(e) => { dispatch({ type: "allCouples", on: e.target.checked }); }} />

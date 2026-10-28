@@ -106,6 +106,11 @@ export interface BakedTrack {
    * One that isn't is tossed for like a reach. Missing: clean.
    */
   readonly clean?: boolean;
+  /**
+   * 🧪 Solved to start and end as the floor's standing couple (step 4, 10-27: `standingTargets`),
+   * so it hands over to the floor and to the next bake without a pop. Missing: free ends.
+   */
+  readonly home?: boolean;
   readonly keyframes: readonly BakedKeyframe[];
 }
 
