@@ -9,7 +9,7 @@ _Last updated: 2026-10-27_
 > ### ▶ PICK UP HERE — 2026-10-27 (5) — the arch held through the join
 >
 > [`journal/2026-10-27-5-the-arch-held-through-the-join.md`](journal/2026-10-27-5-the-arch-held-through-the-join.md)
-> · 🧪 **uncommitted**, a fix on top of `1331c14` (10-27-4, committed un-reviewed)
+> · 🧪 committed (Ryan: *"looks better"*), on top of `1331c14` (10-27-4)
 >
 > Ryan: *"the beaus twirl arm goes a bit wonky in #dance two twirls both npc ryan"*. The arch dipped
 > to the chest at the join, and the beau's arm tangled getting there (an angle-by-angle average of
@@ -21,8 +21,8 @@ _Last updated: 2026-10-27_
 >   2 cm. Checked in Chrome.
 >
 > ⏳ **Next:**
-> 1. Ryan watches `#dance=two-twirls` (NPC Ryan / NPC Ryan) again.
-> 2. Commit.
+> 1. ✅ Ryan watched it: *"looks better"*.
+> 2. ✅ Committed.
 > 3. sprout → sprout's 3.4 cm at the join; mid-chain waits; step 5.
 
 > ### 2026-10-27 (4) — calls chain
