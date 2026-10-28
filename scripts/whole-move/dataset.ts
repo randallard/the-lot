@@ -4,8 +4,9 @@
  * their paths from the engine (`couplePaths`, as `#review2` draws them), and the whole move solved
  * (`solveBest`, 6 cm margin, the `SCHEDULE`). One JSON line per sample.
  *
- *   npx vite-node scripts/whole-move/dataset.ts <from> <to> <out.jsonl>
+ *   npx vite-node scripts/whole-move/dataset.ts <from> <to> <out.jsonl> [--grow=none|meet|duck]
  *
+ * `--grow` (10-27): who may change height (`whole-move.ts`'s `GrowStyle`); default `none`.
  * Run several over disjoint ranges to use the cores; each solve is about 5.5 s (best of 4).
  */
 
@@ -13,11 +14,13 @@ import { appendFileSync } from "node:fs";
 import { REVIEW2_SIZING } from "../../src/dance/baked-tracks";
 import { samplePair } from "../../src/dance/body-sample";
 import { couplePaths } from "../../src/dance/engine-paths";
-import { bodyOf, metrics, solveBest, WEIGHTS } from "../../src/dance/whole-move";
+import { bodyOf, metrics, solveBest, WEIGHTS, type GrowStyle } from "../../src/dance/whole-move";
 import { twirlMove } from "../../src/dance/whole-move-twirl";
 
-const [fromArg, toArg, out] = process.argv.slice(2);
-if (fromArg === undefined || toArg === undefined || out === undefined) throw new Error("usage: dataset.ts <from> <to> <out.jsonl>");
+const args = process.argv.slice(2);
+const [fromArg, toArg, out] = args.filter((a) => !a.startsWith("--"));
+if (fromArg === undefined || toArg === undefined || out === undefined) throw new Error("usage: dataset.ts <from> <to> <out.jsonl> [--grow=none|meet|duck]");
+const grow = (args.find((a) => a.startsWith("--grow="))?.slice(7) ?? "none") as GrowStyle;
 const weights = { ...WEIGHTS, margin: 0.06 };
 
 for (let k = Number(fromArg); k < Number(toArg); k++) {
@@ -25,12 +28,13 @@ for (let k = Number(fromArg); k < Number(toArg); k++) {
   const { shapes, label } = samplePair(k);
   const paths = couplePaths("california-twirl", shapes, REVIEW2_SIZING);
   const bodies = [bodyOf(shapes[0]), bodyOf(shapes[1])] as [ReturnType<typeof bodyOf>, ReturnType<typeof bodyOf>];
-  const { move, path, start } = twirlMove({ pairing: label, figure: "california-twirl", shapes: ["", ""], beau: paths.beau, belle: paths.belle }, bodies);
+  const { move, path, start } = twirlMove({ pairing: label, figure: "california-twirl", shapes: ["", ""], beau: paths.beau, belle: paths.belle }, bodies, [], grow);
   const r = solveBest({ ...move, frames: start }, { weights });
   const m = metrics(move, r.frames, path);
   appendFileSync(out, JSON.stringify({
     k,
     label,
+    grow,
     shapes,
     paths: { beau: paths.beau, belle: paths.belle },
     cost: r.cost,

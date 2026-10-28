@@ -368,7 +368,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
 
   const allIds = useMemo(() => reviewPairings().map(pairingId), []);
   const [session, dispatch] = useReducer(reduceSession, undefined, () => initialSession(targetId, loadedKey, allIds, pid));
-  const { t, playing, selected, anchor, drawerOpen, openFrame, mode, everything, notice, layout, spacing, handsOnArc, allCouples, turnAround, turned } = session;
+  const { t, playing, selected, anchor, drawerOpen, openFrame, mode, everything, notice, layout, spacing, handsOnArc, accommodation, allCouples, turnAround, turned } = session;
   useEffect(() => { dispatch({ type: "retarget", scope: targetId, loaded: loadedKey, focus: pid }); }, [targetId, loadedKey, pid]);
 
   useEffect(() => {
@@ -837,7 +837,8 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
               return (
                 <CoupleSlot key={id} id={id} coord={layout[id] ?? [0, 0]} spacing={spacing} shown={allCouples || id === pid} turned={turned}>
                   <DanceFloor
-                    key={`${id}|${figure.id}`}
+                    key={`${id}|${figure.id}|${accommodation}`}
+                    {...(accommodation === "coin" ? {} : { accommodation })}
                     call={figure.call}
                     {...(figure.sequence === undefined ? {} : { sequence: figure.sequence })}
                     paused={!playing}
@@ -1103,6 +1104,29 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
             >
               🧪 hands on the arc
             </Explain>
+          </label>
+          <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <Explain
+              why={
+                <>
+                  A twirl the arms can only make by stretching past twice their length is a reach,
+                  and each couple tosses a coin for reach or break, as on every floor. Reach or
+                  break here calls it for every couple, to check one or the other. A couple with no
+                  solve for the side called gets the floor&apos;s own pose for it.
+                </>
+              }
+            >
+              🧪 twirl
+            </Explain>
+            <select
+              value={accommodation}
+              onChange={(e) => { dispatch({ type: "accommodation", to: e.target.value as "coin" | "reshape" | "break" }); }}
+              style={{ fontSize: 12 }}
+            >
+              <option value="coin">🎲 coin flip</option>
+              <option value="reshape">reach</option>
+              <option value="break">break</option>
+            </select>
           </label>
           <label style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
             <input type="checkbox" checked={allCouples} onChange={(e) => { dispatch({ type: "allCouples", on: e.target.checked }); }} />

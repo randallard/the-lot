@@ -26,7 +26,7 @@
  * restated: the rig faces +z, +x is the anatomical left, `rotation.y` is the facing.
  */
 
-import { computePositions, NPC_BODY_CENTER_Y, type CharacterBodyShape } from "../services/body-shapes";
+import { computePositions, NPC_BODY_CENTER_Y, SHAPE_BOUNDS, type CharacterBodyShape } from "../services/body-shapes";
 
 export type Vec = readonly [number, number, number];
 
@@ -50,6 +50,8 @@ export interface DancerFrame {
   /** Rig yaw, radians (`rotation.y`). */
   yaw: number;
   arms: [Arm, Arm];
+  /** 🧪 Body height grown (m; negative shrinks), feet planted: see {@link Body.rise}. Default 0. */
+  grow?: number;
 }
 
 export type Frame = [DancerFrame, DancerFrame];
@@ -67,11 +69,27 @@ export interface Body {
   forearm: number;
   forearmR: number;
   handR: number;
+  /**
+   * 🧪 What growing does (2026-10-27, step 3b): how far each point moves per metre the body's
+   * height grows, the way the floor draws it (`growBody` with `standingLift`, ADR-0043: the bottom
+   * of the body stays put). The torso's top and the head rise one for one; a shoulder rises by
+   * what `computePositions` gives it (half for a body with an authored `shoulderY`). The arms ride
+   * the shoulder at their own lengths. `height` is the dancer standing (crown over the floor), and
+   * `room` is the shape editor's own limits on the change (`growBody` clamps to them). Not part of
+   * a body's print (`bodyPrint`): it follows from the rest.
+   */
+  rise: { top: Vec; head: Vec; shoulder: [Vec, Vec]; height: number; room: [number, number] };
 }
 
 export function bodyOf(shape: CharacterBodyShape): Body {
   const pos = computePositions(shape, NPC_BODY_CENTER_Y);
   const { head, body, forearm, hand } = shape;
+  // Linear in the height, so one step measures it; unclamped, so the slope is the slope.
+  const D = 0.1;
+  const grown = computePositions({ ...shape, body: { ...body, height: body.height + D } }, NPC_BODY_CENTER_Y);
+  const lift = D / 2;
+  const shoulderRise: Vec = [0, (grown.shoulderY - pos.shoulderY + lift) / D, (grown.shoulderZ - pos.shoulderZ) / D];
+  const { min, max } = SHAPE_BOUNDS.body.height;
   return {
     shoulder: [
       [pos.forearmX, pos.shoulderY, pos.shoulderZ],
@@ -88,6 +106,25 @@ export function bodyOf(shape: CharacterBodyShape): Body {
     forearm: forearm.height,
     forearmR: forearm.topRadius,
     handR: hand.open.radius,
+    rise: {
+      top: [0, 1, 0],
+      head: [0, (grown.headY - pos.headY + lift) / D, 0],
+      shoulder: [shoulderRise, shoulderRise],
+      height: pos.headY + head.offsetY + head.radius,
+      room: [min - body.height, max - body.height],
+    },
+  };
+}
+
+/** A body grown by `g` (m): its torso top, head and shoulders where {@link Body.rise} puts them. */
+export function wornBody(b: Body, g: number): Body {
+  if (g === 0) return b;
+  const up = (p: Vec, r: Vec): Vec => [p[0] + r[0] * g, p[1] + r[1] * g, p[2] + r[2] * g];
+  return {
+    ...b,
+    shoulder: [up(b.shoulder[0], b.rise.shoulder[0]), up(b.shoulder[1], b.rise.shoulder[1])],
+    head: { ...b.head, c: up(b.head.c, b.rise.head) },
+    torso: { ...b.torso, b: up(b.torso.b, b.rise.top) },
   };
 }
 
@@ -178,7 +215,8 @@ interface Shape {
 }
 
 /** Every collidable of one dancer at one frame, in the floor frame. */
-export function shapesOf(b: Body, f: DancerFrame): Shape[] {
+export function shapesOf(built: Body, f: DancerFrame): Shape[] {
+  const b = wornBody(built, f.grow ?? 0);
   const out: Shape[] = [
     { name: "torso", a: toFloor(b.torso.a, f), b: toFloor(b.torso.b, f), r: b.torso.r },
     { name: "head", a: toFloor(b.head.c, f), b: toFloor(b.head.c, f), r: b.head.r },
@@ -218,6 +256,39 @@ export function restGap(b: Body, side: 0 | 1, own: 0 | 1): number {
   return g[side * 2 + own] ?? 0;
 }
 
+/** How near `x` is to a limit it shouldn't pass, 0 (a centimetre or more inside) to 1 (at or past it), and its slope. */
+const TRADE_BAND = 0.01;
+function atLimit(x: number, lim: number, below: boolean): [number, number] {
+  const t = (below ? x - lim : lim - x) / TRADE_BAND;
+  if (t <= 0) return [1, 0];
+  if (t >= 1) return [0, 0];
+  return [1 - t, (below ? -1 : 1) / TRADE_BAND];
+}
+
+/**
+ * 🧪 The `meet` trade's cost for one sample, and its slope in each dancer's growth (10-27). The
+ * shares `g / height` should cancel (`d = 0`). Too much growth overall (`d > 0`) is excused as far
+ * as either dancer is at their lowest, since the one shrinking can't shrink further; too much
+ * shrinking (`d < 0`), as far as either is at their highest.
+ */
+export function tradeCost(gb: number, gg: number, hb: number, hg: number, room: readonly [GrowRoom, GrowRoom], w: number): [number, number, number] {
+  const d = gb / hb + gg / hg;
+  const [lb, lbd] = d > 0 ? atLimit(gb, room[0].min, true) : atLimit(gb, room[0].max, false);
+  const [lg, lgd] = d > 0 ? atLimit(gg, room[1].min, true) : atLimit(gg, room[1].max, false);
+  const byB = lb >= lg;
+  const excuse = byB ? lb : lg;
+  const keep = 1 - excuse;
+  const c = w * d * d * keep;
+  return [c, 2 * w * d * keep / hb - (byB ? w * d * d * lbd : 0), 2 * w * d * keep / hg - (byB ? 0 : w * d * d * lgd)];
+}
+
+/**
+ * 🧪 What a change of height costs at sample `i`: `WEIGHTS.grow`, and `clip` on the first and last
+ * samples, so a call starts and ends as built and the next call doesn't begin with a pop. Left
+ * free, the ryan → ryan duck started 9 cm down (10-27).
+ */
+const growEnds = (m: Move, i: number, w: Weights) => (i === 0 || i === m.frames.length - 1 ? w.clip : w.grow);
+
 /** The margin an arm shape (`shapesOf` index 2–7) keeps from its own torso or head. */
 const ownMargin = (b: Body, shape: number, own: 0 | 1, margin: number) =>
   shape === 2 || shape === 5 ? Math.min(margin, restGap(b, shape === 2 ? 0 : 1, own)) : margin;
@@ -237,6 +308,12 @@ export interface Hold {
    * That comes from her crossing the plane under them.
    */
   plane?: { p: Vec; n: Vec };
+  /**
+   * 🧪 Scales `WEIGHTS.hold` (default 1). A break (10-27) is a hold this weak: the hands reach for
+   * each other but aren't owed contact. Ryan, 10-13: *"the gable just won't connect, but shows a
+   * bit of effort towards it"*. `metrics` doesn't count a weak hold's gap.
+   */
+  weight?: number;
 }
 
 /**
@@ -254,6 +331,44 @@ export interface Target {
   weight: number;
 }
 
+/**
+ * 🧪 How far one dancer may grow or shrink during a move (m of body height, feet planted), and
+ * what it costs them (2026-10-27, step 3b). See {@link growRoom}.
+ */
+export interface GrowRoom {
+  min: number;
+  max: number;
+  /** Scales `WEIGHTS.grow`. */
+  weight: number;
+}
+
+/**
+ * 🧪 Who changes height to make a move, beau then belle (Ryan, 2026-10-27: *"proportional, torso
+ * first, keep belle-ducks as a style"*):
+ *
+ * - `meet`: they trade height and meet in the middle **in proportion to their heights**: as one
+ *   grows by a share of their own height, the other shrinks by the same share of theirs (held
+ *   firmly, at `WEIGHTS.clip`). Left free, each used it for their own reach: ryan → ryan's beau
+ *   grew 39 cm while she shrank 15, and myco → sprout both grew (10-27). **Once one of them is at
+ *   the editor's limit the other may go on alone**: ryan, myco and sprout have 30 cm torsos, so
+ *   they can shrink only 20 cm, and a tie held there capped the partner's growth at the same
+ *   share. It's `growBody`'s own rule, a change asked for against a change taken. See {@link tradeCost}.
+ * - `duck`: the belle shrinks under the arch, the beau stays as built (`turn-under.ts`'s
+ *   `DUCK_UNDER`).
+ * - `none`: as built (the solves before 10-27).
+ *
+ * Every change stays inside the shape editor's limits, as the floor's `growBody` does.
+ */
+export type GrowStyle = "meet" | "duck" | "none";
+
+export function growRoom(style: GrowStyle, bodies: readonly [Body, Body]): Pick<Move, "grow" | "trade"> {
+  if (style === "none") return {};
+  const [b, g] = bodies;
+  const full = (x: Body): GrowRoom => ({ min: x.rise.room[0], max: x.rise.room[1], weight: 1 });
+  if (style === "duck") return { grow: [{ min: 0, max: 0, weight: 1 }, { min: g.rise.room[0], max: 0, weight: 1 }] };
+  return { grow: [full(b), full(g)], trade: true };
+}
+
 export interface Move {
   bodies: [Body, Body];
   /** One per sample, evenly over t = 0…1. Arms are the starting guess. */
@@ -265,6 +380,10 @@ export interface Move {
    * to as it can be without clipping.
    */
   targets?: readonly Target[];
+  /** 🧪 Who may change height, beau then belle ({@link growRoom}). Absent: nobody. */
+  grow?: [GrowRoom, GrowRoom];
+  /** 🧪 The two changes are one trade, split in proportion to their heights (`meet`). */
+  trade?: boolean;
 }
 
 export interface Weights {
@@ -287,6 +406,11 @@ export interface Weights {
    * still clear of every head (60 moved it 4°; 10-26-2). A locked keyframe pulls 10× that.
    */
   target: number;
+  /**
+   * 🧪 A change of body height, per m² over the dancer's height in m (`g² / height`), per sample.
+   * Set below what the same reach costs in arm stretch, so a torso changes first (2026-10-27).
+   */
+  grow: number;
 }
 
 export const WEIGHTS: Weights = {
@@ -303,6 +427,7 @@ export const WEIGHTS: Weights = {
   range: 200,
   plane: 400,
   target: 600,
+  grow: 4,
 };
 
 const held = (m: Move, t: number) => m.holds.filter((h) => t >= h.from - 1e-9 && t <= h.to + 1e-9);
@@ -352,7 +477,7 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
     if (ha === undefined || hb === undefined) continue;
     const d = len(sub(ha.a, hb.a));
     const want = w.clasp * (ha.r + hb.r);
-    c += w.hold * (d - want) * (d - want);
+    c += w.hold * (h.weight ?? 1) * (d - want) * (d - want);
     if (h.plane !== undefined) {
       const mid: Vec = [(ha.a[0] + hb.a[0]) / 2, (ha.a[1] + hb.a[1]) / 2, (ha.a[2] + hb.a[2]) / 2];
       const off = dot(sub(mid, h.plane.p), h.plane.n);
@@ -366,12 +491,21 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
   }
   // Natural: stretch, free arms hang, held arms are low, angles in range, the beau near his path.
   f.forEach((d, k) => {
-    const body = m.bodies[k];
-    if (body === undefined) return;
+    const built = m.bodies[k];
+    if (built === undefined) return;
+    const body = wornBody(built, d.grow ?? 0);
+    const room = m.grow?.[k];
+    if (room !== undefined) {
+      const g = d.grow ?? 0;
+      c += growEnds(m, i, w) * room.weight * g * g / built.rise.height;
+      if (g < room.min) c += w.clip * (room.min - g) ** 2;
+      if (g > room.max) c += w.clip * (g - room.max) ** 2;
+    }
     d.arms.forEach((a, side) => {
       const su = a.ulen / body.upper0 - 1;
       const sf = a.flen / body.fore0 - 1;
       c += w.stretch * (su * su + sf * sf);
+      // Held arms low against their own shoulder, so growing isn't paid for twice.
       const isHeld = hs.some((h) => (k === 0 ? h.beau : h.belle) === side);
       if (isHeld) {
         const p = armPoints(body, side as 0 | 1, a);
@@ -389,6 +523,7 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
       if (a.pitch < -Math.PI / 2) c += w.range * (a.pitch + Math.PI / 2) ** 2;
     });
   });
+  if (m.trade === true && m.grow !== undefined) c += tradeCost(f[0].grow ?? 0, f[1].grow ?? 0, bb.rise.height, gb.rise.height, m.grow, w.clip)[0];
   // Ryan's keyframes: each dial he set pulls its variable toward his value.
   if (m.targets !== undefined) for (const g of m.targets) {
     if (g.i !== i) continue;
@@ -452,8 +587,13 @@ export function targetsFromKeyframes(
 
 const ARM_KEYS = ["raise", "toward", "ulen", "pitch", "heading", "flen"] as const;
 export type ArmKey = (typeof ARM_KEYS)[number];
-/** Per sample: 2 dancers × 2 arms × 6, then the beau's step out (away from her) and sideways. */
-export const PER = 2 * 2 * 6 + 2;
+/**
+ * Per sample: 2 dancers × 2 arms × 6, then the beau's step out (away from her) and sideways, then
+ * each dancer's growth (beau, belle; 10-27).
+ */
+export const PER = 2 * 2 * 6 + 2 + 2;
+/** Where sample `i`'s growth for `dancer` sits in `v`. */
+export const GROW_AT = (i: number, dancer: 0 | 1) => i * PER + 26 + dancer;
 /** Lengths and offsets are metres; weigh their smoothness as if a metre were this many radians. */
 const METRE = 3;
 const isMetric = (k: number) => k >= 24 || ARM_KEYS[k % 6] === "ulen" || ARM_KEYS[k % 6] === "flen";
@@ -465,6 +605,8 @@ export function pack(frames: readonly Frame[]): Float64Array {
     for (const d of f) for (const a of d.arms) for (const key of ARM_KEYS) v[k++] = a[key];
     v[k++] = 0;
     v[k++] = 0;
+    v[k++] = f[0].grow ?? 0;
+    v[k++] = f[1].grow ?? 0;
   });
   return v;
 }
@@ -479,6 +621,7 @@ export function unpackOne(v: Float64Array, i: number, base: Frame): Frame {
     }) as [Arm, Arm];
     return { ...d, x: d.x + dx, z: d.z + dz, arms };
   };
+  const grow = (d: 0 | 1) => v[GROW_AT(i, d)] ?? 0;
   // "Just the beau steps out": along the line from her to him, plus a (costly) sideways part.
   const out = v[i * PER + 24] ?? 0;
   const side = v[i * PER + 25] ?? 0;
@@ -487,7 +630,7 @@ export function unpackOne(v: Float64Array, i: number, base: Frame): Frame {
   const ul = Math.hypot(ux, uz) || 1;
   const beau = dancer(base[0], (ux / ul) * out - (uz / ul) * side, (uz / ul) * out + (ux / ul) * side);
   const belle = dancer(base[1], 0, 0);
-  return [beau, belle];
+  return [{ ...beau, grow: grow(0) }, { ...belle, grow: grow(1) }];
 }
 
 function smoothCost(v: Float64Array, n: number, w: Weights, grad?: Float64Array): number {
@@ -513,7 +656,7 @@ function smoothCost(v: Float64Array, n: number, w: Weights, grad?: Float64Array)
       }
     }
     // The beau's offset costs for itself, not only for changing.
-    if (k >= 24) for (let i = 0; i < n; i++) {
+    if (k === 24 || k === 25) for (let i = 0; i < n; i++) {
       const x = v[i * PER + k] ?? 0;
       const ws = k === 25 ? w.step * 25 : w.step;
       c += ws * x * x;
@@ -666,13 +809,18 @@ export function frameCostGrad(
       PTS[j + 1] = y;
       PTS[j + 2] = -x * s + z * c + tz;
     };
+    // Growing (10-27): the torso's top, the head and the shoulders rise; the feet stay put.
+    const gr = v[o + 26 + d]!;
+    const R = b.rise;
     put(0, b.torso.a[0], b.torso.a[1], b.torso.a[2]);
-    put(1, b.torso.b[0], b.torso.b[1], b.torso.b[2]);
-    put(2, b.head.c[0], b.head.c[1], b.head.c[2]);
+    put(1, b.torso.b[0] + R.top[0] * gr, b.torso.b[1] + R.top[1] * gr, b.torso.b[2] + R.top[2] * gr);
+    put(2, b.head.c[0] + R.head[0] * gr, b.head.c[1] + R.head[1] * gr, b.head.c[2] + R.head[2] * gr);
     for (let sd = 0; sd < 2; sd++) {
       const k = o + d * 12 + sd * 6;
       const raise = v[k]!, toward = v[k + 1]!, ulen = v[k + 2]!, pitch = v[k + 3]!, heading = v[k + 4]!, flen = v[k + 5]!;
-      const S = b.shoulder[sd as 0 | 1];
+      const S0 = b.shoulder[sd as 0 | 1];
+      const RS = R.shoulder[sd as 0 | 1];
+      const S = [S0[0] + RS[0] * gr, S0[1] + RS[1] * gr, S0[2] + RS[2] * gr] as const;
       const g = sign(sd as 0 | 1);
       const sr = Math.sin(raise), cr = Math.cos(raise), st = Math.sin(toward), ct = Math.cos(toward);
       const sp = Math.sin(pitch), cp = Math.cos(pitch), sh = Math.sin(heading), ch = Math.cos(heading);
@@ -733,9 +881,10 @@ export function frameCostGrad(
     const x = PTS[pa]! - PTS[pb]!, y = PTS[pa + 1]! - PTS[pb + 1]!, z = PTS[pa + 2]! - PTS[pb + 2]!;
     const dist = Math.sqrt(x * x + y * y + z * z);
     const want = w.clasp * (m.bodies[0].handR + m.bodies[1].handR);
-    cost += w.hold * (dist - want) * (dist - want);
+    const wh = w.hold * (h.weight ?? 1);
+    cost += wh * (dist - want) * (dist - want);
     if (dist > 1e-12) {
-      const k = (2 * w.hold * (dist - want)) / dist;
+      const k = (2 * wh * (dist - want)) / dist;
       addPt(pa, k, x, y, z);
       addPt(pb, -k, x, y, z);
     }
@@ -755,9 +904,26 @@ export function frameCostGrad(
       addPt(pb, guide.weight, gx, gy, gz);
     }
   }
-  // Natural, straight on the dials (gravity on the elbow's and hand's height).
+  // Natural, straight on the dials (gravity on the elbow's and hand's height over the shoulder's).
   for (let d = 0; d < 2; d++) {
     const b = m.bodies[d as 0 | 1];
+    const gk = o + 26 + d;
+    const gr = v[gk]!;
+    const room = m.grow?.[d];
+    if (room !== undefined) {
+      const wg = growEnds(m, i, w);
+      cost += wg * room.weight * gr * gr / b.rise.height;
+      grad[gk] = grad[gk]! + 2 * wg * room.weight * gr / b.rise.height;
+      if (gr < room.min) {
+        cost += w.clip * (room.min - gr) ** 2;
+        grad[gk] = grad[gk]! - 2 * w.clip * (room.min - gr);
+      }
+      if (gr > room.max) {
+        cost += w.clip * (gr - room.max) ** 2;
+        grad[gk] = grad[gk]! + 2 * w.clip * (gr - room.max);
+      }
+    }
+    const shoulderY = b.shoulder[0][1] + b.rise.shoulder[0][1] * gr;
     for (let sd = 0; sd < 2; sd++) {
       const k = o + d * 12 + sd * 6;
       const raise = v[k]!, toward = v[k + 1]!, ulen = v[k + 2]!, pitch = v[k + 3]!, heading = v[k + 4]!, flen = v[k + 5]!;
@@ -769,9 +935,10 @@ export function frameCostGrad(
       if (plan.heldArm[d * 2 + sd] === true) {
         const pe = (d * NPT + 4 + 4 * sd) * 3;
         const ph = (d * NPT + 6 + 4 * sd) * 3;
-        cost += w.gravity * (PTS[pe + 1]! + PTS[ph + 1]! - 2 * b.shoulder[0][1]);
+        cost += w.gravity * (PTS[pe + 1]! + PTS[ph + 1]! - 2 * shoulderY);
         GPT[pe + 1] = GPT[pe + 1]! + w.gravity;
         GPT[ph + 1] = GPT[ph + 1]! + w.gravity;
+        grad[gk] = grad[gk]! - 2 * w.gravity * b.rise.shoulder[0][1];
       } else {
         const dp = pitch + Math.PI / 2;
         cost += w.rest * (raise * raise + dp * dp + 0.1 * (heading * heading + toward * toward));
@@ -805,6 +972,12 @@ export function frameCostGrad(
       }
     }
   }
+  if (m.trade === true && m.grow !== undefined) {
+    const [c, db, dg] = tradeCost(v[o + 26]!, v[o + 27]!, m.bodies[0].rise.height, m.bodies[1].rise.height, m.grow, w.clip);
+    cost += c;
+    grad[o + 26] = grad[o + 26]! + db;
+    grad[o + 27] = grad[o + 27]! + dg;
+  }
   // Ryan's keyframes.
   for (const g of plan.targets) {
     const k = o + g.dancer * 12 + g.side * 6 + ARM_KEYS.indexOf(g.key);
@@ -834,6 +1007,17 @@ export function frameCostGrad(
     if (d === 0) {
       grad[o + 24] = grad[o + 24]! + sumX * ux + sumZ * uz;
       grad[o + 25] = grad[o + 25]! - sumX * uz + sumZ * ux;
+    }
+    // Growing moves the torso's top and the head, and each shoulder with its whole arm.
+    {
+      const R = b.rise;
+      const at = (p: number, r: Vec) => {
+        const j = (d * NPT + p) * 3;
+        return GPT[j]! * r[0] + GPT[j + 1]! * r[1] + GPT[j + 2]! * r[2];
+      };
+      let gg = at(1, R.top) + at(2, R.head);
+      for (let sd = 0; sd < 2; sd++) for (let p = 3; p < 7; p++) gg += at(p + 4 * sd, R.shoulder[sd as 0 | 1]);
+      grad[o + 26 + d] = grad[o + 26 + d]! + gg;
     }
     for (let sd = 0; sd < 2; sd++) {
       const k = o + d * 12 + sd * 6;
@@ -919,6 +1103,12 @@ export function solve(m: Move, o: SolveOptions = {}): { frames: Frame[]; cost: n
   const exact = o.gradient !== "numeric";
   const plans = exact ? planOf(m) : [];
   const guides = o.guide ? base.map((_, i) => o.guide?.(i)) : [];
+  // A dancer with no room to grow keeps their height, and takes no step or noise: a solve with
+  // nobody growing is the solve it was before growing existed, seed for seed.
+  const fixed = [0, 1].map((d) => {
+    const r = m.grow?.[d];
+    return r === undefined || (r.min === 0 && r.max === 0);
+  });
   let cost = 0;
   for (let it = 1; it <= iters; it++) {
     const grad = new Float64Array(v.length);
@@ -949,6 +1139,8 @@ export function solve(m: Move, o: SolveOptions = {}): { frames: Frame[]; cost: n
     }
     const lr = lr0 * (lrEnd / lr0) ** ((it - 1) / Math.max(1, iters - 1));
     for (let j = 0; j < v.length; j++) {
+      const kk = j % PER;
+      if (kk >= 26 && fixed[kk - 26] === true) continue;
       const g = grad[j] ?? 0;
       mom[j] = b1 * (mom[j] ?? 0) + (1 - b1) * g;
       vel[j] = b2 * (vel[j] ?? 0) + (1 - b2) * g * g;
@@ -1004,6 +1196,8 @@ export interface Metrics {
   stretch: number;
   /** The beau's furthest step off the floor's path (m). */
   step: number;
+  /** 🧪 Each dancer's largest change of height (m, signed: negative is a shrink), beau then belle. */
+  grow: [number, number];
 }
 
 const angleBetween = (a: Vec, b: Vec) => {
@@ -1012,7 +1206,7 @@ const angleBetween = (a: Vec, b: Vec) => {
 };
 
 export function metrics(m: Move, frames: readonly Frame[], path?: readonly Frame[]): Metrics {
-  const out: Metrics = { clip: 0, clipAt: "", holdGap: 0, jump: 0, jumpAt: "", stretch: 1, step: 0 };
+  const out: Metrics = { clip: 0, clipAt: "", holdGap: 0, jump: 0, jumpAt: "", stretch: 1, step: 0, grow: [0, 0] };
   const n = frames.length;
   const noMargin = { ...WEIGHTS, margin: 0 };
   frames.forEach((f, i) => {
@@ -1038,9 +1232,11 @@ export function metrics(m: Move, frames: readonly Frame[], path?: readonly Frame
     for (const h of held(m, t)) {
       const ha = A.find((s) => s.name === `hand-${SIDES[h.beau]}`);
       const hb = B.find((s) => s.name === `hand-${SIDES[h.belle]}`);
-      if (ha && hb) out.holdGap = Math.max(out.holdGap, len(sub(ha.a, hb.a)) - WEIGHTS.clasp * (ha.r + hb.r));
+      if (ha && hb && (h.weight ?? 1) >= 1) out.holdGap = Math.max(out.holdGap, len(sub(ha.a, hb.a)) - WEIGHTS.clasp * (ha.r + hb.r));
     }
     f.forEach((d, k) => {
+      const g = d.grow ?? 0;
+      if (Math.abs(g) > Math.abs(out.grow[k] ?? 0)) out.grow[k] = g;
       const body = m.bodies[k];
       if (!body) return;
       for (const a of d.arms) out.stretch = Math.max(out.stretch, a.ulen / body.upper0, a.flen / body.fore0);
@@ -1081,6 +1277,8 @@ export function toDials(d: DancerFrame, dancer: number): Record<string, number> 
   out[k("torso", "x")] = Math.round(d.x * 1000) / 10;
   out[k("torso", "z")] = Math.round(d.z * 1000) / 10;
   out[k("torso", "facing")] = Math.round(wrapDeg(d.yaw * R2D));
+  // 🧪 Not a `#review2` dial: the floor wears it as a reshape (`DanceFloor`, under a bake).
+  if (d.grow !== undefined && d.grow !== 0) out[k("torso", "grow")] = Math.round(d.grow * 1000) / 10;
   d.arms.forEach((a, side) => {
     const s = SIDES[side];
     out[k(`upper-arm-${s}`, "raise")] = Math.round(a.raise * R2D * 10) / 10;
@@ -1110,11 +1308,13 @@ export function fromDials(values: Readonly<Record<string, number>>, dancer: numb
     heading: (g(`forearm-${s}`, "heading") ?? 0) * D2R,
     flen: (g(`forearm-${s}`, "length") ?? r.flen * 100) / 100,
   });
+  const grow = g("torso", "grow");
   return {
     x: (g("torso", "x") ?? 0) / 100,
     z: (g("torso", "z") ?? 0) / 100,
     yaw: (g("torso", "facing") ?? 0) * D2R,
     arms: [arm("left"), arm("right")],
+    ...(grow === undefined ? {} : { grow: grow / 100 }),
   };
 }
 

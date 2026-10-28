@@ -30,7 +30,7 @@ import {
   type DancerExpressionRigs,
   type DancerRig,
 } from "./Dancer";
-import { applyBaked, BAKED_TRACKS, bakeFits, findBake, gapOff, sampleBaked, spanAt } from "./baked-tracks";
+import { applyBaked, BAKED_TRACKS, bakedGrow, bakeFits, chooseBake, gapOff, sampleBaked, spanAt } from "./baked-tracks";
 import { bodyMeshScale } from "./dancer-mesh";
 import { measurePose, type DancerSolids, type Finding, type Side } from "./pose-rules";
 import { readSolids } from "./pose-solids";
@@ -101,6 +101,7 @@ import {
   archLift,
   CASUAL,
   duckProfile,
+  DUCK_UNDER,
   keepsContact as styleKeepsContact,
   duckRoom as styleRoom,
   forcedAccommodation,
@@ -665,17 +666,24 @@ export function DanceFloor({
    * across the gap the engine walked then, and a floor that sizes the arch its own way (review 1's
    * over-the-centre dial, the coin flip) walks a different gap the arms can't reach across.
    */
-  const bakes = useMemo(() => {
-    if (!baked) return [];
-    const calls = performanceOptions.sequence ?? [performanceOptions.call];
-    return calls.map((c) => findBake(BAKED_TRACKS, c, shapes));
-  }, [baked, performanceOptions.sequence, performanceOptions.call, shapes]);
-
   /** What the pair's {@link turnUnder} styles force on the reach draw — see `turn-under.ts`. */
   const forced = useMemo<Accommodation | null>(
     () => forcedAccommodation(turnUnder),
     [turnUnder],
   );
+
+  const bakes = useMemo(() => {
+    if (!baked) return [];
+    const calls = performanceOptions.sequence ?? [performanceOptions.call];
+    // 🧪 A belle dancing `DUCK_UNDER` gets the solve where she ducks; everyone else, the one where
+    // the two meet in the middle (10-27).
+    const grow = turnUnder?.[1] === DUCK_UNDER ? "duck" : "meet";
+    // 🧪 A called or forced accommodation picks its own bake; otherwise a pair who reach past
+    // `REACH_LIMIT` toss for reach or break, once per execution (10-27, `chooseBake`).
+    return calls.map((c) =>
+      chooseBake(BAKED_TRACKS, c, shapes, { grow, called: calledAccommodation ?? forced, draw: drawAccommodation }),
+    );
+  }, [baked, performanceOptions.sequence, performanceOptions.call, shapes, turnUnder, calledAccommodation, forced]);
 
   /**
    * 🧪 How far each dancer is willing to drop, for `sizeArch`'s duck step — the shape editor's
@@ -1432,13 +1440,14 @@ export function DanceFloor({
           // carries the hand. Solving with the dial in instead is what kept the hand pinned to
           // the hold and bent the elbow to absorb the change.
           const dialMe = stretch?.[i];
-          // 🧪 No reshape and no duck under a drawn bake: the solve's bodies are the built ones.
+          // 🧪 Under a drawn bake the floor's own reshape and duck are off, and the bodies change
+          // height as the solve had them (`<d>.torso.grow`; 0 for a bake solved as built).
           const bodyFree = bakeNow?.drawn !== true;
           const myDelta = !bodyFree
-            ? 0
+            ? bakedGrow(bakeNow?.values ?? {}, i)
             : (deltas === null ? 0 : deltas[mine] * under.blend) + under.duck[mine] * duckNow;
           const theirDelta = !bodyFree
-            ? 0
+            ? bakedGrow(bakeNow?.values ?? {}, 1 - i)
             : (deltas === null ? 0 : deltas[theirs] * under.blend) + under.duck[theirs] * duckNow;
           // 🔑 **Both dancers take the same arm**, unlike the torso trade, which is signed.
           // The reshape moves one *against* the other because it is closing a gap between

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computePositions, getBodyShape, NPC_BODY_CENTER_Y } from "../services/body-shapes";
-import { armPoints, bodyOf, frameCost, frameCostGrad, fromDials, pack, PER, planOf, reachArm, restArm, segSeg, solve, targetsFromKeyframes, toDials, toFloor, toRig, unpackOne, WEIGHTS, type DancerFrame, type Frame, type Move, type Vec } from "./whole-move";
+import { armPoints, bodyOf, frameCost, frameCostGrad, fromDials, growRoom, pack, tradeCost, PER, planOf, reachArm, restArm, segSeg, solve, targetsFromKeyframes, toDials, toFloor, toRig, unpackOne, WEIGHTS, wornBody, type Arm, type DancerFrame, type Frame, type Move, type Vec } from "./whole-move";
+import { growBody, standingLift } from "./accommodation";
 
 const near = (a: Vec, b: Vec, eps = 1e-9) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < eps;
 
@@ -151,11 +152,16 @@ describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
         { i: 2, dancer: 1, side: 0, key: "flen", value: 0.3, weight: 0.5 },
         { i: 3, dancer: 1, side: 1, key: "heading", value: -3, weight: 2 },
       ],
+      // 🧪 Both may change height (10-27); the belle's room is small, so some samples are past it.
+      grow: [{ min: -0.3, max: 0.4, weight: 1 }, { min: -0.05, max: 0.02, weight: 2 }],
+      trade: true,
     };
     const v = pack(frames);
     for (let i = 0; i < v.length; i += PER) {
       v[i + 24] = rnd() * 0.2 - 0.1;
       v[i + 25] = rnd() * 0.1 - 0.05;
+      v[i + 26] = rnd() * 0.4 - 0.15;
+      v[i + 27] = rnd() * 0.16 - 0.08;
     }
     const plans = planOf(m);
     const guide = { at: [0.05, 1.7, 0] as Vec, weight: 120 };
@@ -200,5 +206,58 @@ describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
       for (const k of ["raise", "toward", "ulen", "pitch", "heading", "flen"] as const)
         worst = Math.max(worst, Math.abs(a.frames[i]![d].arms[s][k] - b.frames[i]![d].arms[s][k]));
     expect(worst).toBeLessThan(0.02);
+  });
+});
+
+describe("🧪 growing and shrinking (2026-10-27, step 3b)", () => {
+  it("moves the body as the floor draws a reshape: feet planted, head and shoulders up", () => {
+    for (const name of ["ryan", "myco", "ember", "sprout"]) {
+      const shape = getBodyShape(name);
+      for (const g of [-0.15, 0.25]) {
+        const worn = wornBody(bodyOf(shape), g);
+        const grown = growBody(shape, g);
+        const want = bodyOf(grown);
+        const lift = standingLift(shape, grown);
+        const same = (a: Vec, b: Vec) => [0, 1, 2].forEach((k) => expect(a[k]! - (b[k]! + (k === 1 ? lift : 0))).toBeCloseTo(0, 9));
+        same(worn.torso.a, want.torso.a);
+        same(worn.torso.b, want.torso.b);
+        same(worn.head.c, want.head.c);
+        same(worn.shoulder[0], want.shoulder[0]);
+        same(worn.shoulder[1], want.shoulder[1]);
+        // The arms keep their lengths: only the shoulder moves.
+        expect(want.upper0).toBeCloseTo(worn.upper0, 9);
+      }
+    }
+  });
+
+  it("gives each style its room: meet both ways in the editor's limits, duck the belle down only", () => {
+    const ryan = bodyOf(getBodyShape("ryan"));
+    const ember = bodyOf(getBodyShape("ember"));
+    expect(growRoom("none", [ryan, ember])).toEqual({});
+    const meet = growRoom("meet", [ryan, ember]);
+    expect(meet.trade).toBe(true);
+    expect(meet.grow?.[0].min).toBeCloseTo(0.1 - 0.3, 9);
+    expect(meet.grow?.[1].max).toBeCloseTo(2 - 1.41, 9);
+    const duck = growRoom("duck", [ryan, ember]);
+    expect(duck.trade).toBeUndefined();
+    expect([duck.grow?.[0].min, duck.grow?.[0].max, duck.grow?.[1].max]).toEqual([0, 0, 0]);
+    expect(duck.grow?.[1].min).toBeCloseTo(0.1 - 1.41, 9);
+  });
+
+  it("meets in proportion, and lets one go on alone when the other is at a limit", () => {
+    const room = [{ min: -0.2, max: 1.7, weight: 1 }, { min: -0.2, max: 1.7, weight: 1 }] as const;
+    // 1.6 m and 1.2 m: growing 8 cm is matched by shrinking 6.
+    expect(tradeCost(0.08, -0.06, 1.6, 1.2, room, 1000)[0]).toBeCloseTo(0, 9);
+    expect(tradeCost(0.08, -0.03, 1.6, 1.2, room, 1000)[0]).toBeCloseTo(1000 * 0.025 ** 2, 9);
+    // She's at her lowest: his growing on past her share is free, his growing less than it isn't.
+    expect(tradeCost(0.4, -0.2, 1.6, 1.2, room, 1000)[0]).toBe(0);
+    expect(tradeCost(0.1, -0.2, 1.6, 1.2, room, 1000)[0]).toBeGreaterThan(1);
+  });
+
+  it("round-trips a height change through the dials", () => {
+    const ryan = bodyOf(getBodyShape("ryan"));
+    const d = { x: 0.1, z: 0, yaw: 0, arms: [restArm(ryan), restArm(ryan)] as [Arm, Arm], grow: -0.123 };
+    expect(fromDials(toDials(d, 1), 1, ryan).grow).toBeCloseTo(-0.123, 3);
+    expect(toDials({ ...d, grow: 0 }, 1)["1.torso.grow"]).toBeUndefined();
   });
 });

@@ -70,6 +70,13 @@ export interface Session {
    */
   readonly handsOnArc: boolean;
   /**
+   * 🧪 What a California Twirl's coin flip gives (10-27): `coin` tosses it per couple, as every
+   * floor does, and `reshape` (shown as *reach*) or `break` calls it for every couple, so a
+   * reviewer can check each. Ryan: *"a coin flip between reach or break but settable in review2
+   * when we want to check them"*.
+   */
+  readonly accommodation: "coin" | "reshape" | "break";
+  /**
    * Every couple on the floor, or only the focus couple. The others stay mounted and keep
    * dancing while hidden, so they come back in step.
    */
@@ -123,6 +130,7 @@ export type Action =
   | { readonly type: "setEverything"; readonly on: boolean }
   | { readonly type: "setMode"; readonly mode: "solver" | "keyframes" }
   | { readonly type: "handsOnArc"; readonly on: boolean }
+  | { readonly type: "accommodation"; readonly to: "coin" | "reshape" | "break" }
   | { readonly type: "allCouples"; readonly on: boolean }
   | { readonly type: "turnAround"; readonly on: boolean }
   | { readonly type: "notify"; readonly text: string }
@@ -139,7 +147,7 @@ export function initialSession(scope: string, loaded: string, couples: readonly 
   return {
     t: 0, playing: false, seekToken: 0, scope, loaded,
     edits: null, selected: null, anchor: null, drawerOpen: false,
-    openFrame: null, everything: false, mode: "solver", handsOnArc: true, allCouples: true, turnAround: true, turned: false, notice: null,
+    openFrame: null, everything: false, mode: "solver", handsOnArc: true, accommodation: "coin", allCouples: true, turnAround: true, turned: false, notice: null,
     couples, layout: couples.length === 0 ? {} : initialLayout(couples, focus), spacing: SPACING.initial,
     muted: {},
   };
@@ -232,6 +240,9 @@ export function reduce(s: Session, a: Action): Session {
     // A paused floor writes nothing, so the floors are asked to pose again.
     case "handsOnArc":
       return { ...s, handsOnArc: a.on, seekToken: s.seekToken + 1 };
+    // The floors remount on a new draw (it's in their key), so they're asked to pose again.
+    case "accommodation":
+      return { ...s, accommodation: a.to, seekToken: s.seekToken + 1 };
     case "allCouples":
       return { ...s, allCouples: a.on };
     case "turnAround":

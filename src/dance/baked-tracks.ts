@@ -74,6 +74,8 @@ export interface BakedSizing {
 
 /** What `#review2` sizes a twirl with: no overhead or close dial, no duck. Its coin flip gave a reshape. */
 export const REVIEW2_SIZING: BakedSizing = { accommodation: "reshape", overhead: 0, close: 0 };
+/** 🧪 The same, for a pair who drew a break (10-27): they stand wider and the hands let go. */
+export const BREAK_SIZING: BakedSizing = { accommodation: "break", overhead: 0, close: 0 };
 
 export interface BakedTrack {
   readonly format: typeof BAKE_FORMAT;
@@ -88,6 +90,22 @@ export interface BakedTrack {
   readonly note: string;
   /** How the floor sized the figure for the solve. Missing: the floor's own sizing, and only the gap check guards it. */
   readonly sizing?: BakedSizing;
+  /**
+   * 🧪 Who changed height in the solve (`whole-move.ts`'s `GrowStyle`, 2026-10-27): `meet` (both,
+   * in proportion), `duck` (the belle shrinks under the arch). Missing: nobody did. The heights are
+   * in the keyframes as `<d>.torso.grow` (cm), and the floor wears them as a reshape.
+   */
+  readonly grow?: "meet" | "duck";
+  /**
+   * 🧪 The solve's worst stretch of any arm segment (× its rest length, 10-27). A held solve over
+   * {@link REACH_LIMIT} is a reach, and the floor tosses for it against a break ({@link chooseBake}).
+   */
+  readonly stretch?: number;
+  /**
+   * 🧪 Whether a held solve is clean (10-27): no clipping over 0.5 cm and the hands within 2 cm.
+   * One that isn't is tossed for like a reach. Missing: clean.
+   */
+  readonly clean?: boolean;
   readonly keyframes: readonly BakedKeyframe[];
 }
 
@@ -122,7 +140,9 @@ function canonical(v: unknown): string {
  * change the print.
  */
 export function bodyPrint(shape: CharacterBodyShape): string {
-  const s = canonical(bodyOf(shape));
+  // `rise` follows from the rest of the shape (10-27), and leaving it out keeps every print as it was.
+  const { rise: _rise, ...solid } = bodyOf(shape);
+  const s = canonical(solid);
   // FNV-1a, 32-bit.
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
@@ -132,17 +152,62 @@ export function bodyPrint(shape: CharacterBodyShape): string {
   return h.toString(16).padStart(8, "0");
 }
 
-/** The bake for this call and these two bodies (beau first), if there is one. */
+/**
+ * The bake for this call and these two bodies (beau first), if there is one. With `grow`, a bake
+ * solved in that style is preferred (a belle dancing `DUCK_UNDER` asks for `duck`), then one with
+ * no style; a bake in the other style is used only when there's nothing else.
+ */
 export function findBake(
   tracks: readonly BakedTrack[],
   call: string,
   shapes: readonly CharacterBodyShape[],
+  grow?: "meet" | "duck",
 ): BakedTrack | undefined {
   const [a, b] = shapes;
   if (a === undefined || b === undefined) return undefined;
   const pa = bodyPrint(a);
   const pb = bodyPrint(b);
-  return tracks.find((k) => k.call === call && k.bodies[0] === pa && k.bodies[1] === pb);
+  const all = tracks.filter((k) => k.call === call && k.bodies[0] === pa && k.bodies[1] === pb);
+  return all.find((k) => k.grow === grow) ?? all.find((k) => k.grow === undefined) ?? all[0];
+}
+
+/** 🧪 How far a held solve may stretch an arm before it counts as a reach rather than a hold (10-27). */
+export const REACH_LIMIT = 2;
+
+/**
+ * 🧪 Which bake an execution of `call` draws (Ryan, 10-27: *"a coin flip between reach or break
+ * but settable in review2 when we want to check them"*):
+ *
+ * - `called` (a reviewer's setting): the bake solved for that accommodation, or none, and the floor
+ *   poses that accommodation itself.
+ * - `forced` (a turn-under style: casual breaks, the gable and the duck hold): the same.
+ * - Otherwise, a clean held solve within {@link REACH_LIMIT} is always used: that pair simply hold.
+ *   A held solve past it is a reach, and `draw` tosses between it and the break bake, when there
+ *   is one (ADR-0037's draw). So does a held solve that isn't `clean`: on the stock cast, four
+ *   within the limit still clip 3–4 cm or leave the hands 3 cm apart, and those shouldn't always
+ *   be what a floor shows.
+ *
+ * Held bakes are told apart by `grow`, as {@link findBake} does. Old bakes with no `sizing` are held.
+ */
+export function chooseBake(
+  tracks: readonly BakedTrack[],
+  call: string,
+  shapes: readonly CharacterBodyShape[],
+  o: { grow?: "meet" | "duck"; called?: "reshape" | "break" | null; draw: () => "reshape" | "break" },
+): BakedTrack | undefined {
+  const isBreak = (k: BakedTrack) => k.sizing?.accommodation === "break";
+  const held = findBake(tracks.filter((k) => !isBreak(k)), call, shapes, o.grow);
+  const broken = findBake(tracks.filter(isBreak), call, shapes);
+  if (o.called === "reshape") return held;
+  if (o.called === "break") return broken;
+  if (held === undefined || broken === undefined) return held ?? broken;
+  if (held.clean !== false && (held.stretch ?? 0) <= REACH_LIMIT) return held;
+  return o.draw() === "break" ? broken : held;
+}
+
+/** A sampled bake's height change for dancer `d` (m), or 0. */
+export function bakedGrow(values: Readonly<Record<DialKey, number>>, d: number): number {
+  return (values[`${String(d)}.torso.grow`] ?? 0) / 100;
 }
 
 /** The pose at `t` (0–1 of the call): linear between keyframes, held past either end. */

@@ -6,7 +6,7 @@
  */
 
 import type { PathSample } from "./baked-tracks";
-import { armPoints, restArm, startOnPath, toFloor, type Body, type Frame, type Move, type Target, type Vec } from "./whole-move";
+import { armPoints, growRoom, restArm, startOnPath, toFloor, type Body, type Frame, type GrowStyle, type Move, type Target, type Vec } from "./whole-move";
 
 /** A pairing's floor paths, as captured from `#review2` (`scripts/whole-move/*.paths.json`). */
 export interface TwirlPaths {
@@ -19,13 +19,30 @@ export interface TwirlPaths {
 
 const D2R = Math.PI / 180;
 
+/** 🧪 A break's pull between the hands, as a fraction of a hold's (10-27, measured on the stock cast). */
+export const BREAK_HOLD = 0.02;
+
 /**
  * The move, the floor's path (arms at rest: what `metrics` measures the step-out against), and
  * the start: the held hands put on a guide arc by two-bone IK, elbows out. The arc rises from
  * between the two held shoulders to a hand's width over her crown at the middle of the move.
- * Only the start uses it; the solve runs without it.
+ * Only the start uses it; the solve runs without it. `grow` says who may change height (10-27);
+ * the start is as built either way.
+ *
+ * `accommodation` (10-27) is the floor's draw (ADR-0037). `reshape` is the held arch, reached for
+ * as far as the arms stretch. `break`: the hands reach for each other at {@link BREAK_HOLD} of a
+ * hold's pull but aren't owed contact, nobody changes height, and the arms start at rest. Pair it
+ * with paths sized for a break (`couplePaths` with a `break` sizing): the beau bows out as far as
+ * a break needs, which on most of the stock cast is no further than held.
  */
-export function twirlMove(P: TwirlPaths, bodies: [Body, Body], targets: readonly Target[] = []): { move: Move; path: Frame[]; start: Frame[] } {
+export function twirlMove(
+  P: TwirlPaths,
+  bodies: [Body, Body],
+  targets: readonly Target[] = [],
+  grow: GrowStyle = "none",
+  accommodation: "reshape" | "break" = "reshape",
+): { move: Move; path: Frame[]; start: Frame[] } {
+  const broken = accommodation === "break";
   const path: Frame[] = P.beau.map((b, i) => {
     const g = P.belle[i] ?? b;
     return [
@@ -55,12 +72,16 @@ export function twirlMove(P: TwirlPaths, bodies: [Body, Body], targets: readonly
   const move: Move = {
     bodies,
     frames: path,
-    holds: [
-      { from: 0, to: 3.5 / 4, beau: 1, belle: 0, plane },
-      { from: 3.5 / 4 + 1e-6, to: 1, beau: 1, belle: 0 },
-    ],
+    holds: broken
+      ? [{ from: 0, to: 1, beau: 1, belle: 0, weight: BREAK_HOLD }]
+      : [
+          { from: 0, to: 3.5 / 4, beau: 1, belle: 0, plane },
+          { from: 3.5 / 4 + 1e-6, to: 1, beau: 1, belle: 0 },
+        ],
     ...(targets.length > 0 ? { targets } : {}),
   };
+  if (!broken) Object.assign(move, growRoom(grow, bodies));
+  if (broken) return { move, path, start: path };
 
   const n = path.length;
   const crown = bodies[1].head.c[1] + bodies[1].head.r;

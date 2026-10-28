@@ -111,6 +111,15 @@ describe("the posing session", () => {
     expect(s1.seekToken).toBe(s0.seekToken + 1);
   });
 
+  it("🧪 the twirl's draw is a coin flip by default, and can be called reach or break for everyone", () => {
+    const s0 = run();
+    expect(s0.accommodation).toBe("coin");
+    const s1 = reduce(s0, { type: "accommodation", to: "break" });
+    expect(s1.accommodation).toBe("break");
+    expect(s1.seekToken).toBe(s0.seekToken + 1);
+    expect(reduce(s1, { type: "accommodation", to: "coin" }).accommodation).toBe("coin");
+  });
+
   it("all couples show by default, and the switch can narrow the floor to the focus couple", () => {
     const s0 = run();
     expect(s0.allCouples).toBe(true);

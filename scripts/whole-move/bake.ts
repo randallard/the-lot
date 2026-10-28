@@ -3,8 +3,10 @@
  * `solve.ts` writes, or a 📂 export) and the engine paths it was solved on, and writes
  * `src/dance/baked/<call>.<pairing>.json`. See `src/dance/baked-tracks.ts`.
  *
- *   npx vite-node scripts/whole-move/bake.ts [bundle.json] [paths.json]
+ *   npx vite-node scripts/whole-move/bake.ts [bundle.json] [paths.json] [--grow=meet|duck]
  *
+ * `--grow` (10-27) records the style the solve changed heights in (`solve.ts --grow`), so a floor
+ * can pick it, and names the file `<call>.<pairing>.<style>.json`.
  * Defaults: the ryan → ryan twirl's bundle and paths, beside this script. The bake records the
  * sizing the paths were captured under (`REVIEW2_SIZING`: what `#review2` draws) and the engine's
  * gap at each keyframe, so every floor walks those paths and checks it is. The pairing's timeline
@@ -28,8 +30,11 @@ interface PathFile {
 }
 
 const here = dirname(new URL(import.meta.url).pathname);
-const bundleFile = process.argv[2] ?? join(here, "ryan-ryan-california-twirl.solved.json");
-const pathsFile = process.argv[3] ?? join(here, "ryan-ryan-twirl.paths.json");
+const positional = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const grow = process.argv.find((a) => a.startsWith("--grow="))?.slice(7);
+if (grow !== undefined && grow !== "meet" && grow !== "duck") throw new Error(`bad --grow: ${grow}`);
+const bundleFile = positional[0] ?? join(here, "ryan-ryan-california-twirl.solved.json");
+const pathsFile = positional[1] ?? join(here, "ryan-ryan-twirl.paths.json");
 
 const P = JSON.parse(readFileSync(pathsFile, "utf8")) as PathFile;
 const parsed = fromBundle(readFileSync(bundleFile, "utf8"));
@@ -51,13 +56,16 @@ const bake: BakedTrack = {
   bodies: [bodyPrint(getBodyShape(P.shapes[0])), bodyPrint(getBodyShape(P.shapes[1]))],
   note: `${bundleFile.split("/").pop() ?? bundleFile}, baked ${new Date().toISOString().slice(0, 10)}`,
   sizing: REVIEW2_SIZING,
+  ...(grow === undefined ? {} : { grow }),
   keyframes,
 };
 
-const out = join(here, "../../src/dance/baked", `${figure.call}.${P.pairing}.json`);
+const out = join(here, "../../src/dance/baked", `${figure.call}.${P.pairing}${grow === undefined ? "" : `.${grow}`}.json`);
 writeFileSync(out, JSON.stringify(bake, null, 1) + "\n");
 
 const steps = keyframes.map((k) => Math.hypot(k.values["0.offset.x"] ?? 0, k.values["0.offset.z"] ?? 0));
 const her = keyframes.map((k) => Math.hypot(k.values["1.offset.x"] ?? 0, k.values["1.offset.z"] ?? 0));
 console.log(`${out}: ${String(keyframes.length)} keyframes, bodies ${bake.bodies.join(" / ")}`);
 console.log(`beau's step off the path: max ${Math.max(...steps).toFixed(1)} cm; belle's: max ${Math.max(...her).toFixed(1)} cm`);
+const heights = (d: number) => keyframes.map((k) => k.values[`${String(d)}.torso.grow`] ?? 0);
+if (grow !== undefined) console.log(`height change: beau ${Math.min(...heights(0)).toFixed(1)}…${Math.max(...heights(0)).toFixed(1)} cm, belle ${Math.min(...heights(1)).toFixed(1)}…${Math.max(...heights(1)).toFixed(1)} cm`);

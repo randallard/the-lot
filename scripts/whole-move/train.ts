@@ -11,7 +11,7 @@
 
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { bodyOf, metrics, solve, unpackOne, WEIGHTS, type Body, type Frame } from "../../src/dance/whole-move";
+import { bodyOf, metrics, solve, unpackOne, WEIGHTS, type Body, type Frame, type GrowStyle } from "../../src/dance/whole-move";
 import { twirlMove } from "../../src/dance/whole-move-twirl";
 import { features, fitRidge, predictRidge, unwrapLike } from "../../src/dance/twirl-model";
 import type { CharacterBodyShape } from "../../src/services/body-shapes";
@@ -20,6 +20,8 @@ import type { PathSample } from "../../src/dance/baked-tracks";
 interface Row {
   k: number;
   label: string;
+  /** Who could change height in the solve (10-27); absent in older datasets: nobody. */
+  grow?: GrowStyle;
   shapes: [CharacterBodyShape, CharacterBodyShape];
   paths: { beau: PathSample[]; belle: PathSample[] };
   cost: number;
@@ -75,7 +77,7 @@ const nearest = (x: number[]) => {
 };
 
 const measure = (s: (typeof all)[number], v: Float64Array) => {
-  const { move, path } = twirlMove({ pairing: "", figure: "", shapes: ["", ""], beau: s.r.paths.beau, belle: s.r.paths.belle }, s.bodies);
+  const { move, path } = twirlMove({ pairing: "", figure: "", shapes: ["", ""], beau: s.r.paths.beau, belle: s.r.paths.belle }, s.bodies, [], s.r.grow ?? "none");
   const frames: Frame[] = move.frames.map((f, i) => unpackOne(v, i, f));
   return { m: metrics(move, frames, path), move };
 };

@@ -1,15 +1,62 @@
 # Progress & Status
 
-_Last updated: 2026-10-26_
+_Last updated: 2026-10-27_
 
 ## Status / next
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-26 (4) — a model for the twirl: the nearest solve, polished
+> ### ▶ PICK UP HERE — 2026-10-27 (2) — reach or break, a coin flip
+>
+> [`journal/2026-10-27-2-reach-or-break-a-coin-flip.md`](journal/2026-10-27-2-reach-or-break-a-coin-flip.md)
+> · 🧪 committed with this entry (with 10-27-1). Ryan looked: *"I like the solver over 48 - but let's compare before we supersede"*
+>
+> Ryan: *"a coin flip between reach or break but settable in review2"*.
+> - **The solver has a break:** the hands reach but aren't owed contact, on the floor's break
+>   paths.
+> - **All 25 stock couples are baked both ways** (`bake-pair.ts`).
+> - **`chooseBake`:** a clean held solve within 2× always holds (5 couples). Every other couple
+>   tosses reach against break, once per execution.
+> - **`#review2`:** a 🧪 twirl selector (🎲 coin / reach / break) calls it for every couple.
+> - **Breaks:** all 25 are clean (stretch ≤ 1.73×, worst jump 27°).
+>
+> ⏳ **Next:**
+> 1. Compare the solver's reach with the floor's own (ADR-0048) before writing an ADR that
+>    supersedes it.
+> 2. Ship: compact bakes, or the solve library plus the polish.
+
+> ### 2026-10-27 (1) — the torsos meet in the middle
+>
+> [`journal/2026-10-27-1-the-torsos-meet-in-the-middle.md`](journal/2026-10-27-1-the-torsos-meet-in-the-middle.md)
+> · 🧪 committed with 10-27-2
+>
+> Ryan's answer to 10-26-4: *"proportional, torso first, keep belle-ducks as a style"*. The solver
+> now sets each dancer's height at every sample (`PER` 28), the way the floor draws a reshape
+> (feet planted).
+> - **`meet`:** the two trade height in proportion to their heights. When one reaches the editor's
+>   limit, the other goes on alone.
+> - **`duck`:** the belle shrinks.
+> - **Both:** back to built at the call's ends.
+> - **The floor:** wears a bake's heights. A `DUCK_UNDER` belle gets the duck bake, and everyone
+>   else gets meet.
+>
+> Results:
+> - **ryan → ryan:** cost 137 → 71, stretch 1.59× → 1.30×.
+> - **All 600 couples:** clean goes from 16% to 22% (meet) and 20% (duck); stock couples from 3 to
+>   5 and 4.
+> - **The nearest solve plus 300 iterations:** still 24/27 clean, in 54 ms.
+> - **Most couples who still fail lack reach, not height:** myco's and sprout's arms are half
+>   ryan's.
+>
+> ⏳ **Next:**
+> 1. Ryan watches `california-twirl.ryan-ryan.meet.json` / `.duck.json` on any floor.
+> 2. Decide what stretch above 2× becomes: clean, a reach (ADR-0048) or a break.
+> 3. Ship the library and the polish to the floor.
+
+> ### 2026-10-26 (4) — a model for the twirl: the nearest solve, polished
 >
 > [`journal/2026-10-26-4-a-model-for-the-twirl.md`](journal/2026-10-26-4-a-model-for-the-twirl.md)
-> · 🧪 **uncommitted**
+> · 🧪 committed `d9d38b0`
 >
 > Step 3 is measured. `couplePaths` gives any couple's paths without a browser (it matches the
 > hand capture). The 600 sampled couples were solved in 5 minutes.

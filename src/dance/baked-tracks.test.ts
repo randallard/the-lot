@@ -6,7 +6,10 @@ import {
   BAKE_FORMAT,
   BAKED_TRACKS,
   bodyPrint,
+  BREAK_SIZING,
+  chooseBake,
   findBake,
+  REVIEW2_SIZING,
   gapOff,
   bakeFits,
   GAP_KEY,
@@ -97,6 +100,43 @@ describe("baked tracks", () => {
     expect(findBake([k], "california-twirl", [ryan])).toBeUndefined();
   });
 
+  it("🧪 picks the style's bake, then one with no style (10-27)", () => {
+    const ryan = getBodyShape("ryan");
+    const p = bodyPrint(ryan);
+    const plain = track("california-twirl", [p, p], [{ t: 0, values: {} }]);
+    const meet = { ...track("california-twirl", [p, p], [{ t: 0, values: {} }]), grow: "meet" as const };
+    expect(findBake([plain, meet], "california-twirl", [ryan, ryan], "meet")).toBe(meet);
+    expect(findBake([plain, meet], "california-twirl", [ryan, ryan], "duck")).toBe(plain);
+  });
+
+  it("🧪 tosses reach against break only for a pair who reach past the limit, and obeys a call (10-27)", () => {
+    const ryan = getBodyShape("ryan");
+    const p = bodyPrint(ryan);
+    const k = (sizing: typeof REVIEW2_SIZING, stretch: number) =>
+      ({ ...track("california-twirl", [p, p], [{ t: 0, values: {} }]), sizing, stretch });
+    const holds = k(REVIEW2_SIZING, 1.4);
+    const reach = k(REVIEW2_SIZING, 2.6);
+    const lets = k(BREAK_SIZING, 1.5);
+    const pick = (ks: BakedTrack[], called: "reshape" | "break" | null, coin: "reshape" | "break") => {
+      let tossed = 0;
+      const got = chooseBake(ks, "california-twirl", [ryan, ryan], { called, draw: () => { tossed++; return coin; } });
+      return { got, tossed };
+    };
+    // Within the limit they hold, and no coin is tossed.
+    expect(pick([holds, lets], null, "break")).toEqual({ got: holds, tossed: 0 });
+    // Past it, the coin decides.
+    expect(pick([reach, lets], null, "break")).toEqual({ got: lets, tossed: 1 });
+    expect(pick([reach, lets], null, "reshape")).toEqual({ got: reach, tossed: 1 });
+    // A call outranks both, and a call with no bake for it gets none.
+    expect(pick([holds, lets], "break", "reshape").got).toBe(lets);
+    expect(pick([reach, lets], "reshape", "break").got).toBe(reach);
+    expect(pick([holds], "break", "reshape").got).toBeUndefined();
+    // Within the limit but not clean: tossed for too.
+    expect(pick([{ ...holds, clean: false }, lets], null, "break")).toEqual({ got: lets, tossed: 1 });
+    // Only one side solved: that one.
+    expect(pick([reach], null, "break").got).toBe(reach);
+  });
+
   it("turns an absolute keyframe into arms plus a step in each dancer's own frame", () => {
     // The beau faces −x (yaw −90°) and stands 10 cm further along −x than the engine put him:
     // that's 10 cm straight ahead for him. The belle is on her path.
@@ -145,8 +185,12 @@ describe("baked tracks", () => {
 
   it("ships the ryan → ryan twirl, and it matches today's ryan", () => {
     const ryan = getBodyShape("ryan");
-    const k = findBake(BAKED_TRACKS, "california-twirl", [ryan, ryan]);
+    // What a floor picks (10-27): the torsos meeting in the middle, held without a toss.
+    const k = chooseBake(BAKED_TRACKS, "california-twirl", [ryan, ryan], { grow: "meet", draw: () => "break" });
     expect(k).toBeDefined();
+    expect(k!.grow).toBe("meet");
+    const broken = chooseBake(BAKED_TRACKS, "california-twirl", [ryan, ryan], { called: "break", draw: () => "reshape" });
+    expect(broken?.sizing?.accommodation).toBe("break");
     expect(k!.keyframes.length).toBe(41);
     expect(k!.keyframes[0]!.t).toBe(0);
     expect(k!.keyframes[k!.keyframes.length - 1]!.t).toBe(1);

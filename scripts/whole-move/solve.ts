@@ -5,7 +5,13 @@
  *
  *   npx vite-node scripts/whole-move/solve.ts [paths.json] [iterations] [--margin=0.06]
  *     [--targets=<bundle.json>] [--target-weight=1] [--out=<file>] [--gradient=exact|numeric]
- *     [--tries=4 | --seed=N] [--rate=] [--rate-end=] [--jitter=]
+ *     [--tries=4 | --seed=N] [--rate=] [--rate-end=] [--jitter=] [--grow=none|meet|duck]
+ *     [--pair=<beau>,<belle>]
+ *
+ * `--grow` (10-27): who may change height (`GrowStyle`: `meet` trades in proportion, `duck` the
+ * belle shrinks); the bundle carries it as `<d>.torso.grow` (cm). `--pair` takes the floor paths
+ * from the engine (`couplePaths`, as `#review2` sizes them) rather than a captured file, and
+ * writes them beside the bundle as `<beau>-<belle>-twirl.paths.json` for `bake.ts`.
  *
  * `--gradient` (2026-10-26, step 2): `exact` (the default) is `frameCostGrad`, run on
  * `SCHEDULE` (a falling step with a little noise, best of 4 seeds: about 6 s, 1.4 s a seed).
@@ -49,6 +55,9 @@ import {
   type Frame,
 } from "../../src/dance/whole-move";
 import { twirlMove, type TwirlPaths } from "../../src/dance/whole-move-twirl";
+import { couplePaths } from "../../src/dance/engine-paths";
+import { REVIEW2_SIZING } from "../../src/dance/baked-tracks";
+import type { GrowStyle } from "../../src/dance/whole-move";
 
 
 const flags = process.argv.slice(2).filter((a) => a.startsWith("--"));
@@ -74,8 +83,22 @@ const rateEnd = Number(flag("rate-end") ?? (plain ? rate : SCHEDULE.rateEnd));
 const jitter = Number(flag("jitter") ?? (plain ? 0 : SCHEDULE.jitter));
 const seedFlag = flag("seed");
 const tries = seedFlag !== undefined ? 1 : Number(flag("tries") ?? (plain ? 1 : SCHEDULE.tries));
-const file = args[0] ?? join(dirname(new URL(import.meta.url).pathname), "ryan-ryan-twirl.paths.json");
-const P = JSON.parse(readFileSync(file, "utf8")) as TwirlPaths;
+const grow = (flag("grow") ?? "none") as GrowStyle;
+if (!["none", "meet", "duck"].includes(grow)) throw new Error(`bad --grow: ${grow}`);
+const pair = flag("pair")?.split(",");
+const here = dirname(new URL(import.meta.url).pathname);
+let file = args[0] ?? join(here, "ryan-ryan-twirl.paths.json");
+let P: TwirlPaths;
+if (pair !== undefined) {
+  const [a = "", b = ""] = pair;
+  const paths = couplePaths("california-twirl", [getBodyShape(a), getBodyShape(b)], REVIEW2_SIZING);
+  P = { pairing: `${a}-${b}`, figure: "california-twirl", shapes: [a, b], beau: paths.beau, belle: paths.belle };
+  file = join(outFlag === undefined ? here : dirname(outFlag), `${a}-${b}-twirl.paths.json`);
+  writeFileSync(file, JSON.stringify({ _note: "couplePaths (REVIEW2_SIZING), solve.ts --pair", ...P }, null, 1));
+  console.log(`paths from the engine: ${file}`);
+} else {
+  P = JSON.parse(readFileSync(file, "utf8")) as TwirlPaths;
+}
 const bodies = [bodyOf(getBodyShape(P.shapes[0])), bodyOf(getBodyShape(P.shapes[1]))] as const;
 // Ryan's keyframes, if given: the ones with dials he set.
 const LOCKED_WEIGHT = 10;
@@ -99,7 +122,8 @@ if (targetsFile !== undefined) {
   if (unused.length > 0) console.log(`  not solver variables, left out: ${unused.join(", ")}`);
 }
 
-const { move, path: frames, start } = twirlMove(P, [bodies[0], bodies[1]], targets);
+const { move, path: frames, start } = twirlMove(P, [bodies[0], bodies[1]], targets, grow);
+if (grow !== "none") console.log(`grow: ${grow}`);
 const n = frames.length;
 
 // The start: held hands on the guide arc (two-bone IK, elbows out). Then no guide at all.
@@ -219,6 +243,6 @@ const events: PoseEvent[] = out.map((f, i) => {
     new Date(stamp + i),
   );
 });
-const outFile = outFlag ?? join(dirname(file), `${P.pairing}-${P.figure}.solved.json`);
+const outFile = outFlag ?? join(dirname(file), `${P.pairing}-${P.figure}${grow === "none" ? "" : `.${grow}`}.solved.json`);
 writeFileSync(outFile, JSON.stringify(toBundle(events), null, 1));
 console.log(`wrote ${outFile} (${String(events.length)} keyframes)`);
