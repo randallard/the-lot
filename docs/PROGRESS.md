@@ -6,7 +6,29 @@ _Last updated: 2026-10-28_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-28 (4) — the couple handhold at beat 0 too
+> ### ▶ PICK UP HERE — 2026-10-28 (5) — Right and Left Thru on the engine's paths
+>
+> [`journal/2026-10-28-5-right-and-left-thru-on-the-engines-paths.md`](journal/2026-10-28-5-right-and-left-thru-on-the-engines-paths.md)
+> · ✅ committed with (6), on the pin to square-one **v0.7.0** (Ryan: *"commit it, release and
+> pin"*), validated against the fetched tarball: `tsc -b`, `vite build`, the 38 known failures.
+>
+> - `whole-move-rlt.ts` samples square-one's `applyCallToFacingCouples` instead of writing
+>   paths. **6 beats** (the chart's from facing couples), not 8; the `#review2` figure is retimed.
+> - Bodies stay here: each couple's width; the arm-aware lane, as the engine's **set clearance**;
+>   the turn's closeness (`bodyLane`); the lady a little ahead; the holds. The pull-by times are
+>   scaled to 2 beats, and the hand goes to her back only while he can reach it (ember–sprout).
+> - Re-baked all 25: **clip 0 everywhere**, hands ≤ 2.5 cm, jumps 16–26°, steps 6–36 cm.
+> - **(6)** His right arm goes to her back in **every** set now. A reach for the whole turn plus
+>   the full hold where he can reach it; (5)'s reach test had left 18 of 25 with no hand there
+>   ([journal 6](journal/2026-10-28-6-his-arm-at-her-back-always.md)). Ember–sprout's 64° is a
+>   vertical forearm's heading spinning, not a snap.
+>
+> ⏳ **Next:** mixed sets (a cast picker, baked on demand or in a worker), Ryan's "later"; whether
+> the engine's Courtesy Turn should put the lady ahead itself; step 6 (20 couples' draw budget).
+>
+> ---
+>
+> ### 2026-10-28 (4) — the couple handhold at beat 0 too
 >
 > [`journal/2026-10-28-4-the-handhold-at-beat-0.md`](journal/2026-10-28-4-the-handhold-at-beat-0.md)
 > · ✅ committed with (1)–(3) (Ryan: *"commit it"*)

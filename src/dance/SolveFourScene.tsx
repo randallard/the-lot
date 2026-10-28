@@ -85,9 +85,9 @@ export function SolveFourScene({ cast }: { cast: string[] }) {
         {solved === null ? <div>solving…</div> : (
           <>
             <button onClick={() => setPlaying((p) => !p)}>{playing ? "pause" : "play"}</button>
-            <span style={{ marginLeft: 8 }}>beat {beat.toFixed(1)} / 8</span>
+            <span style={{ marginLeft: 8 }}>beat {beat.toFixed(1)} / {String((move.frames.length - 1) / PER_BEAT)}</span>
             <input
-              type="range" min={0} max={8} step={0.1} value={Math.min(8, beat)} style={{ width: "100%" }}
+              type="range" min={0} max={(move.frames.length - 1) / PER_BEAT} step={0.1} value={Math.min((move.frames.length - 1) / PER_BEAT, beat)} style={{ width: "100%" }}
               onChange={(e) => { setPlaying(false); clock.current.beat = Number(e.target.value); setBeat(Number(e.target.value)); }}
             />
             <pre style={{ whiteSpace: "pre-wrap" }}>

@@ -39,30 +39,30 @@ const RLT_STEPS: readonly ReviewStep[] = [
   {
     id: "right-hands",
     label: "right hands",
-    pose: { kind: "beat", beat: 1.75 },
+    pose: { kind: "beat", beat: 0.7 },
     watch: "Each gives a right hand to the opposite and pulls by, right shoulders passing, the arms clear of the dancers they pass.",
   },
   {
     id: "left-hands",
     label: "left hands",
-    pose: { kind: "beat", beat: 4 },
+    pose: { kind: "beat", beat: 2.5 },
     watch: "Each gent takes his partner's left hand in his left, his right hand on her back.",
   },
   {
     id: "courtesy",
     label: "courtesy turn",
-    pose: { kind: "beat", beat: 5.75 },
+    pose: { kind: "beat", beat: 4 },
     watch: "They turn left as a unit, close, the lady a little ahead, the gent backing up.",
   },
   {
     id: "home",
     label: "facing again",
-    pose: { kind: "beat", beat: 8 },
+    pose: { kind: "beat", beat: 6 },
     watch: "On the other side, facing the other couple, back in the ordinary handhold.",
   },
 ];
 
 export const REVIEW2_FIGURES: readonly Review2Figure[] = [
   ...REVIEW_FIGURES,
-  { id: "right-and-left-thru", label: "Right and Left Thru (4)", solved: "right-and-left-thru", beats: 8, steps: RLT_STEPS },
+  { id: "right-and-left-thru", label: "Right and Left Thru (4)", solved: "right-and-left-thru", beats: 6, steps: RLT_STEPS },
 ];

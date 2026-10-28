@@ -3,6 +3,9 @@ import { getBodyShape } from "../services/body-shapes";
 import { bodyPrint } from "./baked-tracks";
 import { decodeRows, dialsAt, encodeRows, FIELDS, fourFileName, type FourBake } from "./baked-four";
 import { reviewPairings } from "./review-route";
+import { isSolved, REVIEW2_FIGURES } from "./review2-figures";
+
+const RLT_BEATS = REVIEW2_FIGURES.find((f) => isSolved(f) && f.solved === "right-and-left-thru")?.beats ?? 0;
 import { rightAndLeftThru } from "./whole-move-rlt";
 
 const files = import.meta.glob("./baked-four/*.json", { eager: true, import: "default" });
@@ -34,7 +37,8 @@ describe("four-dancer bakes (2026-10-28)", () => {
       expect(bake, file).toBeDefined();
       if (bake === undefined) continue;
       expect(bake.bodies, file).toEqual(cast.map((id) => bodyPrint(getBodyShape(id))));
-      expect(bake.rows).toHaveLength(8 * bake.perBeat + 1);
+      // As long as the figure that plays it (the engine's 6 beats since 10-28; it was 8).
+      expect(bake.rows).toHaveLength(RLT_BEATS * bake.perBeat + 1);
     }
   });
 });

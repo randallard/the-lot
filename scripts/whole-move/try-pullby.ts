@@ -19,11 +19,11 @@ const n = move.frames.length;
 for (const h of move.holds.slice(0, 2)) console.log(`hold ${String(h.a.dancer)}→${"side" in h.b ? String(h.b.dancer) : "back"} beats ${(h.from * (n - 1) / 10).toFixed(1)}–${(h.to * (n - 1) / 10).toFixed(1)} at ${((h.height ?? 0) * 100).toFixed(0)} cm`);
 const r = solveN(move, { iterations: 3000 });
 const m = metricsN(move, r.v);
-console.log(`cost ${r.cost.toFixed(0)}, clip ${(m.clip * 100).toFixed(1)} cm, hands ${(m.holdGap * 100).toFixed(1)} cm (${m.holdAt}), jump ${m.jump.toFixed(0)}° (${m.jumpAt}), step ${(m.step * 100).toFixed(0)} cm`);
+console.log(`cost ${r.cost.toFixed(0)}, clip ${(m.clip * 100).toFixed(1)} cm (${m.clipAt}), hands ${(m.holdGap * 100).toFixed(1)} cm (${m.holdAt}), jump ${m.jump.toFixed(0)}° (${m.jumpAt}), step ${(m.step * 100).toFixed(0)} cm`);
 const b = move.bodies;
 const hand = (d: number, i: number) => toFloor(armPoints(b[d]!, 1, r.frames[i]![d]!.arms[1]).h, r.frames[i]![d]!);
 const cm = (x: number) => (x * 100).toFixed(0).padStart(4);
-for (let i = 0; i <= 36; i += 2) {
+for (let i = 0; i <= 24; i += 2) {
   const row = [[0, 3], [1, 2]].map(([p, q]) => {
     const hp = hand(p!, i), hq = hand(q!, i);
     return `gap ${cm(Math.hypot(hp[0] - hq[0], hp[1] - hq[1], hp[2] - hq[2]))} y ${cm(hp[1])}${cm(hq[1])}`;
