@@ -95,6 +95,28 @@ export function standingTargets(shapes: readonly [CharacterBodyShape, CharacterB
  * with paths sized for a break (`couplePaths` with a `break` sizing): the beau bows out as far as
  * a break needs, which on most of the stock cast is no further than held.
  */
+/**
+ * Two floor paths (cm, rig yaw in degrees) as solver frames (m, radians), arms at rest. Facing is
+ * unwrapped so the path doesn't jump ±360° between samples.
+ */
+export function pathFrames(P: Pick<TwirlPaths, "beau" | "belle">, bodies: readonly [Body, Body]): Frame[] {
+  const path: Frame[] = P.beau.map((b, i) => {
+    const g = P.belle[i] ?? b;
+    return [
+      { x: b.x / 100, z: b.z / 100, yaw: b.facing * D2R, arms: [restArm(bodies[0]), restArm(bodies[0])] },
+      { x: g.x / 100, z: g.z / 100, yaw: g.facing * D2R, arms: [restArm(bodies[1]), restArm(bodies[1])] },
+    ];
+  });
+  for (const k of [0, 1] as const) for (let i = 1; i < path.length; i++) {
+    const prev = path[i - 1]?.[k].yaw ?? 0;
+    const cur = path[i]?.[k];
+    if (cur === undefined) continue;
+    while (cur.yaw - prev > Math.PI) cur.yaw -= 2 * Math.PI;
+    while (cur.yaw - prev < -Math.PI) cur.yaw += 2 * Math.PI;
+  }
+  return path;
+}
+
 export function twirlMove(
   P: TwirlPaths,
   bodies: [Body, Body],
@@ -104,21 +126,7 @@ export function twirlMove(
   home?: readonly [CharacterBodyShape, CharacterBodyShape],
 ): { move: Move; path: Frame[]; start: Frame[] } {
   const broken = accommodation === "break";
-  const path: Frame[] = P.beau.map((b, i) => {
-    const g = P.belle[i] ?? b;
-    return [
-      { x: b.x / 100, z: b.z / 100, yaw: b.facing * D2R, arms: [restArm(bodies[0]), restArm(bodies[0])] },
-      { x: g.x / 100, z: g.z / 100, yaw: g.facing * D2R, arms: [restArm(bodies[1]), restArm(bodies[1])] },
-    ];
-  });
-  // Facing is unwrapped so the path doesn't jump ±360° between samples.
-  for (const k of [0, 1] as const) for (let i = 1; i < path.length; i++) {
-    const prev = path[i - 1]?.[k].yaw ?? 0;
-    const cur = path[i]?.[k];
-    if (cur === undefined) continue;
-    while (cur.yaw - prev > Math.PI) cur.yaw -= 2 * Math.PI;
-    while (cur.yaw - prev < -Math.PI) cur.yaw += 2 * Math.PI;
-  }
+  const path = pathFrames(P, bodies);
 
   // The beau's right holds the belle's left for the whole call: the arch span, then the ordinary
   // handhold it releases into (square-one ADR-0026; the arch is 0–3.5 of 4 beats). The arch's

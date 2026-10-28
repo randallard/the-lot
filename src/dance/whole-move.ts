@@ -398,6 +398,12 @@ export interface Move {
    * across it, as square-one ADR-0026 says: without it the hands dipped to the chest at the join.
    */
   lift?: readonly (number | undefined)[];
+  /**
+   * 🧪 How far the beau may step off the floor's path (m) before it costs ten times clipping (step 7,
+   * 2026-10-28). The brief's B.5: *"with 20 couples, a 26 cm step-out is how neighbouring couples
+   * collide"*. Absent: only `WEIGHTS.step`'s soft pull, as before.
+   */
+  stepCap?: number;
 }
 
 export interface Weights {
@@ -675,7 +681,7 @@ export function unpackOne(v: Float64Array, i: number, base: Frame): Frame {
   return [{ ...beau, grow: grow(0) }, { ...belle, grow: grow(1) }];
 }
 
-function smoothCost(v: Float64Array, n: number, w: Weights, grad?: Float64Array, home = false): number {
+function smoothCost(v: Float64Array, n: number, w: Weights, grad?: Float64Array, home = false, stepCap?: number): number {
   let c = 0;
   for (let k = 0; k < PER; k++) {
     const sc = isMetric(k) ? METRE * METRE : 1;
@@ -703,6 +709,21 @@ function smoothCost(v: Float64Array, n: number, w: Weights, grad?: Float64Array,
       const ws = home && (i === 0 || i === n - 1) ? 10 * w.clip : k === 25 ? w.step * 25 : w.step;
       c += ws * x * x;
       if (grad) grad[i * PER + k] = (grad[i * PER + k] ?? 0) + 2 * ws * x;
+    }
+  }
+  // 🧪 The step cap (step 7, 10-28): past `stepCap` the beau's step costs ten times clipping, as
+  // `home` pins a call's ends. At clipping's own weight the twirl still stepped 4 cm past a 10 cm cap.
+  if (stepCap !== undefined) for (let i = 0; i < n; i++) {
+    const x = v[i * PER + 24] ?? 0;
+    const y = v[i * PER + 25] ?? 0;
+    const r = Math.hypot(x, y);
+    if (r <= stepCap) continue;
+    const over = r - stepCap;
+    c += 10 * w.clip * over * over;
+    if (grad) {
+      const k = (20 * w.clip * over) / r;
+      grad[i * PER + 24] = (grad[i * PER + 24] ?? 0) + k * x;
+      grad[i * PER + 25] = (grad[i * PER + 25] ?? 0) + k * y;
     }
   }
   return c;
@@ -1171,7 +1192,7 @@ export function solve(m: Move, o: SolveOptions = {}): { frames: Frame[]; cost: n
   let cost = 0;
   for (let it = 1; it <= iters; it++) {
     const grad = new Float64Array(v.length);
-    cost = smoothCost(v, n, w, grad, m.home === true);
+    cost = smoothCost(v, n, w, grad, m.home === true, m.stepCap);
     const fade = o.guide && o.guideFor ? Math.max(0, 1 - it / (iters * o.guideFor)) : 0;
     for (let i = 0; i < n; i++) {
       const baseF = base[i];

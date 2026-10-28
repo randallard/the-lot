@@ -6,7 +6,29 @@ _Last updated: 2026-10-28_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-28 (7) — the draw budget, measured (step 6)
+> ### ▶ PICK UP HERE — 2026-10-28 (8) — `solve-all` (step 7)
+>
+> [`journal/2026-10-28-8-solve-all.md`](journal/2026-10-28-8-solve-all.md) · ✅ committed (Ryan: *"commit it"*);
+> nothing baked by it; no floor changes.
+>
+> - Built: `figurePaths` (any figure's paths with no browser, couple or facing pair, with the
+>   engine's grips); `figureMove`; `Move.stepCap` (ten times clipping past it);
+>   `scripts/whole-move/solve-all.ts` (workers, `results.json`, `report.md`, outliers first).
+>   Reports are in `docs/solve-all/`.
+> - **75 hands-free solves in 54 s on 30 workers.** Uncapped, all clean but the beau steps up to
+>   41 cm; capped at 10 cm, 23 clip. **The step follows the arms:** every pairing with ryan
+>   steps 12–41 cm, because the clearance passed to the engine counts torsos and heads, not
+>   arms. That's Right and Left Thru's gap again.
+> - Also: the 6 cm margin is the twirl's (hands free, it stretched every arm 1.3–1.8×; free
+>   figures now use 2 cm); `pass` clips before the crossing for ember ×4; Allemande Left's forearm
+>   grip isn't solvable yet.
+>
+> ⏳ **Next (Ryan's call):** an arm-aware clearance for every figure, then re-run; `pass` solved
+> for its closest moment in square-one; a forearm hold; then bake the clean ones.
+>
+> ---
+>
+> ### 2026-10-28 (7) — the draw budget, measured (step 6)
 >
 > [`journal/2026-10-28-7-the-draw-budget-measured.md`](journal/2026-10-28-7-the-draw-budget-measured.md)
 > · measurement only; this entry is uncommitted

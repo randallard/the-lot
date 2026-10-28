@@ -6,7 +6,10 @@
  * screen. Checked against the 10-24 capture in `engine-paths.test.ts`.
  */
 
-import { createPerformance, danceCoupleSequence, flattenSequence, partnerUp, type CallName, type ShapeAt } from "square-one";
+import {
+  applyCallToPair, createPerformance, danceCoupleSequence, DEFAULT_PAIR_SHAPE, flattenSequence, partnerUp, shapeOf,
+  type CallName, type GripSpan, type Motion, type ShapeAt,
+} from "square-one";
 import { armMetrics, touchHold } from "./arm-pose";
 import { NO_DUCK, sizeArch } from "./arch";
 import { BREAK, RESHAPE } from "./accommodation";
@@ -27,7 +30,7 @@ export function couplePaths(
   shapes: readonly [CharacterBodyShape, CharacterBodyShape],
   sizing: BakedSizing,
   n = 41,
-): { beau: PathSample[]; belle: PathSample[]; beats: number } {
+): { beau: PathSample[]; belle: PathSample[]; beats: number; grips: { beau: readonly GripSpan[]; belle: readonly GripSpan[] } } {
   const [a, b] = shapes;
   const scale = DEFAULT_SCALE;
   const am = armMetrics(a);
@@ -44,7 +47,37 @@ export function couplePaths(
     partnerUp("a", "b", undefined, undefined, hold.width / scale, bodies / scale, undefined, pairGripRadius(am, bm) / scale),
     shapeAt,
   );
-  const motions = flattenSequence(seq);
+  return sampleMotions(flattenSequence(seq), n);
+}
+
+/**
+ * 🧪 Any `#review` figure's floor paths, with no browser (step 7, 2026-10-28): a couple figure as
+ * {@link couplePaths} has it, and a facing pair's (Dosado, Pass Thru, Allemande Left) as the floor
+ * dances it (`useDancePerformance`: `applyCallToPair`, sized by the pair's clearance and grip
+ * radius). With each dancer's grips, the engine's own word on which hands are held when.
+ */
+export function figurePaths(
+  call: CallName,
+  formation: "couple" | "pair",
+  shapes: readonly [CharacterBodyShape, CharacterBodyShape],
+  sizing: BakedSizing,
+  n = 41,
+): { beau: PathSample[]; belle: PathSample[]; beats: number; grips: { beau: readonly GripSpan[]; belle: readonly GripSpan[] } } {
+  if (formation === "couple") return couplePaths(call, shapes, sizing, n);
+  const [a, b] = shapes;
+  const am = armMetrics(a);
+  const bm = armMetrics(b);
+  const scale = DEFAULT_SCALE;
+  const pair = applyCallToPair(
+    call,
+    shapeOf({ clearance: passingWidth(lateralClearance(rigidParts(a), rigidParts(b))) / scale, gripRadius: pairGripRadius(am, bm) / scale }, DEFAULT_PAIR_SHAPE),
+  );
+  return sampleMotions(pair, n);
+}
+
+/** Two dancers' motions (keys `a`, `b`) sampled as `DanceFloor` places a rig. */
+function sampleMotions(motions: Record<string, Motion>, n: number): { beau: PathSample[]; belle: PathSample[]; beats: number; grips: { beau: readonly GripSpan[]; belle: readonly GripSpan[] } } {
+  const scale = DEFAULT_SCALE;
   const beats = Math.max(...Object.values(motions).map((m) => m.beats));
   const frame = makeFrame({ x: 0, z: 0 }, scale, 0);
   const beau: PathSample[] = [];
@@ -60,5 +93,5 @@ export function couplePaths(
       else if (s.key === "b") belle.push(p);
     }
   }
-  return { beau, belle, beats };
+  return { beau, belle, beats, grips: { beau: motions.a?.grips ?? [], belle: motions.b?.grips ?? [] } };
 }
