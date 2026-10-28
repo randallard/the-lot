@@ -842,6 +842,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
                     baked={baked}
                     call={figure.call}
                     {...(figure.sequence === undefined ? {} : { sequence: figure.sequence })}
+          {...(figure.waits === undefined ? {} : { waits: figure.waits })}
                     paused={!playing}
                     seek={seek}
                     {...(id === pid ? { onBeat } : {})}

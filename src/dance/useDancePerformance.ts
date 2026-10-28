@@ -44,6 +44,12 @@ export interface DancePerformanceOptions {
    */
   readonly sequence?: readonly CallName[];
   /**
+   * 🧪 Beats the dancers wait before each call of {@link sequence}, by index; missing is none
+   * (square-one's `danceCoupleSequence`, 10-27). A beat or more (`WAIT_BEATS`) and the hold lets
+   * go before it and they stand waiting; less, and the dance flows on with hands held.
+   */
+  readonly waits?: readonly number[];
+  /**
    * How wide the couple stands, in engine units. Omitted falls back to square-one's
    * `COUPLE_WIDTH`.
    *
@@ -177,6 +183,7 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
     clearance,
     gripRadius,
     shapeAt,
+    waits,
     bpm = DEFAULT_BPM,
     loop = true,
     externallyDriven,
@@ -203,6 +210,7 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
             gripRadius,
           ),
           shapeAt,
+          waits,
         );
       return {
         motions: flattenSequence(seq),
@@ -229,7 +237,7 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
       ),
     );
     return { motions: { a, b }, steps: [{ call, startBeat: 0, beats: Math.max(a.beats, b.beats) }] };
-  }, [call, sequence, coupleWidth, clearance, archClearance, gripRadius, shapeAt]);
+  }, [call, sequence, coupleWidth, clearance, archClearance, gripRadius, shapeAt, waits]);
 
   const beats = useMemo(
     () => Math.max(...Object.values(motions).map((m) => m.beats)),

@@ -1350,6 +1350,7 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
             key={`${cell.pairing.beau}|${cell.pairing.belle}|${cell.figure.id}|${called ?? "toss"}`}
             call={cell.figure.call}
             {...(cell.figure.sequence === undefined ? {} : { sequence: cell.figure.sequence })}
+            {...(cell.figure.waits === undefined ? {} : { waits: cell.figure.waits })}
             paused
             seek={seek}
             onBeat={onBeat}

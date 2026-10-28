@@ -23,6 +23,8 @@ export interface DebugFigure {
   readonly call: CallName;
   /** When present, the couple sequence to dance instead. */
   readonly sequence?: readonly CallName[];
+  /** 🧪 Beats waited before each call of {@link sequence}, by index (10-27). */
+  readonly waits?: readonly number[];
 }
 
 export const DEBUG_FIGURES: readonly DebugFigure[] = [
@@ -42,6 +44,23 @@ export const DEBUG_FIGURES: readonly DebugFigure[] = [
     label: "2× California Twirl (zero)",
     call: "california-twirl",
     sequence: ["california-twirl", "california-twirl"],
+  },
+  // 🧪 The same two Twirls with the caller late (10-27). Ryan: *"if there's a beat or more after
+  // the next call should be called then they go to handhold"*. Two beats: the arch lets go and
+  // they wait in the handhold. Half a beat: they hold the arch and flow on.
+  {
+    id: "two-twirls-wait",
+    label: "2× California Twirl, 2 beats' wait between",
+    call: "california-twirl",
+    sequence: ["california-twirl", "california-twirl"],
+    waits: [0, 2],
+  },
+  {
+    id: "two-twirls-half",
+    label: "2× California Twirl, half a beat between",
+    call: "california-twirl",
+    sequence: ["california-twirl", "california-twirl"],
+    waits: [0, 0.5],
   },
   // 🔴 The two calls walk the **identical** paths (square-one's ADR-0017): a Twirl is a
   // Trade with the inside hands joined and raised. One of each is a zero, and until the

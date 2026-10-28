@@ -6,7 +6,29 @@ _Last updated: 2026-10-27_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-27 (6) — the held arms may come close; the join's window widens
+> ### ▶ PICK UP HERE — 2026-10-27 (7) — a wait between calls
+>
+> [`journal/2026-10-27-7-a-wait-between-calls.md`](journal/2026-10-27-7-a-wait-between-calls.md)
+> · 🧪 committed here and in square-one (Ryan: *"commit both"*)
+>
+> Ryan's rule: a beat or more before the next call and they settle into the handhold; less and
+> the arch carries on. Ryan put the wait in the engine:
+> - **square-one:** `danceCoupleSequence(..., waits)`, `flattenSequence` standing them still, and
+>   `WAIT_BEATS` (1) releasing the hold before a wait (square-one journal 25).
+> - **Here:** `waits` on `useDancePerformance` and on a figure, `ChainCall.wait`, and `joinChain`
+>   treats a wait like the sequence's start and end.
+> - **New figures:** `#dance=two-twirls-wait` (2 beats) and `#dance=two-twirls-half` (half a beat).
+>   Checked in Chrome with NPC Ryan / NPC Ryan.
+>
+> ⏳ **Next:**
+> 1. ✅ Committed in both.
+> 2. Release square-one v0.6.0 and move the pin. CI is pinned to v0.5.0 and won't build this
+>    until then.
+> 3. Step 5: a 4-dancer call.
+>
+> ---
+>
+> ### 2026-10-27 (6) — the held arms may come close; the join's window widens
 >
 > [`journal/2026-10-27-6-the-held-arms-may-come-close.md`](journal/2026-10-27-6-the-held-arms-may-come-close.md)
 > · 🧪 committed (Ryan: *"looks better"*)

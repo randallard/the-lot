@@ -694,11 +694,12 @@ export function DanceFloor({
         return {
           bake,
           paths: bake === undefined || c === undefined ? undefined : couplePaths(c, shapes, bake.sizing ?? REVIEW2_SIZING),
+          wait: performanceOptions.waits?.[i] ?? 0,
         };
       }),
       shapes,
     );
-  }, [baked, performanceOptions.sequence, performanceOptions.call, shapes, turnUnder, calledAccommodation, forced]);
+  }, [baked, performanceOptions.sequence, performanceOptions.waits, performanceOptions.call, shapes, turnUnder, calledAccommodation, forced]);
 
   /**
    * 🧪 How far each dancer is willing to drop, for `sizeArch`'s duck step — the shape editor's

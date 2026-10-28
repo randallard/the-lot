@@ -738,6 +738,7 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
           key={`${castIds.beau}|${castIds.belle}|${sizes}`}
           call={call}
           {...(figure.sequence === undefined ? {} : { sequence: figure.sequence })}
+          {...(figure.waits === undefined ? {} : { waits: figure.waits })}
           bpm={bpm}
           loop
           followDrift={drift}

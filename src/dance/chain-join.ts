@@ -10,7 +10,8 @@
  *
  * - **Two bakes in a row** (a twirl after a twirl): the last beat of one and the first beat of
  *   the next are re-solved as one window, hands held across the join, so the arch flows on.
- * - **The sequence's start and end**, and a boundary with a call that has no bake: the couple
+ * - **The sequence's start and end**, a wait of a beat or more before a call (square-one's
+ *   `WAIT_BEATS`), and a boundary with a call that has no bake: the couple
  *   is waiting, or the floor is posing them, and the floor's pose there is the standing couple
  *   (`standingFrame`: the hold at the taller dancer's waist). The window runs from that pose
  *   into the bake, or out of it. Ryan, 10-27: *"during the chain they don't go all the way to
@@ -21,6 +22,7 @@
  * so it meets the untouched part of each bake exactly. Pure: no three.js.
  */
 
+import { WAIT_BEATS } from "square-one";
 import type { CharacterBodyShape } from "../services/body-shapes";
 import { stepToCouple, stepToDancer, type BakedKeyframe, type BakedTrack, type PathSample } from "./baked-tracks";
 import { bodyOf, growRoom, PER, reachArm, restArm, shapesOf, solve, toFloor, unpackOne, WEIGHTS, fromDials, toDials, type Body, type Frame, type Hold, type Move, type Vec } from "./whole-move";
@@ -32,6 +34,12 @@ const D2R = Math.PI / 180;
 export interface ChainCall {
   readonly bake: BakedTrack | undefined;
   readonly paths: { readonly beau: readonly PathSample[]; readonly belle: readonly PathSample[] } | undefined;
+  /**
+   * Beats the dancers wait before this call (square-one's `waits`). A beat or more
+   * (`WAIT_BEATS`) and the boundary is a wait: the call before ends in the standing couple and
+   * this one starts from it. Less, and the two join with the hands held, as with none.
+   */
+  readonly wait?: number;
 }
 
 export interface JoinOptions {
@@ -292,13 +300,16 @@ export function joinChain(
     return { bake: c.bake, path, values: c.bake.keyframes.map((k) => ({ ...k.values })) };
   });
 
+  /** Whether the dancers wait a beat or more before call `i`. */
+  const waits = (i: number) => (calls[i]?.wait ?? 0) >= WAIT_BEATS - 1e-6;
+
   work.forEach((w, i) => {
     if (w === undefined) return;
     const n = w.path.length;
     const weight = holdWeight(w.bake);
     const hold: Hold[] = [{ from: 0, to: 1, beau: 1, belle: 0, weight }];
     // Its start: waiting, or after a call the floor posed. The bake eased onto the standing couple.
-    if (i === 0 || work[i - 1] === undefined) {
+    if (i === 0 || work[i - 1] === undefined || waits(i)) {
       const frames = w.path.slice(0, K + 1);
       const bake = packAll(w.values.slice(0, K + 1), frames, bodies);
       const stand = new Float64Array(PER);
@@ -307,8 +318,9 @@ export function joinChain(
       const r = polish(frames, v, hold, bodies, w.bake.grow, iters);
       for (let j = 0; j < K; j++) w.values[j] = unpackValues(r, j, frames[j]!, w.values[j]!);
     }
-    // Its end: the dance ends waiting (ADR-0026's release), or a call the floor poses follows.
-    const next = work[i + 1];
+    // Its end: the dance ends waiting (ADR-0026's release), a wait follows, or a call the floor
+    // poses follows.
+    const next = waits(i + 1) ? undefined : work[i + 1];
     if (next === undefined) {
       const frames = w.path.slice(n - 1 - K);
       const bake = packAll(w.values.slice(n - 1 - K), frames, bodies);

@@ -98,6 +98,24 @@ describe("🧪 calls chain (step 4, 2026-10-27; square-one ADR-0026)", () => {
     }
   });
 
+  it("waits a beat or more in the standing couple, and flows on through less (10-27)", () => {
+    // Ryan: "if there's a beat or more after the next call should be called then they go to
+    // handhold". square-one's waits leave the gap; the join reads it from each call's `wait`.
+    const path = (i: number) => [
+      { x: paths.beau[i]!.x / 100, z: paths.beau[i]!.z / 100, yaw: paths.beau[i]!.facing * D2R, arms: [] },
+      { x: paths.belle[i]!.x / 100, z: paths.belle[i]!.z / 100, yaw: paths.belle[i]!.facing * D2R, arms: [] },
+    ] as never;
+    const [w1, w2] = joinChain([{ bake, paths }, { bake, paths, wait: 2 }], shapes);
+    for (const [track, i] of [[w1!, n - 1], [w2!, 0]] as const) {
+      const want = standingFrame(shapes, bodies, path(i));
+      const got = fromDials(track.keyframes[i]!.values, 0, bodies[0]);
+      expect(short((got.arms[1].raise - want[0].arms[1].raise) * R2D), `sample ${String(i)}`).toBeLessThan(0.2);
+    }
+    // Half a beat is no wait: the same join as none, the arch held through it.
+    const [h1] = joinChain([{ bake, paths }, { bake, paths, wait: 0.5 }], shapes);
+    expect(h1!.keyframes[n - 1]!.values).toEqual(a!.keyframes[n - 1]!.values);
+  });
+
   it("leaves the middle of each call as baked", () => {
     for (let i = K; i <= n - 1 - J; i++) expect(a!.keyframes[i]!.values).toEqual(bake.keyframes[i]!.values);
     for (let i = J; i <= n - 1 - K; i++) expect(b!.keyframes[i]!.values).toEqual(bake.keyframes[i]!.values);
