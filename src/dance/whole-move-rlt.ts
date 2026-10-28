@@ -24,6 +24,7 @@ import { lateralClearance, rigidParts, type CharacterBodyShape } from "../servic
 import { armMetrics, touchHold } from "./arm-pose";
 import { applyCallToFacingCouples, sampleMotion, setFacingCouples } from "square-one";
 import { facingToRotationY, makeFrame, passingWidth, toWorld } from "./frame";
+import { passingClearance } from "./passing";
 import { bodyOf, restArm, toFloor, type Body, type DancerFrame } from "./whole-move";
 import { backPoint, type NHold, type NMove } from "./whole-move-n";
 
@@ -81,9 +82,9 @@ export function rightAndLeftThru(shapes: readonly CharacterBodyShape[], o: RltOp
   // arms pass too, so the lane is the wider of the bodies' (`passingWidth`, torsos and heads) and
   // the two shoulders with an arm hanging off each (10-27: four Ryans' shoulders stand 46 cm out,
   // past their 30 cm torsos, and the gents stepped 38 cm wide of a bodies-only lane).
-  const arms = (a: Body, b: Body) => Math.abs(a.shoulder[0][0]) + Math.abs(b.shoulder[0][0]) + 2 * Math.max(a.handR, b.handR) + 0.04;
+  // (`passingClearance`, which every figure's pass uses since 10-28.)
   const bodyLane = Math.max(pass(s[0], s[3]), pass(s[1], s[2]), pass(s[1], s[3]));
-  const lane = Math.max(bodyLane, arms(bodies[0]!, bodies[3]!), arms(bodies[1]!, bodies[2]!), arms(bodies[1]!, bodies[3]!));
+  const lane = Math.max(passingClearance(s[0], s[3]), passingClearance(s[1], s[2]), passingClearance(s[1], s[3]));
   const n = BEATS * per + 1;
 
   // The engine's set, in metres: its frame at scale 1. The first couple faces the engine's −y,

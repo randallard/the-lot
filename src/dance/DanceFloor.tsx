@@ -88,6 +88,7 @@ import {
   type DuckRoom,
 } from "./arch";
 import { pairGripRadius, planForearm, type ForearmPlan } from "./forearm-hold";
+import { passingClearance } from "./passing";
 import {
   BREAK,
   NO_DELTAS,
@@ -689,17 +690,20 @@ export function DanceFloor({
     // 🧪 Each bake's ends re-solved to join what's either side (10-27, step 4; square-one
     // ADR-0026): into the next bake with the hands held across the join, and out of or into the
     // standing couple at the sequence's start and end, or beside a call the floor poses itself.
-    return joinChain(
+    // The twirl's only: the join holds his right in her left. Any other figure's bake
+    // (`solve-all`, 10-28: hands free, so nothing to join) is drawn as baked.
+    const joined = joinChain(
       chosen.map((bake, i) => {
         const c = calls[i];
         return {
           bake,
-          paths: bake === undefined || c === undefined ? undefined : couplePaths(c, pair, bake.sizing ?? REVIEW2_SIZING),
+          paths: bake === undefined || c !== "california-twirl" ? undefined : couplePaths(c, pair, bake.sizing ?? REVIEW2_SIZING),
           wait: performanceOptions.waits?.[i] ?? 0,
         };
       }),
       pair,
     );
+    return joined.map((b, i) => (calls[i] === "california-twirl" ? b : chosen[i]));
   }, [baked, performanceOptions.sequence, performanceOptions.waits, performanceOptions.call, shapes, turnUnder, calledAccommodation, forced]);
 
   /**
@@ -797,7 +801,9 @@ export function DanceFloor({
     const b = shapes[1];
     if (a === undefined || b === undefined) return undefined;
     const scaleNow = scale ?? DEFAULT_SCALE;
-    return passingWidth(lateralClearance(rigidParts(a), rigidParts(b))) / scaleNow;
+    // Arms and all (`passing.ts`, 10-28): bodies only, a beau with wide shoulders stepped up to 41 cm
+    // off the engine's path to make the room (`solve-all`).
+    return passingClearance(a, b) / scaleNow;
   }, [shapes, scale]);
 
   /**

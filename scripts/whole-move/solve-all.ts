@@ -18,7 +18,8 @@
  * engine's path is too tight for the two bodies.
  *
  * Writes `<out>/results.json` (every solve's metrics and its variables) and `<out>/report.md`, and
- * prints the report. Nothing is baked, so no floor changes until Ryan picks what to bake. A figure
+ * prints the report. With `--bake`, every clean solve (no outlier flag) is also written to
+ * `src/dance/baked/<call>.<beau>-<belle>.json`, which every floor then draws. A figure
  * the solver can't hold yet (Allemande Left's forearm grip) is listed with the reason.
  *
  * Workers are this script again with `--shard=i/n`, each writing `<out>/shard-i.jsonl`.
@@ -30,11 +31,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CallName } from "square-one";
 import { getBodyShape } from "../../src/services/body-shapes";
-import { REVIEW2_SIZING } from "../../src/dance/baked-tracks";
+import { BAKE_FORMAT, bodyPrint, relativeKeyframes, REVIEW2_SIZING, type BakedTrack } from "../../src/dance/baked-tracks";
 import { figurePaths } from "../../src/dance/engine-paths";
 import { reviewPairings } from "../../src/dance/review-route";
 import { REVIEW_FIGURES } from "../../src/dance/review-steps";
-import { bodyOf, metrics, solveBest, WEIGHTS, type Metrics } from "../../src/dance/whole-move";
+import { bodyOf, metrics, solveBest, toDials, WEIGHTS, type Metrics } from "../../src/dance/whole-move";
 import { figureMove } from "../../src/dance/whole-move-figure";
 
 const args = process.argv.slice(2);
@@ -48,6 +49,8 @@ const cap = capArg === "none" ? undefined : Number(capArg);
 const workers = Number(opt("workers") ?? 16);
 const out = opt("out") ?? join(tmpdir(), `solve-all-${new Date().toISOString().slice(0, 10)}`);
 const shard = opt("shard");
+/** Write a bake for every clean solve (no outlier flags) into `src/dance/baked/`. */
+const bake = args.includes("--bake");
 
 interface Job {
   readonly figure: string;
@@ -82,8 +85,30 @@ function solveJob(j: Job): Result {
   // dancer's hanging arm off their own body: arms 1.3–1.8× long (player ×4's Dosado 1.72; 1.03 at 2 cm).
   const margin = fm.move.holds.length > 0 ? 0.06 : WEIGHTS.margin;
   const r = solveBest({ ...fm.move, frames: fm.start }, { weights: { ...WEIGHTS, margin } });
-  return { ...j, cost: r.cost, metrics: metrics(fm.move, r.frames, fm.path), ms: Date.now() - t0, v: Array.from(r.v, (x) => Math.round(x * 1e6) / 1e6) };
+  const result: Result = { ...j, cost: r.cost, metrics: metrics(fm.move, r.frames, fm.path), ms: Date.now() - t0, v: Array.from(r.v, (x) => Math.round(x * 1e6) / 1e6) };
+  if (bake && flags(result).length === 0 && result.metrics !== undefined) {
+    // The twirl's bake format (`bake-pair.ts`), for every floor to draw (`DanceFloor`'s bakes).
+    const m = result.metrics;
+    const n = r.frames.length;
+    const absolute = r.frames.map((f, i) => ({ t: Math.round((i / (n - 1)) * 1000) / 1000, values: { ...toDials(f[0], 0), ...toDials(f[1], 1) } }));
+    const track: BakedTrack = {
+      format: BAKE_FORMAT,
+      version: 1,
+      call: j.call,
+      pairing: `${j.beau}-${j.belle}`,
+      bodies: [bodyPrint(shapes[0]), bodyPrint(shapes[1])],
+      note: `solve-all.ts, cost ${r.cost.toFixed(0)}, clip ${(m.clip * 100).toFixed(1)} cm, hands ${(m.holdGap * 100).toFixed(1)} cm, jump ${m.jump.toFixed(0)}°, step ${(m.step * 100).toFixed(0)} cm${cap === undefined ? "" : ` (cap ${String(cap * 100)})`}, baked ${new Date().toISOString().slice(0, 10)}`,
+      sizing: REVIEW2_SIZING,
+      stretch: Math.round(m.stretch * 100) / 100,
+      clean: true,
+      keyframes: relativeKeyframes(absolute, [P.beau, P.belle]),
+    };
+    writeFileSync(join(BAKED, `${j.call}.${j.beau}-${j.belle}.json`), JSON.stringify(track, null, 1) + "\n");
+  }
+  return result;
 }
+
+const BAKED = join(new URL(".", import.meta.url).pathname, "../../src/dance/baked");
 
 /** What makes a solve an outlier, worst first: clipping, hands apart, a jump, a long step, a stretch. */
 function flags(r: Result): string[] {

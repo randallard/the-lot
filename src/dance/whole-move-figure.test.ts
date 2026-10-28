@@ -19,25 +19,30 @@ describe("🧪 any figure as a whole-move problem (step 7)", () => {
     expect(p.grips.beau).toEqual([]);
   });
 
-  it("says what it can't hold: Allemande Left's forearm grip", () => {
+  it("holds Allemande Left's forearm grip: each hand at the other's elbow, over the engine's span", () => {
     const p = figurePaths("allemande-left", "pair", shapes, REVIEW2_SIZING);
-    expect(p.grips.beau.some((g) => g.grip === "forearm")).toBe(true);
+    const g = p.grips.beau.find((x) => x.grip === "forearm");
+    expect(g?.hand).toBe("left");
     const fm = figureMove("allemande-left", p, bodies);
-    expect("unsupported" in fm && fm.unsupported).toMatch(/forearm/);
+    if ("unsupported" in fm) throw new Error(fm.unsupported);
+    expect(fm.move.holds).toEqual([{ from: g!.from / p.beats, to: g!.to / p.beats, beau: 0, belle: 0, forearm: true }]);
   });
 
   it("keeps the beau within the step cap", () => {
-    const p = figurePaths("pass-thru", "pair", shapes, REVIEW2_SIZING);
-    const free = figureMove("pass-thru", p, bodies);
-    const capped = figureMove("pass-thru", p, bodies, { stepCap: 0.1 });
+    // Ember ×4's Pass Thru: its heads sit 28 cm forward, so they meet before the bodies do, and
+    // the beau steps off the path to pass (10-28, after the arm-aware clearance took the rest).
+    const ember = [getBodyShape("ember"), getBodyShape("ember")] as const;
+    const eb: [ReturnType<typeof bodyOf>, ReturnType<typeof bodyOf>] = [bodyOf(ember[0]), bodyOf(ember[1])];
+    const p = figurePaths("pass-thru", "pair", ember, REVIEW2_SIZING);
+    const free = figureMove("pass-thru", p, eb);
+    const capped = figureMove("pass-thru", p, eb, { stepCap: 0.1 });
     if ("unsupported" in free || "unsupported" in capped) throw new Error("pass thru should solve");
     const step = (fm: typeof free) => {
       if ("unsupported" in fm) return 0;
       const r = solve({ ...fm.move, frames: fm.start }, { iterations: 800 });
       return metrics(fm.move, r.frames, fm.path).step;
     };
-    // Four Ryans step about 40 cm off a Pass Thru's path to pass; capped, no more than 10 and a bit.
-    expect(step(free)).toBeGreaterThan(0.2);
+    expect(step(free)).toBeGreaterThan(0.15);
     expect(step(capped)).toBeLessThan(0.11);
   });
 });

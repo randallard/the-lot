@@ -34,8 +34,8 @@ importers:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
       square-one:
-        specifier: github:randallard/square-one#v0.7.0
-        version: https://codeload.github.com/randallard/square-one/tar.gz/a3261b4ba0f01ab01d881e56cb286bd9194526d1
+        specifier: github:randallard/square-one#v0.8.0
+        version: https://codeload.github.com/randallard/square-one/tar.gz/f0de4a09033eef373d453f1a1a26e16224febda3
       three:
         specifier: ^0.183.2
         version: 0.183.2
@@ -1870,9 +1870,9 @@ packages:
   spdx-satisfies@6.0.0:
     resolution: {integrity: sha512-oOWQocnRbFVtBnBITfFgzjhnOklHossTvI+6C1hB2slvp3HgTsfru5wuo8HY2rQpwSm5JuIhNzIuqOfR5IuojQ==}
 
-  square-one@https://codeload.github.com/randallard/square-one/tar.gz/a3261b4ba0f01ab01d881e56cb286bd9194526d1:
-    resolution: {gitHosted: true, integrity: sha512-5brFDBLH2gkbYutwonD3HikNx0U4wUcRenNuHzn2g8WHWCqEhdWB0Z+tV70Vo9JLS3vyjtD5gxxyMC1q+gKkiA==, tarball: https://codeload.github.com/randallard/square-one/tar.gz/a3261b4ba0f01ab01d881e56cb286bd9194526d1}
-    version: 0.7.0
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/f0de4a09033eef373d453f1a1a26e16224febda3:
+    resolution: {gitHosted: true, integrity: sha512-ChOd+TaRxsmz8Cv+TPBeznbQhi7ogikIawMe/t784lhjcjxkCdjziwF1dctx2DvQt3NJCqELYTbXV2lruKFkuw==, tarball: https://codeload.github.com/randallard/square-one/tar.gz/f0de4a09033eef373d453f1a1a26e16224febda3}
+    version: 0.8.0
     engines: {node: '>=22'}
 
   ssri@13.0.1:
@@ -4052,7 +4052,7 @@ snapshots:
       spdx-expression-parse: 3.0.1
       spdx-ranges: 2.1.1
 
-  square-one@https://codeload.github.com/randallard/square-one/tar.gz/a3261b4ba0f01ab01d881e56cb286bd9194526d1: {}
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/f0de4a09033eef373d453f1a1a26e16224febda3: {}
 
   ssri@13.0.1:
     dependencies:

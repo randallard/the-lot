@@ -316,6 +316,12 @@ export interface Hold {
    * bit of effort towards it"*. `metrics` doesn't count a weak hold's gap.
    */
   weight?: number;
+  /**
+   * 🧪 A forearm grip (step 7, 2026-10-28): each hand at the **other's elbow**, the two forearms
+   * along each other, rather than hand in hand. square-one's `forearm` grip, the Allemande Left's
+   * (*"two horizontal, antiparallel forearms … each hand at the other's elbow"*, its `GripStyle`).
+   */
+  forearm?: boolean;
 }
 
 /**
@@ -463,6 +469,8 @@ function exempt(m: Move, t: number, a: string, b: string): boolean {
     const hb = `hand-${SIDES[h.belle]}`;
     const fa = `forearm-${SIDES[h.beau]}`;
     const fb = `forearm-${SIDES[h.belle]}`;
+    // 🧪 A forearm grip's hand is on the other's elbow, which is the end of their upper arm too.
+    if (h.forearm === true && ((a === ha && b === `upper-${SIDES[h.belle]}`) || (b === hb && a === `upper-${SIDES[h.beau]}`))) return true;
     return (a === ha && (b === hb || b === fb)) || (b === hb && a === fa) || (a === fa && b === fb);
   });
 }
@@ -518,6 +526,17 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
     const ha = A.find((s) => s.name === `hand-${SIDES[h.beau]}`);
     const hb = B.find((s) => s.name === `hand-${SIDES[h.belle]}`);
     if (ha === undefined || hb === undefined) continue;
+    if (h.forearm === true) {
+      // Each hand on the other's elbow, a clasp of hand and forearm apart.
+      const ea = A.find((s) => s.name === `forearm-${SIDES[h.beau]}`);
+      const eb = B.find((s) => s.name === `forearm-${SIDES[h.belle]}`);
+      if (ea === undefined || eb === undefined) continue;
+      for (const [hand, elbow] of [[ha, eb], [hb, ea]] as const) {
+        const e = len(sub(hand.a, elbow.a)) - w.clasp * (hand.r + elbow.r);
+        c += w.hold * (h.weight ?? 1) * e * e;
+      }
+      continue;
+    }
     const d = len(sub(ha.a, hb.a));
     const want = w.clasp * (ha.r + hb.r);
     c += w.hold * (h.weight ?? 1) * (d - want) * (d - want);
@@ -746,6 +765,7 @@ const NPT = 11;
 /** Each shape's two end points (a sphere's are the same point). */
 const SHAPE_PTS = [0, 1, 2, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 10] as const;
 const HAND_PT = (side: 0 | 1) => 6 + 4 * side;
+const ELBOW_PT = (side: 0 | 1) => 4 + 4 * side;
 const PTS = new Float64Array(2 * NPT * 3);
 const GPT = new Float64Array(2 * NPT * 3);
 /** Per arm: d elbow / d (raise, toward, ulen), the forearm's direction, d dir / d (pitch, heading). */
@@ -775,6 +795,11 @@ export function planOf(m: Move): SamplePlan[] {
       exempt[ha * 8 + hb - 1] = 1;
       exempt[(ha - 1) * 8 + hb] = 1;
       exempt[(ha - 1) * 8 + hb - 1] = 1;
+      // 🧪 A forearm grip's hand is on the other's elbow, the end of their upper arm too (10-28).
+      if (h.forearm === true) {
+        exempt[ha * 8 + hb - 2] = 1;
+        exempt[(ha - 2) * 8 + hb] = 1;
+      }
       for (const [x, y] of [[ha - 2, hb - 2], [ha - 2, hb - 1], [ha - 1, hb - 2]] as const) if (exempt[x * 8 + y] === 0) exempt[x * 8 + y] = 2;
     }
     const heldArm: SamplePlan["heldArm"] = [false, false, false, false];
@@ -943,6 +968,25 @@ export function frameCostGrad(
   for (const h of plan.holds) {
     const pa = HAND_PT(h.beau) * 3;
     const pb = (NPT + HAND_PT(h.belle)) * 3;
+    if (h.forearm === true) {
+      const wh = w.hold * (h.weight ?? 1);
+      const ea = ELBOW_PT(h.beau) * 3;
+      const eb = (NPT + ELBOW_PT(h.belle)) * 3;
+      for (const [hp, ep, want] of [
+        [pa, eb, w.clasp * (m.bodies[0].handR + m.bodies[1].forearmR)],
+        [pb, ea, w.clasp * (m.bodies[1].handR + m.bodies[0].forearmR)],
+      ] as const) {
+        const x = PTS[hp]! - PTS[ep]!, y = PTS[hp + 1]! - PTS[ep + 1]!, z = PTS[hp + 2]! - PTS[ep + 2]!;
+        const dist = Math.sqrt(x * x + y * y + z * z);
+        cost += wh * (dist - want) * (dist - want);
+        if (dist > 1e-12) {
+          const k = (2 * wh * (dist - want)) / dist;
+          addPt(hp, k, x, y, z);
+          addPt(ep, -k, x, y, z);
+        }
+      }
+      continue;
+    }
     const x = PTS[pa]! - PTS[pb]!, y = PTS[pa + 1]! - PTS[pb + 1]!, z = PTS[pa + 2]! - PTS[pb + 2]!;
     const dist = Math.sqrt(x * x + y * y + z * z);
     const want = w.clasp * (m.bodies[0].handR + m.bodies[1].handR);
@@ -1313,7 +1357,14 @@ export function metrics(m: Move, frames: readonly Frame[], path?: readonly Frame
     for (const h of held(m, t)) {
       const ha = A.find((s) => s.name === `hand-${SIDES[h.beau]}`);
       const hb = B.find((s) => s.name === `hand-${SIDES[h.belle]}`);
-      if (ha && hb && (h.weight ?? 1) >= 1) out.holdGap = Math.max(out.holdGap, len(sub(ha.a, hb.a)) - WEIGHTS.clasp * (ha.r + hb.r));
+      if (!ha || !hb || (h.weight ?? 1) < 1) continue;
+      if (h.forearm === true) {
+        const ea = A.find((s) => s.name === `forearm-${SIDES[h.beau]}`);
+        const eb = B.find((s) => s.name === `forearm-${SIDES[h.belle]}`);
+        if (ea && eb) out.holdGap = Math.max(out.holdGap, len(sub(ha.a, eb.a)) - WEIGHTS.clasp * (ha.r + eb.r), len(sub(hb.a, ea.a)) - WEIGHTS.clasp * (hb.r + ea.r));
+        continue;
+      }
+      out.holdGap = Math.max(out.holdGap, len(sub(ha.a, hb.a)) - WEIGHTS.clasp * (ha.r + hb.r));
     }
     f.forEach((d, k) => {
       const g = d.grow ?? 0;

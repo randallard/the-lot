@@ -16,6 +16,7 @@ import { BREAK, RESHAPE } from "./accommodation";
 import type { BakedSizing, PathSample } from "./baked-tracks";
 import { pairGripRadius } from "./forearm-hold";
 import { DEFAULT_SCALE, facingToRotationY, makeFrame, passingWidth, toWorld } from "./frame";
+import { passingClearance } from "./passing";
 import { lateralClearance, rigidParts, type CharacterBodyShape } from "../services/body-shapes";
 
 const R2D = 180 / Math.PI;
@@ -44,7 +45,8 @@ export function couplePaths(
     index === 0 && arch !== null ? { archClearance: arch.wanted / scale, width: arch.width / scale } : undefined;
   const seq = danceCoupleSequence(
     [call],
-    partnerUp("a", "b", undefined, undefined, hold.width / scale, bodies / scale, undefined, pairGripRadius(am, bm) / scale),
+    // The arch is sized on the bodies (`sizeArch`, above); the pass on arms and all (`passing.ts`).
+    partnerUp("a", "b", undefined, undefined, hold.width / scale, passingClearance(a, b) / scale, undefined, pairGripRadius(am, bm) / scale),
     shapeAt,
   );
   return sampleMotions(flattenSequence(seq), n);
@@ -70,7 +72,7 @@ export function figurePaths(
   const scale = DEFAULT_SCALE;
   const pair = applyCallToPair(
     call,
-    shapeOf({ clearance: passingWidth(lateralClearance(rigidParts(a), rigidParts(b))) / scale, gripRadius: pairGripRadius(am, bm) / scale }, DEFAULT_PAIR_SHAPE),
+    shapeOf({ clearance: passingClearance(a, b) / scale, gripRadius: pairGripRadius(am, bm) / scale }, DEFAULT_PAIR_SHAPE),
   );
   return sampleMotions(pair, n);
 }

@@ -6,7 +6,28 @@ _Last updated: 2026-10-28_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-28 (8) — `solve-all` (step 7)
+> ### ▶ PICK UP HERE — 2026-10-28 (9) — room for the arms, a forearm hold, the first bakes beyond the twirl
+>
+> [`journal/2026-10-28-9-room-for-the-arms-and-the-first-bakes-beyond-the-twirl.md`](journal/2026-10-28-9-room-for-the-arms-and-the-first-bakes-beyond-the-twirl.md)
+> · ✅ committed on the pin to square-one **v0.8.0** (Ryan: *"commit it, release and pin"*),
+> validated against the fetched tarball: `tsc -b`, `vite build`, the 38 known failures, and all 74
+> new bakes within 0.05 cm of the released engine's gap
+>
+> - **`passingClearance`** (arms and all) is what square-one passes in. Uncapped steps: median
+>   12–17 → 2–3 cm. Capped at 10 cm, 23 clipping solves → 1.
+> - **square-one's centred pass** solved for its closest moment. Ember ×4's Pass Thru is left: its
+>   head is 28 cm forward, and the heads meet before the bodies do.
+> - **`Hold.forearm`** (hand at the other's elbow), exact gradient. All 25 Allemande Lefts solve,
+>   none clean (hands 3–9 cm, flips). It needs a shape hint of its own.
+> - **74 bakes** (`solve-all --bake`): Partner Trade and Dosado × 25, Pass Thru × 24. The floor
+>   draws them (checked on `#review`). Only the twirl's bakes are joined.
+>
+> ⏳ **Next:** the Allemande's shape hint; joins for the hands-free bakes (they end with the arms
+> hanging); ember's forward head (a forward-reach measure in square-one).
+>
+> ---
+>
+> ### 2026-10-28 (8) — `solve-all` (step 7)
 >
 > [`journal/2026-10-28-8-solve-all.md`](journal/2026-10-28-8-solve-all.md) · ✅ committed (Ryan: *"commit it"*);
 > nothing baked by it; no floor changes.
