@@ -23,7 +23,7 @@
 
 import type { CharacterBodyShape } from "../services/body-shapes";
 import { stepToCouple, stepToDancer, type BakedKeyframe, type BakedTrack, type PathSample } from "./baked-tracks";
-import { bodyOf, growRoom, PER, restArm, solve, WEIGHTS, fromDials, toDials, type Body, type Frame, type Hold, type Move } from "./whole-move";
+import { bodyOf, growRoom, PER, reachArm, restArm, shapesOf, solve, toFloor, unpackOne, WEIGHTS, fromDials, toDials, type Body, type Frame, type Hold, type Move, type Vec } from "./whole-move";
 import { BREAK_HOLD, standingFrame } from "./whole-move-twirl";
 
 const D2R = Math.PI / 180;
@@ -179,14 +179,80 @@ function eased(bake: Float64Array, n: number, onto: Float64Array, at: number, sh
   return v;
 }
 
+/** The held hands' height (their midpoint) at sample `j` of `v`: the beau's right, the belle's left. */
+function handHeight(v: Float64Array, j: number, base: Frame, bodies: readonly [Body, Body]): number {
+  const f = unpackOne(v, j, base);
+  const hb = shapesOf(bodies[0], f[0]).find((x) => x.name === "hand-right");
+  const hg = shapesOf(bodies[1], f[1]).find((x) => x.name === "hand-left");
+  return ((hb?.a[1] ?? 0) + (hg?.a[1] ?? 0)) / 2;
+}
+
+/** The held arms' lengths (m), upper then fore: the beau's right, the belle's left. */
+type ArchArms = readonly [readonly [number, number], readonly [number, number]];
+
+/**
+ * How high the arch is held across a join between two twirls, with the couple at `f`: a hand over
+ * the taller crown, or as high as both held arms (`arms`: their natural lengths) reach over the
+ * middle of the couple, if that's lower. Short arms can't hold an arch over a tall head at their
+ * standing width (10-27: myco → ryan's hands opened 5.6 cm, player → ember's 12.5). Measured on
+ * ryan → ryan, myco → ryan, sprout → sprout, ember → ryan and ryan → sprout: at 0.9 of the reach
+ * ryan's arms stretched to 42 / 43 cm at the join; at 1.0 they keep the bake's own 33 / 38; past
+ * it, the short-armed couples' hands open up to 5.7 cm.
+ */
+function archHeight(bodies: readonly [Body, Body], f: Frame, arms: ArchArms): number {
+  const mx = (f[0].x + f[1].x) / 2;
+  const mz = (f[0].z + f[1].z) / 2;
+  let y = Math.max(...bodies.map((b) => b.head.c[1] + b.head.r + 2 * b.handR));
+  for (const [d, side] of [[0, 1], [1, 0]] as const) {
+    const b = bodies[d];
+    const s = toFloor(b.shoulder[side], f[d]);
+    const across = Math.hypot(mx - s[0], mz - s[2]);
+    const reach = arms[d][0] + arms[d][1];
+    y = Math.min(y, s[1] + Math.sqrt(Math.max(0, reach * reach - across * across)));
+  }
+  return y;
+}
+
+/**
+ * The held arms at a join, as solver variables written over `out` (beau's right, then belle's left):
+ * the hands over the middle of the couple at {@link archHeight}, a clasp apart, elbows out. Built
+ * by the solver's own IK rather than averaged from the two bakes: their ends are different arm
+ * configurations, and an average of two such angles is a tangled arm (10-27: the beau's forearm
+ * stood straight up, stretched to 61 cm).
+ */
+function packArch(bodies: readonly [Body, Body], f: Frame, arms: ArchArms, out: Float64Array): void {
+  const [b, g] = f;
+  const dx = g.x - b.x;
+  const dz = g.z - b.z;
+  const l = Math.hypot(dx, dz) || 1;
+  const half = (WEIGHTS.clasp * (bodies[0].handR + bodies[1].handR)) / 2;
+  const y = archHeight(bodies, f, arms);
+  const arm = (d: 0 | 1, side: 0 | 1, toward: number, at: number) => {
+    const body = { ...bodies[d], upper0: arms[d][0], fore0: arms[d][1] };
+    const fr = f[d];
+    const hand: Vec = [(b.x + g.x) / 2 + (toward * half * dx) / l, y, (b.z + g.z) / 2 + (toward * half * dz) / l];
+    const s = toFloor(body.shoulder[side], fr);
+    const a = reachArm(body, side, fr, hand, [s[0] - fr.x, -0.4, s[2] - fr.z]);
+    out[at] = a.raise;
+    out[at + 1] = a.toward;
+    out[at + 2] = a.ulen;
+    out[at + 3] = a.pitch;
+    out[at + 4] = a.heading;
+    out[at + 5] = a.flen;
+  };
+  arm(0, 1, -1, 6);
+  arm(1, 0, 1, 12);
+}
+
 /** How hard a bake's hands hold: a break only reaches (`BREAK_HOLD`). */
 const holdWeight = (b: BakedTrack) => (b.sizing?.accommodation === "break" ? BREAK_HOLD : 1);
 
 /** One window: `frames` (floor), `v` started from the bakes, the holds, and who may grow. */
 function polish(
   frames: Frame[], v: Float64Array, holds: Hold[], bodies: [Body, Body], grow: BakedTrack["grow"], iterations: number,
+  lift?: readonly number[],
 ): Float64Array {
-  const move: Move = { bodies, frames, holds, ...(grow === undefined ? {} : growRoom(grow, bodies)) };
+  const move: Move = { bodies, frames, holds, ...(grow === undefined ? {} : growRoom(grow, bodies)), ...(lift === undefined ? {} : { lift }) };
   const n = frames.length;
   return solve(move, {
     init: v,
@@ -251,11 +317,17 @@ export function joinChain(
     const head = placeOnto(next.path, next.path[0]!, w.path[n - 1]!).slice(0, K + 1);
     const a = packAll(w.values.slice(n - 1 - K), tail, bodies);
     const b = packAll(next.values.slice(0, K + 1), next.path.slice(0, K + 1), bodies);
+    const natural: ArchArms = [[bodies[0].upper0, bodies[0].fore0], [bodies[1].upper0, bodies[1].fore0]];
     const mid = new Float64Array(PER);
     for (let k = 0; k < PER; k++) {
       const x = a[K * PER + k]!;
       const y = (ROUND as readonly number[]).includes(k) ? wrapTo(b[k]!, x) : b[k]!;
       mid[k] = (x + y) / 2;
+    }
+    // The held arms: the arch, held (unless a break is on either side: then the hands only reach).
+    if (holdWeight(w.bake) === 1 && holdWeight(next.bake) === 1) {
+      packArch(bodies, tail[K]!, natural, mid);
+      for (const k of ROUND) mid[k] = wrapTo(mid[k]!, a[K * PER + k]!);
     }
     const va = eased(a, K + 1, mid, K, (j) => ease(j / K));
     const vb = eased(b, K + 1, mid, 0, (j) => 1 - ease(j / K));
@@ -269,7 +341,14 @@ export function joinChain(
       { from: 0, to: seam, beau: 1, belle: 0, weight },
       { from: seam + 1e-6, to: 1, beau: 1, belle: 0, weight: holdWeight(next.bake) },
     ];
-    const r = polish(frames, v, holds, bodies, w.bake.grow ?? next.bake.grow, iters);
+    // The arch stays up across the join (ADR-0026: one unbroken arch): the hands no more than
+    // 10 cm under {@link archHeight}, or the window's edges if those are lower. Without this the
+    // hands dipped to the chest at the join (10-27): each bake alone lowers them for its own end,
+    // and gravity did the rest.
+    const last = frames.length - 1;
+    const edge = Math.min(handHeight(v, 0, frames[0]!, bodies), handHeight(v, last, frames[last]!, bodies));
+    const lift = frames.map(() => Math.min(archHeight(bodies, tail[K]!, natural) - 0.1, edge));
+    const r = polish(frames, v, holds, bodies, w.bake.grow ?? next.bake.grow, iters, holdWeight(w.bake) < 1 || holdWeight(next.bake) < 1 ? undefined : lift);
     for (let j = 1; j <= K; j++) w.values[n - 1 - K + j] = unpackValues(r, j, tail[j]!, w.values[n - 1 - K + j]!);
     // The join itself and after it, in the next call's own frame: the same pose, so the hand-over is exact.
     for (let j = 0; j < K; j++) next.values[j] = unpackValues(r, K + j, next.path[j]!, next.values[j]!);

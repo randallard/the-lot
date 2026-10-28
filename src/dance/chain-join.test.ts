@@ -32,6 +32,19 @@ describe("🧪 calls chain (step 4, 2026-10-27; square-one ADR-0026)", () => {
     expect(before).toBeGreaterThan(90);
   });
 
+  it("keeps the arch up through the join, with the arms at their own length (10-27)", () => {
+    // Ryan: the beau's twirl arm went "a bit wonky". The hands dipped to the chest at the join,
+    // and the arm that brought them back up was stretched and tangled.
+    for (let i = n - 1 - K; i < n; i++) {
+      const v = a!.keyframes[i]!.values;
+      expect(v["0.upper-arm-right.raise"], `raise at ${String(i)}`).toBeGreaterThan(120);
+      // No longer than the bake itself stretches them mid-call (33 / 37 cm here); the tangle had
+      // them at 42 / 61.
+      expect(v["0.upper-arm-right.length"], `upper arm at ${String(i)}`).toBeLessThan(35);
+      expect(v["0.forearm-right.length"], `forearm at ${String(i)}`).toBeLessThan(40);
+    }
+  });
+
   it("starts and ends the sequence as the standing couple: waiting", () => {
     const path = (i: number) => [
       { x: paths.beau[i]!.x / 100, z: paths.beau[i]!.z / 100, yaw: paths.beau[i]!.facing * D2R, arms: [] },

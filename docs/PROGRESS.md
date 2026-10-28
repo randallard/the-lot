@@ -6,7 +6,26 @@ _Last updated: 2026-10-27_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-27 (4) — calls chain
+> ### ▶ PICK UP HERE — 2026-10-27 (5) — the arch held through the join
+>
+> [`journal/2026-10-27-5-the-arch-held-through-the-join.md`](journal/2026-10-27-5-the-arch-held-through-the-join.md)
+> · 🧪 **uncommitted**, a fix on top of `1331c14` (10-27-4, committed un-reviewed)
+>
+> Ryan: *"the beaus twirl arm goes a bit wonky in #dance two twirls both npc ryan"*. The arch dipped
+> to the chest at the join, and the beau's arm tangled getting there (an angle-by-angle average of
+> the two bakes' ends). Now:
+> - **The join's held arms are built by IK:** hands over the middle of the couple, a hand over the
+>   taller crown or as high as both arms reach.
+> - **`Move.lift` keeps the arch up** through the window.
+> - **ryan → ryan:** the raise holds 120–146°, the arms stay at 33–38 cm, and the hands are within
+>   2 cm. Checked in Chrome.
+>
+> ⏳ **Next:**
+> 1. Ryan watches `#dance=two-twirls` (NPC Ryan / NPC Ryan) again.
+> 2. Commit.
+> 3. sprout → sprout's 3.4 cm at the join; mid-chain waits; step 5.
+
+> ### 2026-10-27 (4) — calls chain
 >
 > [`journal/2026-10-27-4-calls-chain.md`](journal/2026-10-27-4-calls-chain.md)
 > · 🧪 committed **un-reviewed** (`1331c14`, with 10-27-3's checkbox), waits for Ryan's look

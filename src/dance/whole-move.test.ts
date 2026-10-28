@@ -155,6 +155,8 @@ describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
       // 🧪 Both may change height (10-27); the belle's room is small, so some samples are past it.
       grow: [{ min: -0.3, max: 0.4, weight: 1 }, { min: -0.05, max: 0.02, weight: 2 }],
       trade: true,
+      // 🧪 A floor for the held hands (10-27): high enough on some samples to bite.
+      lift: [undefined, 2.2, 0.1, 2.4, 1.9],
     };
     const v = pack(frames);
     for (let i = 0; i < v.length; i += PER) {

@@ -392,6 +392,12 @@ export interface Move {
    * arms' ends are pinned by targets (`standingTargets`, `whole-move-twirl.ts`).
    */
   home?: boolean;
+  /**
+   * 🧪 A floor for the held hands, per sample (m; their midpoint's height). Below it costs
+   * `WEIGHTS.plane` per m². A join between two twirls (`chain-join.ts`, 10-27) keeps the arch up
+   * across it, as square-one ADR-0026 says: without it the hands dipped to the chest at the join.
+   */
+  lift?: readonly (number | undefined)[];
 }
 
 export interface Weights {
@@ -501,6 +507,11 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
       const mid: Vec = [(ha.a[0] + hb.a[0]) / 2, (ha.a[1] + hb.a[1]) / 2, (ha.a[2] + hb.a[2]) / 2];
       const g = sub(mid, guide.at);
       c += guide.weight * dot(g, g);
+    }
+    const lift = m.lift?.[i];
+    if (lift !== undefined) {
+      const low = lift - (ha.a[1] + hb.a[1]) / 2;
+      if (low > 0) c += w.plane * low * low;
     }
   }
   // Natural: stretch, free arms hang, held arms are low, angles in range, the beau near his path.
@@ -917,6 +928,14 @@ export function frameCostGrad(
       cost += guide.weight * (gx * gx + gy * gy + gz * gz);
       addPt(pa, guide.weight, gx, gy, gz);
       addPt(pb, guide.weight, gx, gy, gz);
+    }
+    const lift = m.lift?.[i];
+    if (lift !== undefined && lift > my) {
+      const low = lift - my;
+      cost += w.plane * low * low;
+      // d/d my = −2·w·low, half to each hand.
+      addPt(pa, -w.plane * low, 0, 1, 0);
+      addPt(pb, -w.plane * low, 0, 1, 0);
     }
   }
   // Natural, straight on the dials (gravity on the elbow's and hand's height over the shoulder's).
