@@ -6,7 +6,27 @@ _Last updated: 2026-10-28_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-28 (5) — Right and Left Thru on the engine's paths
+> ### ▶ PICK UP HERE — 2026-10-28 (7) — the draw budget, measured (step 6)
+>
+> [`journal/2026-10-28-7-the-draw-budget-measured.md`](journal/2026-10-28-7-the-draw-budget-measured.md)
+> · measurement only; this entry is uncommitted
+>
+> - Ryan keeps the lady ahead in the Courtesy Turn (*"I like it the way it is"*), added here.
+> - **The frame is GPU-paced:** about 18 ms between frames however the floor poses, with 35 ms
+>   drops at p95 only when about 1000 draw calls are on screen (25 couples, shadows; integrated
+>   Intel). Per frame the JS is 4–6 ms, and `DanceFloor` is 3.3 ms (rules) or 4.1 ms (rules +
+>   bake) for 25 couples.
+> - **`arm-pose` under a bake is not skipped:** at most 3 ms of CPU, no smoother here, and it
+>   needs a re-sync at each bake's end. The lever for 5 squares is draw calls (about 20 a
+>   dancer).
+> - **Reach from a couple's centre:** twirl up to 2.47 m (ember ×4), Right and Left Thru up to
+>   2.65 m a set; two ember couples need about 4.9 m apart. These are spacing inputs for S3.
+>
+> ⏳ **Next:** Ryan picks: step 7 (`solve-all` over the other figures), the draw calls, or S3.
+>
+> ---
+>
+> ### 2026-10-28 (5) — Right and Left Thru on the engine's paths
 >
 > [`journal/2026-10-28-5-right-and-left-thru-on-the-engines-paths.md`](journal/2026-10-28-5-right-and-left-thru-on-the-engines-paths.md)
 > · ✅ committed with (6), on the pin to square-one **v0.7.0** (Ryan: *"commit it, release and
