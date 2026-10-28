@@ -1,15 +1,80 @@
 # Progress & Status
 
-_Last updated: 2026-10-27_
+_Last updated: 2026-10-28_
 
 ## Status / next
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-27 (8) — four dancers: Right and Left Thru
+> ### ▶ PICK UP HERE — 2026-10-28 (4) — the couple handhold at beat 0 too
+>
+> [`journal/2026-10-28-4-the-handhold-at-beat-0.md`](journal/2026-10-28-4-the-handhold-at-beat-0.md)
+> · ✅ committed with (1)–(3) (Ryan: *"commit it"*)
+>
+> - They start in the handhold (the end's, at `touchHold`'s spot) and let go by half a beat, or
+>   go straight into the pull-by if it starts within 0.3 beat after (ember ×4). Held up to the
+>   pull-by, it fought the couples widening (41 cm steps).
+> - Re-baked all 25: clip 0, hands ≤ 2.3 cm, jumps 18–27° (ember ×4 37°), steps 11–33 cm.
+>
+> ⏳ **Next:** mixed sets (a cast picker, baked on demand or in a worker); spec facing couples and Right and Left Thru in square-one and swap the paths; step 6 (20 couples' draw budget).
+>
+> ---
+>
+> ### 2026-10-28 (3) — the couple handhold at the end goes where the floor holds it
+>
+> [`journal/2026-10-28-3-the-handhold-at-the-end.md`](journal/2026-10-28-3-the-handhold-at-the-end.md)
+> · ✅ committed with (1), (2) and (4)
+>
+> - Ryan: *"the belles arm at the end of the move is over lapping"*. The end handhold met on the
+>   gent's side, with her arm lifted across his forearm.
+> - **`NHold.forward`:** the clasp is pulled to the middle of the two shoulders and that far in
+>   front, and the upper arms hang (`HANG`). The end hold takes `touchHold`'s height and forward,
+>   the floor's own handhold.
+> - Re-baked all 25: hands ≤ 2.3 cm of the spot, jumps 18–27°, and **ember ×4's 112° is gone**
+>   (36°).
+> - Noticed, not done: beat 0 has no handhold, though the `facing` step says there is one.
+>
+> Next was the beat-0 handhold: done in (4).
+>
+> ---
+>
+> ### 2026-10-28 (2) — the pull-by's hands join across; the top bar folds; the part card fades
+>
+> [`journal/2026-10-28-2-the-pull-by-hands-join-across.md`](journal/2026-10-28-2-the-pull-by-hands-join-across.md)
+> · ✅ committed with (1), (3) and (4)
+>
+> - 🔴 **(1)'s "hands 0.1 cm" was two hanging hands** touching at the hip as the right shoulders
+>   passed 17 cm apart. Now `NHold.height` holds the clasp at chest height, from within reach
+>   (capped at 1.2 m) to 0.1 beat before the shoulders draw level, for at least half a beat.
+> - **Re-baked all 25:** hands ≤ 1.4 cm, jumps 18–29°, steps 9–29 cm. The one exception is
+>   **ember ×4, 112° at sample 80** (the courtesy turn's hand-over, not the pull-by).
+> - **`#review2`:** the top bar folds to a tab (▴ / ▾), and the body-part card has a 👁 opacity
+>   slider. Both are remembered per browser.
+> - Tool: `scripts/whole-move/try-pullby.ts <beau> <belle>` prints the pull-by hand by hand.
+>
+> ⏳ **Next:**
+> 1. Ryan looks at it, then commit (1) and (2) together.
+> 2. Ember ×4's courtesy-turn hand-over.
+> 3. Mixed sets: a cast picker, baked on demand or in a worker.
+> 4. Spec facing couples and Right and Left Thru in square-one; swap the paths.
+>
+> ---
+>
+> ### 2026-10-28 (1) — Right and Left Thru in `#review2`; square-one v0.6.0 pinned
+>
+> [`journal/2026-10-28-1-right-and-left-thru-in-review2.md`](journal/2026-10-28-1-right-and-left-thru-in-review2.md)
+> · ✅ committed with (2)–(4). The pin and the `tsc -b` fixes were committed earlier (`a3105ad`).
+>
+> - **Right and Left Thru is a `#review2` figure.** Pairing X is couple X facing couple X, and
+>   `SolvedFloor` plays it under `#review2`'s clock. All 25 sets are baked
+>   (`src/dance/baked-four/`). 🔴 **The check is `npx tsc -b`**: there's no `typecheck` script.
+>
+> ---
+>
+> ### 2026-10-27 (8) — four dancers: Right and Left Thru
 >
 > [`journal/2026-10-27-8-four-dancers-right-and-left-thru.md`](journal/2026-10-27-8-four-dancers-right-and-left-thru.md)
-> · 🧪 **uncommitted**, waits for Ryan's look at `#solve4`
+> · ✅ committed `7e57487` (Ryan: *"commit it"*)
 >
 > Step 5 (proof 2: the solver beyond pairs). Ryan picked Right and Left Thru, solver first:
 > - **`whole-move-n.ts`:** the solve for N dancers, with holds from any hand to any hand or to
@@ -21,8 +86,8 @@ _Last updated: 2026-10-27_
 > - **`#solve4`** (or `#solve4=a,b,c,d`) solves and plays it on four rigs.
 >
 > ⏳ **Next:**
-> 1. Ryan watches `#solve4` (and a mixed cast), then commit.
-> 2. Release square-one v0.6.0 and move the pin. (10-27-7's waits; CI is on v0.5.0 until then.)
+> 1. ✅ Committed.
+> 2. ✅ square-one v0.6.0 released and pinned (10-28-1).
 > 3. Spec facing couples and Right and Left Thru in square-one, and swap the paths.
 > 4. Step 6: 20 couples' draw budget.
 >

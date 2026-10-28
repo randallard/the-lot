@@ -6,6 +6,7 @@ import {
   initialSession,
   keyframeHere,
   keyframeToKeep,
+  PANEL_OPACITY_MIN,
   reduce,
   setHere,
   type Action,
@@ -153,5 +154,15 @@ describe("the posing session", () => {
     expect(isMuted(s, "dosado", "player-myco", 0.6)).toBe(false);
     expect(s.seekToken).toBe(1);
     expect(isMuted(reduce(s, { type: "mute", figure: "dosado", pairing: "player-myco", t: 0.5, on: false }), "dosado", "player-myco", 0.5)).toBe(false);
+  });
+
+  it("folds the top bar away and back, and keeps the part card's opacity in range (10-28)", () => {
+    expect(run().topOpen).toBe(true);
+    expect(run({ type: "toggleTop" }).topOpen).toBe(false);
+    expect(run({ type: "toggleTop" }, { type: "toggleTop" }).topOpen).toBe(true);
+    expect(run().panelOpacity).toBe(1);
+    expect(run({ type: "panelOpacity", value: 0.5 }).panelOpacity).toBe(0.5);
+    expect(run({ type: "panelOpacity", value: 0 }).panelOpacity).toBe(PANEL_OPACITY_MIN);
+    expect(run({ type: "panelOpacity", value: 3 }).panelOpacity).toBe(1);
   });
 });

@@ -32,8 +32,9 @@ describe("🧪 the N-dancer solve (step 5, 2026-10-27)", () => {
     expect(worst).toBeLessThan(1e-4);
   });
 
-  it("holds the pull-by and the courtesy turn's hands", () => {
+  it("holds the pull-by, the courtesy turn's hands, and the couple handhold at each end", () => {
     const kinds = m.holds.map((h) => `${String(h.a.dancer)}${h.a.side === 1 ? "R" : "L"}→${String(h.b.dancer)}${"back" in h.b ? "back" : h.b.side === 1 ? "R" : "L"}`);
-    expect(kinds.sort()).toEqual(["0L→1L", "0R→1L", "0R→1back", "0R→3R", "1R→2R", "2L→3L", "2R→3L", "2R→3back"]);
+    // The couple handhold (gent's right in her left) twice: from beat 0, and from the courtesy turn to the end.
+    expect(kinds.sort()).toEqual(["0L→1L", "0R→1L", "0R→1L", "0R→1back", "0R→3R", "1R→2R", "2L→3L", "2R→3L", "2R→3L", "2R→3back"]);
   });
 });

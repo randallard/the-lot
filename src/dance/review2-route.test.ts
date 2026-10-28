@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { REVIEW_FIGURES } from "./review-steps";
+import { REVIEW2_FIGURES } from "./review2-figures";
 import { reviewPairings } from "./review-route";
 import { review2Hash, review2Target } from "./review2-route";
 
 describe("the posing screen's address", () => {
   it("round-trips every figure and pairing", () => {
-    for (const figure of REVIEW_FIGURES) {
+    for (const figure of REVIEW2_FIGURES) {
       for (const pairing of reviewPairings()) {
         for (const only of [false, true]) {
           expect(review2Target(review2Hash({ figure, pairing, only }))).toEqual({ figure, pairing, only });

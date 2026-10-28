@@ -61,6 +61,10 @@ export interface Session {
   readonly selected: Selected | null;
   readonly anchor: Anchor | null;
   readonly drawerOpen: boolean;
+  /** The top bar (figure, pairing, save / load) is open; closed, it's a tab (10-28). */
+  readonly topOpen: boolean;
+  /** How opaque the body-part card is, 0.15–1, to see the dancer through it (10-28). */
+  readonly panelOpacity: number;
   readonly openFrame: number | null;
   readonly everything: boolean;
   readonly mode: "solver" | "keyframes";
@@ -134,6 +138,8 @@ export type Action =
   | { readonly type: "closePart" }
   | { readonly type: "openFrame"; readonly at: number | null }
   | { readonly type: "toggleDrawer" }
+  | { readonly type: "toggleTop" }
+  | { readonly type: "panelOpacity"; readonly value: number }
   | { readonly type: "setEverything"; readonly on: boolean }
   | { readonly type: "setMode"; readonly mode: "solver" | "keyframes" }
   | { readonly type: "handsOnArc"; readonly on: boolean }
@@ -146,6 +152,7 @@ export type Action =
   | { readonly type: "escape" };
 
 export const SAME_T = 0.0005;
+export const PANEL_OPACITY_MIN = 0.15;
 export const SPACING = { min: 1.5, max: 8, initial: 3, nudge: 0.25 } as const;
 const STEP = 0.1;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -154,7 +161,7 @@ export const sameMoment = (a: number, b: number) => Math.abs(a - b) < SAME_T;
 export function initialSession(scope: string, loaded: string, couples: readonly string[] = [], focus = ""): Session {
   return {
     t: 0, playing: false, seekToken: 0, scope, loaded,
-    edits: null, selected: null, anchor: null, drawerOpen: false,
+    edits: null, selected: null, anchor: null, drawerOpen: false, topOpen: true, panelOpacity: 1,
     openFrame: null, everything: false, mode: "solver", handsOnArc: true, accommodation: "coin", baked: true, allCouples: true, turnAround: true, turned: false, notice: null,
     couples, layout: couples.length === 0 ? {} : initialLayout(couples, focus), spacing: SPACING.initial,
     muted: {},
@@ -241,6 +248,10 @@ export function reduce(s: Session, a: Action): Session {
       return { ...s, openFrame: a.at };
     case "toggleDrawer":
       return { ...s, drawerOpen: !s.drawerOpen };
+    case "toggleTop":
+      return { ...s, topOpen: !s.topOpen };
+    case "panelOpacity":
+      return { ...s, panelOpacity: Math.min(1, Math.max(PANEL_OPACITY_MIN, a.value)) };
     case "setEverything":
       return { ...s, everything: a.on };
     case "setMode":

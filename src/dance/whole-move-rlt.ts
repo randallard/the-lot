@@ -30,10 +30,26 @@ export interface RltOptions {
   readonly width?: number;
   /** How far apart the two couples stand, centre line to centre line (m). Default: the width and a lane, at least 1.6. */
   readonly across?: number;
+  /** The pull-by's hands join within this fraction of the two arms' reach. Default {@link PULL_REACH}. */
+  readonly pullReach?: number;
+  /** Beats after the crossing that they let go. Default {@link PULL_AFTER}. */
+  readonly pullAfter?: number;
 }
 
 const BEATS = 8;
 const PULL = 3.5;
+/** The pull-by's hands join when the shoulders are within this much of the two arms' reach. */
+const PULL_REACH = 0.8;
+/** But no further apart than this (m): ember's long arms otherwise joined hands at beat 0.3. */
+const PULL_JOIN_MAX = 1.2;
+/**
+ * And let go this many beats after the right shoulders draw level: just before. Held past it, the
+ * hands trail behind and both dancers hang back (10-28, four Ryans: 50 cm at 0.3 beat after, 18 cm
+ * at 0.1 before).
+ */
+const PULL_AFTER = -0.1;
+/** Held at least this long (beats), reaching for it if the arms are short (sprout's, myco's). */
+const PULL_MIN = 0.5;
 const ease = (x: number) => x * x * (3 - 2 * x);
 
 export function rightAndLeftThru(shapes: readonly CharacterBodyShape[], o: RltOptions = {}): NMove {
@@ -103,28 +119,53 @@ export function rightAndLeftThru(shapes: readonly CharacterBodyShape[], o: RltOp
     return [g1, l1, turn(g1, bodies[2]!), turn(l1, bodies[3]!)];
   });
 
-  // The pull-by holds: right hands, while the two can reach each other comfortably (shoulders
-  // within 60% of their two arms' reach), around the crossing. At 85% the hands were held until the
-  // arms were nearly straight behind, and both couples hung back 24 cm after the crossing (10-27).
+  // The pull-by holds: right hands, joined in front at chest height (`height`), taken as the two
+  // come within reach (shoulders within `PULL_REACH` of their two arms) and let go a little after
+  // the right shoulders draw level (`PULL_AFTER`), as they pull by.
+  //
+  // 10-27 held them while the shoulders were within 60% of the arms, then (10-28) only the middle
+  // half of that, round the crossing, with no height: the solve met two hanging hands at the hip as
+  // the right shoulders passed 17 cm apart, for a third of a beat. It scored 0.1 cm and looked like
+  // no hands at all (Ryan, 10-28: "the arms should be connecting across").
   const holds: NHold[] = [];
+  const reachK = o.pullReach ?? PULL_REACH;
+  const after = Math.round((o.pullAfter ?? PULL_AFTER) * per);
   for (const [a, b] of [[0, 3], [1, 2]] as const) {
-    const reach = 0.6 * (bodies[a]!.upper0 + bodies[a]!.fore0 + bodies[b]!.upper0 + bodies[b]!.fore0);
-    const close = frames.map((f, i) => {
-      const sa = toFloor(bodies[a]!.shoulder[1], f[a]!);
-      const sb = toFloor(bodies[b]!.shoulder[1], f[b]!);
-      return i / per <= PULL && Math.hypot(sa[0] - sb[0], sa[2] - sb[2]) < reach;
+    const A = bodies[a]!, B = bodies[b]!;
+    const reach = Math.min(PULL_JOIN_MAX, reachK * (A.upper0 + A.fore0 + B.upper0 + B.fore0));
+    const apart = frames.map((f, i) => {
+      if (i / per > PULL) return Infinity;
+      const sa = toFloor(A.shoulder[1], f[a]!);
+      const sb = toFloor(B.shoulder[1], f[b]!);
+      return Math.hypot(sa[0] - sb[0], sa[2] - sb[2]);
     });
-    const first = close.indexOf(true);
-    const last = close.lastIndexOf(true);
-    if (first >= 0) holds.push({ from: first / (n - 1), to: last / (n - 1), a: { dancer: a, side: 1 }, b: { dancer: b, side: 1 } });
+    const cross = apart.indexOf(Math.min(...apart));
+    const last = Math.min(cross + after, n - 1);
+    const within = apart.findIndex((x) => x < reach);
+    const first = Math.max(0, Math.min(within < 0 ? last : within, last - Math.round(PULL_MIN * per)));
+    const height = Math.min(A.shoulder[1][1], B.shoulder[1][1]) - 0.1 * (A.upper0 + B.upper0);
+    holds.push({ from: first / (n - 1), to: last / (n - 1), a: { dancer: a, side: 1 }, b: { dancer: b, side: 1 }, height, ease: 0.04 });
   }
   // The courtesy turns: left in left, and the gent's right on her back.
   const from = (PULL + 0.25) / BEATS;
   const to = (BEATS - 0.5) / BEATS;
   for (const [g, l] of [[0, 1], [2, 3]] as const) {
     holds.push({ from, to, a: { dancer: g, side: 0 }, b: { dancer: l, side: 0 } });
-    // And they end as a couple, in the ordinary handhold: his right in her left.
-    holds.push({ from: to, to: 1, a: { dancer: g, side: 1 }, b: { dancer: l, side: 0 }, ease: 0.02 });
+    // And they end as a couple, in the ordinary handhold: his right in her left, where the floor
+    // holds it (`touchHold`). Left to meet anywhere, the hands met on his side and her arm lay
+    // across his forearm (10-28, Ryan: "the belles arm at the end of the move is over lapping").
+    const home = touchHold(armMetrics(s[g]), armMetrics(s[l]));
+    holds.push({ from: to, to: 1, a: { dancer: g, side: 1 }, b: { dancer: l, side: 0 }, ease: 0.02, height: home.height, forward: home.forward });
+    // And they start in it (10-28, Ryan: "add the handhold at beat 0 too"), letting go as they
+    // step off: by half a beat, or straight into the pull-by if that comes within 0.3 beat after
+    // (ember ×4's at 0.7: a 0.2-beat gap between them set off an 86° jump). Held
+    // until the pull-by, it fought the couple widening for the ladies to pass, and dragged the
+    // gent up to 41 cm off his path (sprout–myco). It starts an ease before the move, so it's at
+    // full weight on beat 0.
+    const pull = holds.find((h) => h.to < 0.5 && ((h.a.dancer === g && h.a.side === 1) || (!("back" in h.b) && h.b.dancer === g && h.b.side === 1)));
+    const START_EASE = 0.03;
+    const START_HOLD = 0.5;
+    if (pull !== undefined) holds.push({ from: -START_EASE, to: pull.from <= (START_HOLD + 0.3) / BEATS ? pull.from : START_HOLD / BEATS, a: { dancer: g, side: 1 }, b: { dancer: l, side: 0 }, ease: START_EASE, height: home.height, forward: home.forward });
     holds.push({ from: from + 0.02, to: to - 0.02, a: { dancer: g, side: 1 }, b: { dancer: l, back: true } });
   }
   return { bodies, frames, holds };

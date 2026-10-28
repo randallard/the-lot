@@ -18,32 +18,10 @@ import { applyToRigs } from "./pose-dials";
 import { toDials, type DancerFrame } from "./whole-move";
 import { metricsN, solveN, type MetricsN } from "./whole-move-n";
 import { rightAndLeftThru } from "./whole-move-rlt";
+import { frameAt } from "./baked-four";
 
 const COLORS = ["#3366cc", "#cc4433", "#2f9e6a", "#c99a1a"];
 const PER_BEAT = 10;
-
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-
-/** Sample `u` (fractional) of the solved frames: each number straight between its neighbours. */
-function frameAt(frames: readonly (readonly DancerFrame[])[], u: number): DancerFrame[] {
-  const i = Math.max(0, Math.min(frames.length - 1, Math.floor(u)));
-  const j = Math.min(frames.length - 1, i + 1);
-  const t = u - i;
-  const a = frames[i]!;
-  const b = frames[j]!;
-  return a.map((d, k) => {
-    const e = b[k]!;
-    const arm = (s: 0 | 1) => {
-      const p = d.arms[s];
-      const q = e.arms[s];
-      return {
-        raise: lerp(p.raise, q.raise, t), toward: lerp(p.toward, q.toward, t), ulen: lerp(p.ulen, q.ulen, t),
-        pitch: lerp(p.pitch, q.pitch, t), heading: lerp(p.heading, q.heading, t), flen: lerp(p.flen, q.flen, t),
-      };
-    };
-    return { x: lerp(d.x, e.x, t), z: lerp(d.z, e.z, t), yaw: lerp(d.yaw, e.yaw, t), arms: [arm(0), arm(1)] };
-  });
-}
 
 interface Clock {
   beat: number;

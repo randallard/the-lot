@@ -50,6 +50,19 @@ export interface NHold {
    * from its first sample the arm snapped onto the hold (10-27: 67° in one sample).
    */
   readonly ease?: number;
+  /**
+   * How high the clasped hands are held (m above the floor), if it matters: a pull-by's hands
+   * are joined in front at chest height. Without it the solve met two hanging hands at the hip
+   * as the dancers passed close (10-28).
+   */
+  readonly height?: number;
+  /**
+   * Where across and along the clasp sits, if it matters (hand to hand only): halfway between the
+   * two dancers' shoulders on the floor, and this far (m) in front along their mean facing, as
+   * `touchHold` places a couple's ordinary handhold. Without it the solve ended Right and Left Thru
+   * with the clasp on the gent's side and her arm across his forearm (10-28).
+   */
+  readonly forward?: number;
 }
 
 export interface NMove {
@@ -116,6 +129,8 @@ interface Plan {
 }
 
 const HAND = (side: 0 | 1) => 4 + 3 * side;
+/** A handhold's hanging upper arms, against the hold itself (`NHold.forward`). */
+const HANG = 0.1;
 
 function planN(m: NMove): Plan[] {
   const n = m.frames.length;
@@ -346,6 +361,35 @@ function frameCostN(m: NMove, plan: Plan, i: number, v: Float64Array, w: Weights
       addPt(pa, k, x, y, z);
       addPt(pb, -k, x, y, z);
     }
+    if (h.forward !== undefined && !isBack(h.b)) {
+      // The hands' midpoint to the shoulders' midpoint and `forward` on, on the floor.
+      const sa = (h.a.dancer * NPT + 3 + 4 * h.a.side) * 3;
+      const sb = (h.b.dancer * NPT + 3 + 4 * h.b.side) * 3;
+      const ya = base[h.a.dancer]!.yaw, yb = base[h.b.dancer]!.yaw;
+      const fx = (Math.sin(ya) + Math.sin(yb)) / 2, fz = (Math.cos(ya) + Math.cos(yb)) / 2;
+      const ex = (PTS[pa]! + PTS[pb]! - PTS[sa]! - PTS[sb]!) / 2 - h.forward * fx;
+      const ez = (PTS[pa + 2]! + PTS[pb + 2]! - PTS[sa + 2]! - PTS[sb + 2]!) / 2 - h.forward * fz;
+      cost += wh * (ex * ex + ez * ez);
+      addPt(pa, wh, ex, 0, ez);
+      addPt(pb, wh, ex, 0, ez);
+      addPt(sa, -wh, ex, 0, ez);
+      addPt(sb, -wh, ex, 0, ez);
+      // And each upper arm hangs, its elbow under its shoulder, as `touchHold` has it (Ryan,
+      // 08-18: "as if the upper arm is relaxed and hanging straight down"). Without it her elbow,
+      // still out from the courtesy turn, crossed his (10-28).
+      const wk = HANG * wh;
+      for (const [s, e] of [[sa, sa + 3], [sb, sb + 3]] as const) {
+        const hx = PTS[e]! - PTS[s]!, hz = PTS[e + 2]! - PTS[s + 2]!;
+        cost += wk * (hx * hx + hz * hz);
+        addPt(e, 2 * wk, hx, 0, hz);
+        addPt(s, -2 * wk, hx, 0, hz);
+      }
+    }
+    if (h.height !== undefined) for (const p of isBack(h.b) ? [pa] : [pa, pb]) {
+      const dy = PTS[p + 1]! - h.height;
+      cost += wh * dy * dy;
+      GPT[p + 1] = GPT[p + 1]! + 2 * wh * dy;
+    }
   }
   // Natural, on the dials.
   for (let d = 0; d < nd; d++) {
@@ -514,7 +558,7 @@ export function startN(m: NMove): Float64Array {
       const fz = Math.cos(fa.yaw) + Math.cos(fb.yaw);
       const ahead = (Math.hypot(fx, fz) / 2) * (Math.max(A.torso.r, B.torso.r) + 0.1);
       const fl = Math.hypot(fx, fz) || 1;
-      const mid: Vec = [(sa[0] + sb[0]) / 2 + (fx / fl) * ahead, Math.min(sa[1], sb[1]) - 0.15, (sa[2] + sb[2]) / 2 + (fz / fl) * ahead];
+      const mid: Vec = [(sa[0] + sb[0]) / 2 + (fx / fl) * ahead, h.height ?? Math.min(sa[1], sb[1]) - 0.15, (sa[2] + sb[2]) / 2 + (fz / fl) * ahead];
       fa.arms[h.a.side] = reachArm(A, h.a.side, fa, mid, pole);
       fb.arms[h.b.side] = reachArm(B, h.b.side, fb, mid, [sb[0] - fb.x, -0.4, sb[2] - fb.z]);
     }
@@ -604,7 +648,15 @@ export function metricsN(m: NMove, v: Float64Array): MetricsN {
         ? toFloor(backPoint(m.bodies[h.b.dancer]!), f[h.b.dancer]!)
         : toFloor(armPoints(m.bodies[h.b.dancer]!, h.b.side, f[h.b.dancer]!.arms[h.b.side]).h, f[h.b.dancer]!);
       const want = isBack(h.b) ? A.handR : WEIGHTS.clasp * (A.handR + m.bodies[h.b.dancer]!.handR);
-      const gap = Math.hypot(ha[0] - hb[0], ha[1] - hb[1], ha[2] - hb[2]) - want;
+      // A hold with a height is off by how far either hand is from it, too.
+      let off = h.height === undefined ? 0 : Math.max(Math.abs(ha[1] - h.height), isBack(h.b) ? 0 : Math.abs(hb[1] - h.height));
+      if (h.forward !== undefined && !isBack(h.b)) {
+        const fa = f[h.a.dancer]!, fb = f[h.b.dancer]!;
+        const sa = toFloor(A.shoulder[h.a.side], fa), sb = toFloor(m.bodies[h.b.dancer]!.shoulder[h.b.side], fb);
+        const fx = (Math.sin(fa.yaw) + Math.sin(fb.yaw)) / 2, fz = (Math.cos(fa.yaw) + Math.cos(fb.yaw)) / 2;
+        off = Math.max(off, Math.hypot((ha[0] + hb[0] - sa[0] - sb[0]) / 2 - h.forward * fx, (ha[2] + hb[2] - sa[2] - sb[2]) / 2 - h.forward * fz));
+      }
+      const gap = Math.max(Math.hypot(ha[0] - hb[0], ha[1] - hb[1], ha[2] - hb[2]) - want, off);
       if (gap > holdGap) [holdGap, holdAt] = [gap, `sample ${String(i)}: ${String(h.a.dancer)} → ${String(h.b.dancer)}${isBack(h.b) ? " back" : ""}`];
     }
     for (let d = 0; d < nd; d++) {

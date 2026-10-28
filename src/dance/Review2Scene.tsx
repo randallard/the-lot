@@ -38,7 +38,8 @@ import * as THREE from "three";
 import { DanceFloor } from "./DanceFloor";
 import { getBodyShape, type CharacterBodyShape } from "../services/body-shapes";
 import { castRoster } from "../config/npcs";
-import { REVIEW_FIGURES } from "./review-steps";
+import { REVIEW2_FIGURES, isSolved, roleOf } from "./review2-figures";
+import { SolvedFloor } from "./SolvedFloor";
 import { pairingId, reviewPairings } from "./review-route";
 import { poseTargetId, review2Hash, review2Target, type PoseTarget } from "./review2-route";
 import { EDGE_BLEND, PARTS, WIDTH_KEY, applyToRigs, dialKey, isPartId, readRigs, sampleTrack, type Aspect, type PartId } from "./pose-dials";
@@ -63,6 +64,7 @@ import { toWorld, type Coord } from "./couple-disk";
 import {
   editsHere,
   initialSession,
+  PANEL_OPACITY_MIN,
   isMuted,
   keyframeHere,
   keyframeToKeep,
@@ -71,12 +73,18 @@ import {
   setHere,
   SPACING,
   type Anchor,
+  type Session,
 } from "./review2-session";
 
 const ORBIT_TARGET: [number, number, number] = [0, 0.9, 0];
 const BOTTOM_HEIGHT = 128;
 const DRAWER_WIDTH = 400;
 const WIDTH_NUDGE = 2;
+/**
+ * 🧪 A set of four is two couples, about 2.5 m by 2 m, so the crowd spreads out for one (10-28).
+ * Scales the spacing as drawn, not the spacing dial, so going back to a couple figure is unchanged.
+ */
+const SET_SPREAD = 2;
 
 /** A keyframe on the timeline at the bottom, and where it came from. */
 interface Shown {
@@ -100,6 +108,31 @@ const card: React.CSSProperties = {
   zIndex: 2,
 };
 const stub: React.CSSProperties = { color: "#a35d00", fontSize: 11 };
+
+// ── This browser's view (the top bar folded, the part card's opacity) ──────────────────────
+// A convenience per viewer, not the work: lost with the site data, and the screen is fine without.
+
+const VIEW_KEY = "townage-review2-view";
+
+function readView(): Partial<Pick<Session, "topOpen" | "panelOpacity">> {
+  try {
+    const v = JSON.parse(localStorage.getItem(VIEW_KEY) ?? "{}") as { topOpen?: unknown; panelOpacity?: unknown };
+    return {
+      ...(typeof v.topOpen === "boolean" ? { topOpen: v.topOpen } : {}),
+      ...(typeof v.panelOpacity === "number" ? { panelOpacity: Math.min(1, Math.max(PANEL_OPACITY_MIN, v.panelOpacity)) } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
+function writeView(v: Pick<Session, "topOpen" | "panelOpacity">): void {
+  try {
+    localStorage.setItem(VIEW_KEY, JSON.stringify(v));
+  } catch {
+    // Private window or blocked storage: it just isn't remembered.
+  }
+}
 const btn: React.CSSProperties = { padding: "3px 9px", fontSize: 13, cursor: "pointer" };
 
 const SOURCE_COLOR: Readonly<Record<Shown["source"], string>> = {
@@ -367,8 +400,8 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
   const loadedKey = `${pid}|${figure.id}`;
 
   const allIds = useMemo(() => reviewPairings().map(pairingId), []);
-  const [session, dispatch] = useReducer(reduceSession, undefined, () => initialSession(targetId, loadedKey, allIds, pid));
-  const { t, playing, selected, anchor, drawerOpen, openFrame, mode, everything, notice, layout, spacing, handsOnArc, accommodation, baked, allCouples, turnAround, turned } = session;
+  const [session, dispatch] = useReducer(reduceSession, undefined, () => ({ ...initialSession(targetId, loadedKey, allIds, pid), ...readView() }));
+  const { t, playing, selected, anchor, drawerOpen, topOpen, panelOpacity, openFrame, mode, everything, notice, layout, spacing, handsOnArc, accommodation, baked, allCouples, turnAround, turned } = session;
   useEffect(() => { dispatch({ type: "retarget", scope: targetId, loaded: loadedKey, focus: pid }); }, [targetId, loadedKey, pid]);
 
   useEffect(() => {
@@ -386,25 +419,27 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
 
   const labels = useMemo(() => new Map(castRoster().map((c) => [c.id, c.label])), []);
   const pairName = (p: { beau: string; belle: string }) => `${labels.get(p.beau) ?? p.beau} → ${labels.get(p.belle) ?? p.belle}`;
+  const four = isSolved(figure);
   const nameOf = (dancer: number) => {
-    const id = dancer === 0 ? pairing.beau : pairing.belle;
-    return `${labels.get(id) ?? id} (${dancer === 0 ? "beau" : "belle"})`;
+    const role = roleOf(dancer);
+    const id = role === "beau" ? pairing.beau : pairing.belle;
+    return `${labels.get(id) ?? id} (${role}${four ? `, couple ${String(Math.floor(dancer / 2) + 1)}` : ""})`;
   };
   const go = (beau: string, belle: string, opts: { figureId?: string; only?: boolean } = {}) => {
     const p = reviewPairings().find((x) => x.beau === beau && x.belle === belle);
-    const f = REVIEW_FIGURES.find((x) => x.id === (opts.figureId ?? figure.id));
+    const f = REVIEW2_FIGURES.find((x) => x.id === (opts.figureId ?? figure.id));
     if (p !== undefined && f !== undefined) setTargetId(poseTargetId({ figure: f, pairing: p, only: opts.only ?? only }));
   };
 
-  const shapes = useMemo(
-    () => [getBodyShape(pairing.beau), getBodyShape(pairing.belle)] as const,
-    [pairing.beau, pairing.belle],
-  );
+  // A set of four made from a pairing is that couple twice (`review2-figures.ts`).
+  const castOf = useCallback((p: { beau: string; belle: string }) => (four ? [p.beau, p.belle, p.beau, p.belle] : [p.beau, p.belle]), [four]);
   const allShapes = useMemo(
-    () => new Map(reviewPairings().map((p) => [pairingId(p), [getBodyShape(p.beau), getBodyShape(p.belle)] as const])),
-    [],
+    () => new Map(reviewPairings().map((p) => [pairingId(p), castOf(p).map((id) => getBodyShape(id))])),
+    [castOf],
   );
-  const focusAt = useMemo(() => toWorld(layout[pid] ?? [0, 0], spacing), [layout, pid, spacing]);
+  const shapes = useMemo(() => castOf(pairing).map((id) => getBodyShape(id)), [castOf, pairing]);
+  const drawnSpacing = spacing * (four ? SET_SPREAD : 1);
+  const focusAt = useMemo(() => toWorld(layout[pid] ?? [0, 0], drawnSpacing), [layout, pid, drawnSpacing]);
 
   // ── The event log ────────────────────────────────────────────────────────────────────────
 
@@ -754,17 +789,29 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
     return { who: nameOf(Number(d)), part: spec?.label ?? part, aspect: a?.label ?? aspect, unit: a?.unit ?? "" };
   };
 
+  useEffect(() => { writeView({ topOpen, panelOpacity }); }, [topOpen, panelOpacity]);
+
   const widthValue = valueOf(WIDTH_KEY);
   const widthSet = set[WIDTH_KEY] !== undefined;
   const rightEdge = drawerOpen ? DRAWER_WIDTH : 0;
 
   return (
     <div style={{ position: "fixed", inset: 0, fontFamily: "system-ui, sans-serif", background: "#f4f4f1" }}>
-      {/* ── Pairing, save / load ────────────────────────────────────────────────── */}
-      <div style={{ ...card, top: 10, left: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", maxWidth: `calc(100vw - ${String(rightEdge + 40)}px)` }}>
+      {/* ── Pairing, save / load (folds away to a tab) ─────────────────────────── */}
+      {!topOpen && (
+        <button
+          onClick={() => { dispatch({ type: "toggleTop" }); }}
+          title="open the top bar"
+          style={{ ...btn, position: "absolute", top: 0, left: 10, zIndex: 3, borderRadius: "0 0 6px 6px", border: "1px solid #ccc", borderTop: "none", background: "#fff", fontSize: 12 }}
+        >
+          ▾ review2 · {figure.label} · {pairName(pairing)}
+        </button>
+      )}
+      <div style={{ ...card, top: 10, left: 10, display: topOpen ? "flex" : "none", gap: 8, alignItems: "center", flexWrap: "wrap", maxWidth: `calc(100vw - ${String(rightEdge + 40)}px)` }}>
+        <button style={{ ...btn, padding: "0 5px" }} title="fold the top bar away" onClick={() => { dispatch({ type: "toggleTop" }); }}>▴</button>
         <strong>review2</strong>
         <select value={figure.id} onChange={(e) => { go(pairing.beau, pairing.belle, { figureId: e.target.value }); }}>
-          {REVIEW_FIGURES.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+          {REVIEW2_FIGURES.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
         </select>
         <span>pairing</span>
         {/* All 25 in matrix order, as `#review` lists them — beau → belle. */}
@@ -824,7 +871,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
           <gridHelper args={[400, 400, "#b9b9b3", "#d6d6d0"]} />
           {/* The focus couple's spot. */}
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[focusAt.x, 0.005, focusAt.z]}>
-            <ringGeometry args={[1.05, 1.15, 48]} />
+            <ringGeometry args={four ? [2.1, 2.2, 64] : [1.05, 1.15, 48]} />
             <meshBasicMaterial color="#3355cc" />
           </mesh>
           {/* Every couple dances the same figure at the same moment, the focus couple in the
@@ -835,20 +882,33 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
               const id = pairingId(p);
               const coupleShapes = allShapes.get(id) ?? shapes;
               return (
-                <CoupleSlot key={id} id={id} coord={layout[id] ?? [0, 0]} spacing={spacing} shown={allCouples || id === pid} turned={turned}>
-                  <DanceFloor
-                    key={`${id}|${figure.id}|${accommodation}|${String(baked)}`}
-                    {...(accommodation === "coin" ? {} : { accommodation })}
-                    baked={baked}
-                    call={figure.call}
-                    {...(figure.sequence === undefined ? {} : { sequence: figure.sequence })}
-          {...(figure.waits === undefined ? {} : { waits: figure.waits })}
-                    paused={!playing}
-                    seek={seek}
-                    {...(id === pid ? { onBeat } : {})}
-                    shapes={coupleShapes}
-                    joinArc={handsOnArc}
-                  />
+                <CoupleSlot key={id} id={id} coord={layout[id] ?? [0, 0]} spacing={drawnSpacing} shown={allCouples || id === pid} turned={turned}>
+                  {isSolved(figure) ? (
+                    <SolvedFloor
+                      key={`${id}|${figure.id}`}
+                      call={figure.solved}
+                      cast={castOf(p)}
+                      shapes={coupleShapes}
+                      beats={figure.beats}
+                      paused={!playing}
+                      seek={seek}
+                      {...(id === pid ? { onBeat } : {})}
+                    />
+                  ) : (
+                    <DanceFloor
+                      key={`${id}|${figure.id}|${accommodation}|${String(baked)}`}
+                      {...(accommodation === "coin" ? {} : { accommodation })}
+                      baked={baked}
+                      call={figure.call}
+                      {...(figure.sequence === undefined ? {} : { sequence: figure.sequence })}
+                      {...(figure.waits === undefined ? {} : { waits: figure.waits })}
+                      paused={!playing}
+                      seek={seek}
+                      {...(id === pid ? { onBeat } : {})}
+                      shapes={coupleShapes}
+                      joinArc={handsOnArc}
+                    />
+                  )}
                   <PoseOverride key={`${id}|${figure.id}`} id={id} shapes={coupleShapes} values={overrides.get(id)} track={tracks.get(id)} clock={clock} playing={playing} seekToken={session.seekToken} />
                 </CoupleSlot>
               );
@@ -863,7 +923,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
         <div
           ref={modalRef}
           style={{
-            ...card, width: MODAL_WIDTH, overflowY: "auto", boxSizing: "border-box",
+            ...card, width: MODAL_WIDTH, overflowY: "auto", boxSizing: "border-box", opacity: panelOpacity,
             ...(placed === null
               ? { top: MODAL_TOP, right: 10 + rightEdge, maxHeight: `calc(100vh - ${String(BOTTOM_HEIGHT + 84)}px)` }
               : placed),
@@ -874,7 +934,16 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
               <div style={{ fontSize: 16, fontWeight: 600 }}>{PARTS[selected.part].label}</div>
               <div style={{ color: "#555" }}>{nameOf(selected.dancer)} · at {pct(t)}</div>
             </div>
-            <button style={btn} onClick={closePart} title="Esc">×</button>
+            <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <label style={{ display: "flex", gap: 4, alignItems: "center", fontSize: 11, color: "#777" }} title="how see-through this card is">
+                👁
+                <input
+                  type="range" min={PANEL_OPACITY_MIN} max={1} step={0.05} value={panelOpacity} style={{ width: 70 }}
+                  onChange={(e) => { dispatch({ type: "panelOpacity", value: Number(e.target.value) }); }}
+                />
+              </label>
+              <button style={btn} onClick={closePart} title="Esc">×</button>
+            </span>
           </div>
           {PARTS[selected.part].note !== undefined && (
             <div style={{ ...stub, margin: "4px 0" }}>

@@ -14,11 +14,11 @@
  * Its own module so `main.tsx` can parse at mount time without breaking fast refresh.
  */
 
-import { REVIEW_FIGURES, type ReviewFigure } from "./review-steps";
+import { REVIEW2_FIGURES, type Review2Figure } from "./review2-figures";
 import { reviewPairings, pairingId, type Pairing } from "./review-route";
 
 export interface PoseTarget {
-  readonly figure: ReviewFigure;
+  readonly figure: Review2Figure;
   readonly pairing: Pairing;
   /** Edits go to this pairing alone, not to the draft every pairing shares. */
   readonly only: boolean;
@@ -31,7 +31,7 @@ export function poseTargetId(t: PoseTarget): string {
 export function review2Target(hash: string): PoseTarget | null {
   const m = /^#review2(?:=(.*))?$/.exec(hash);
   if (m === null) return null;
-  const figures = REVIEW_FIGURES;
+  const figures = REVIEW2_FIGURES;
   const pairings = reviewPairings();
   const first: PoseTarget | null =
     figures[0] !== undefined && pairings[0] !== undefined
