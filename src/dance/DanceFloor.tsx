@@ -682,6 +682,7 @@ export function DanceFloor({
     const grow = turnUnder?.[1] === DUCK_UNDER ? "duck" : "meet";
     // 🧪 A called or forced accommodation picks its own bake; otherwise a pair who reach past
     // `REACH_LIMIT` toss for reach or break, once per execution (10-27, `chooseBake`).
+    const pair = [shapes[0] ?? DEFAULT_SHAPES[0], shapes[1] ?? DEFAULT_SHAPES[1]] as const;
     const chosen = calls.map((c) =>
       chooseBake(BAKED_TRACKS, c, shapes, { grow, called: calledAccommodation ?? forced, draw: drawAccommodation }),
     );
@@ -693,11 +694,11 @@ export function DanceFloor({
         const c = calls[i];
         return {
           bake,
-          paths: bake === undefined || c === undefined ? undefined : couplePaths(c, shapes, bake.sizing ?? REVIEW2_SIZING),
+          paths: bake === undefined || c === undefined ? undefined : couplePaths(c, pair, bake.sizing ?? REVIEW2_SIZING),
           wait: performanceOptions.waits?.[i] ?? 0,
         };
       }),
-      shapes,
+      pair,
     );
   }, [baked, performanceOptions.sequence, performanceOptions.waits, performanceOptions.call, shapes, turnUnder, calledAccommodation, forced]);
 

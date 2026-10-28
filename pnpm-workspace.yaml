@@ -17,7 +17,7 @@ allowBuilds:
   #
   # So the maintenance burden the old comment denied is real: **this line changes on every
   # square-one tag**, and the hash is the tag's *commit*, not the tag object's own.
-  # `git rev-parse v0.5.0^{}` in square-one gives it.
+  # `git rev-parse v0.6.0^{}` in square-one gives it.
   #
   # 🔴 **One line, for the tag the pin names.** Two stale keys had accumulated here — v0.2.0's
   # and v0.3.0's — and v0.2.0's carried pnpm's suggestion text (`set this to true or false`)
@@ -25,7 +25,7 @@ allowBuilds:
   # it survived two bumps because nothing fails when a key nobody fetches is wrong. A key that
   # is not the current pin cannot be exercised, so keeping it only preserves the chance of a
   # future edit landing on the wrong line.
-  square-one@https://codeload.github.com/randallard/square-one/tar.gz/6e1d3e553550fb1a8fd8a7b500889bcd0c32ca6a: true
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/ad226963d78fc21917318e8c7a08e05c441aca71: true
 
 # Age-gate new releases at the package manager. 1440 minutes (1 day) is pnpm's
 # own recommendation and its v11 default; stated explicitly rather than inherited

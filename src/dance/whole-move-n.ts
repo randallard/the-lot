@@ -29,13 +29,19 @@ export interface HandRef {
   readonly side: 0 | 1;
 }
 
+/** The small of a dancer's back, for a hand to rest on (the courtesy turn's). */
+export interface BackRef {
+  readonly dancer: number;
+  readonly back: true;
+}
+
 /** A held hand over a stretch of the move (fractions 0–1): on another dancer's hand, or their back. */
 export interface NHold {
   readonly from: number;
   readonly to: number;
   readonly a: HandRef;
   /** The other hand, or `back`: the small of `dancer`'s back. */
-  readonly b: HandRef | { readonly dancer: number; readonly back: true };
+  readonly b: HandRef | BackRef;
   /** Scales `WEIGHTS.hold` (default 1). */
   readonly weight?: number;
   /**
@@ -61,7 +67,7 @@ const METRE = 3;
 const isMetric = (k: number) => k >= 12 || k % 6 === 2 || k % 6 === 5;
 const sign = (side: 0 | 1) => (side === 0 ? 1 : -1);
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
-const isBack = (b: NHold["b"]): b is { dancer: number; back: true } => "back" in b;
+const isBack = (b: NHold["b"]): b is BackRef => "back" in b;
 
 /**
  * Where a hand on someone's back goes, in their rig's frame: behind the torso's axis, a little

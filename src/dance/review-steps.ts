@@ -89,6 +89,8 @@ export interface ReviewFigure {
   readonly call: CallName;
   /** Present for the couple figures — one execution, not the `2×` zero `#dance` shows. */
   readonly sequence?: readonly CallName[];
+  /** Beats before each call of `sequence` (square-one's `waits`): a beat or more releases the hold. */
+  readonly waits?: readonly number[];
   /** The call's own length, for the beat readout. */
   readonly beats: number;
   readonly steps: readonly ReviewStep[];
