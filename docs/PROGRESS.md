@@ -6,7 +6,29 @@ _Last updated: 2026-10-27_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-27 (7) — a wait between calls
+> ### ▶ PICK UP HERE — 2026-10-27 (8) — four dancers: Right and Left Thru
+>
+> [`journal/2026-10-27-8-four-dancers-right-and-left-thru.md`](journal/2026-10-27-8-four-dancers-right-and-left-thru.md)
+> · 🧪 **uncommitted**, waits for Ryan's look at `#solve4`
+>
+> Step 5 (proof 2: the solver beyond pairs). Ryan picked Right and Left Thru, solver first:
+> - **`whole-move-n.ts`:** the solve for N dancers, with holds from any hand to any hand or to
+>   someone's back, easing on and off, and an exact gradient (tested).
+> - **`whole-move-rlt.ts`:** the paths, in metres, sized from the bodies. A pull-by, then a
+>   courtesy turn danced close.
+> - **Results, 7 casts:** clip ≤ 0.1 cm, hands ≤ 1.3 cm, jumps ≤ 28°, steps ≤ 29 cm, about 3.5 s a
+>   solve on one thread.
+> - **`#solve4`** (or `#solve4=a,b,c,d`) solves and plays it on four rigs.
+>
+> ⏳ **Next:**
+> 1. Ryan watches `#solve4` (and a mixed cast), then commit.
+> 2. Release square-one v0.6.0 and move the pin. (10-27-7's waits; CI is on v0.5.0 until then.)
+> 3. Spec facing couples and Right and Left Thru in square-one, and swap the paths.
+> 4. Step 6: 20 couples' draw budget.
+>
+> ---
+>
+> ### 2026-10-27 (7) — a wait between calls
 >
 > [`journal/2026-10-27-7-a-wait-between-calls.md`](journal/2026-10-27-7-a-wait-between-calls.md)
 > · 🧪 committed here and in square-one (Ryan: *"commit both"*)

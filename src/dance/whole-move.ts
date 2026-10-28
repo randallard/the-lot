@@ -292,7 +292,7 @@ const growEnds = (m: Move, i: number, w: Weights) =>
   i === 0 || i === m.frames.length - 1 ? (m.home === true ? 10 : 1) * w.clip : w.grow;
 
 /** The margin an arm shape (`shapesOf` index 2–7) keeps from its own torso or head. */
-const ownMargin = (b: Body, shape: number, own: 0 | 1, margin: number) =>
+export const ownMargin = (b: Body, shape: number, own: 0 | 1, margin: number) =>
   shape === 2 || shape === 5 ? Math.min(margin, restGap(b, shape === 2 ? 0 : 1, own)) : margin;
 
 // ── The move ─────────────────────────────────────────────────────────────────────────────────
@@ -469,7 +469,7 @@ function exempt(m: Move, t: number, a: string, b: string): boolean {
  * where the hands could still meet: 3.4 cm apart. With 2 cm they're 0.6. At no margin the arms
  * crossed into each other (0.1–0.5 cm of clip).
  */
-const HELD_MARGIN = 0.02;
+export const HELD_MARGIN = 0.02;
 
 function heldArms(m: Move, t: number, a: string, b: string): boolean {
   return held(m, t).some((h) => {
