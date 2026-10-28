@@ -2,9 +2,12 @@
  * 🧪 Step 4 (2026-10-27): a couple's twirl twice in a row, each call's bake joined to the next
  * (`joinChain`). Prints, before and after: the worst arm change from one sample to the next across
  * the whole chain (the joins included), the clipping and held-hands gap over every sample, how
- * far each end is from the standing couple, and how long the joins took.
+ * far each end is from the standing couple, how far the hands sink between the first call's
+ * middle and the last's (the dip), and how long the joins took.
  *
  *   npx vite-node scripts/whole-move/try-chain.ts <beau> <belle> [calls, default 2] [--break]
+ *     [--trace (gaps over 1.5 cm) | --trace --all (every sample, with the hands' height)]
+ *     [--iters=1000] [--join=15 (the join's window, a side)]
  */
 
 import { getBodyShape } from "../../src/services/body-shapes";
@@ -79,13 +82,22 @@ function report(label: string, tracks: readonly (BakedTrack | undefined)[], ms?:
     const hb = shapesOf(bodies[0], fr[0]).find((x) => x.name === "hand-right")!;
     const hg = shapesOf(bodies[1], fr[1]).find((x) => x.name === "hand-left")!;
     const gap = Math.hypot(hb.a[0] - hg.a[0], hb.a[1] - hg.a[1], hb.a[2] - hg.a[2]) - 0.6 * (hb.r + hg.r);
-    if (Math.abs(gap) > 0.015) console.log(`  ${label} sample ${String(i).padStart(3)} hands off by ${(gap * 100).toFixed(1)} cm, height ${(hb.a[1] * 100).toFixed(0)} cm`);
+    if (process.argv.includes("--all") || Math.abs(gap) > 0.015) console.log(`  ${label} sample ${String(i).padStart(3)} hands off by ${(gap * 100).toFixed(1)} cm, height ${(hb.a[1] * 100).toFixed(0)} cm`);
   });
-  console.log(`${label.padEnd(7)} worst jump ${worst.toFixed(0).padStart(3)}° at sample ${String(at).padStart(3)} (joins at ${Array.from({ length: count - 1 }, (_, i) => 40 * (i + 1)).join(", ") || "-"})  clip ${(m.clip * 100).toFixed(1)} cm  hands ${(m.holdGap * 100).toFixed(1)} cm  ends vs standing ${ends.join(" / ")}${ms === undefined ? "" : `  ${ms.toFixed(0)} ms`}`);
+  // How far the held hands sink between the first call's middle and the last's (10-27: sprout's
+  // came down after each twirl).
+  const hh = f.map((fr) => (shapesOf(bodies[0], fr[0]).find((x) => x.name === "hand-right")!.a[1] + shapesOf(bodies[1], fr[1]).find((x) => x.name === "hand-left")!.a[1]) / 2);
+  const mid = 20, end = f.length - 1 - 20;
+  const dip = Math.min(hh[mid]!, hh[end]!) - Math.min(...hh.slice(mid, end + 1));
+  console.log(`${label.padEnd(7)} dip ${(dip * 100).toFixed(0).padStart(2)} cm  worst jump ${worst.toFixed(0).padStart(3)}° at sample ${String(at).padStart(3)} (joins at ${Array.from({ length: count - 1 }, (_, i) => 40 * (i + 1)).join(", ") || "-"})  clip ${(m.clip * 100).toFixed(1)} cm  hands ${(m.holdGap * 100).toFixed(1)} cm  ends vs standing ${ends.join(" / ")}${ms === undefined ? "" : `  ${ms.toFixed(0)} ms`}`);
+}
+
+function arg(name: string): string | undefined {
+  return process.argv.find((x) => x.startsWith(`--${name}=`))?.slice(name.length + 3);
 }
 
 report("as baked", calls.map((c) => c.bake));
 const t0 = performance.now();
-const joined = joinChain(calls, shapes, { iterations: Number(process.argv.find((x) => x.startsWith("--iters="))?.slice(8) ?? 1000) });
+const joined = joinChain(calls, shapes, { iterations: Number(process.argv.find((x) => x.startsWith("--iters="))?.slice(8) ?? 1000), ...(arg("join") === undefined ? {} : { join: Number(arg("join")) }) });
 report("joined", joined, performance.now() - t0);
 void sampleBaked;

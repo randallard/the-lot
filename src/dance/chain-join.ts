@@ -37,6 +37,13 @@ export interface ChainCall {
 export interface JoinOptions {
   /** Samples re-solved on each side of a boundary (a bake has 10 a beat). Default 10. */
   readonly window?: number;
+  /**
+   * Samples re-solved on each side of a join between two bakes. Default 15 (10-27): at 10 each
+   * bake lowered the hands for its own end before the window began (sprout → sprout's sank from
+   * 100 cm to 77 after each twirl); at 15 they hold 91–106. At 19 the window reaches back into
+   * the pass under the arch, and some couples' hands opened (ryan → myco 5.1 → 12.8 cm).
+   */
+  readonly join?: number;
   /** The polish's length. Default 1000: at 300 the hands came down into the standing hold 4.8 cm apart (ryan → ryan), at 1000 1.2 cm, about 80 ms a window. */
   readonly iterations?: number;
 }
@@ -274,6 +281,7 @@ export function joinChain(
   o: JoinOptions = {},
 ): (BakedTrack | undefined)[] {
   const K = o.window ?? 10;
+  const joinK = o.join ?? 15;
   const iters = o.iterations ?? 1000;
   const bodies: [Body, Body] = [bodyOf(shapes[0]), bodyOf(shapes[1])];
   // Working copies of each bake's keyframe values, and its path frames.
@@ -312,31 +320,33 @@ export function joinChain(
       return;
     }
     // Into the next bake: one window over the join, hands held across it (ADR-0026's merge). Each
-    // side eased onto the pose halfway between where the two bakes have the join.
-    const tail = w.path.slice(n - 1 - K);
-    const head = placeOnto(next.path, next.path[0]!, w.path[n - 1]!).slice(0, K + 1);
-    const a = packAll(w.values.slice(n - 1 - K), tail, bodies);
-    const b = packAll(next.values.slice(0, K + 1), next.path.slice(0, K + 1), bodies);
+    // side eased onto the pose halfway between where the two bakes have the join. It's wider than
+    // a call's start or end ({@link JoinOptions.join}), so it takes in each bake's own lowering.
+    const J = Math.min(joinK, Math.floor((n - 1) / 2), Math.floor((next.path.length - 1) / 2));
+    const tail = w.path.slice(n - 1 - J);
+    const head = placeOnto(next.path, next.path[0]!, w.path[n - 1]!).slice(0, J + 1);
+    const a = packAll(w.values.slice(n - 1 - J), tail, bodies);
+    const b = packAll(next.values.slice(0, J + 1), next.path.slice(0, J + 1), bodies);
     const natural: ArchArms = [[bodies[0].upper0, bodies[0].fore0], [bodies[1].upper0, bodies[1].fore0]];
     const mid = new Float64Array(PER);
     for (let k = 0; k < PER; k++) {
-      const x = a[K * PER + k]!;
+      const x = a[J * PER + k]!;
       const y = (ROUND as readonly number[]).includes(k) ? wrapTo(b[k]!, x) : b[k]!;
       mid[k] = (x + y) / 2;
     }
     // The held arms: the arch, held (unless a break is on either side: then the hands only reach).
     if (holdWeight(w.bake) === 1 && holdWeight(next.bake) === 1) {
-      packArch(bodies, tail[K]!, natural, mid);
-      for (const k of ROUND) mid[k] = wrapTo(mid[k]!, a[K * PER + k]!);
+      packArch(bodies, tail[J]!, natural, mid);
+      for (const k of ROUND) mid[k] = wrapTo(mid[k]!, a[J * PER + k]!);
     }
-    const va = eased(a, K + 1, mid, K, (j) => ease(j / K));
-    const vb = eased(b, K + 1, mid, 0, (j) => 1 - ease(j / K));
+    const va = eased(a, J + 1, mid, J, (j) => ease(j / J));
+    const vb = eased(b, J + 1, mid, 0, (j) => 1 - ease(j / J));
     const frames = [...tail, ...head.slice(1)];
     const v = new Float64Array(frames.length * PER);
     v.set(va, 0);
-    v.set(vb.subarray(PER), (K + 1) * PER);
+    v.set(vb.subarray(PER), (J + 1) * PER);
     unwrap(v, frames.length, 0);
-    const seam = K / (frames.length - 1);
+    const seam = J / (frames.length - 1);
     const holds: Hold[] = [
       { from: 0, to: seam, beau: 1, belle: 0, weight },
       { from: seam + 1e-6, to: 1, beau: 1, belle: 0, weight: holdWeight(next.bake) },
@@ -347,11 +357,11 @@ export function joinChain(
     // and gravity did the rest.
     const last = frames.length - 1;
     const edge = Math.min(handHeight(v, 0, frames[0]!, bodies), handHeight(v, last, frames[last]!, bodies));
-    const lift = frames.map(() => Math.min(archHeight(bodies, tail[K]!, natural) - 0.1, edge));
+    const lift = frames.map(() => Math.min(archHeight(bodies, tail[J]!, natural) - 0.1, edge));
     const r = polish(frames, v, holds, bodies, w.bake.grow ?? next.bake.grow, iters, holdWeight(w.bake) < 1 || holdWeight(next.bake) < 1 ? undefined : lift);
-    for (let j = 1; j <= K; j++) w.values[n - 1 - K + j] = unpackValues(r, j, tail[j]!, w.values[n - 1 - K + j]!);
+    for (let j = 1; j <= J; j++) w.values[n - 1 - J + j] = unpackValues(r, j, tail[j]!, w.values[n - 1 - J + j]!);
     // The join itself and after it, in the next call's own frame: the same pose, so the hand-over is exact.
-    for (let j = 0; j < K; j++) next.values[j] = unpackValues(r, K + j, next.path[j]!, next.values[j]!);
+    for (let j = 0; j < J; j++) next.values[j] = unpackValues(r, J + j, next.path[j]!, next.values[j]!);
   });
 
   return calls.map((c, i) => {

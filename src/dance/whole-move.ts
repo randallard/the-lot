@@ -461,6 +461,23 @@ function exempt(m: Move, t: number, a: string, b: string): boolean {
   });
 }
 
+/**
+ * The rest of the two held arms, upper arm on upper arm or forearm, keep at most
+ * {@link HELD_MARGIN} between them, whatever margin the solve asks of everything else (10-27). In
+ * an arch over a short couple the held arms rise side by side, and the bakes' 6 cm between them
+ * pushed the beau a step out (sprout → sprout, 15–17 cm at the join between two twirls), past
+ * where the hands could still meet: 3.4 cm apart. With 2 cm they're 0.6. At no margin the arms
+ * crossed into each other (0.1–0.5 cm of clip).
+ */
+const HELD_MARGIN = 0.02;
+
+function heldArms(m: Move, t: number, a: string, b: string): boolean {
+  return held(m, t).some((h) => {
+    const arm = (n: string, side: number) => n === `upper-${SIDES[side]}` || n === `forearm-${SIDES[side]}`;
+    return arm(a, h.beau) && arm(b, h.belle) && (a.startsWith("upper") || b.startsWith("upper"));
+  });
+}
+
 /** Everything about one sample that doesn't involve its neighbours. */
 export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, guide?: { at: Vec; weight: number }): number {
   const t = m.frames.length > 1 ? i / (m.frames.length - 1) : 0;
@@ -473,7 +490,7 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
     const over = s1.r + s2.r + margin - d;
     if (over > 0) c += w.clip * over * over;
   };
-  for (const s1 of A) for (const s2 of B) if (!exempt(m, t, s1.name, s2.name)) pen(s1, s2, w.margin);
+  for (const s1 of A) for (const s2 of B) if (!exempt(m, t, s1.name, s2.name)) pen(s1, s2, heldArms(m, t, s1.name, s2.name) ? Math.min(w.margin, HELD_MARGIN) : w.margin);
   // Each dancer's own arms against their own head and torso (an arm overhead goes round the head;
   // no arm goes through its own body). The upper arm starts at the shoulder, clear of the torso.
   [A, B].forEach((S, k) => {
@@ -717,7 +734,7 @@ const SHAPE_R = new Float64Array(16);
 /** What about a sample doesn't change during a solve: what's held, and what may touch. */
 export interface SamplePlan {
   holds: Hold[];
-  /** Beau shape × belle shape, 8 × 8: 1 where a held hand may touch. */
+  /** Beau shape × belle shape, 8 × 8: 1 where a held hand may touch, 2 where held arms keep only {@link HELD_MARGIN}. */
   exempt: Uint8Array;
   /** dancer · 2 + side: that arm is held. */
   heldArm: [boolean, boolean, boolean, boolean];
@@ -737,6 +754,7 @@ export function planOf(m: Move): SamplePlan[] {
       exempt[ha * 8 + hb - 1] = 1;
       exempt[(ha - 1) * 8 + hb] = 1;
       exempt[(ha - 1) * 8 + hb - 1] = 1;
+      for (const [x, y] of [[ha - 2, hb - 2], [ha - 2, hb - 1], [ha - 1, hb - 2]] as const) if (exempt[x * 8 + y] === 0) exempt[x * 8 + y] = 2;
     }
     const heldArm: SamplePlan["heldArm"] = [false, false, false, false];
     for (const h of holds) {
@@ -889,7 +907,7 @@ export function frameCostGrad(
     addPt(p2, -k * (1 - segT), nx, ny, nz);
     addPt(q2, -k * segT, nx, ny, nz);
   };
-  for (let a = 0; a < 8; a++) for (let b = 0; b < 8; b++) if (plan.exempt[a * 8 + b] === 0) pen(0, a, 1, b, w.margin);
+  for (let a = 0; a < 8; a++) for (let b = 0; b < 8; b++) if (plan.exempt[a * 8 + b] !== 1) pen(0, a, 1, b, plan.exempt[a * 8 + b] === 2 ? Math.min(w.margin, HELD_MARGIN) : w.margin);
   for (let d = 0; d < 2; d++) for (let s = 2; s < 8; s++) for (const own of [0, 1] as const) pen(d, s, d, own, ownMargin(m.bodies[d as 0 | 1], s, own, w.margin));
   // Hands above the floor.
   for (let d = 0; d < 2; d++) for (let sd = 0; sd < 2; sd++) {

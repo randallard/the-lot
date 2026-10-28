@@ -6,7 +6,31 @@ _Last updated: 2026-10-27_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-27 (5) — the arch held through the join
+> ### ▶ PICK UP HERE — 2026-10-27 (6) — the held arms may come close; the join's window widens
+>
+> [`journal/2026-10-27-6-the-held-arms-may-come-close.md`](journal/2026-10-27-6-the-held-arms-may-come-close.md)
+> · 🧪 committed (Ryan: *"looks better"*)
+>
+> 1. **sprout → sprout's 3.4 cm at the join** wasn't the arch. The polish kept the two held arms
+>    6 cm apart by stepping the beau out 15–17 cm. Now the held arms keep at most `HELD_MARGIN`
+>    (2 cm) between them (`whole-move.ts`): 3.4 → 0.6 cm. Ryan: *"ryan ryan looks good - sprout
+>    sprout looks ok but the hands come down after each twirl"*.
+> 2. **The hands came down** because sprout's bake lowers them early (100 → 77 cm) and the join's
+>    one-beat window started after that. The join now re-solves 15 samples a side
+>    (`JoinOptions.join`; a call's start and end stay at 10). Across all 25 couples the dip goes
+>    914 → 707 cm summed, and the hands' gaps 100 → 95. sprout → sprout's dip goes 21 → 6 cm.
+>
+> ⏳ **Next:**
+> 1. ✅ Ryan re-watched (*"looks better"*); committed.
+> 2. Mid-chain waits: the engine or the caller marks a gap.
+> 3. Step 5: a 4-dancer call.
+>
+> Left open:
+> - Seven couples still dip 40–70 cm between twirls; their bakes' arch only spikes during the pass.
+> - ember → ryan's hands open 3.7 cm, and myco → myco's 13.5.
+> - The forearm turns 270° at the join.
+
+> ### 2026-10-27 (5) — the arch held through the join
 >
 > [`journal/2026-10-27-5-the-arch-held-through-the-join.md`](journal/2026-10-27-5-the-arch-held-through-the-join.md)
 > · 🧪 committed (Ryan: *"looks better"*), on top of `1331c14` (10-27-4)
