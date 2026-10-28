@@ -9,7 +9,7 @@ _Last updated: 2026-10-27_
 > ### ▶ PICK UP HERE — 2026-10-27 (4) — calls chain
 >
 > [`journal/2026-10-27-4-calls-chain.md`](journal/2026-10-27-4-calls-chain.md)
-> · 🧪 **uncommitted** (with 10-27-3's checkbox), waits for Ryan's look
+> · 🧪 committed **un-reviewed** (`1331c14`, with 10-27-3's checkbox), waits for Ryan's look
 >
 > Step 4. Each sequence's bakes are joined when the floor plans it (`chain-join.ts`), following
 > square-one ADR-0026:
@@ -31,7 +31,7 @@ _Last updated: 2026-10-27_
 > ⏳ **Next:**
 > 1. Ryan watches `#dance=two-twirls` and `#dance=trade-twirl` (beau and belle NPC Ryan) across
 >    the join, and a twirl's start and end in `#review2`.
-> 2. Commit (with the 🧪 solved checkbox).
+> 2. If it holds up, nothing to commit; if not, fix forward.
 > 3. Mid-chain waits need a gap from the engine or the caller. Then step 5: a 4-dancer call.
 
 > ### 2026-10-27 (3) — compare the solver's reach with ADR-0048
