@@ -3,3 +3,7 @@
 
 # generic-api-key on `key: "0.torso.lean-fwd"`: a pose-dial name in a reducer test, not a secret.
 2ba018992b96296d25c1563520b34dd60219db93:src/dance/review2-session.test.ts:generic-api-key:36
+
+# The same dial string, quoted where the false positive above is written up (8b58080).
+8b580802a1edd9d17b3ba69c1c9dce005805817e:docs/journal/2026-10-29-6-the-lot-takes-the-standard.md:generic-api-key:23
+8b580802a1edd9d17b3ba69c1c9dce005805817e:.gitleaksignore:generic-api-key:4
