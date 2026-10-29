@@ -145,6 +145,16 @@ Two routes on the dev server, neither part of the game:
 **Start at [`docs/PROGRESS.md`](docs/PROGRESS.md)** for current state and what's next — its
 first block is always the place to pick up.
 
+## Standards
+
+**the-lot takes the provable-code standard** from
+[`cr-ci-cd-rust-typescript-template`](https://github.com/randallard/cr-ci-cd-rust-typescript-template)
+(its `project-conventions` skill and standards ADRs 1000–1017). It predates the template, so it's
+adopting the standard **piece by piece** rather than in one pass (Ryan, 2026-10-29). Until a piece
+lands, the gap is open, not an exception. What's in and what's left is in
+[`docs/PROGRESS.md`](docs/PROGRESS.md)'s Standards line and the newest note in
+[`docs/compliance/`](docs/compliance/).
+
 ## Docs
 
 | | |

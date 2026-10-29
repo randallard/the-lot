@@ -4,7 +4,7 @@ _Last updated: 2026-10-29_
 
 ## Status / next
 
-**Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
+**Standards:** last compliance review 2026-10-29 ([note](compliance/2026-10-29.md)). **the-lot takes the template's standard, adopted piece by piece** (Ryan, 2026-10-29; README "Standards"). In since: the docs-hygiene error (journal link → URL), Node 24 + `engines`, a gitleaks secret-scan job (one reviewed false positive in `.gitleaksignore`). ⏳ **Still to take, in order:** first stance review · property tests (`fast-check`) for the `review2-session` / `pose-events` reducers · tsconfig flags (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitReturns`) · lint `strictTypeChecked` + the three error rules · TypeScript 6.0.x · copy in ADRs 1000–1017 and the `project-conventions` skill, claim a tier · the ADR-1012 / 1015 answers · exact pins
 
 > ### ▶ PICK UP HERE — 2026-10-29 (2) — over her head
 >

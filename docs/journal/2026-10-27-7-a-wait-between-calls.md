@@ -9,7 +9,7 @@ The engine's sequences had no gaps, so it couldn't happen. Ryan chose to put the
 engine** (square-one), not as a splice on the floor, so the engine's timing and hold spans say
 what's drawn, and a live caller can leave a gap through the engine.
 
-## square-one (uncommitted; [its journal 25](../../../square-one/docs/journal/2026-10-27-a-wait-between-calls-25.md))
+## square-one (uncommitted; [its journal 25](https://github.com/randallard/square-one/blob/main/docs/journal/2026-10-27-a-wait-between-calls-25.md))
 
 - **`danceCoupleSequence(calls, couple, shapeAt, waits)`:** beats waited before each call.
 - **`flattenSequence`:** the dancers stand still through the gap.
