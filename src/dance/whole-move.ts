@@ -470,6 +470,27 @@ export const WEIGHTS: Weights = {
  * at 0.15× for most of the turn, the arm flipping 178° into it).
  */
 export const SHRINK = 0.2;
+// 🧪 And the upper arm is never longer than it is (10-28, 12): costed like a clip, as `pose-rules`'
+// length rule holds the drawn one to its length within a centimetre. Stretch alone let myco → ember's
+// bake draw ember's upper arm 4.2 cm long, a broken rule on the floor under a "clean" solve.
+
+/**
+ * 🧪 In a forearm grip, whether dancer `k`'s hand **slides up the partner's forearm** rather than
+ * sitting at their elbow (2026-10-28, 12): when their own forearm is the shorter. "My hand at your
+ * elbow" both ways forces equal forearms; with unequal ones the longer reaches the elbow and the
+ * shorter holds further up, as the floor's `contactRadius` has always said. Held to the elbow both
+ * ways, sprout → ember stretched sprout's forearm 1.5× and squashed ember's to 0.76×.
+ */
+export const gripSlides = (m: Move, k: 0 | 1): boolean => m.bodies[k].fore0 < m.bodies[1 - k].fore0 - 1e-6;
+
+/** Where on the segment `a`–`b` a hand at `p` holds: the closest point's parameter, or 0 (at `a`). */
+const along = (p: Vec, a: Vec, b: Vec, slide: boolean): number => {
+  if (!slide) return 0;
+  const d = sub(b, a);
+  const l2 = dot(d, d);
+  return l2 > 1e-12 ? clamp01(dot(sub(p, a), d) / l2) : 0;
+};
+const at = (a: Vec, b: Vec, u: number): Vec => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
 
 const held = (m: Move, t: number) => m.holds.filter((h) => t >= h.from - 1e-9 && t <= h.to + 1e-9);
 
@@ -551,8 +572,9 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
       const ea = A.find((s) => s.name === `forearm-${SIDES[h.beau]}`);
       const eb = B.find((s) => s.name === `forearm-${SIDES[h.belle]}`);
       if (ea === undefined || eb === undefined) continue;
-      for (const [hand, elbow] of [[ha, eb], [hb, ea]] as const) {
-        const e = len(sub(hand.a, elbow.a)) - w.clasp * (hand.r + elbow.r);
+      for (const [hand, fore, k] of [[ha, eb, 0], [hb, ea, 1]] as const) {
+        const spot = at(fore.a, fore.b, along(hand.a, fore.a, fore.b, gripSlides(m, k)));
+        const e = len(sub(hand.a, spot)) - w.clasp * (hand.r + fore.r);
         c += w.hold * (h.weight ?? 1) * e * e;
       }
       if (h.gripHeight !== undefined) {
@@ -605,6 +627,7 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
       const sf = a.flen / body.fore0 - 1;
       c += w.stretch * (su * su + sf * sf);
       if (su < -SHRINK) c += w.range * (su + SHRINK) ** 2;
+      if (a.ulen > body.upper0) c += w.clip * (a.ulen - body.upper0) ** 2;
       if (sf < -SHRINK) c += w.range * (sf + SHRINK) ** 2;
       // Held arms low against their own shoulder, so growing isn't paid for twice.
       const isHeld = hs.some((h) => (k === 0 ? h.beau : h.belle) === side);
@@ -1009,17 +1032,30 @@ export function frameCostGrad(
       const wh = w.hold * (h.weight ?? 1);
       const ea = ELBOW_PT(h.beau) * 3;
       const eb = (NPT + ELBOW_PT(h.belle)) * 3;
-      for (const [hp, ep, want] of [
-        [pa, eb, w.clasp * (m.bodies[0].handR + m.bodies[1].forearmR)],
-        [pb, ea, w.clasp * (m.bodies[1].handR + m.bodies[0].forearmR)],
+      // Each hand at the partner's elbow, or (the shorter forearm's, `gripSlides`) at the closest
+      // point of their forearm: the elbow and wrist share the pull as the clamp parameter splits it.
+      for (const [hp, ep, want, slide] of [
+        [pa, eb, w.clasp * (m.bodies[0].handR + m.bodies[1].forearmR), gripSlides(m, 0)],
+        [pb, ea, w.clasp * (m.bodies[1].handR + m.bodies[0].forearmR), gripSlides(m, 1)],
       ] as const) {
-        const x = PTS[hp]! - PTS[ep]!, y = PTS[hp + 1]! - PTS[ep + 1]!, z = PTS[hp + 2]! - PTS[ep + 2]!;
+        const wp = ep + 3;
+        let u = 0;
+        if (slide) {
+          const dx = PTS[wp]! - PTS[ep]!, dy = PTS[wp + 1]! - PTS[ep + 1]!, dz = PTS[wp + 2]! - PTS[ep + 2]!;
+          const l2 = dx * dx + dy * dy + dz * dz;
+          if (l2 > 1e-12) u = clamp01(((PTS[hp]! - PTS[ep]!) * dx + (PTS[hp + 1]! - PTS[ep + 1]!) * dy + (PTS[hp + 2]! - PTS[ep + 2]!) * dz) / l2);
+        }
+        const cx = PTS[ep]! + (PTS[wp]! - PTS[ep]!) * u;
+        const cy = PTS[ep + 1]! + (PTS[wp + 1]! - PTS[ep + 1]!) * u;
+        const cz = PTS[ep + 2]! + (PTS[wp + 2]! - PTS[ep + 2]!) * u;
+        const x = PTS[hp]! - cx, y = PTS[hp + 1]! - cy, z = PTS[hp + 2]! - cz;
         const dist = Math.sqrt(x * x + y * y + z * z);
         cost += wh * (dist - want) * (dist - want);
         if (dist > 1e-12) {
           const k = (2 * wh * (dist - want)) / dist;
           addPt(hp, k, x, y, z);
-          addPt(ep, -k, x, y, z);
+          addPt(ep, -k * (1 - u), x, y, z);
+          if (u > 0) addPt(wp, -k * u, x, y, z);
         }
       }
       if (h.gripHeight !== undefined) {
@@ -1105,6 +1141,10 @@ export function frameCostGrad(
       if (su < -SHRINK) {
         cost += w.range * (su + SHRINK) ** 2;
         grad[k + 2] = grad[k + 2]! + (2 * w.range * (su + SHRINK)) / b.upper0;
+      }
+      if (ulen > b.upper0) {
+        cost += w.clip * (ulen - b.upper0) ** 2;
+        grad[k + 2] = grad[k + 2]! + 2 * w.clip * (ulen - b.upper0);
       }
       if (sf < -SHRINK) {
         cost += w.range * (sf + SHRINK) ** 2;
@@ -1380,6 +1420,8 @@ export interface Metrics {
   jumpAt: string;
   /** Largest stretch of any segment, as a ratio of its rest length. */
   stretch: number;
+  /** 🧪 Furthest any upper arm is past its own length (m): `pose-rules`' length rule, on the solve. */
+  upperOver: number;
   /** The beau's furthest step off the floor's path (m). */
   step: number;
   /** 🧪 Each dancer's largest change of height (m, signed: negative is a shrink), beau then belle. */
@@ -1392,7 +1434,7 @@ const angleBetween = (a: Vec, b: Vec) => {
 };
 
 export function metrics(m: Move, frames: readonly Frame[], path?: readonly Frame[]): Metrics {
-  const out: Metrics = { clip: 0, clipAt: "", holdGap: 0, jump: 0, jumpAt: "", stretch: 1, step: 0, grow: [0, 0] };
+  const out: Metrics = { clip: 0, clipAt: "", holdGap: 0, jump: 0, jumpAt: "", stretch: 1, upperOver: 0, step: 0, grow: [0, 0] };
   const n = frames.length;
   const noMargin = { ...WEIGHTS, margin: 0 };
   frames.forEach((f, i) => {
@@ -1422,7 +1464,11 @@ export function metrics(m: Move, frames: readonly Frame[], path?: readonly Frame
       if (h.forearm === true) {
         const ea = A.find((s) => s.name === `forearm-${SIDES[h.beau]}`);
         const eb = B.find((s) => s.name === `forearm-${SIDES[h.belle]}`);
-        if (ea && eb) out.holdGap = Math.max(out.holdGap, len(sub(ha.a, eb.a)) - WEIGHTS.clasp * (ha.r + eb.r), len(sub(hb.a, ea.a)) - WEIGHTS.clasp * (hb.r + ea.r));
+        if (ea && eb) {
+          const sa = at(eb.a, eb.b, along(ha.a, eb.a, eb.b, gripSlides(m, 0)));
+          const sb = at(ea.a, ea.b, along(hb.a, ea.a, ea.b, gripSlides(m, 1)));
+          out.holdGap = Math.max(out.holdGap, len(sub(ha.a, sa)) - WEIGHTS.clasp * (ha.r + eb.r), len(sub(hb.a, sb)) - WEIGHTS.clasp * (hb.r + ea.r));
+        }
         continue;
       }
       out.holdGap = Math.max(out.holdGap, len(sub(ha.a, hb.a)) - WEIGHTS.clasp * (ha.r + hb.r));
@@ -1432,7 +1478,10 @@ export function metrics(m: Move, frames: readonly Frame[], path?: readonly Frame
       if (Math.abs(g) > Math.abs(out.grow[k] ?? 0)) out.grow[k] = g;
       const body = m.bodies[k];
       if (!body) return;
-      for (const a of d.arms) out.stretch = Math.max(out.stretch, a.ulen / body.upper0, a.flen / body.fore0);
+      for (const a of d.arms) {
+        out.stretch = Math.max(out.stretch, a.ulen / body.upper0, a.flen / body.fore0);
+        out.upperOver = Math.max(out.upperOver, a.ulen - body.upper0);
+      }
     });
     const p = path?.[i]?.[0];
     if (p) out.step = Math.max(out.step, Math.hypot(f[0].x - p.x, f[0].z - p.z));
@@ -1565,8 +1614,9 @@ export function reachArm(b: Body, side: 0 | 1, f: DancerFrame, target: Vec, pole
  * down. Angles are unwrapped along the move so the start has no ±360° steps of its own.
  */
 /**
- * 🧪 A forearm grip's starting pose (2026-10-28): the two elbows a forearm apart at `height`, centred
- * on the line between the two held shoulders, each hand a clasp short of the other's elbow. Reaching
+ * 🧪 A forearm grip's starting pose (2026-10-28): the two elbows the longer forearm apart at `height`,
+ * centred on the line between the two held shoulders, each hand its own forearm out along that line
+ * (the longer's a clasp short of the other's elbow). Reaching
  * both hands for one point, the twirl's start, began every Allemande with the hands together and the
  * elbows wherever that put them.
  */
@@ -1582,12 +1632,13 @@ function forearmStart(m: Move, f: Frame, h: Hold, height: number): Frame {
   const uz = dz / dl;
   const mx = (sa[0] + sb[0]) / 2;
   const mz = (sa[2] + sb[2]) / 2;
+  // The longer forearm sets the elbows apart; the shorter one's hand lands on it (`gripSlides`).
   const clasp = WEIGHTS.clasp * ((bb.handR + gb.forearmR + gb.handR + bb.forearmR) / 2);
-  const fore = Math.max(0.05, (bb.fore0 + gb.fore0) / 2 - clasp);
+  const fore = Math.max(0.05, Math.max(bb.fore0, gb.fore0) - clasp);
   const ea: Vec = [mx - (ux * fore) / 2, height, mz - (uz * fore) / 2];
   const eb: Vec = [mx + (ux * fore) / 2, height, mz + (uz * fore) / 2];
-  const toward = (from: Vec, to: Vec): Vec => {
-    const k = (fore - clasp) / fore;
+  const toward = (from: Vec, to: Vec, reach: number): Vec => {
+    const k = Math.min(1, Math.max(0.05, reach - clasp) / fore);
     return [from[0] + (to[0] - from[0]) * k, height, from[2] + (to[2] - from[2]) * k];
   };
   const set = (d: DancerFrame, body: Body, side: 0 | 1, e: Vec, hand: Vec): DancerFrame => {
@@ -1595,7 +1646,7 @@ function forearmStart(m: Move, f: Frame, h: Hold, height: number): Frame {
     arms[side] = armThrough(body, side, d, e, hand);
     return { ...d, arms };
   };
-  return [set(f[0], bb, h.beau, ea, toward(ea, eb)), set(f[1], gb, h.belle, eb, toward(eb, ea))];
+  return [set(f[0], bb, h.beau, ea, toward(ea, eb, bb.fore0)), set(f[1], gb, h.belle, eb, toward(eb, ea, gb.fore0))];
 }
 
 /**

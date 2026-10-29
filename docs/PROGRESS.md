@@ -6,7 +6,23 @@ _Last updated: 2026-10-28_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-28 (11) — the Allemande folds
+> ### ▶ PICK UP HERE — 2026-10-28 (12) — sprout and ember: all 25 Allemandes
+>
+> [`journal/2026-10-28-12-sprout-and-ember.md`](journal/2026-10-28-12-sprout-and-ember.md)
+> · ✅ committed (Ryan: *"commit it"*), the-lot only, still on square-one **v0.10.0**.
+>
+> - **All 25 Allemandes clean and baked.** Unequal forearms: the shorter one's hand holds anywhere
+>   along the longer forearm (`gripSlides`), the elbows the longer forearm apart.
+> - ember ×2's step-in: arms start hanging, facing the way they'll lift. Worst swing 20°.
+> - The solver now holds the upper arm to its length, as the floor's length rule does (myco ↔ ember
+>   bakes drew it 4.2 cm long under a "clean" solve). 100/100 clean; Allemande and Trade re-baked.
+> - ⚠️ Found: the twirl's `meet` bakes for myco/sprout → ember draw the upper arm 54–56 cm long.
+>
+> ⏳ **Next:** the twirl's long upper arms (myco/sprout → ember `meet`). Mixed sets later (Ryan).
+>
+> ---
+>
+> ### 2026-10-28 (11) — the Allemande folds
 >
 > [`journal/2026-10-28-11-the-allemande-folds.md`](journal/2026-10-28-11-the-allemande-folds.md)
 > · ✅ committed on the pin to square-one **v0.10.0** (Ryan: *"commit it, release and pin"*),
@@ -22,7 +38,7 @@ _Last updated: 2026-10-28_
 >   centred over the held shoulders, a forearm on the partner's upper arm exempt; 2 cm margin.
 > - Left: sprout ↔ ember (a metre of height) and ember ×2's step-in.
 >
-> ⏳ **Next:** sprout ↔ ember (a metre of height) and ember ×2's step-in. Mixed sets later (Ryan).
+> ⏳ **Next:** sprout ↔ ember (a metre of height) and ember ×2's step-in (done in (12)).
 >
 > ---
 >

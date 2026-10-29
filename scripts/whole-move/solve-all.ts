@@ -126,6 +126,8 @@ function flags(r: Result): string[] {
   if (m.jump > 30) f.push(`jump ${m.jump.toFixed(0)}° (${m.jumpAt})`);
   if (m.step > (cap ?? 0.1) + 0.01) f.push(`step ${(m.step * 100).toFixed(0)} cm`);
   if (m.stretch > 1.25) f.push(`stretch ${m.stretch.toFixed(2)}`);
+  // The floor's length rule (`pose-rules`, its 1 cm skin): an upper arm drawn past its length.
+  if (m.upperOver > 0.01) f.push(`upper arm +${(m.upperOver * 100).toFixed(1)} cm`);
   return f;
 }
 

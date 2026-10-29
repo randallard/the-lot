@@ -243,8 +243,8 @@ const ARM_TURN_REACH = 0.6;
  * held (`height`, world m) and how far each body centre stands off the pivot (`radius`, world m;
  * square-one's `gripRadius` times the scale).
  *
- * The forearm grip asks only that each hand be at the other's elbow, so the two elbows are a
- * forearm apart, at one height. Each elbow hangs off its own shoulder on the upper arm, raised
+ * The forearm grip asks only that the longer forearm's hand be at the other's elbow and the
+ * shorter's on the longer forearm, so the two elbows are the longer forearm apart, at one height. Each elbow hangs off its own shoulder on the upper arm, raised
  * {@link ARM_TURN_RAISE} (the pair's mean height for that raise), and reaches toward the partner
  * by part of what the raise leaves it horizontally. The shoulders are where the body has them,
  * **forward offset included** (ember's are 22 cm ahead of its centre, and in an arm turn the two
@@ -273,8 +273,9 @@ export function armTurnGrip(a: Body, b: Body): { radius: number; height: number;
   gb *= k;
   const height = (ea + ra * ga + eb + rb * gb) / 2;
   const reach = (x: Body, g: number) => ARM_TURN_REACH * Math.sqrt(Math.max(0, x.upper0 ** 2 - (x.shoulder[0][1] + x.rise.shoulder[0][1] * g - height) ** 2));
-  // Elbow to elbow: each hand centre at the other's elbow, a clasp short of touching.
-  const fore = (a.fore0 + b.fore0) / 2 - 0.6 * (a.handR + b.forearmR + b.handR + a.forearmR) / 2;
+  // Elbow to elbow: the longer forearm's hand at the other's elbow, a clasp short of touching (the
+  // shorter's holds further up the longer, `gripSlides`).
+  const fore = a.fore0 >= b.fore0 ? a.fore0 - 0.6 * (a.handR + b.forearmR) : b.fore0 - 0.6 * (b.handR + a.forearmR);
   const along = fore + reach(a, ga) + reach(b, gb);
   const across = a.shoulder[0][2] + b.shoulder[0][2];
   const D = a.shoulder[0][0] + b.shoulder[0][0] + Math.sqrt(Math.max(0, along * along - across * across));
