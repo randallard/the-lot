@@ -262,6 +262,13 @@ function packArch(bodies: readonly [Body, Body], f: Frame, arms: ArchArms, out: 
 /** How hard a bake's hands hold: a break only reaches (`BREAK_HOLD`). */
 const holdWeight = (b: BakedTrack) => (b.sizing?.accommodation === "break" ? BREAK_HOLD : 1);
 
+/**
+ * 🧪 Whether a bake holds hands through its call (10-28). The twirl does, his right in her left;
+ * a Partner Trade (`solve-all`'s bakes) walks hands free, so it joins the standing couple only on
+ * that side of a window: the hands join as the couple settles, and let go as they step off.
+ */
+const isHeld = (b: BakedTrack) => b.call === "california-twirl";
+
 /** One window: `frames` (floor), `v` started from the bakes, the holds, and who may grow. */
 function polish(
   frames: Frame[], v: Float64Array, holds: Hold[], bodies: [Body, Body], grow: BakedTrack["grow"], iterations: number,
@@ -308,6 +315,9 @@ export function joinChain(
     const n = w.path.length;
     const weight = holdWeight(w.bake);
     const hold: Hold[] = [{ from: 0, to: 1, beau: 1, belle: 0, weight }];
+    // A free bake holds only on the standing couple's side of each window.
+    const fromStanding: Hold[] = isHeld(w.bake) ? hold : [{ from: 0, to: 0.5, beau: 1, belle: 0, weight }];
+    const intoStanding: Hold[] = isHeld(w.bake) ? hold : [{ from: 0.5, to: 1, beau: 1, belle: 0, weight }];
     // Its start: waiting, or after a call the floor posed. The bake eased onto the standing couple.
     if (i === 0 || work[i - 1] === undefined || waits(i)) {
       const frames = w.path.slice(0, K + 1);
@@ -315,7 +325,7 @@ export function joinChain(
       const stand = new Float64Array(PER);
       packStanding(shapes, bodies, frames[0]!, stand, 0);
       const v = eased(bake, K + 1, stand, 0, (j) => 1 - ease(j / K));
-      const r = polish(frames, v, hold, bodies, w.bake.grow, iters);
+      const r = polish(frames, v, fromStanding, bodies, w.bake.grow, iters);
       for (let j = 0; j < K; j++) w.values[j] = unpackValues(r, j, frames[j]!, w.values[j]!);
     }
     // Its end: the dance ends waiting (ADR-0026's release), a wait follows, or a call the floor
@@ -327,7 +337,7 @@ export function joinChain(
       const stand = new Float64Array(PER);
       packStanding(shapes, bodies, frames[K]!, stand, 0);
       const v = eased(bake, K + 1, stand, K, (j) => ease(j / K));
-      const r = polish(frames, v, hold, bodies, w.bake.grow, iters);
+      const r = polish(frames, v, intoStanding, bodies, w.bake.grow, iters);
       for (let j = 1; j <= K; j++) w.values[n - 1 - K + j] = unpackValues(r, j, frames[j]!, w.values[n - 1 - K + j]!);
       return;
     }
@@ -346,8 +356,10 @@ export function joinChain(
       const y = (ROUND as readonly number[]).includes(k) ? wrapTo(b[k]!, x) : b[k]!;
       mid[k] = (x + y) / 2;
     }
-    // The held arms: the arch, held (unless a break is on either side: then the hands only reach).
-    if (holdWeight(w.bake) === 1 && holdWeight(next.bake) === 1) {
+    // The held arms: the arch, held (unless a break is on either side: then the hands only reach),
+    // when both calls hold. A free call on either side (10-28) joins hands free.
+    const bothHeld = isHeld(w.bake) && isHeld(next.bake);
+    if (bothHeld && holdWeight(w.bake) === 1 && holdWeight(next.bake) === 1) {
       packArch(bodies, tail[J]!, natural, mid);
       for (const k of ROUND) mid[k] = wrapTo(mid[k]!, a[J * PER + k]!);
     }
@@ -360,8 +372,8 @@ export function joinChain(
     unwrap(v, frames.length, 0);
     const seam = J / (frames.length - 1);
     const holds: Hold[] = [
-      { from: 0, to: seam, beau: 1, belle: 0, weight },
-      { from: seam + 1e-6, to: 1, beau: 1, belle: 0, weight: holdWeight(next.bake) },
+      ...(isHeld(w.bake) ? [{ from: 0, to: seam, beau: 1 as const, belle: 0 as const, weight }] : []),
+      ...(isHeld(next.bake) ? [{ from: seam + 1e-6, to: 1, beau: 1 as const, belle: 0 as const, weight: holdWeight(next.bake) }] : []),
     ];
     // The arch stays up across the join (ADR-0026: one unbroken arch): the hands no more than
     // 10 cm under {@link archHeight}, or the window's edges if those are lower. Without this the
@@ -370,7 +382,7 @@ export function joinChain(
     const last = frames.length - 1;
     const edge = Math.min(handHeight(v, 0, frames[0]!, bodies), handHeight(v, last, frames[last]!, bodies));
     const lift = frames.map(() => Math.min(archHeight(bodies, tail[J]!, natural) - 0.1, edge));
-    const r = polish(frames, v, holds, bodies, w.bake.grow ?? next.bake.grow, iters, holdWeight(w.bake) < 1 || holdWeight(next.bake) < 1 ? undefined : lift);
+    const r = polish(frames, v, holds, bodies, w.bake.grow ?? next.bake.grow, iters, !bothHeld || holdWeight(w.bake) < 1 || holdWeight(next.bake) < 1 ? undefined : lift);
     for (let j = 1; j <= J; j++) w.values[n - 1 - J + j] = unpackValues(r, j, tail[j]!, w.values[n - 1 - J + j]!);
     // The join itself and after it, in the next call's own frame: the same pose, so the hand-over is exact.
     for (let j = 0; j < J; j++) next.values[j] = unpackValues(r, J + j, next.path[j]!, next.values[j]!);

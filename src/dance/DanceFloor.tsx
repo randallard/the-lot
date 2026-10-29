@@ -88,7 +88,7 @@ import {
   type DuckRoom,
 } from "./arch";
 import { pairGripRadius, planForearm, type ForearmPlan } from "./forearm-hold";
-import { passingClearance } from "./passing";
+import { forwardReach, passingClearance } from "./passing";
 import {
   BREAK,
   NO_DELTAS,
@@ -690,20 +690,22 @@ export function DanceFloor({
     // 🧪 Each bake's ends re-solved to join what's either side (10-27, step 4; square-one
     // ADR-0026): into the next bake with the hands held across the join, and out of or into the
     // standing couple at the sequence's start and end, or beside a call the floor poses itself.
-    // The twirl's only: the join holds his right in her left. Any other figure's bake
-    // (`solve-all`, 10-28: hands free, so nothing to join) is drawn as baked.
-    const joined = joinChain(
+    // A couple's calls only (a sequence): a facing pair (Dosado, Pass Thru) has no standing couple
+    // to join, and its bake (`solve-all`, 10-28) is drawn as baked. A hands-free couple call (a
+    // Partner Trade) joins the standing couple's handhold only on that side (`chain-join.ts`).
+    const couple = performanceOptions.sequence !== undefined;
+    if (!couple) return chosen;
+    return joinChain(
       chosen.map((bake, i) => {
         const c = calls[i];
         return {
           bake,
-          paths: bake === undefined || c !== "california-twirl" ? undefined : couplePaths(c, pair, bake.sizing ?? REVIEW2_SIZING),
+          paths: bake === undefined || c === undefined ? undefined : couplePaths(c, pair, bake.sizing ?? REVIEW2_SIZING),
           wait: performanceOptions.waits?.[i] ?? 0,
         };
       }),
       pair,
     );
-    return joined.map((b, i) => (calls[i] === "california-twirl" ? b : chosen[i]));
   }, [baked, performanceOptions.sequence, performanceOptions.waits, performanceOptions.call, shapes, turnUnder, calledAccommodation, forced]);
 
   /**
@@ -827,12 +829,21 @@ export function DanceFloor({
     return pairGripRadius(armMetrics(a), armMetrics(b)) / scaleNow;
   }, [shapes, scale]);
 
+  /** 🧪 The two heads' forward reach, in engine units (`passing.ts`, 10-28): ember's meet first. */
+  const forwardEngine = useMemo(() => {
+    const a = shapes[0];
+    const b = shapes[1];
+    if (a === undefined || b === undefined) return undefined;
+    return forwardReach(a, b) / (scale ?? DEFAULT_SCALE);
+  }, [shapes, scale]);
+
   const runtime = useDancePerformance({
     ...performanceOptions,
     coupleWidth: coupleWidthEngine,
     ...(clearanceEngine === undefined ? {} : { clearance: clearanceEngine }),
     shapeAt,
     ...(gripRadiusEngine === undefined ? {} : { gripRadius: gripRadiusEngine }),
+    ...(forwardEngine === undefined ? {} : { forward: forwardEngine }),
   });
   const keys = useMemo(() => Object.keys(runtime.motions), [runtime.motions]);
 

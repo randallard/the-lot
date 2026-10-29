@@ -28,21 +28,23 @@ describe("🧪 any figure as a whole-move problem (step 7)", () => {
     expect(fm.move.holds).toEqual([{ from: g!.from / p.beats, to: g!.to / p.beats, beau: 0, belle: 0, forearm: true }]);
   });
 
-  it("keeps the beau within the step cap", () => {
-    // Ember ×4's Pass Thru: its heads sit 28 cm forward, so they meet before the bodies do, and
-    // the beau steps off the path to pass (10-28, after the arm-aware clearance took the rest).
-    const ember = [getBodyShape("ember"), getBodyShape("ember")] as const;
-    const eb: [ReturnType<typeof bodyOf>, ReturnType<typeof bodyOf>] = [bodyOf(ember[0]), bodyOf(ember[1])];
-    const p = figurePaths("pass-thru", "pair", ember, REVIEW2_SIZING);
-    const free = figureMove("pass-thru", p, eb);
-    const capped = figureMove("pass-thru", p, eb, { stepCap: 0.1 });
-    if ("unsupported" in free || "unsupported" in capped) throw new Error("pass thru should solve");
+  it("pulls the beau's step in toward the cap", () => {
+    // A Pass Thru with the belle walked straight down the beau's line: the only way past is for
+    // him to step off it. (Ember ×4's real one needed 26 cm until 10-28's forward-head fix.)
+    const real = figurePaths("pass-thru", "pair", shapes, REVIEW2_SIZING);
+    const p = { ...real, belle: real.belle.map((s, i) => ({ ...s, x: real.beau[i]!.x })) };
+    const free = figureMove("pass-thru", p, bodies);
+    const capped = figureMove("pass-thru", p, bodies, { stepCap: 0.1 });
     const step = (fm: typeof free) => {
       if ("unsupported" in fm) return 0;
       const r = solve({ ...fm.move, frames: fm.start }, { iterations: 800 });
       return metrics(fm.move, r.frames, fm.path).step;
     };
-    expect(step(free)).toBeGreaterThan(0.15);
-    expect(step(capped)).toBeLessThan(0.11);
+    const a = step(free);
+    const b = step(capped);
+    // A strong cost, not a wall: walked head-on, clipping costs more than stepping past the cap,
+    // so he still steps some way past it, but far less than uncapped.
+    expect(a).toBeGreaterThan(0.3);
+    expect(b).toBeLessThan(a / 2);
   });
 });

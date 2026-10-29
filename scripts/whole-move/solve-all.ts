@@ -33,6 +33,9 @@ import type { CallName } from "square-one";
 import { getBodyShape } from "../../src/services/body-shapes";
 import { BAKE_FORMAT, bodyPrint, relativeKeyframes, REVIEW2_SIZING, type BakedTrack } from "../../src/dance/baked-tracks";
 import { figurePaths } from "../../src/dance/engine-paths";
+import { RESHAPE } from "../../src/dance/accommodation";
+import { armMetrics } from "../../src/dance/arm-pose";
+import { planForearm } from "../../src/dance/forearm-hold";
 import { reviewPairings } from "../../src/dance/review-route";
 import { REVIEW_FIGURES } from "../../src/dance/review-steps";
 import { bodyOf, metrics, solveBest, toDials, WEIGHTS, type Metrics } from "../../src/dance/whole-move";
@@ -79,7 +82,9 @@ function solveJob(j: Job): Result {
   const shapes = [getBodyShape(j.beau), getBodyShape(j.belle)] as const;
   const P = figurePaths(j.call, j.formation, shapes, REVIEW2_SIZING);
   const bodies: [ReturnType<typeof bodyOf>, ReturnType<typeof bodyOf>] = [bodyOf(shapes[0]), bodyOf(shapes[1])];
-  const fm = figureMove(j.call, P, bodies, cap === undefined ? {} : { stepCap: cap });
+  // A forearm grip is held where the floor holds it (`planForearm`), level and centred.
+  const gripHeight = planForearm(armMetrics(shapes[0]), armMetrics(shapes[1]), shapes[0], shapes[1], RESHAPE).height;
+  const fm = figureMove(j.call, P, bodies, { ...(cap === undefined ? {} : { stepCap: cap }), gripHeight });
   if ("unsupported" in fm) return { ...j, unsupported: fm.unsupported };
   // 6 cm is the twirl's margin, for hands round heads under an arch. Hands free, it pushed every
   // dancer's hanging arm off their own body: arms 1.3–1.8× long (player ×4's Dosado 1.72; 1.03 at 2 cm).

@@ -6,7 +6,27 @@ _Last updated: 2026-10-28_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-28 (9) — room for the arms, a forearm hold, the first bakes beyond the twirl
+> ### ▶ PICK UP HERE — 2026-10-28 (10) — heads first, a guide for the Allemande, joins for the Trade
+>
+> [`journal/2026-10-28-10-heads-first-a-guide-for-the-allemande-joins-for-the-trade.md`](journal/2026-10-28-10-heads-first-a-guide-for-the-allemande-joins-for-the-trade.md)
+> · ✅ committed on the pin to square-one **v0.9.0** (Ryan: *"commit pin and release"*), validated
+> against the fetched tarball: `tsc -b`, `vite build`, the 38 known failures
+>
+> - **Ember's head** (28 cm forward): square-one widens the Pass Thru for the heads. Ember ×4 is
+>   clean (clip 5.1 → 0, step 26 → 3 cm) and baked. All 25 Pass Thrus clean.
+> - **Allemande:** `Hold.gripHeight` (grip level and centred), exact gradient. Still not clean:
+>   at the floor's radius the hands miss by 3–10 cm; at 1.5× they meet but with arms stretched
+>   1.5–1.7×. The solver's elbow won't fold as the floor's pose does. Not baked.
+> - **Joins:** `joinChain` knows held and free bakes. A Partner Trade joins the standing
+>   couple's handhold at the dance's ends and flows between calls. Couple sequences go through
+>   it; facing pairs don't.
+>
+> ⏳ **Next:** what stops the Allemande's elbow fold, then size its radius from the solver's arms.
+> Mixed sets later (Ryan).
+>
+> ---
+>
+> ### 2026-10-28 (9) — room for the arms, a forearm hold, the first bakes beyond the twirl
 >
 > [`journal/2026-10-28-9-room-for-the-arms-and-the-first-bakes-beyond-the-twirl.md`](journal/2026-10-28-9-room-for-the-arms-and-the-first-bakes-beyond-the-twirl.md)
 > · ✅ committed on the pin to square-one **v0.8.0** (Ryan: *"commit it, release and pin"*),

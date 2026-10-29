@@ -147,7 +147,7 @@ describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
         { from: 0, to: 0.6, beau: 1, belle: 0, plane: { p: [0, 0, 0.1], n: [0.6, 0, 0.8] } },
         { from: 0.4, to: 1, beau: 0, belle: 1 },
         // 🧪 A forearm grip (step 7, 10-28): each hand at the other's elbow.
-        { from: 0.2, to: 0.8, beau: 1, belle: 1, forearm: true },
+        { from: 0.2, to: 0.8, beau: 1, belle: 1, forearm: true, gripHeight: 1.1 },
       ],
       targets: [
         { i: 2, dancer: 0, side: 1, key: "raise", value: 2.6, weight: 1 },

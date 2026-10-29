@@ -30,6 +30,16 @@ export function armsClearance(a: CharacterBodyShape, b: CharacterBodyShape): num
   return Math.abs(A.shoulder[0][0]) + Math.abs(B.shoulder[0][0]) + 2 * Math.max(A.handR, B.handR) + ARMS_GAP;
 }
 
+/**
+ * 🧪 How much nearer two dancers' heads come than their centres when they face each other (m): how
+ * far ahead of each body's centre line its head sits, the two added (square-one's
+ * `FigureShape.forward`, 0.9.0). Ember carries its head 28 cm forward, and two embers in a Pass
+ * Thru met head first (10-28, `solve-all`). Everyone else's head is over their centre: 0.
+ */
+export function forwardReach(a: CharacterBodyShape, b: CharacterBodyShape): number {
+  return Math.max(0, bodyOf(a).head.c[2]) + Math.max(0, bodyOf(b).head.c[2]);
+}
+
 /** How far apart two dancers must be to pass, centre to centre (m): the bodies' or the arms', the wider. */
 export function passingClearance(a: CharacterBodyShape, b: CharacterBodyShape): number {
   return Math.max(passingWidth(lateralClearance(rigidParts(a), rigidParts(b))), armsClearance(a, b));

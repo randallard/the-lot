@@ -322,6 +322,13 @@ export interface Hold {
    * (*"two horizontal, antiparallel forearms … each hand at the other's elbow"*, its `GripStyle`).
    */
   forearm?: boolean;
+  /**
+   * 🧪 Where a forearm grip is held (10-28): both hands and both elbows on this height (m), the
+   * forearms level along each other, and the elbows' midpoint over the point between the two
+   * dancers. The Allemande's shape, as the arch's plane is the twirl's: without it the 25 solved
+   * apart, hands 3–9 cm off the elbow and the arm flipping over. The floor's `planForearm` height.
+   */
+  gripHeight?: number;
 }
 
 /**
@@ -534,6 +541,16 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
       for (const [hand, elbow] of [[ha, eb], [hb, ea]] as const) {
         const e = len(sub(hand.a, elbow.a)) - w.clasp * (hand.r + elbow.r);
         c += w.hold * (h.weight ?? 1) * e * e;
+      }
+      if (h.gripHeight !== undefined) {
+        for (const p of [ha.a, hb.a, ea.a, eb.a]) c += w.plane * (p[1] - h.gripHeight) ** 2;
+        const fa = A.find((s) => s.name === "torso");
+        const fb = B.find((s) => s.name === "torso");
+        if (fa && fb) {
+          const mx = (ea.a[0] + eb.a[0]) / 2 - (fa.a[0] + fb.a[0]) / 2;
+          const mz = (ea.a[2] + eb.a[2]) / 2 - (fa.a[2] + fb.a[2]) / 2;
+          c += w.plane * (mx * mx + mz * mz);
+        }
       }
       continue;
     }
@@ -984,6 +1001,22 @@ export function frameCostGrad(
           addPt(hp, k, x, y, z);
           addPt(ep, -k, x, y, z);
         }
+      }
+      if (h.gripHeight !== undefined) {
+        for (const p of [pa, pb, ea, eb]) {
+          const dy = PTS[p + 1]! - h.gripHeight;
+          cost += w.plane * dy * dy;
+          GPT[p + 1] = GPT[p + 1]! + 2 * w.plane * dy;
+        }
+        // The elbows' midpoint over the dancers' (their torsos' feet, point 0).
+        const fa = 0, fb = NPT * 3;
+        const mx = (PTS[ea]! + PTS[eb]! - PTS[fa]! - PTS[fb]!) / 2;
+        const mz = (PTS[ea + 2]! + PTS[eb + 2]! - PTS[fa + 2]! - PTS[fb + 2]!) / 2;
+        cost += w.plane * (mx * mx + mz * mz);
+        addPt(ea, w.plane, mx, 0, mz);
+        addPt(eb, w.plane, mx, 0, mz);
+        addPt(fa, -w.plane, mx, 0, mz);
+        addPt(fb, -w.plane, mx, 0, mz);
       }
       continue;
     }

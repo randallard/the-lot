@@ -16,7 +16,7 @@ import { BREAK, RESHAPE } from "./accommodation";
 import type { BakedSizing, PathSample } from "./baked-tracks";
 import { pairGripRadius } from "./forearm-hold";
 import { DEFAULT_SCALE, facingToRotationY, makeFrame, passingWidth, toWorld } from "./frame";
-import { passingClearance } from "./passing";
+import { forwardReach, passingClearance } from "./passing";
 import { lateralClearance, rigidParts, type CharacterBodyShape } from "../services/body-shapes";
 
 const R2D = 180 / Math.PI;
@@ -72,7 +72,11 @@ export function figurePaths(
   const scale = DEFAULT_SCALE;
   const pair = applyCallToPair(
     call,
-    shapeOf({ clearance: passingClearance(a, b) / scale, gripRadius: pairGripRadius(am, bm) / scale }, DEFAULT_PAIR_SHAPE),
+    shapeOf({
+      clearance: passingClearance(a, b) / scale,
+      gripRadius: pairGripRadius(am, bm) / scale,
+      ...(forwardReach(a, b) > 0 ? { forward: forwardReach(a, b) / scale } : {}),
+    }, DEFAULT_PAIR_SHAPE),
   );
   return sampleMotions(pair, n);
 }

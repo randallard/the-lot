@@ -98,6 +98,8 @@ export interface DancePerformanceOptions {
    * Left — is danced by one. That is why `applyCallToPair` is now given a shape.
    */
   readonly gripRadius?: number;
+  /** 🧪 How much nearer the two heads come than the bodies, facing (square-one's `FigureShape.forward`). */
+  readonly forward?: number;
   /**
    * A per-call shape override for a couple sequence — square-one's `ShapeAt` (its ADR-0025),
    * forwarded straight through.
@@ -182,6 +184,7 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
     archClearance,
     clearance,
     gripRadius,
+    forward,
     shapeAt,
     waits,
     bpm = DEFAULT_BPM,
@@ -232,12 +235,13 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
         {
           ...(clearance === undefined ? {} : { clearance }),
           ...(gripRadius === undefined ? {} : { gripRadius }),
+          ...(forward === undefined || forward === 0 ? {} : { forward }),
         },
         DEFAULT_PAIR_SHAPE,
       ),
     );
     return { motions: { a, b }, steps: [{ call, startBeat: 0, beats: Math.max(a.beats, b.beats) }] };
-  }, [call, sequence, coupleWidth, clearance, archClearance, gripRadius, shapeAt, waits]);
+  }, [call, sequence, coupleWidth, clearance, archClearance, gripRadius, forward, shapeAt, waits]);
 
   const beats = useMemo(
     () => Math.max(...Object.values(motions).map((m) => m.beats)),
