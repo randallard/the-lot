@@ -128,10 +128,10 @@ describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
   const arm = (b: typeof ryan) => ({
     raise: rnd() * 3.4 - 0.2,
     toward: rnd() * 6 - 3,
-    ulen: b.upper0 * (0.8 + rnd() * 0.6),
+    ulen: b.upper0 * (0.5 + rnd() * 0.9),
     pitch: rnd() * 3.6 - 1.8,
     heading: rnd() * 6 - 3,
-    flen: b.fore0 * (0.8 + rnd() * 0.6),
+    flen: b.fore0 * (0.5 + rnd() * 0.9),
   });
 
   it("is frameCost's cost and frameCost's gradient, with every term in play", () => {

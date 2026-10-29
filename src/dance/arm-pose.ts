@@ -20,6 +20,9 @@
  * **The undrawn upper arm is the compliant link, and that is load-bearing design.**
  * A turning pair's separation is not constant — `arm-turn` walks the chords of its
  * orbit, so the bodies breathe in and out by about 0.46 world units every two beats.
+ * (🧪 2026-10-28: no longer — square-one's `arm-turn` walks the arc, and the grip is sized
+ * from the skeletons, `armTurnGrip`. The breathing was the engine's defect, not the dance's;
+ * what the compliant link still takes up is the difference between this pose and the bodies.)
  * The grip does **not** follow them: it is a rigid join, pinned to the pivot at a
  * fixed radius, that only rotates. The upper arm nobody draws is what takes up the
  * difference, exactly as a real one would. Two joined forearms that stretched and

@@ -16,7 +16,7 @@
 
 import type { CallName, GripSpan } from "square-one";
 import type { PathSample } from "./baked-tracks";
-import { startOnPath, toFloor, type Body, type Frame, type GrowStyle, type Hold, type Move, type Vec } from "./whole-move";
+import { growRoom, startOnPath, toFloor, type Body, type Frame, type GrowStyle, type Hold, type Move, type Vec } from "./whole-move";
 import { pathFrames, twirlMove } from "./whole-move-twirl";
 
 export interface FigurePaths {
@@ -35,7 +35,7 @@ export function figureMove(
   call: CallName,
   P: FigurePaths,
   bodies: [Body, Body],
-  o: { readonly stepCap?: number; readonly grow?: GrowStyle; readonly gripHeight?: number } = {},
+  o: { readonly stepCap?: number; readonly grow?: GrowStyle; readonly gripHeight?: number; readonly trade?: readonly [number, number] } = {},
 ): FigureMove {
   const cap = o.stepCap === undefined ? {} : { stepCap: o.stepCap };
   if (call === "california-twirl") {
@@ -56,7 +56,9 @@ export function figureMove(
       ...(o.gripHeight === undefined ? {} : { gripHeight: o.gripHeight }),
     }];
   });
-  const move: Move = { bodies, frames: path, holds, ...cap };
+  // A forearm grip at one height between two bodies of different heights is the floor's reshape
+  // (`planForearm`): they trade height, as the twirl's `meet` does.
+  const move: Move = { bodies, frames: path, holds, ...cap, ...(holds.length > 0 && o.grow !== undefined ? growRoom(o.grow, bodies) : {}) };
   if (holds.length === 0) return { move, path, start: path };
   // The arms start reaching for the point between the two, at the grip's height (`gripHeight`, the
   // floor's `planForearm`), or the lower shoulder's less 10 cm.
@@ -66,5 +68,14 @@ export function figureMove(
     const sb = toFloor(bodies[1].shoulder[0], f[1]);
     return [(f[0].x + f[1].x) / 2, o.gripHeight ?? Math.min(sa[1], sb[1]) - 0.1, (f[0].z + f[1].z) / 2];
   };
-  return { move, path, start: startOnPath(move, at) };
+  // 🧪 The pair's height trade (`armTurnGrip`), worn over the grip and eased in over the step-in and
+  // out over the step-out, so the call starts and ends as built. Left to find it, player → myco
+  // traded the wrong way once myco's arm went overhead (10-28).
+  const span = holds[0]!;
+  const seeded: Frame[] = o.trade === undefined || move.grow === undefined ? path : path.map((f, i) => {
+    const t = path.length > 1 ? i / (path.length - 1) : 0;
+    const u = Math.max(0, Math.min(1, span.from > 0 ? t / span.from : 1, span.to < 1 ? (1 - t) / (1 - span.to) : 1));
+    return [{ ...f[0], grow: o.trade![0] * u }, { ...f[1], grow: o.trade![1] * u }];
+  });
+  return { move, path, start: startOnPath({ ...move, frames: seeded }, at) };
 }

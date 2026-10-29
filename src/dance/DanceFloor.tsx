@@ -87,7 +87,8 @@ import {
   type ArchSizing,
   type DuckRoom,
 } from "./arch";
-import { pairGripRadius, planForearm, type ForearmPlan } from "./forearm-hold";
+import { armTurnGrip, planForearm, type ForearmPlan } from "./forearm-hold";
+import { bodyOf } from "./whole-move";
 import { forwardReach, passingClearance } from "./passing";
 import {
   BREAK,
@@ -817,6 +818,11 @@ export function DanceFloor({
    * where their arms put them. Read out of the pose rather than invented — see
    * `pairGripRadius`.
    *
+   * 🧪 Now from the skeletons (`armTurnGrip`, 2026-10-28): elbows a forearm apart off each
+   * shoulder, forward offsets included. `pairGripRadius` read the floor's `gripPose`, whose undrawn
+   * upper arms stretched 1.16–3.06× to suit, and the whole-move solve couldn't hold the grip there.
+   * The Allemande bakes are solved at this radius, so it's the one the floor walks.
+   *
    * 🔴 Unlike the clearances it is **not** floored by the engine (its ADR-0021): a grip is a
    * placement, so short arms genuinely dance a tighter Allemande and a small number here is
    * meant.
@@ -826,7 +832,7 @@ export function DanceFloor({
     const b = shapes[1];
     if (a === undefined || b === undefined) return undefined;
     const scaleNow = scale ?? DEFAULT_SCALE;
-    return pairGripRadius(armMetrics(a), armMetrics(b)) / scaleNow;
+    return armTurnGrip(bodyOf(a), bodyOf(b)).radius / scaleNow;
   }, [shapes, scale]);
 
   /** 🧪 The two heads' forward reach, in engine units (`passing.ts`, 10-28): ember's meet first. */

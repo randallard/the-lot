@@ -14,7 +14,8 @@ import { armMetrics, touchHold } from "./arm-pose";
 import { NO_DUCK, sizeArch } from "./arch";
 import { BREAK, RESHAPE } from "./accommodation";
 import type { BakedSizing, PathSample } from "./baked-tracks";
-import { pairGripRadius } from "./forearm-hold";
+import { armTurnGrip } from "./forearm-hold";
+import { bodyOf } from "./whole-move";
 import { DEFAULT_SCALE, facingToRotationY, makeFrame, passingWidth, toWorld } from "./frame";
 import { forwardReach, passingClearance } from "./passing";
 import { lateralClearance, rigidParts, type CharacterBodyShape } from "../services/body-shapes";
@@ -46,7 +47,7 @@ export function couplePaths(
   const seq = danceCoupleSequence(
     [call],
     // The arch is sized on the bodies (`sizeArch`, above); the pass on arms and all (`passing.ts`).
-    partnerUp("a", "b", undefined, undefined, hold.width / scale, passingClearance(a, b) / scale, undefined, pairGripRadius(am, bm) / scale),
+    partnerUp("a", "b", undefined, undefined, hold.width / scale, passingClearance(a, b) / scale, undefined, armTurnGrip(bodyOf(a), bodyOf(b)).radius / scale),
     shapeAt,
   );
   return sampleMotions(flattenSequence(seq), n);
@@ -67,14 +68,12 @@ export function figurePaths(
 ): { beau: PathSample[]; belle: PathSample[]; beats: number; grips: { beau: readonly GripSpan[]; belle: readonly GripSpan[] } } {
   if (formation === "couple") return couplePaths(call, shapes, sizing, n);
   const [a, b] = shapes;
-  const am = armMetrics(a);
-  const bm = armMetrics(b);
   const scale = DEFAULT_SCALE;
   const pair = applyCallToPair(
     call,
     shapeOf({
       clearance: passingClearance(a, b) / scale,
-      gripRadius: pairGripRadius(am, bm) / scale,
+      gripRadius: armTurnGrip(bodyOf(a), bodyOf(b)).radius / scale,
       ...(forwardReach(a, b) > 0 ? { forward: forwardReach(a, b) / scale } : {}),
     }, DEFAULT_PAIR_SHAPE),
   );

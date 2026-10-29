@@ -325,7 +325,7 @@ export interface Hold {
   /**
    * 🧪 Where a forearm grip is held (10-28): both hands and both elbows on this height (m), the
    * forearms level along each other, and the elbows' midpoint over the point between the two
-   * dancers. The Allemande's shape, as the arch's plane is the twirl's: without it the 25 solved
+   * held shoulders. The Allemande's shape, as the arch's plane is the twirl's: without it the 25 solved
    * apart, hands 3–9 cm off the elbow and the arm flipping over. The floor's `planForearm` height.
    */
   gripHeight?: number;
@@ -463,6 +463,14 @@ export const WEIGHTS: Weights = {
   grow: 4,
 };
 
+/**
+ * 🧪 How far a segment may shrink before it costs like an angle out of range (2026-10-28): a fifth of
+ * its length. Stretch alone costs gently both ways, and the Allemande's solve found it cheaper to
+ * shrink each forearm to nothing, hand on its own elbow, than to hold the grip (ryan ×2: forearms
+ * at 0.15× for most of the turn, the arm flipping 178° into it).
+ */
+export const SHRINK = 0.2;
+
 const held = (m: Move, t: number) => m.holds.filter((h) => t >= h.from - 1e-9 && t <= h.to + 1e-9);
 
 /**
@@ -476,8 +484,13 @@ function exempt(m: Move, t: number, a: string, b: string): boolean {
     const hb = `hand-${SIDES[h.belle]}`;
     const fa = `forearm-${SIDES[h.beau]}`;
     const fb = `forearm-${SIDES[h.belle]}`;
-    // 🧪 A forearm grip's hand is on the other's elbow, which is the end of their upper arm too.
-    if (h.forearm === true && ((a === ha && b === `upper-${SIDES[h.belle]}`) || (b === hb && a === `upper-${SIDES[h.beau]}`))) return true;
+    // 🧪 A forearm grip's hand is on the other's elbow, which is the end of their upper arm too; and
+    // the wrist behind that hand lies on it (10-28). Kept apart by the margin, a thick forearm
+    // (ember's 10 cm on a 7 cm hand) can't clasp the elbow: ember ×2 held its elbows 0.82 apart on
+    // 0.60 forearms, the hands 3 cm short.
+    const ub = `upper-${SIDES[h.belle]}`;
+    const ua = `upper-${SIDES[h.beau]}`;
+    if (h.forearm === true && (((a === ha || a === fa) && b === ub) || ((b === hb || b === fb) && a === ua))) return true;
     return (a === ha && (b === hb || b === fb)) || (b === hb && a === fa) || (a === fa && b === fb);
   });
 }
@@ -544,8 +557,10 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
       }
       if (h.gripHeight !== undefined) {
         for (const p of [ha.a, hb.a, ea.a, eb.a]) c += w.plane * (p[1] - h.gripHeight) ** 2;
-        const fa = A.find((s) => s.name === "torso");
-        const fb = B.find((s) => s.name === "torso");
+        // Over the two held shoulders (10-28), not the two bodies: ryan's shoulder is 46 cm off his
+        // centre and sprout's 20, and over the bodies sprout's 10 cm upper arm was pulled out level.
+        const fa = A.find((s) => s.name === `upper-${SIDES[h.beau]}`);
+        const fb = B.find((s) => s.name === `upper-${SIDES[h.belle]}`);
         if (fa && fb) {
           const mx = (ea.a[0] + eb.a[0]) / 2 - (fa.a[0] + fb.a[0]) / 2;
           const mz = (ea.a[2] + eb.a[2]) / 2 - (fa.a[2] + fb.a[2]) / 2;
@@ -589,6 +604,8 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
       const su = a.ulen / body.upper0 - 1;
       const sf = a.flen / body.fore0 - 1;
       c += w.stretch * (su * su + sf * sf);
+      if (su < -SHRINK) c += w.range * (su + SHRINK) ** 2;
+      if (sf < -SHRINK) c += w.range * (sf + SHRINK) ** 2;
       // Held arms low against their own shoulder, so growing isn't paid for twice.
       const isHeld = hs.some((h) => (k === 0 ? h.beau : h.belle) === side);
       if (isHeld) {
@@ -812,10 +829,13 @@ export function planOf(m: Move): SamplePlan[] {
       exempt[ha * 8 + hb - 1] = 1;
       exempt[(ha - 1) * 8 + hb] = 1;
       exempt[(ha - 1) * 8 + hb - 1] = 1;
-      // 🧪 A forearm grip's hand is on the other's elbow, the end of their upper arm too (10-28).
+      // 🧪 A forearm grip's hand is on the other's elbow, the end of their upper arm too, and the
+      // wrist behind it lies on it (10-28; `exempt`).
       if (h.forearm === true) {
         exempt[ha * 8 + hb - 2] = 1;
         exempt[(ha - 2) * 8 + hb] = 1;
+        exempt[(ha - 1) * 8 + hb - 2] = 1;
+        exempt[(ha - 2) * 8 + hb - 1] = 1;
       }
       for (const [x, y] of [[ha - 2, hb - 2], [ha - 2, hb - 1], [ha - 1, hb - 2]] as const) if (exempt[x * 8 + y] === 0) exempt[x * 8 + y] = 2;
     }
@@ -1008,8 +1028,8 @@ export function frameCostGrad(
           cost += w.plane * dy * dy;
           GPT[p + 1] = GPT[p + 1]! + 2 * w.plane * dy;
         }
-        // The elbows' midpoint over the dancers' (their torsos' feet, point 0).
-        const fa = 0, fb = NPT * 3;
+        // The elbows' midpoint over the two held shoulders' (point 3 + 4·side).
+        const fa = (3 + 4 * h.beau) * 3, fb = (NPT + 3 + 4 * h.belle) * 3;
         const mx = (PTS[ea]! + PTS[eb]! - PTS[fa]! - PTS[fb]!) / 2;
         const mz = (PTS[ea + 2]! + PTS[eb + 2]! - PTS[fa + 2]! - PTS[fb + 2]!) / 2;
         cost += w.plane * (mx * mx + mz * mz);
@@ -1082,6 +1102,14 @@ export function frameCostGrad(
       cost += w.stretch * (su * su + sf * sf);
       grad[k + 2] = grad[k + 2]! + (2 * w.stretch * su) / b.upper0;
       grad[k + 5] = grad[k + 5]! + (2 * w.stretch * sf) / b.fore0;
+      if (su < -SHRINK) {
+        cost += w.range * (su + SHRINK) ** 2;
+        grad[k + 2] = grad[k + 2]! + (2 * w.range * (su + SHRINK)) / b.upper0;
+      }
+      if (sf < -SHRINK) {
+        cost += w.range * (sf + SHRINK) ** 2;
+        grad[k + 5] = grad[k + 5]! + (2 * w.range * (sf + SHRINK)) / b.fore0;
+      }
       if (plan.heldArm[d * 2 + sd] === true) {
         const pe = (d * NPT + 4 + 4 * sd) * 3;
         const ph = (d * NPT + 6 + 4 * sd) * 3;
@@ -1536,10 +1564,69 @@ export function reachArm(b: Body, side: 0 | 1, f: DancerFrame, target: Vec, pole
  * Put every held arm's hand on `at(i)`, elbows bent away from the dancer's own centre and a little
  * down. Angles are unwrapped along the move so the start has no ±360° steps of its own.
  */
+/**
+ * 🧪 A forearm grip's starting pose (2026-10-28): the two elbows a forearm apart at `height`, centred
+ * on the line between the two held shoulders, each hand a clasp short of the other's elbow. Reaching
+ * both hands for one point, the twirl's start, began every Allemande with the hands together and the
+ * elbows wherever that put them.
+ */
+function forearmStart(m: Move, f: Frame, h: Hold, height: number): Frame {
+  const bb = wornBody(m.bodies[0], f[0].grow ?? 0);
+  const gb = wornBody(m.bodies[1], f[1].grow ?? 0);
+  const sa = toFloor(bb.shoulder[h.beau], f[0]);
+  const sb = toFloor(gb.shoulder[h.belle], f[1]);
+  const dx = sb[0] - sa[0];
+  const dz = sb[2] - sa[2];
+  const dl = Math.max(Math.hypot(dx, dz), 1e-9);
+  const ux = dx / dl;
+  const uz = dz / dl;
+  const mx = (sa[0] + sb[0]) / 2;
+  const mz = (sa[2] + sb[2]) / 2;
+  const clasp = WEIGHTS.clasp * ((bb.handR + gb.forearmR + gb.handR + bb.forearmR) / 2);
+  const fore = Math.max(0.05, (bb.fore0 + gb.fore0) / 2 - clasp);
+  const ea: Vec = [mx - (ux * fore) / 2, height, mz - (uz * fore) / 2];
+  const eb: Vec = [mx + (ux * fore) / 2, height, mz + (uz * fore) / 2];
+  const toward = (from: Vec, to: Vec): Vec => {
+    const k = (fore - clasp) / fore;
+    return [from[0] + (to[0] - from[0]) * k, height, from[2] + (to[2] - from[2]) * k];
+  };
+  const set = (d: DancerFrame, body: Body, side: 0 | 1, e: Vec, hand: Vec): DancerFrame => {
+    const arms = [...d.arms] as [Arm, Arm];
+    arms[side] = armThrough(body, side, d, e, hand);
+    return { ...d, arms };
+  };
+  return [set(f[0], bb, h.beau, ea, toward(ea, eb)), set(f[1], gb, h.belle, eb, toward(eb, ea))];
+}
+
+/**
+ * 🧪 The arm that puts its elbow at `elbow` and its hand centre at `hand` (floor frame), at whatever
+ * lengths that takes (2026-10-28). The forearm grip's start: the elbows are placed, not found.
+ */
+export function armThrough(b: Body, side: 0 | 1, f: DancerFrame, elbow: Vec, hand: Vec): Arm {
+  const S = b.shoulder[side];
+  const E = toRig(elbow, f);
+  const H = toRig(hand, f);
+  const u = sub(E, S);
+  const fv = sub(H, E);
+  const g = sign(side);
+  const ul = Math.max(len(u), 1e-9);
+  const fl = Math.max(len(fv), 1e-9);
+  return {
+    raise: Math.acos(Math.max(-1, Math.min(1, -u[1] / ul))),
+    toward: Math.atan2(g * u[0], u[2]),
+    ulen: ul,
+    pitch: Math.asin(Math.max(-1, Math.min(1, fv[1] / fl))),
+    heading: Math.atan2(g * fv[0], fv[2]),
+    flen: fl,
+  };
+}
+
 export function startOnPath(m: Move, at: (i: number) => Vec): Frame[] {
   const frames = m.frames.map((f, i) => {
     const t = m.frames.length > 1 ? i / (m.frames.length - 1) : 0;
     const hs = held(m, t);
+    const fh = hs.find((h) => h.forearm === true);
+    if (fh !== undefined) return forearmStart(m, f, fh, at(i)[1]);
     return f.map((d, k) => {
       const body = m.bodies[k];
       if (!body) return d;

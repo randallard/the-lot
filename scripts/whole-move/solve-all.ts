@@ -35,7 +35,7 @@ import { BAKE_FORMAT, bodyPrint, relativeKeyframes, REVIEW2_SIZING, type BakedTr
 import { figurePaths } from "../../src/dance/engine-paths";
 import { RESHAPE } from "../../src/dance/accommodation";
 import { armMetrics } from "../../src/dance/arm-pose";
-import { planForearm } from "../../src/dance/forearm-hold";
+import { armTurnGrip } from "../../src/dance/forearm-hold";
 import { reviewPairings } from "../../src/dance/review-route";
 import { REVIEW_FIGURES } from "../../src/dance/review-steps";
 import { bodyOf, metrics, solveBest, toDials, WEIGHTS, type Metrics } from "../../src/dance/whole-move";
@@ -83,12 +83,13 @@ function solveJob(j: Job): Result {
   const P = figurePaths(j.call, j.formation, shapes, REVIEW2_SIZING);
   const bodies: [ReturnType<typeof bodyOf>, ReturnType<typeof bodyOf>] = [bodyOf(shapes[0]), bodyOf(shapes[1])];
   // A forearm grip is held where the floor holds it (`planForearm`), level and centred.
-  const gripHeight = planForearm(armMetrics(shapes[0]), armMetrics(shapes[1]), shapes[0], shapes[1], RESHAPE).height;
-  const fm = figureMove(j.call, P, bodies, { ...(cap === undefined ? {} : { stepCap: cap }), gripHeight });
+  const grip = armTurnGrip(bodies[0], bodies[1]);
+  const gripHeight = grip.height;
+  const fm = figureMove(j.call, P, bodies, { ...(cap === undefined ? {} : { stepCap: cap }), gripHeight, ...(j.call === "allemande-left" ? { grow: "meet" as const, trade: grip.grow } : {}) });
   if ("unsupported" in fm) return { ...j, unsupported: fm.unsupported };
   // 6 cm is the twirl's margin, for hands round heads under an arch. Hands free, it pushed every
   // dancer's hanging arm off their own body: arms 1.3–1.8× long (player ×4's Dosado 1.72; 1.03 at 2 cm).
-  const margin = fm.move.holds.length > 0 ? 0.06 : WEIGHTS.margin;
+  const margin = fm.move.holds.some((h) => h.forearm !== true) ? 0.06 : WEIGHTS.margin;
   const r = solveBest({ ...fm.move, frames: fm.start }, { weights: { ...WEIGHTS, margin } });
   const result: Result = { ...j, cost: r.cost, metrics: metrics(fm.move, r.frames, fm.path), ms: Date.now() - t0, v: Array.from(r.v, (x) => Math.round(x * 1e6) / 1e6) };
   if (bake && flags(result).length === 0 && result.metrics !== undefined) {
@@ -132,7 +133,7 @@ function report(results: readonly Result[], seconds: number): string {
   const solved = results.filter((r) => r.metrics !== undefined);
   const out: string[] = [];
   out.push(`# solve-all, ${new Date().toISOString().slice(0, 16).replace("T", " ")}`, "");
-  out.push(`${String(solved.length)} solved, ${String(results.length - solved.length)} not solvable yet, in ${seconds.toFixed(0)} s on ${String(workers)} workers. Step cap: ${cap === undefined ? "none" : `${String(cap * 100)} cm`}. Margin 6 cm held, 2 cm free; best of 4 seeds.`, "");
+  out.push(`${String(solved.length)} solved, ${String(results.length - solved.length)} not solvable yet, in ${seconds.toFixed(0)} s on ${String(workers)} workers. Step cap: ${cap === undefined ? "none" : `${String(cap * 100)} cm`}. Margin 6 cm under an arch, 2 cm otherwise; best of 4 seeds.`, "");
   const bad = solved.map((r) => ({ r, f: flags(r) })).filter((x) => x.f.length > 0);
   out.push(`## Outliers (${String(bad.length)})`, "");
   if (bad.length === 0) out.push("None.", "");

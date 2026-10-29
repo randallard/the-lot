@@ -1,0 +1,32 @@
+// Scratch: one Allemande solve, sample by sample.
+import { getBodyShape } from "../../src/services/body-shapes";
+import { REVIEW2_SIZING } from "../../src/dance/baked-tracks";
+import { figurePaths } from "../../src/dance/engine-paths";
+import { armTurnGrip } from "../../src/dance/forearm-hold";
+import { armPoints, bodyOf, shapesOf, solveBest, WEIGHTS, type Vec } from "../../src/dance/whole-move";
+import { figureMove } from "../../src/dance/whole-move-figure";
+const [beau, belle] = (process.argv[2] ?? "ryan-ryan").split("-") as [string, string];
+const shapes = [getBodyShape(beau), getBodyShape(belle)] as const;
+const P = figurePaths("allemande-left", "pair", shapes, REVIEW2_SIZING);
+const bodies = [bodyOf(shapes[0]), bodyOf(shapes[1])] as [ReturnType<typeof bodyOf>, ReturnType<typeof bodyOf>];
+const g = armTurnGrip(bodies[0], bodies[1]);
+const fm = figureMove("allemande-left", P, bodies, { stepCap: 0.1, gripHeight: g.height, grow: "meet", trade: g.grow });
+if ("unsupported" in fm) throw new Error(fm.unsupported);
+const r = solveBest({ ...fm.move, frames: fm.start }, { weights: { ...WEIGHTS, margin: WEIGHTS.margin } });
+const h = fm.move.holds[0]!;
+const d = (a: Vec, b: Vec) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+console.log(`grip r ${g.radius.toFixed(3)} h ${g.height.toFixed(3)} hold ${h.from.toFixed(3)}–${h.to.toFixed(3)} cost ${r.cost.toFixed(0)}`);
+r.frames.forEach((f, i) => {
+  const t = i / (r.frames.length - 1);
+  const A = shapesOf(bodies[0], f[0]), B = shapesOf(bodies[1], f[1]);
+  const get = (S: typeof A, n: string) => S.find((s) => s.name === n)!;
+  const ha = get(A, "hand-left"), hb = get(B, "hand-left"), ea = get(A, "forearm-left"), eb = get(B, "forearm-left");
+  const gap = [d(ha.a, eb.a) - 0.6 * (ha.r + eb.r), d(hb.a, ea.a) - 0.6 * (hb.r + ea.r)];
+  const arm = (k: 0 | 1) => { const a = f[k].arms[0]; return `r${(a.raise * 57.3).toFixed(0)} t${(a.toward * 57.3).toFixed(0)} p${(a.pitch * 57.3).toFixed(0)} h${(a.heading * 57.3).toFixed(0)} u${(a.ulen / bodies[k].upper0).toFixed(2)} f${(a.flen / bodies[k].fore0).toFixed(2)}`; };
+  const sep = Math.hypot(f[1].x - f[0].x, f[1].z - f[0].z);
+  const held = t >= h.from - 1e-9 && t <= h.to + 1e-9;
+  const gr = `g ${((f[0].grow ?? 0) * 100).toFixed(0)}/${((f[1].grow ?? 0) * 100).toFixed(0)}`;
+  const other = (k: 0 | 1) => { const a = f[k].arms[1]; return `R u${(a.ulen / bodies[k].upper0).toFixed(2)} f${(a.flen / bodies[k].fore0).toFixed(2)}`; };
+  console.log(`${gr} ${other(0)} ${other(1)} ${t.toFixed(3)} ${held ? "H" : " "} sep ${sep.toFixed(3)} gap ${gap.map((x) => (x * 100).toFixed(1)).join("/")} ee ${d(ea.a, eb.a).toFixed(3)} y ${ea.a[1].toFixed(2)}/${eb.a[1].toFixed(2)} | ${arm(0)} | ${arm(1)}`);
+  void armPoints;
+});

@@ -60,6 +60,7 @@ import {
   type BodyDeltas,
 } from "./accommodation";
 import type { CharacterBodyShape } from "../services/body-shapes";
+import type { Body } from "./whole-move";
 
 /** The world height this dancer's elbow can be moved to, at the limit of the upper arm. */
 function elbowRange(m: ArmMetrics): { readonly low: number; readonly high: number } {
@@ -226,3 +227,56 @@ function shiftElbow(m: ArmMetrics, delta: number): ArmMetrics {
 /** The lateral offset a joined pair of forearms sits at — unchanged, and re-exported so a
  *  caller planning a hold gets both numbers from one place. */
 export { contactRadius, contactSeparation };
+
+/**
+ * 🧪 How far the upper arm is raised from hanging in an arm turn's grip (2026-10-28): forward and
+ * out toward the partner. Hanging straight down — the floor's grip at the resting elbow — leaves
+ * the elbow no room to move, so the pair's separation would have to be exact to a centimetre.
+ */
+export const ARM_TURN_RAISE = (35 * Math.PI) / 180;
+
+/** How much of that raise's horizontal reach goes toward the partner, leaving the rest as slack. */
+const ARM_TURN_REACH = 0.6;
+
+/**
+ * 🧪 An arm turn's grip **from the bodies' own skeletons** (2026-10-28): where the two forearms are
+ * held (`height`, world m) and how far each body centre stands off the pivot (`radius`, world m;
+ * square-one's `gripRadius` times the scale).
+ *
+ * The forearm grip asks only that each hand be at the other's elbow, so the two elbows are a
+ * forearm apart, at one height. Each elbow hangs off its own shoulder on the upper arm, raised
+ * {@link ARM_TURN_RAISE} (the pair's mean height for that raise), and reaches toward the partner
+ * by part of what the raise leaves it horizontally. The shoulders are where the body has them,
+ * **forward offset included** (ember's are 22 cm ahead of its centre, and in an arm turn the two
+ * face opposite ways, so those offsets add across the line between them). The separation is what
+ * puts the elbows a forearm apart; the radius is half of it.
+ *
+ * Unlike {@link pairGripRadius}, which reads the floor's `gripPose` (arms pinned to the pivot, the
+ * undrawn upper arm stretching to suit, ADR-0017), this is a pose the whole-move solver's arms can
+ * hold: `pairGripRadius` asked their upper arms for 1.16–3.06× their length.
+ */
+export function armTurnGrip(a: Body, b: Body): { radius: number; height: number; grow: [number, number] } {
+  // The trade that puts both elbows on one height, each upper arm raised the same: the floor's
+  // reshape (`planForearm`) as the solver's `meet` ties it, one growing by a share of their height
+  // as the other shrinks by the same share of theirs. Within the shape editor's limits.
+  const c = Math.cos(ARM_TURN_RAISE);
+  const ea = a.shoulder[0][1] - a.upper0 * c;
+  const eb = b.shoulder[0][1] - b.upper0 * c;
+  const ra = a.rise.shoulder[0][1];
+  const rb = b.rise.shoulder[0][1];
+  const per = ra + (rb * b.rise.height) / a.rise.height;
+  let ga = per > 0 ? (eb - ea) / per : 0;
+  let gb = (-ga * b.rise.height) / a.rise.height;
+  const fit = (g: number, room: readonly [number, number]) => (g < room[0] ? room[0] / g : g > room[1] ? room[1] / g : 1);
+  const k = Math.min(fit(ga, a.rise.room), fit(gb, b.rise.room));
+  ga *= k;
+  gb *= k;
+  const height = (ea + ra * ga + eb + rb * gb) / 2;
+  const reach = (x: Body, g: number) => ARM_TURN_REACH * Math.sqrt(Math.max(0, x.upper0 ** 2 - (x.shoulder[0][1] + x.rise.shoulder[0][1] * g - height) ** 2));
+  // Elbow to elbow: each hand centre at the other's elbow, a clasp short of touching.
+  const fore = (a.fore0 + b.fore0) / 2 - 0.6 * (a.handR + b.forearmR + b.handR + a.forearmR) / 2;
+  const along = fore + reach(a, ga) + reach(b, gb);
+  const across = a.shoulder[0][2] + b.shoulder[0][2];
+  const D = a.shoulder[0][0] + b.shoulder[0][0] + Math.sqrt(Math.max(0, along * along - across * across));
+  return { radius: D / 2, height, grow: [ga, gb] };
+}

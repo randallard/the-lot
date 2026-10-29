@@ -353,17 +353,15 @@ describe("a forearm grip, over the whole Allemande", () => {
     }
   });
 
-  it("breathes at the bodies, not at the grip", () => {
-    // The premise the test above depends on: the pair's own separation does change
-    // materially over the same span the grip holds constant.
-    // 🔴 **Scaled to the frame as of ADR-0035.** This was a flat `0.4`, calibrated when the
-    // square grew itself to its widest pair and stood 2.603 world units across. The floor is one
-    // scale now, the square is 15% tighter, and every world distance in it shrank with it — the
-    // measured range went 0.46 to 0.387 without the property changing at all. Expressed against
-    // `DEFAULT_SCALE` so it cannot rot the same way twice.
-    const BREATH = 0.15 * DEFAULT_SCALE;
+  it("holds the bodies on the grip's circle while the grip holds (2026-10-28)", () => {
+    // 🔴 This was "breathes at the bodies, not at the grip": square-one's arm-turn walked the
+    // chords of its quarter marks, and the pair closed in by 29% mid-quarter (0.387 world units
+    // as of ADR-0035) while the grip stayed rigid. That breathing was the defect — no arm holds a
+    // grip through it, and the whole-move solve couldn't — and arm-turn walks the arc now
+    // (square-one's ADR-0022, extended to it), stepping out only once the forearms let go. What's
+    // left is the 7.5° polyline's 0.2%.
     const separations = gripped.map(({ beat }) => pairSeparation("allemande-left", beat));
-    expect(Math.max(...separations) - Math.min(...separations)).toBeGreaterThan(BREATH);
+    expect(Math.max(...separations) - Math.min(...separations)).toBeLessThan(0.01 * DEFAULT_SCALE);
   });
 });
 
@@ -504,10 +502,10 @@ describe("driven frame by frame", () => {
     }
   });
 
-  it("breathes at the bodies over the same frames", () => {
-    // Same rescaling as its sibling above — see the note there (ADR-0035).
+  it("holds the bodies on the grip's circle over the same frames", () => {
+    // The arc, not its chords — see its sibling above (2026-10-28).
     const seps = held.map((f) => f.separation);
-    expect(Math.max(...seps) - Math.min(...seps)).toBeGreaterThan(0.15 * DEFAULT_SCALE);
+    expect(Math.max(...seps) - Math.min(...seps)).toBeLessThan(0.01 * DEFAULT_SCALE);
   });
 });
 

@@ -15,13 +15,17 @@ import {
   nearestElbowHeight,
   pairGripRadius,
   planForearm,
+  armTurnGrip,
+  ARM_TURN_RAISE,
 } from "./forearm-hold";
+import { bodyOf } from "./whole-move";
 import { ACCOMMODATIONS, BREAK, RESHAPE } from "./accommodation";
 import { DEFAULT_SCALE } from "./frame";
 import {
   EMBER_DEFAULTS,
   MYCO_DEFAULTS,
   SPROUT_DEFAULTS,
+  getBodyShape,
   type CharacterBodyShape,
 } from "../services/body-shapes";
 
@@ -173,5 +177,42 @@ describe("the grip radius square-one asks for", () => {
       9,
     );
     expect(pairGripRadius(a, b)).toBe(pairGripRadius(b, a));
+  });
+});
+
+describe("🧪 an arm turn's grip from the skeletons (armTurnGrip, 2026-10-28)", () => {
+  const body = (id: string) => bodyOf(getBodyShape(id));
+
+  it("puts the elbows where the upper arms reach, raised and not stretched", () => {
+    // Equal bodies: no trade, and each elbow at the grip height is within its own upper arm.
+    for (const id of ["player", "myco", "ember", "ryan", "sprout"]) {
+      const b = body(id);
+      const g = armTurnGrip(b, b);
+      expect(g.grow[0]).toBeCloseTo(0, 9);
+      expect(g.grow[1]).toBeCloseTo(0, 9);
+      expect(b.shoulder[0][1] - g.height).toBeCloseTo(b.upper0 * Math.cos(ARM_TURN_RAISE), 9);
+      // The bodies stand at least their shoulders apart, and further than the floor's pose asked
+      // of nobody: the radius is positive and finite.
+      expect(g.radius).toBeGreaterThan(b.shoulder[0][0]);
+    }
+  });
+
+  it("trades height between a tall and a short dancer, the shorter growing", () => {
+    const [player, myco] = [body("player"), body("myco")];
+    const g = armTurnGrip(player, myco);
+    expect(g.grow[0]).toBeLessThan(0);
+    expect(g.grow[1]).toBeGreaterThan(0);
+    // `meet`'s tie: the same share of each one's height.
+    expect(g.grow[0] / player.rise.height).toBeCloseTo(-g.grow[1] / myco.rise.height, 9);
+    // After it, both elbows sit on the grip height with the arm raised the same.
+    const elbow = (b: typeof player, d: number) => b.shoulder[0][1] + b.rise.shoulder[0][1] * d - b.upper0 * Math.cos(ARM_TURN_RAISE);
+    expect(elbow(player, g.grow[0])).toBeCloseTo(g.height, 9);
+    expect(elbow(myco, g.grow[1])).toBeCloseTo(g.height, 9);
+  });
+
+  it("counts a shoulder carried forward of the body (ember's, 22 cm)", () => {
+    const ember = body("ember");
+    const flat = { ...ember, shoulder: [[ember.shoulder[0][0], ember.shoulder[0][1], 0], ember.shoulder[1]] as typeof ember.shoulder };
+    expect(armTurnGrip(ember, ember).radius).toBeLessThan(armTurnGrip(flat, flat).radius);
   });
 });

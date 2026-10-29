@@ -6,7 +6,27 @@ _Last updated: 2026-10-28_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-28 (10) — heads first, a guide for the Allemande, joins for the Trade
+> ### ▶ PICK UP HERE — 2026-10-28 (11) — the Allemande folds
+>
+> [`journal/2026-10-28-11-the-allemande-folds.md`](journal/2026-10-28-11-the-allemande-folds.md)
+> · ✅ committed on the pin to square-one **v0.10.0** (Ryan: *"commit it, release and pin"*),
+> validated against the fetched tarball: `tsc -b`, `vite build`, the 38 known failures
+>
+> - **22 of 25 Allemandes clean and baked** (were 0). Not the solver's elbow: the floor's own grip
+>   asked its undrawn upper arms for 1.16–3.06×.
+> - square-one: `arm-turn` walks the arc (it breathed to 0.707 on chords) and steps out only after
+>   the grip lets go.
+> - `armTurnGrip`: the radius, grip height and height trade from the skeletons (upper arm raised
+>   35°, shoulders' forward offsets counted). The floor and the bakes walk it.
+> - Solver: a forearm-grip start, a `SHRINK` floor (forearms had collapsed to 0.15×), the grip
+>   centred over the held shoulders, a forearm on the partner's upper arm exempt; 2 cm margin.
+> - Left: sprout ↔ ember (a metre of height) and ember ×2's step-in.
+>
+> ⏳ **Next:** sprout ↔ ember (a metre of height) and ember ×2's step-in. Mixed sets later (Ryan).
+>
+> ---
+>
+> ### 2026-10-28 (10) — heads first, a guide for the Allemande, joins for the Trade
 >
 > [`journal/2026-10-28-10-heads-first-a-guide-for-the-allemande-joins-for-the-trade.md`](journal/2026-10-28-10-heads-first-a-guide-for-the-allemande-joins-for-the-trade.md)
 > · ✅ committed on the pin to square-one **v0.9.0** (Ryan: *"commit pin and release"*), validated
