@@ -19,7 +19,6 @@ for (const p of reviewPairings()) {
   if ("unsupported" in fm) continue;
   const h = fm.move.holds[0]!;
   const R = contactRadius(ma, mb), S = contactSeparation(ma, mb);
-  const rows: string[] = [];
   const worst = [0, 0], worstOut = [0, 0];
   const beatOf = (t: number) => t * P.beats;
   const seps: number[] = [];

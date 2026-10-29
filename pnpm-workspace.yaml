@@ -71,9 +71,9 @@ overrides:
   # was true when it was written and stopped being true when the 1.x backport landed.
   # A patched 1.x means the override reaches everywhere and the ignore reaches nothing —
   # osv-scanner reports it as an unused ignore, which is how it was noticed.
-  "brace-expansion@1": ">=1.1.18 <2"
+  "brace-expansion@1": ">=1.1.21 <2"
   "brace-expansion@2": ">=2.1.4 <3"
-  "brace-expansion@5": ">=5.0.9 <6"
+  "brace-expansion@5": ">=5.0.12 <6"
 
   # js-yaml, via eslint's `@eslint/eslintrc`. **Two advisories, and the second is why the
   # bound moved on 2026-09-12:** GHSA-5p4m-2wfm-xmqj (quadratic CPU in `!!omap` resolution)
@@ -86,7 +86,7 @@ overrides:
   # GHSA-mwp4-54f8-5fhr — ip-address decodes leading-zero octets as decimal where
   # resolvers read them as octal, so an SSRF filter and the resolver disagree. Via
   # license-checker-rseidelsohn → … → socks-proxy-agent.
-  "ip-address": ">=10.3.1 <11"
+  "ip-address": ">=10.7.4 <11"
 
   # GHSA-2v37-7h3g-55p8 — nanoid can loop indefinitely with a custom generator. Via
   # postcss → vite, so build-time only.
@@ -96,7 +96,16 @@ overrides:
   # `--audit-level=high` filters them out while the OSV job fails on any severity.
   # A live demonstration that the two gates are not redundant.
   "postcss@8": ">=8.5.23 <9" # GHSA-fxqj-rqcc-2cmp
-  "undici@6": ">=6.28.0 <7" # GHSA-8xcm-r25x-g524, -m8rv-5g2x-5cg5, -v3r7-h72x-cjcm
+
+  # 2026-10-29: the advisories that landed since 09-12 (main's CI red on audit and OSV).
+  # Brace-expansion and ip-address above moved up for GHSA-qhr7-859c-m2p7, -6j4f-fj2g-mc7p,
+  # -q2hr-2g5m-vwhr and GHSA-rpw4-54j3-4h4q, -2vr4-cq9g-pvrc, -j6r3-76f7-8jcv, -h3mg-xc3c-68pw,
+  # -rxp7-6hxx-x8q5. vite, vitest (and @vitest/mocker with it) and happy-dom are direct, so they
+  # moved in package.json instead. All dev-path.
+  "source-map-js@1": ">=1.2.2 <2" # GHSA-68fv-2mgg-jv7q, via postcss → vite and magicast
+  "zod@4": ">=4.6.6 <5" # GHSA-mrhx-c7xc-m3w5, via eslint-plugin-react-hooks
+  "postcss-selector-parser@7": ">=7.1.6 <8" # GHSA-rj75-hqrm-r3gf, via license-checker → @npmcli/query
+  "undici@6": ">=6.29.1 <7" # GHSA-8xcm-r25x-g524, -m8rv-5g2x-5cg5, -v3r7-h72x-cjcm; 10-29: -rfgv-xxqx-mfg5, -xjj6-f33q-929c, -2m5v-pch6-74hx, -qrxm-fqhp-jwvm, -4qv8-2p9j-2685, -9fm3-97px-rjf6, -3wwx-pv8p-q78v, -r53p-7pc4-xj5r
 
 auditConfig:
   # Governs `pnpm audit` only. CI also runs osv-scanner, which reads its own ignores

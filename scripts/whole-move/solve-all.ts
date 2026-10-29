@@ -33,8 +33,6 @@ import type { CallName } from "square-one";
 import { getBodyShape } from "../../src/services/body-shapes";
 import { BAKE_FORMAT, bodyPrint, relativeKeyframes, REVIEW2_SIZING, type BakedTrack } from "../../src/dance/baked-tracks";
 import { figurePaths } from "../../src/dance/engine-paths";
-import { RESHAPE } from "../../src/dance/accommodation";
-import { armMetrics } from "../../src/dance/arm-pose";
 import { armTurnGrip } from "../../src/dance/forearm-hold";
 import { reviewPairings } from "../../src/dance/review-route";
 import { REVIEW_FIGURES } from "../../src/dance/review-steps";
