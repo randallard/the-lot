@@ -412,6 +412,13 @@ export interface Move {
    */
   lift?: readonly (number | undefined)[];
   /**
+   * 🧪 The held hands go **over** the belle's head, never under it (Ryan, 10-29: player ×2's twirl
+   * *"beaus arm passes under belles head and it shouldn't ever do that"*). Per sample, how far
+   * (m) the held hands' midpoint stands above her crown, as she is worn (a `meet` shrink lowers
+   * it). Short of it costs like a clip. Set over the middle of her turn (`twirlMove`).
+   */
+  over?: readonly (number | undefined)[];
+  /**
    * 🧪 How far the beau may step off the floor's path (m) before it costs ten times clipping (step 7,
    * 2026-10-28). The brief's B.5: *"with 20 couples, a 26 cm step-out is how neighbouring couples
    * collide"*. Absent: only `WEIGHTS.step`'s soft pull, as before.
@@ -614,6 +621,12 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
     if (lift !== undefined) {
       const low = lift - (ha.a[1] + hb.a[1]) / 2;
       if (low > 0) c += w.plane * low * low;
+    }
+    const over = m.over?.[i];
+    if (over !== undefined) {
+      const head = B.find((s) => s.name === "head")!;
+      const low = head.a[1] + head.r + over - (ha.a[1] + hb.a[1]) / 2;
+      if (low > 0) c += w.clip * low * low;
     }
   }
   // Natural: stretch, free arms hang, held arms are low, angles in range, the beau near his path.
@@ -1114,6 +1127,18 @@ export function frameCostGrad(
       // d/d my = −2·w·low, half to each hand.
       addPt(pa, -w.plane * low, 0, 1, 0);
       addPt(pb, -w.plane * low, 0, 1, 0);
+    }
+    const over = m.over?.[i];
+    if (over !== undefined) {
+      // The belle's head is her point 2; its height carries her grow.
+      const hd = (NPT + 2) * 3;
+      const low = PTS[hd + 1]! + m.bodies[1].head.r + over - my;
+      if (low > 0) {
+        cost += w.clip * low * low;
+        addPt(pa, -w.clip * low, 0, 1, 0);
+        addPt(pb, -w.clip * low, 0, 1, 0);
+        addPt(hd, 2 * w.clip * low, 0, 1, 0);
+      }
     }
   }
   // Natural, straight on the dials (gravity on the elbow's and hand's height over the shoulder's).

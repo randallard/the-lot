@@ -159,6 +159,8 @@ describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
       trade: true,
       // 🧪 A floor for the held hands (10-27): high enough on some samples to bite.
       lift: [undefined, 2.2, 0.1, 2.4, 1.9],
+      // 🧪 The hands over her crown (10-29), riding on her grow: some samples short of it.
+      over: [0.1, undefined, 0.6, 0.05, 1.2],
     };
     const v = pack(frames);
     for (let i = 0; i < v.length; i += PER) {

@@ -117,6 +117,23 @@ export function pathFrames(P: Pick<TwirlPaths, "beau" | "belle">, bodies: readon
   return path;
 }
 
+/**
+ * 🧪 Per sample, the held hands' clearance over the belle's crown (`Move.over`): `clear` where she
+ * is between a quarter and three quarters of the way through the turn she makes under the arch
+ * (her path's facing, 0 to 3.5 of 4 beats), and nothing elsewhere.
+ */
+export function overHead(path: readonly Frame[], clear: number): (number | undefined)[] {
+  const n = path.length;
+  const end = Math.round((3.5 / 4) * (n - 1));
+  const y0 = path[0]?.[1].yaw ?? 0;
+  const turn = (path[end]?.[1].yaw ?? y0) - y0;
+  return path.map((f, i) => {
+    if (i > end || Math.abs(turn) < 1e-6) return undefined;
+    const u = (f[1].yaw - y0) / turn;
+    return u >= 0.25 && u <= 0.75 ? clear : undefined;
+  });
+}
+
 export function twirlMove(
   P: TwirlPaths,
   bodies: [Body, Body],
@@ -153,6 +170,10 @@ export function twirlMove(
   if (home !== undefined) move.home = true;
   if (!broken) Object.assign(move, growRoom(grow, bodies));
   if (broken) return { move, path, start: path };
+  // 🧪 The hands go over her head (Ryan, 10-29): through the middle half of her turn under the
+  // arch, the held hands stay a hand's width and 3 cm over her crown. Without it the solve found
+  // it cheaper to take player ×2's arch past her face, level with her crown and then beside it.
+  move.over = overHead(path, bodies[1].handR + 0.03);
 
   const n = path.length;
   const crown = bodies[1].head.c[1] + bodies[1].head.r;

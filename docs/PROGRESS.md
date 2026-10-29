@@ -6,7 +6,27 @@ _Last updated: 2026-10-29_
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-29 (1) — the twirl's upper arms
+> ### ▶ PICK UP HERE — 2026-10-29 (2) — over her head
+>
+> [`journal/2026-10-29-2-over-her-head.md`](journal/2026-10-29-2-over-her-head.md)
+> · ✅ committed on Ryan's word. the-lot only, still on square-one **v0.10.0**.
+>
+> - Ryan: player ×2's beau arm *"passes under belles head and it shouldn't ever do that"*. Nothing
+>   in the solve asked for over; the hands sat level with her crown, then came down past her face.
+> - `Move.over` (whole-move): the held hands' height over her **worn** crown, costed like a clip.
+>   `overHead` (twirl): the middle half of her turn, a hand's width + 3 cm. All meets + the duck
+>   re-baked: hands 7–14 cm over her crown, no held arm beneath any head.
+> - Cost: these arms barely reach over a crown (player +1 cm). Always-held 9 → 4; player ×2 and
+>   sprout ×2 now reach-or-break.
+> - Breaks (hands let go) put the beau's low hand under a big passing head on 15 of 25. Ryan:
+>   *"hanging hand is fine"*. "Never under her head" is the arch only; breaks unchanged.
+>
+> ⏳ **Next:** the pose jumps: ryan → player (109°, always held) and ember → player (32° → 108°).
+> Then mixed sets.
+>
+> ---
+>
+> ### 2026-10-29 (1) — the twirl's upper arms
 >
 > [`journal/2026-10-29-1-the-twirls-upper-arms.md`](journal/2026-10-29-1-the-twirls-upper-arms.md)
 > · ✅ committed (Ryan: *"commit it and push just to data"*), the-lot only, still on square-one **v0.10.0**.
@@ -20,8 +40,7 @@ _Last updated: 2026-10-29_
 >   now always held.
 > - Tests: chain-join's bounds follow the new bake (34 / 52 cm); the gradient drift bound 0.035 rad.
 >
-> ⏳ **Next:** 🔴 player ×2's twirl: the beau's arm passes **under** the belle's head (Ryan: *"it
-> shouldn't ever do that"*). Then ryan → player's 109° jump. Mixed sets later.
+> - 🔴 Ryan then: player ×2's beau arm passes **under** the belle's head (→ 10-29 (2)).
 >
 > ---
 >
