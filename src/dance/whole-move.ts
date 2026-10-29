@@ -473,6 +473,12 @@ export const SHRINK = 0.2;
 // 🧪 And the upper arm is never longer than it is (10-28, 12): costed like a clip, as `pose-rules`'
 // length rule holds the drawn one to its length within a centimetre. Stretch alone let myco → ember's
 // bake draw ember's upper arm 4.2 cm long, a broken rule on the floor under a "clean" solve.
+/**
+ * 🧪 …and costed at {@link OVER} times a clip (10-29): at one clip the twirl's `meet` solves, pulled
+ * hard by the hold under the arch, still bought 1.5–3.5 cm of upper arm on 15 of 25 pairings.
+ * Ten times, as solve-all's step cap.
+ */
+export const OVER = 10;
 
 /**
  * 🧪 In a forearm grip, whether dancer `k`'s hand **slides up the partner's forearm** rather than
@@ -627,7 +633,7 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
       const sf = a.flen / body.fore0 - 1;
       c += w.stretch * (su * su + sf * sf);
       if (su < -SHRINK) c += w.range * (su + SHRINK) ** 2;
-      if (a.ulen > body.upper0) c += w.clip * (a.ulen - body.upper0) ** 2;
+      if (a.ulen > body.upper0) c += OVER * w.clip * (a.ulen - body.upper0) ** 2;
       if (sf < -SHRINK) c += w.range * (sf + SHRINK) ** 2;
       // Held arms low against their own shoulder, so growing isn't paid for twice.
       const isHeld = hs.some((h) => (k === 0 ? h.beau : h.belle) === side);
@@ -1143,8 +1149,8 @@ export function frameCostGrad(
         grad[k + 2] = grad[k + 2]! + (2 * w.range * (su + SHRINK)) / b.upper0;
       }
       if (ulen > b.upper0) {
-        cost += w.clip * (ulen - b.upper0) ** 2;
-        grad[k + 2] = grad[k + 2]! + 2 * w.clip * (ulen - b.upper0);
+        cost += OVER * w.clip * (ulen - b.upper0) ** 2;
+        grad[k + 2] = grad[k + 2]! + 2 * OVER * w.clip * (ulen - b.upper0);
       }
       if (sf < -SHRINK) {
         cost += w.range * (sf + SHRINK) ** 2;

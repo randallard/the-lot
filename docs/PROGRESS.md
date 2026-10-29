@@ -1,12 +1,31 @@
 # Progress & Status
 
-_Last updated: 2026-10-28_
+_Last updated: 2026-10-29_
 
 ## Status / next
 
 **Standards:** last compliance review 2026-10-24: docs in good order, code standard mostly unadopted — 11 gaps; the small ones (CI timeouts, pnpm trust settings, stale allowBuilds key, licence, `.env.example`) fixed the same day, committed `2f2a948` ([note](compliance/2026-10-24.md), [journal 10-24-5](journal/2026-10-24-5-more-clearance-and-the-small-standards-gaps.md))
 
-> ### ▶ PICK UP HERE — 2026-10-28 (12) — sprout and ember: all 25 Allemandes
+> ### ▶ PICK UP HERE — 2026-10-29 (1) — the twirl's upper arms
+>
+> [`journal/2026-10-29-1-the-twirls-upper-arms.md`](journal/2026-10-29-1-the-twirls-upper-arms.md)
+> · ✅ committed (Ryan: *"commit it and push just to data"*), the-lot only, still on square-one **v0.10.0**.
+>
+> - **Every 10-27 twirl bake drew the upper arm long** (breaks 2–24 cm, meets 3–56 cm; myco → ember
+>   a 131 cm forearm on one arm, −10 cm on the other). All 50 re-baked: 52 bakes over → 1 (the
+>   legacy `ryan-ryan.json`, never picked).
+> - `whole-move.ts`: `OVER = 10`, the upper-arm cap at ten clips; the forearm carries the reach.
+>   Other figures: solve-all still 100/100 clean, bakes unchanged.
+> - Twirl clip 0 everywhere; always-held pairings 6 → 9. Some jumps up: ⚠️ ryan → player 109°,
+>   now always held.
+> - Tests: chain-join's bounds follow the new bake (34 / 52 cm); the gradient drift bound 0.035 rad.
+>
+> ⏳ **Next:** 🔴 player ×2's twirl: the beau's arm passes **under** the belle's head (Ryan: *"it
+> shouldn't ever do that"*). Then ryan → player's 109° jump. Mixed sets later.
+>
+> ---
+>
+> ### 2026-10-28 (12) — sprout and ember: all 25 Allemandes
 >
 > [`journal/2026-10-28-12-sprout-and-ember.md`](journal/2026-10-28-12-sprout-and-ember.md)
 > · ✅ committed (Ryan: *"commit it"*), the-lot only, still on square-one **v0.10.0**.
@@ -16,9 +35,8 @@ _Last updated: 2026-10-28_
 > - ember ×2's step-in: arms start hanging, facing the way they'll lift. Worst swing 20°.
 > - The solver now holds the upper arm to its length, as the floor's length rule does (myco ↔ ember
 >   bakes drew it 4.2 cm long under a "clean" solve). 100/100 clean; Allemande and Trade re-baked.
-> - ⚠️ Found: the twirl's `meet` bakes for myco/sprout → ember draw the upper arm 54–56 cm long.
->
-> ⏳ **Next:** the twirl's long upper arms (myco/sprout → ember `meet`). Mixed sets later (Ryan).
+> - ⚠️ Found: the twirl's `meet` bakes for myco/sprout → ember draw the upper arm 54–56 cm long
+>   (→ 10-29 (1)).
 >
 > ---
 >

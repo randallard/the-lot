@@ -204,12 +204,14 @@ describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
     const a = solve(m, { iterations: 200 });
     const b = solve(m, { iterations: 200, gradient: "numeric" });
     // Adam's steps are normalised, so tiny differences near the clearance kinks drift a little
-    // mid-run (the cost is still falling at 200); every dial agrees within about a degree.
+    // mid-run (the cost is still falling at 200); every dial agrees within about a degree, and
+    // within two since the upper-arm cap went to ten clips (10-29: 1.6°, a stiffer kink).
+    // The term-by-term check above is what proves the gradient exact.
     let worst = 0;
     for (let i = 0; i < 7; i++) for (const d of [0, 1] as const) for (const s of [0, 1] as const)
       for (const k of ["raise", "toward", "ulen", "pitch", "heading", "flen"] as const)
         worst = Math.max(worst, Math.abs(a.frames[i]![d].arms[s][k] - b.frames[i]![d].arms[s][k]));
-    expect(worst).toBeLessThan(0.02);
+    expect(worst).toBeLessThan(0.035);
   });
 });
 

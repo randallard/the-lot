@@ -40,10 +40,11 @@ describe("🧪 calls chain (step 4, 2026-10-27; square-one ADR-0026)", () => {
     for (let i = n - 1 - J; i < n; i++) {
       const v = a!.keyframes[i]!.values;
       expect(v["0.upper-arm-right.raise"], `raise at ${String(i)}`).toBeGreaterThan(120);
-      // No longer than the bake itself stretches them mid-call (37 / 43 cm at most); the tangle
-      // had them at 42 / 61.
-      expect(v["0.upper-arm-right.length"], `upper arm at ${String(i)}`).toBeLessThan(38);
-      expect(v["0.forearm-right.length"], `forearm at ${String(i)}`).toBeLessThan(44);
+      // No longer than the bake itself stretches them mid-call; the tangle had them at 42 / 61.
+      // The 10-27 bake stretched them 37 / 43 cm. Re-baked 10-29 under the upper-arm cap, the upper
+      // arm keeps its 33 and the forearm carries the reach, 51 cm at most.
+      expect(v["0.upper-arm-right.length"], `upper arm at ${String(i)}`).toBeLessThan(34);
+      expect(v["0.forearm-right.length"], `forearm at ${String(i)}`).toBeLessThan(52);
     }
   });
 
