@@ -36,6 +36,7 @@
  */
 
 import type { CallName } from "square-one";
+import type { FloorCall } from "./floor-calls";
 import {
   CASUAL,
   DUCK_UNDER,
@@ -85,8 +86,8 @@ export interface ReviewStep {
 export interface ReviewFigure {
   readonly id: string;
   readonly label: string;
-  /** The call a facing pair dances, and what a couple figure names for the readout. */
-  readonly call: CallName;
+  /** The call a facing pair dances, and what a couple figure names for the readout. 🧪 Or Star Thru (10-29). */
+  readonly call: FloorCall;
   /** Present for the couple figures — one execution, not the `2×` zero `#dance` shows. */
   readonly sequence?: readonly CallName[];
   /** Beats before each call of `sequence` (square-one's `waits`): a beat or more releases the hold. */
@@ -364,6 +365,38 @@ const ALLEMANDE_STEPS: readonly ReviewStep[] = [
 ];
 
 /**
+ * 🧪 Star Thru (2026-10-29): a facing pair, the man facing the woman, walks into a couple. The
+ * engine's paths (square-one `star-thru.ts`); the arms from `bake-star-thru.ts`, a rough start for
+ * Ryan's keyframes (the custom-move flow's step 5).
+ */
+const STAR_THRU_STEPS: readonly ReviewStep[] = [
+  {
+    id: "facing",
+    label: "facing",
+    pose: { kind: "beat", beat: 0 },
+    watch: "Man facing woman, a pair apart. His right hand and her left rising toward each other.",
+  },
+  {
+    id: "join",
+    label: "palms join",
+    pose: { kind: "beat", beat: 2.3 },
+    watch: "Walking in, his right palm against her left, fingers up, at about eye level, offset to his right.",
+  },
+  {
+    id: "under",
+    label: "under the arch",
+    pose: { kind: "beat", beat: 3 },
+    watch: "Level, passing right shoulders. She turns a quarter left under the arch; his arm goes over her head, never under it.",
+  },
+  {
+    id: "couple",
+    label: "couple",
+    pose: { kind: "beat", beat: 4 },
+    watch: "Side by side as a couple facing his right, swapped onto each other's spots, hands coming down to the couple handhold.",
+  },
+];
+
+/**
  * Every figure the review walks, in the order it walks them.
  *
  * The couple figures are **one execution** rather than `#dance`'s `2×` zeros: a zero is a
@@ -390,6 +423,7 @@ export const REVIEW_FIGURES: readonly ReviewFigure[] = [
     beats: 4,
     steps: TRADE_STEPS,
   },
+  { id: "star-thru", label: "Star Thru", call: "star-thru", beats: 4, steps: STAR_THRU_STEPS },
   { id: "dosado", label: "Dosado", call: "dosado", beats: 6, steps: DOSADO_STEPS },
   { id: "pass-thru", label: "Pass Thru", call: "pass-thru", beats: 2, steps: PASS_THRU_STEPS },
   {

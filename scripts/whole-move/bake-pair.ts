@@ -3,12 +3,12 @@
  * held, with the torsos meeting in the middle (a reach when the arms stretch past `REACH_LIMIT`),
  * and a break. No bundle in between: the solve goes straight to `src/dance/baked/`.
  *
- *   npx vite-node scripts/whole-move/bake-pair.ts <beau> <belle> [meet|duck] [--only=held|break] [--home]
+ *   npx vite-node scripts/whole-move/bake-pair.ts <beau> <belle> [meet|duck] [--only=held|break] [--home] [--tries=4]
  *
  * Writes `california-twirl.<beau>-<belle>.<style>.json` (with the solve's worst `stretch`, which
  * decides whether the floor tosses for it) and `california-twirl.<beau>-<belle>.break.json`.
  * Paths come from the engine (`couplePaths`), sized as `#review2` sizes each accommodation. Margin
- * 6 cm, best of 4 seeds. `--home` pins both ends to the floor's standing couple (step 4, 10-27),
+ * 6 cm, best of 4 seeds (`--tries` for more: the turn cap left some solves in a worse valley, 10-29-3). `--home` pins both ends to the floor's standing couple (step 4, 10-27),
  * the pose a couple settles into when a call is followed by a wait. Shipped bakes have free ends:
  * in a chain the dancers flow into the next call without settling. Prints one line per bake.
  */
@@ -18,7 +18,7 @@ import { dirname, join } from "node:path";
 import { getBodyShape } from "../../src/services/body-shapes";
 import { BAKE_FORMAT, BREAK_SIZING, bodyPrint, relativeKeyframes, REVIEW2_SIZING, type BakedTrack } from "../../src/dance/baked-tracks";
 import { couplePaths } from "../../src/dance/engine-paths";
-import { bodyOf, metrics, solveBest, toDials, WEIGHTS, type GrowStyle } from "../../src/dance/whole-move";
+import { bodyOf, metrics, SCHEDULE, solveBest, toDials, WEIGHTS, type GrowStyle } from "../../src/dance/whole-move";
 import { twirlMove } from "../../src/dance/whole-move-twirl";
 
 const args = process.argv.slice(2);
@@ -27,6 +27,7 @@ if (a === undefined || b === undefined) throw new Error("usage: bake-pair.ts <be
 if (style !== "meet" && style !== "duck") throw new Error(`bad style: ${style}`);
 const only = args.find((x) => x.startsWith("--only="))?.slice(7);
 const home = args.includes("--home");
+const tries = Number(args.find((x) => x.startsWith("--tries="))?.slice(8) ?? SCHEDULE.tries);
 const shapes = [getBodyShape(a), getBodyShape(b)] as const;
 const bodies = [bodyOf(shapes[0]), bodyOf(shapes[1])] as [ReturnType<typeof bodyOf>, ReturnType<typeof bodyOf>];
 const weights = { ...WEIGHTS, margin: 0.06 };
@@ -42,7 +43,7 @@ for (const broken of [false, true]) {
     { pairing, figure: "california-twirl", shapes: [a, b], beau: paths.beau, belle: paths.belle },
     bodies, [], broken ? "none" : (style as GrowStyle), broken ? "break" : "reshape", home ? shapes : undefined,
   );
-  const r = solveBest({ ...move, frames: start }, { weights });
+  const r = solveBest({ ...move, frames: start }, { weights }, tries);
   const m = metrics(move, r.frames, path);
   const n = r.frames.length;
   const absolute = r.frames.map((f, i) => ({ t: Math.round((i / (n - 1)) * 1000) / 1000, values: { ...toDials(f[0], 0), ...toDials(f[1], 1) } }));

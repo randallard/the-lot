@@ -89,7 +89,7 @@ import {
 } from "./arch";
 import { armTurnGrip, planForearm, type ForearmPlan } from "./forearm-hold";
 import { bodyOf } from "./whole-move";
-import { forwardReach, passingClearance } from "./passing";
+import { archPassClearance, forwardReach, passingClearance } from "./passing";
 import {
   BREAK,
   NO_DELTAS,
@@ -694,11 +694,11 @@ export function DanceFloor({
     // A couple's calls only (a sequence): a facing pair (Dosado, Pass Thru) has no standing couple
     // to join, and its bake (`solve-all`, 10-28) is drawn as baked. A hands-free couple call (a
     // Partner Trade) joins the standing couple's handhold only on that side (`chain-join.ts`).
-    const couple = performanceOptions.sequence !== undefined;
-    if (!couple) return chosen;
+    const sequence = performanceOptions.sequence;
+    if (sequence === undefined) return chosen;
     return joinChain(
       chosen.map((bake, i) => {
-        const c = calls[i];
+        const c = sequence[i];
         return {
           bake,
           paths: bake === undefined || c === undefined ? undefined : couplePaths(c, pair, bake.sizing ?? REVIEW2_SIZING),
@@ -804,10 +804,13 @@ export function DanceFloor({
     const b = shapes[1];
     if (a === undefined || b === undefined) return undefined;
     const scaleNow = scale ?? DEFAULT_SCALE;
+    // 🧪 Star Thru passes under its own arch: the bodies' clearance (`archPassClearance`, 10-29),
+    // which is what its bakes were solved on.
+    if (performanceOptions.call === "star-thru" && performanceOptions.sequence === undefined) return archPassClearance(a, b) / scaleNow;
     // Arms and all (`passing.ts`, 10-28): bodies only, a beau with wide shoulders stepped up to 41 cm
     // off the engine's path to make the room (`solve-all`).
     return passingClearance(a, b) / scaleNow;
-  }, [shapes, scale]);
+  }, [shapes, scale, performanceOptions.call, performanceOptions.sequence]);
 
   /**
    * How far from a joined forearm the pair's bodies stand, in engine units — the **arm**

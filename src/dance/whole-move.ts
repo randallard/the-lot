@@ -486,6 +486,13 @@ export const SHRINK = 0.2;
  * Ten times, as solve-all's step cap.
  */
 export const OVER = 10;
+/**
+ * 🧪 …and never shorter than {@link FOLD} of it, costed as the cap above (10-29, 3). Shorter is a
+ * bent arm, which is ordinary, but the twirl's solves folded the belle's upper arm through nothing
+ * (ryan → player's to −2.6 cm, ember → sprout's beau's to −10.7) to flip her elbow across her
+ * shoulder: the 108–117° jumps were that flip. Every other bake stays above half its length.
+ */
+export const FOLD = 0.25;
 
 /**
  * 🧪 In a forearm grip, whether dancer `k`'s hand **slides up the partner's forearm** rather than
@@ -647,6 +654,7 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
       c += w.stretch * (su * su + sf * sf);
       if (su < -SHRINK) c += w.range * (su + SHRINK) ** 2;
       if (a.ulen > body.upper0) c += OVER * w.clip * (a.ulen - body.upper0) ** 2;
+      if (a.ulen < FOLD * body.upper0) c += OVER * w.clip * (FOLD * body.upper0 - a.ulen) ** 2;
       if (sf < -SHRINK) c += w.range * (sf + SHRINK) ** 2;
       // Held arms low against their own shoulder, so growing isn't paid for twice.
       const isHeld = hs.some((h) => (k === 0 ? h.beau : h.belle) === side);
@@ -819,6 +827,50 @@ function smoothCost(v: Float64Array, n: number, w: Weights, grad?: Float64Array,
       const k = (20 * w.clip * over) / r;
       grad[i * PER + 24] = (grad[i * PER + 24] ?? 0) + k * x;
       grad[i * PER + 25] = (grad[i * PER + 25] ?? 0) + k * y;
+    }
+  }
+  c += turnCost(v, n, w, grad);
+  return c;
+}
+
+/**
+ * 🧪 How far an upper arm or forearm may turn between neighbouring samples before it costs like a
+ * clip (10-29, 3): {@link turnCost}. Every bake that ships outside the twirl stays under it.
+ */
+export const TURN_CAP = 45 * D2R;
+const TURN_COS = Math.cos(TURN_CAP);
+
+/**
+ * 🧪 The limbs turn, not only the dials (Ryan, 10-29: *"build the rule"*). Smoothness is on the
+ * dials, and `metrics`' jump is on the limbs' directions; under the twirl's arch the belle's elbow
+ * wound a full turn round her raised hand (ryan → player's `toward` 112° → −308° in 0.3 of the
+ * move), 108–117° in one sample on four bakes. Past {@link TURN_CAP} a limb's turn costs
+ * `w.clip` per (cos cap − cos turn)²; the side's sign drops out of the dot product.
+ */
+export function turnCost(v: Float64Array, n: number, w: Weights, grad?: Float64Array): number {
+  let c = 0;
+  for (let i = 0; i + 1 < n; i++) for (let s = 0; s < 4; s++) {
+    const a = i * PER + s * 6;
+    const b = a + PER;
+    // Upper arm: (raise, toward) at +0, +1. Forearm: (pitch, heading) at +3, +4.
+    for (const [r, up] of [[0, true], [3, false]] as const) {
+      const xa = v[a + r]!, ya = v[a + r + 1]!, xb = v[b + r]!, yb = v[b + r + 1]!;
+      const sa = Math.sin(xa), ca = Math.cos(xa), sb = Math.sin(xb), cb = Math.cos(xb);
+      const cd = Math.cos(ya - yb), sd = Math.sin(ya - yb);
+      // Upper: sinR·sinR'·cos ΔT + cosR·cosR'. Forearm: cosP·cosP'·cos ΔH + sinP·sinP'.
+      const dot = up ? sa * sb * cd + ca * cb : ca * cb * cd + sa * sb;
+      const short = TURN_COS - dot;
+      if (short <= 0) continue;
+      c += w.clip * short * short;
+      if (!grad) continue;
+      const g = -2 * w.clip * short;
+      const dxa = up ? ca * sb * cd - sa * cb : -sa * cb * cd + ca * sb;
+      const dxb = up ? sa * cb * cd - ca * sb : -ca * sb * cd + sa * cb;
+      const dy = up ? -sa * sb * sd : -ca * cb * sd;
+      grad[a + r] = grad[a + r]! + g * dxa;
+      grad[b + r] = grad[b + r]! + g * dxb;
+      grad[a + r + 1] = grad[a + r + 1]! + g * dy;
+      grad[b + r + 1] = grad[b + r + 1]! - g * dy;
     }
   }
   return c;
@@ -1176,6 +1228,10 @@ export function frameCostGrad(
       if (ulen > b.upper0) {
         cost += OVER * w.clip * (ulen - b.upper0) ** 2;
         grad[k + 2] = grad[k + 2]! + 2 * OVER * w.clip * (ulen - b.upper0);
+      }
+      if (ulen < FOLD * b.upper0) {
+        cost += OVER * w.clip * (FOLD * b.upper0 - ulen) ** 2;
+        grad[k + 2] = grad[k + 2]! - 2 * OVER * w.clip * (FOLD * b.upper0 - ulen);
       }
       if (sf < -SHRINK) {
         cost += w.range * (sf + SHRINK) ** 2;

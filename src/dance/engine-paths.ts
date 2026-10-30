@@ -7,7 +7,7 @@
  */
 
 import {
-  applyCallToPair, createPerformance, danceCoupleSequence, DEFAULT_PAIR_SHAPE, flattenSequence, partnerUp, shapeOf,
+  applyCallToPair, applyStarThru, createPerformance, danceCoupleSequence, DEFAULT_PAIR_SHAPE, flattenSequence, partnerUp, shapeOf,
   type CallName, type GripSpan, type Motion, type ShapeAt,
 } from "square-one";
 import { armMetrics, touchHold } from "./arm-pose";
@@ -17,7 +17,8 @@ import type { BakedSizing, PathSample } from "./baked-tracks";
 import { armTurnGrip } from "./forearm-hold";
 import { bodyOf } from "./whole-move";
 import { DEFAULT_SCALE, facingToRotationY, makeFrame, passingWidth, toWorld } from "./frame";
-import { forwardReach, passingClearance } from "./passing";
+import { archPassClearance, forwardReach, passingClearance } from "./passing";
+import type { FloorCall } from "./floor-calls";
 import { lateralClearance, rigidParts, type CharacterBodyShape } from "../services/body-shapes";
 
 const R2D = 180 / Math.PI;
@@ -60,15 +61,24 @@ export function couplePaths(
  * radius). With each dancer's grips, the engine's own word on which hands are held when.
  */
 export function figurePaths(
-  call: CallName,
+  call: FloorCall,
   formation: "couple" | "pair",
   shapes: readonly [CharacterBodyShape, CharacterBodyShape],
   sizing: BakedSizing,
   n = 41,
 ): { beau: PathSample[]; belle: PathSample[]; beats: number; grips: { beau: readonly GripSpan[]; belle: readonly GripSpan[] } } {
-  if (formation === "couple") return couplePaths(call, shapes, sizing, n);
   const [a, b] = shapes;
   const scale = DEFAULT_SCALE;
+  // 🧪 Star Thru (10-29): a facing pair walking into a couple as wide as their handhold, bowing
+  // apart by their passing clearance where they're level, as the floor dances it
+  // (`useDancePerformance`, `a` the man and beau).
+  if (call === "star-thru") {
+    const width = touchHold(armMetrics(a), armMetrics(b)).width / scale;
+    const clearance = archPassClearance(a, b) / scale;
+    const { a: man, b: woman } = applyStarThru("a", shapeOf({ width, clearance }, DEFAULT_PAIR_SHAPE));
+    return sampleMotions({ a: man, b: woman }, n);
+  }
+  if (formation === "couple") return couplePaths(call, shapes, sizing, n);
   const pair = applyCallToPair(
     call,
     shapeOf({

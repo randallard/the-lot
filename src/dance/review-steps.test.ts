@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyCallToPair, danceCoupleSequence, flattenSequence, partnerUp } from "square-one";
+import { applyCallToPair, applyStarThru, danceCoupleSequence, flattenSequence, partnerUp } from "square-one";
 import { REVIEW_FIGURES, type StepPose } from "./review-steps";
 import { TURN_UNDER_STYLES } from "./turn-under";
 
@@ -7,6 +7,10 @@ import { TURN_UNDER_STYLES } from "./turn-under";
 function motionsOf(figure: (typeof REVIEW_FIGURES)[number]) {
   if (figure.sequence !== undefined) {
     return flattenSequence(danceCoupleSequence(figure.sequence, partnerUp("a", "b")));
+  }
+  if (figure.call === "star-thru") {
+    const { a, b } = applyStarThru("a");
+    return { a, b };
   }
   const { a, b } = applyCallToPair(figure.call);
   return { a, b };

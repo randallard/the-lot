@@ -44,3 +44,13 @@ export function forwardReach(a: CharacterBodyShape, b: CharacterBodyShape): numb
 export function passingClearance(a: CharacterBodyShape, b: CharacterBodyShape): number {
   return Math.max(passingWidth(lateralClearance(rigidParts(a), rigidParts(b))), armsClearance(a, b));
 }
+
+/**
+ * 🧪 How far apart two dancers pass **under an arch they hold** (m, 10-29, Star Thru): the bodies'
+ * clearance alone. Passing right shoulders, his passing-side arm is the one up in the arch, so the
+ * hanging arms {@link passingClearance} also counts aren't in the gap. The floor and the headless
+ * paths (`figurePaths`) both read this, so a bake is played on the paths it was solved on.
+ */
+export function archPassClearance(a: CharacterBodyShape, b: CharacterBodyShape): number {
+  return passingWidth(lateralClearance(rigidParts(a), rigidParts(b)));
+}

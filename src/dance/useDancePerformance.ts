@@ -13,6 +13,7 @@
 import { useCallback, useMemo, useRef } from "react";
 import {
   applyCallToPair,
+  applyStarThru,
   createPerformance,
   DEFAULT_PAIR_SHAPE,
   danceCoupleSequence,
@@ -25,12 +26,14 @@ import {
   type Performance,
   type ShapeAt,
 } from "square-one";
+import type { FloorCall } from "./floor-calls";
 
 /** 120 bpm — the middle of normal patter tempo, and a round 2 beats/second. */
 export const DEFAULT_BPM = 120;
 
 export interface DancePerformanceOptions {
-  readonly call: CallName;
+  /** 🧪 Or `"star-thru"` (10-29): a facing pair that finishes as a couple, `a` the man and beau. */
+  readonly call: FloorCall;
   /**
    * Dance a **couple** through a sequence of calls instead of a facing pair through
    * one (planning ADR-0011's S1).
@@ -117,7 +120,7 @@ export interface DancePerformanceOptions {
 }
 
 export interface CallSpan {
-  readonly call: CallName;
+  readonly call: FloorCall;
   readonly startBeat: number;
   readonly beats: number;
 }
@@ -219,6 +222,23 @@ export function useDancePerformance(options: DancePerformanceOptions): DanceRunt
         motions: flattenSequence(seq),
         steps: seq.steps.map((st) => ({ call: st.call, startBeat: st.startBeat, beats: st.beats })),
       };
+    }
+    // 🧪 Star Thru (10-29): the pair walks into a couple `coupleWidth` wide. `a` is the man, who
+    // finishes as the beau, so the keys match the couple case's.
+    if (call === "star-thru") {
+      const { a, b } = applyStarThru(
+        "a",
+        shapeOf(
+          {
+            ...(coupleWidth === undefined ? {} : { width: coupleWidth }),
+            ...(clearance === undefined ? {} : { clearance }),
+            ...(archClearance === undefined ? {} : { archClearance }),
+            ...(gripRadius === undefined ? {} : { gripRadius }),
+          },
+          DEFAULT_PAIR_SHAPE,
+        ),
+      );
+      return { motions: { a, b }, steps: [{ call, startBeat: 0, beats: Math.max(a.beats, b.beats) }] };
     }
     // 🔴 The facing-pair path takes a shape too, as of square-one v0.3.0. Allemande Left is
     // the call that reads `gripRadius` and a facing pair is who dances it, so passing bodies

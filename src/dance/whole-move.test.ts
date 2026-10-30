@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computePositions, getBodyShape, NPC_BODY_CENTER_Y } from "../services/body-shapes";
-import { armPoints, bodyOf, frameCost, frameCostGrad, fromDials, gripSlides, armThrough, growRoom, pack, tradeCost, PER, planOf, reachArm, restArm, segSeg, solve, targetsFromKeyframes, toDials, toFloor, toRig, unpackOne, WEIGHTS, wornBody, type Arm, type DancerFrame, type Frame, type Move, type Vec } from "./whole-move";
+import { armPoints, bodyOf, frameCost, frameCostGrad, fromDials, gripSlides, armThrough, growRoom, pack, tradeCost, PER, planOf, reachArm, restArm, segSeg, solve, targetsFromKeyframes, toDials, toFloor, toRig, turnCost, TURN_CAP, unpackOne, WEIGHTS, wornBody, type Arm, type DancerFrame, type Frame, type Move, type Vec } from "./whole-move";
 import { growBody, standingLift } from "./accommodation";
 
 const near = (a: Vec, b: Vec, eps = 1e-9) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < eps;
@@ -128,7 +128,8 @@ describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
   const arm = (b: typeof ryan) => ({
     raise: rnd() * 3.4 - 0.2,
     toward: rnd() * 6 - 3,
-    ulen: b.upper0 * (0.5 + rnd() * 0.9),
+    // From folded past `FOLD` (10-29, 3) to stretched.
+    ulen: b.upper0 * (0.1 + rnd() * 1.3),
     pitch: rnd() * 3.6 - 1.8,
     heading: rnd() * 6 - 3,
     flen: b.fore0 * (0.5 + rnd() * 0.9),
@@ -195,6 +196,36 @@ describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
     }
     // The poses really do clip, so the clearance terms were tested, not skipped.
     expect(clipping).toBeGreaterThan(2);
+  });
+
+  it("🧪 turnCost: zero under the cap, exact gradient past it (10-29, 3)", () => {
+    const frames: Frame[] = Array.from({ length: 6 }, () => [
+      { x: 0, z: 0, yaw: 0, arms: [arm(ryan), arm(ryan)] },
+      { x: 0, z: 0, yaw: 0, arms: [arm(myco), arm(myco)] },
+    ]);
+    const v = pack(frames);
+    const g = new Float64Array(v.length);
+    const c = turnCost(v, frames.length, WEIGHTS, g);
+    // Random arms turn far between samples: the term bites.
+    expect(c).toBeGreaterThan(0);
+    const h = 1e-6;
+    for (let j = 0; j < v.length; j++) {
+      const x = v[j]!;
+      v[j] = x + h;
+      const up = turnCost(v, frames.length, WEIGHTS);
+      v[j] = x - h;
+      const dn = turnCost(v, frames.length, WEIGHTS);
+      v[j] = x;
+      const num = (up - dn) / (2 * h);
+      expect(Math.abs(g[j]! - num)).toBeLessThan(1e-4 * Math.max(1, Math.abs(num)));
+    }
+    // Level arms swinging round 0.8 of the cap a sample (5 × 24° = 120° in all) cost nothing.
+    const still = Float64Array.from(v);
+    for (let i = 0; i < frames.length; i++) for (let s = 0; s < 4; s++) {
+      const k = i * PER + s * 6;
+      [still[k], still[k + 1], still[k + 3], still[k + 4]] = [Math.PI / 2, i * 0.8 * TURN_CAP, 0, -i * 0.8 * TURN_CAP];
+    }
+    expect(turnCost(still, frames.length, WEIGHTS)).toBe(0);
   });
 
   it("solves the same as the numerical gradient", () => {
