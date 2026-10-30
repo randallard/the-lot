@@ -15,8 +15,11 @@ _Last updated: 2026-10-30_
 >   Shift+arrow nudged the hand width while `#review2` was playing and kept it out of sight. Fixed.
 > - Inherited ADRs and skills in; tier honestly "none yet"; ADRs 0066–0068 Proposed.
 >
-> ⏳ **Next:** Ryan decides ADRs 0066–0068; the strict pass (tsconfig flags, lint, TS 6) as its
-> own job, file by file; the first stance review. The voice test's next step stands below: a
+> - **ADRs 0066–0068 Accepted** (Ryan, 10-30). 0068 is about the client only: a backend (the
+>   planning effort's sharing / multiplayer stages) is its own decision, with Rust on the table.
+>
+> ⏳ **Next:** the strict pass (tsconfig flags, lint, TS 6) as its own job, file by file; the
+> first stance review. The voice test's next step stands below: a
 > phone run (free mode from a squared set, and chains).
 >
 > ---
