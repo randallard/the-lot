@@ -9,6 +9,7 @@ import { Review2Scene } from "./dance/Review2Scene.tsx";
 import { review2Target } from "./dance/review2-route.ts";
 import { SolveFourScene } from "./dance/SolveFourScene.tsx";
 import { solveFourCast } from "./dance/solve4-route.ts";
+import { VoiceTestScene } from "./voice/VoiceTestScene.tsx";
 
 // The M4 dance debug scene and the pose review are chosen here rather than inside App,
 // because App calls hooks on its first line and an early return there would break the
@@ -18,6 +19,8 @@ import { solveFourCast } from "./dance/solve4-route.ts";
 // `#review` is checked first only because the two patterns are disjoint and something has
 // to go first; neither hash can match the other's parser. `#review2` (the posing screen) is
 // disjoint from both for the same reason.
+// `#voice-test` (10-29): the spoken-call latency test, no floor.
+const voiceTest = window.location.hash === "#voice-test";
 const solveFour = solveFourCast(window.location.hash);
 const pose = review2Target(window.location.hash);
 const reviewCell = reviewSceneCell(window.location.hash);
@@ -25,7 +28,9 @@ const danceFigure = reviewCell === null ? danceSceneFigure(window.location.hash)
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {solveFour !== null ? (
+    {voiceTest ? (
+      <VoiceTestScene />
+    ) : solveFour !== null ? (
       <SolveFourScene cast={solveFour} />
     ) : pose !== null ? (
       <Review2Scene initialTarget={pose} />

@@ -1,12 +1,200 @@
 # Progress & Status
 
-_Last updated: 2026-10-29_
+_Last updated: 2026-10-30_
 
 ## Status / next
 
-**Standards:** last compliance review 2026-10-29 ([note](compliance/2026-10-29.md)). **the-lot takes the template's standard, adopted piece by piece** (Ryan, 2026-10-29; README "Standards"). In since: the docs-hygiene error (journal link → URL), Node 24 + `engines`, a gitleaks secret-scan job (one reviewed false positive in `.gitleaksignore`). ⏳ **Still to take, in order:** first stance review · property tests (`fast-check`) for the `review2-session` / `pose-events` reducers · tsconfig flags (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitReturns`) · lint `strictTypeChecked` + the three error rules · TypeScript 6.0.x · copy in ADRs 1000–1017 and the `project-conventions` skill, claim a tier · the ADR-1012 / 1015 answers · exact pins **CI (10-29, `ac23214`):** secret scan, OSV, supply chain and SBOM green, lint clean (advisories since 09-12 bumped away). Only `pnpm test` is red: the 38 known failures, plus `arch.test.ts:793` timing out at 5 s on the GitHub runner (passes locally).
+**Standards:** last compliance review 2026-10-30 ([note](compliance/2026-10-30.md)), its gaps worked the same day (Ryan: *"all that and commit"*; [journal 10-30 (8)](journal/2026-10-30-8-the-standard-pieces.md)). In: square-one re-pinned to `v0.11.0`; exact pins; `fast-check` properties for both reducers (they found a real bug, fixed); ADRs 1000–1017 and the `project-conventions` / `stance-review` skills; tier recorded honestly as none yet; ADR-1012/1015 answered as Proposed ADRs 0066–0068. ⏳ **Still to take:** Ryan decides 0066–0068 · first stance review · tsconfig flags (179 type errors, dry run) · lint `strictTypeChecked` + the three rules (2,756 findings in 173 files, dry run) · TypeScript 6.0.x · then claim provable-lite (also needs CI's test job green: 38 known failures)
 
-> ### ▶ PICK UP HERE — 2026-10-29 (2) — over her head
+> ### ▶ PICK UP HERE — 2026-10-30 (8) — the compliance gaps, worked; everything committed
+>
+> [`journal/2026-10-30-8-the-standard-pieces.md`](journal/2026-10-30-8-the-standard-pieces.md) ·
+> square-one released `v0.11.0` and the-lot re-pinned to it; the 10-29 and 10-30 work committed.
+>
+> - Property tests over arbitrary action sequences for both reducers. They found a real bug:
+>   Shift+arrow nudged the hand width while `#review2` was playing and kept it out of sight. Fixed.
+> - Inherited ADRs and skills in; tier honestly "none yet"; ADRs 0066–0068 Proposed.
+>
+> ⏳ **Next:** Ryan decides ADRs 0066–0068; the strict pass (tsconfig flags, lint, TS 6) as its
+> own job, file by file; the first stance review. The voice test's next step stands below: a
+> phone run (free mode from a squared set, and chains).
+>
+> ---
+>
+> ### 2026-10-30 (6)–(7) — free mode is a live floor; 94 calls
+>
+> [`journal/2026-10-30-6-a-live-floor.md`](journal/2026-10-30-6-a-live-floor.md),
+> [`journal/2026-10-30-7-the-vocabulary-gaps.md`](journal/2026-10-30-7-the-vocabulary-gaps.md) · 🧪
+> uncommitted (the-lot and square-one).
+>
+> - **Free mode keeps the floor**: from a Static Square, moved on by each utterance's last call,
+>   so free calling is narrowed by what's legal too; unknown after a call with no known ending,
+>   until **reset**. The screen shows the floor and how many calls are legal from it.
+> - **19 family members said in their own words** joined the vocabulary and square-one's data
+>   (Chain Down the Line, Trade, Wrong Way Promenade, the thars, Quarter Tag…): 94 calls.
+> - "Dodo" isn't heard anywhere (0.33 > `LOOSE` 0.30); 10-30 (4) implied otherwise.
+> - 43 voice tests; square-one 272.
+>
+> ⏳ **Next:** **Ryan: a phone run**, free mode from a squared set (reset if the floor goes
+> unknown), and some chains.
+>
+> ---
+>
+> ### 2026-10-30 (4) — calls heard by sound, narrowed by what's legal
+>
+> [`journal/2026-10-30-4-heard-by-sound.md`](journal/2026-10-30-4-heard-by-sound.md) · 🧪
+> uncommitted, for Ryan to run.
+>
+> - `src/voice/sound-alike.ts`: `hearCalls(transcript, start)`. Exact spellings anywhere; loose
+>   matches by sound key + edit distance, only among calls Standard where the dancers are
+>   (`callsFrom`, moved on by `endingsFrom`), `LOOSE` 0.30; no formation → `STRICT` 0.25. Hears
+>   all 8 real chains of the 10-30 run as asked (exact matching: 1 of 9). Loose matches show `~`.
+> - Chain split fixed: a final while the meter hears speech doesn't end a chain trial.
+> - 36 voice tests.
+>
+> - **Free run** ([10-30 (5)](journal/2026-10-30-5-a-free-run.md)): 9 of 11 utterances heard as
+>   written, last call named median 97 ms after speech. Misses: the recogniser lost "square";
+>   "Chain down the line" isn't in the vocabulary. Bug fixed: sound matches with key distance 0
+>   ("starred", "traded") weren't marked `~` (now an `exact` flag). 37 voice tests.
+>
+> ⏳ **Next (Ryan's pick):** free mode as a live floor (carry the formation across utterances
+> from a Static Square), and/or fill the vocabulary gaps (Chain Down the Line, Trade, Quarter Tag…)
+> in the-lot and square-one.
+>
+> ---
+>
+> ### 2026-10-30 (2) — chain mode on `#voice-test`
+>
+> [`journal/2026-10-30-2-chain-mode.md`](journal/2026-10-30-2-chain-mode.md) · 🧪 uncommitted, for
+> Ryan to run.
+>
+> - Mode **chain**: four calls to say in one go, each one Standard from where the last left the
+>   dancers (square-one's data), with the formation shown; it moves the square and looks ahead
+>   past dead ends. Calls are ticked as named; a pause per call gives per-call latency.
+> - `matchCalls`: every call in a transcript, in order. **Carry-over fixed** (`dropCarry`).
+> - Results JSON `version: 2`. 26 voice tests; checked rendering in the browser.
+>
+> - **Chain run** ([10-30 (3)](journal/2026-10-30-3-the-chain-run.md)): per-call latency median
+>   379 ms (under a beat), but 1 of 9 chains exact, 21 of 36 calls. Ten misses are spellings
+>   ("passed through", "Alma left", "squared through four", "view to the left"). One chain split in
+>   two: Safari finalised mid-chain and the reducer closed the trial.
+>
+> ⏳ **Next:** fix the split (no trial end on a final while the meter hears speech), then
+> sound-alike matching narrowed by `callsFrom` from the chain's formation.
+>
+> ---
+>
+> ### 2026-10-30 (1) — the first phone run; calls narrowed by formation
+>
+> [`journal/2026-10-30-1-the-first-phone-run.md`](journal/2026-10-30-1-the-first-phone-run.md)
+> · 🧪 uncommitted, for Ryan's look. the-lot + square-one (its journal 32).
+>
+> - iPhone Safari, server recognition: end of speech → first naming result **median 378 ms** (a
+>   beat is 469). Fast enough. **6 of 11 right**; every miss a spelling ("Dodo", "California tour",
+>   "Allaman left"). Interim text carries over between trials (not fixed).
+> - Ryan doesn't want a per-caller spelling list. square-one now has **CALLERLAB's Standard
+>   Applications as data** for all 75 voice calls (`FORMATIONS`, `STANDARD_APPLICATIONS`,
+>   `callsFrom`, `endingsFrom`); the-lot tests the ids match.
+> - Phone setup: any `pnpm dev` + Tailscale Serve (to plain HTTP) →
+>   `https://waed-7771.tailf88f11.ts.net/#voice-test` (Safari). **save to dev machine** writes
+>   results to `~/Downloads`.
+>
+> ⏳ **Next:** **chain mode** on `#voice-test` (every call in a transcript, in order, each once),
+> then **sound-alike matching narrowed by `callsFrom`** from the formation the chain reached. Then
+> the carry-over fix. Vosk only if those fall short (needs Ryan's go-ahead).
+>
+> ---
+>
+> ### 2026-10-29 (7) — a voice test (`#voice-test`); Star Thru parked
+>
+> [`journal/2026-10-29-7-a-voice-test.md`](journal/2026-10-29-7-a-voice-test.md)
+> · 🧪 uncommitted, for Ryan to run. the-lot only.
+>
+> - Ryan: *"leave star thru and move forward with call testing … see if we'll be able to live call"*.
+>   First test, his pick: **voice latency** (the north star's proof 3).
+> - `#voice-test` (`src/voice/`): the browser's speech recognition, server or on-device (this
+>   Chromium offers it: `downloadable`, with call-name biasing). A mic level meter stamps the end of
+>   speech. Each utterance gives ms (and beats) to the first result naming a call and to the final
+>   result. 75 CALLERLAB Basic + Mainstream calls with recogniser spellings, matched longest-first.
+>   One reducer, 12 tests.
+> - Not checked: speech itself. Not built: Whisper (a dependency, so it waits for Ryan).
+> - On the phone (iPhone, 10-30): use **Safari**, because iOS Chrome has no SpeechRecognition. Run
+>   the usual `pnpm dev` and open `https://waed-7771.tailf88f11.ts.net/#voice-test`: Tailscale
+>   Serve (`tailscale serve --bg http://localhost:5173`, tailnet-only, persistent;
+>   `tailscale serve reset` turns it off) gives the real certificate the mic needs, and
+>   `vite.config.ts` allows `.ts.net` hosts. Ryan is the Tailscale operator, so no sudo.
+>   **save to dev machine** (dev only, a `save-voice-results` plugin in `vite.config.ts`) writes
+>   the results JSON to `~/Downloads` on the dev box. Uncommitted.
+>
+> ⏳ **Next:** **Ryan runs `#voice-test`: server, then on-device (install), about 20 calls each,
+> download results.** The bar: end of speech → first naming result under a beat (469 ms at 128).
+> Then Whisper if neither passes, or the live floor (a call taken mid-dance) if one does.
+> Star Thru, when it comes back: 10-29 (5)'s next step. Also still waiting: the twirl look
+> (10-29 (3)), square-one ADR-0027/0028, square-one release + pin.
+>
+> ---
+>
+> ### 2026-10-29 (5) — Star Thru bakes on keyframes; step 5 is Ryan's (⏸ parked 10-29 (7))
+>
+> [`journal/2026-10-29-5-star-thru-bakes-on-keyframes.md`](journal/2026-10-29-5-star-thru-bakes-on-keyframes.md)
+> · 🧪 uncommitted, still on square-one's unreleased Star Thru (linked checkout).
+>
+> - **The flow:** 1 blocks · 2 holds · 3 engine paths · 4 rough solve + bake (done, (4)) ·
+>   **5 Ryan's keyframes** · 6 re-solve on them, bake 25 (plumbing done, here).
+> - `bake-star-thru.ts --targets=<📂 export>` folds the `star-thru` timeline per pairing and pulls
+>   toward the dials he set (10× when locked), as `solve.ts` does for the twirl. Checked on ryan × 2
+>   with a scratch keyframe. The 25 on disk are still the rough bakes.
+> - **The plan (Ryan: "move forward with the plan we're on"):** general keyframes on **ryan × 2**
+>   with no couple highlighted → bake all 25 → review → then one couple at a time, worst first
+>   (player → sprout, sprout → myco, then the reach pairs): keyframe it, re-bake it, review, lock.
+> - ❓ Open: the solver isn't available to users (dev scripts only; the browser worker is unused).
+>   In-app solve and per-user bakes are needed if users build moves. Undecided.
+>
+> ⏳ **Next:** **Ryan: `#review2` → Star Thru → ryan × 2, no couple highlighted, set the arch and her
+> turn, 📂 export.** Then bake 25 with `--targets` (loop in the script's comment), review, per-couple
+> fixes. Then square-one release + pin, commit. Still waiting too: the 10-29 (3) twirl look
+> (ryan → player, myco → player), square-one ADR-0027/0028.
+>
+> ---
+>
+> ### 2026-10-29 (4) — Star Thru, to step 5
+>
+> [`journal/2026-10-29-4-star-thru-to-step-5.md`](journal/2026-10-29-4-star-thru-to-step-5.md)
+> · 🧪 uncommitted, **on square-one's unreleased Star Thru** (linked checkout; its journal 31).
+>
+> - The custom-move flow, steps 1–4: square-one's blocks and arch hold (`applyStarThru`), the floor
+>   dancing a call that changes formation (`FloorCall`, `useDancePerformance`, `figurePaths`), a
+>   Star Thru review figure, and a rough solve of all 25 (`starThruMove`, `bake-star-thru.ts`).
+> - Hands reach until the pair are within arm's length (`joinAt`): they start 2.2 m apart.
+>   `archPassClearance` sizes the bodies' bow, on the floor and the headless paths alike.
+> - 6 of 25 clean, 5 always held; the rest reach or clip. Rough on purpose: the shape is the guide's.
+>
+> ⏳ **Next:** **step 5, Ryan's keyframes** for Star Thru in `#review2`. Then step 6 (re-solve on his
+> targets, bake 25), square-one release + pin, commit. The 10-29 (3) twirl work is uncommitted too.
+>
+> ---
+>
+> ### 2026-10-29 (3) — the limbs turn
+>
+> [`journal/2026-10-29-3-the-limbs-turn.md`](journal/2026-10-29-3-the-limbs-turn.md)
+> · 🧪 uncommitted, for Ryan's look. the-lot only, still on square-one **v0.10.0**.
+>
+> - The 108–117° twirl jumps were the solve **folding the upper arm through nothing** (to −2.6 cm,
+>   ember → sprout's beau −10.7) to flip the elbow across the shoulder.
+> - `FOLD = 0.25`: an upper arm under a quarter of its length costs as the long side does.
+>   `TURN_CAP = 45°` / `turnCost`: a limb turning more than that between samples costs like a clip
+>   (30° pushed two sprout meets into a worse valley). `bake-pair.ts --tries`.
+> - All 51 twirl bakes re-baked: worst jump 117° → 45°; always held 4 → 7 (+ ember → sprout,
+>   ryan → ember, myco → player). The player belles clip 0.5–0.7 cm (her upper arm on her head),
+>   so ryan → player and ember → player stay tossed.
+>
+> ⏳ **Next:** Ryan looks (ryan → player, myco → player) → commit. Then **Star Thru**: square-one's
+> spec (`docs/spec/calls/star-thru.md`) waits on its two questions, and its arch goes over her head
+> as the twirl's does.
+>
+> ---
+>
+> ### 2026-10-29 (2) — over her head
 >
 > [`journal/2026-10-29-2-over-her-head.md`](journal/2026-10-29-2-over-her-head.md)
 > · ✅ committed on Ryan's word. the-lot only, still on square-one **v0.10.0**.
@@ -21,8 +209,7 @@ _Last updated: 2026-10-29_
 > - Breaks (hands let go) put the beau's low hand under a big passing head on 15 of 25. Ryan:
 >   *"hanging hand is fine"*. "Never under her head" is the arch only; breaks unchanged.
 >
-> ⏳ **Next:** the pose jumps: ryan → player (109°, always held) and ember → player (32° → 108°).
-> Then mixed sets.
+> → 10-29 (3): the pose jumps.
 >
 > ---
 >

@@ -134,13 +134,15 @@ dancer's crown. Dancing a whole square in the world is not built. There are thre
 
 ### Looking at it
 
-Two routes on the dev server, neither part of the game:
+Routes on the dev server, none of them part of the game:
 
 | Route | What it is |
 |---|---|
 | `#dance`, `#dance=two-twirls`, … | The debug scene: a figure playing on a pair, with tracking markers and readouts. |
 | `#review`, `#review=california-twirl/under-arch/ryan-ember` | The pose review: one named moment of one figure on one pairing of the cast, frozen. Rate it, note it, read the rules verdict, turn the experimental dials. The address is `figure/step/beau-belle`. |
 | `#review2`, `#review2=california-twirl/player-myco`, `…/only` | 🧪 The posing screen (prototype): play / step / scrub a whole figure on one pairing, the other 24 couples dance around it in a filled disk (click one to focus it; Ctrl+↑/↓ spacing), click a body part for dials that read and move the drawn pose, set keyframes for every unlocked couple or (`/only`) for one, accept & lock couples in the pairings drawer, save / load the keyframes as a file. Dials move the drawn pose (not the solver); *play: my keyframes* eases every couple through its own timeline, blending with the solver at the edges. |
+| `#solve4`, `#solve4=ryan,ember,myco,sprout` | 🧪 Right and Left Thru solved for four dancers (the N-dancer solve). |
+| `#voice-test` | 🧪 The voice test: say a call, and it measures how long after you stop speaking the browser's speech recognition names it (server or on-device), in ms and beats. 75 CALLERLAB Basic + Mainstream calls; results download as JSON. |
 
 **Start at [`docs/PROGRESS.md`](docs/PROGRESS.md)** for current state and what's next — its
 first block is always the place to pick up.
@@ -154,6 +156,11 @@ adopting the standard **piece by piece** rather than in one pass (Ryan, 2026-10-
 lands, the gap is open, not an exception. What's in and what's left is in
 [`docs/PROGRESS.md`](docs/PROGRESS.md)'s Standards line and the newest note in
 [`docs/compliance/`](docs/compliance/).
+
+**Tier: none claimed yet** (ADR-1002 claims only what CI enforces). Toward provable-lite:
+`fast-check` properties now cover both screen reducers (`review2-session`, `voice-test-session`),
+but CI's test job is red with 38 known failures and the strictness bar (ADR-1011) isn't met.
+Claim provable-lite when both are.
 
 ## Docs
 
