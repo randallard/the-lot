@@ -231,9 +231,13 @@ export function reduce(s: Session, a: Action): Session {
       return { ...s, t: 0, seekToken: s.seekToken + 1 };
     case "wrapped":
       return s.turnAround ? { ...s, turned: !s.turned } : s;
+    // Dials are for a paused floor (the screen disables them while playing). A Shift+arrow width
+    // nudge still arrived mid-play and was kept against the moment play began, out of sight
+    // (found by the property tests, 2026-10-30), so the reducer refuses it too.
     case "edit":
-      return { ...s, edits: withEdit(s, a.key, a.value) };
+      return s.playing ? s : { ...s, edits: withEdit(s, a.key, a.value) };
     case "nudge": {
+      if (s.playing) return s;
       const cur = s.edits !== null && sameMoment(s.edits.at, s.t) && s.edits.scope === s.scope ? s.edits.values[a.key] : undefined;
       const from = cur ?? a.base;
       return { ...s, edits: withEdit(s, a.key, Math.min(a.max, Math.max(a.min, from + a.by))) };

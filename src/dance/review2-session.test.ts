@@ -165,4 +165,9 @@ describe("the posing session", () => {
     expect(run({ type: "panelOpacity", value: 0 }).panelOpacity).toBe(PANEL_OPACITY_MIN);
     expect(run({ type: "panelOpacity", value: 3 }).panelOpacity).toBe(1);
   });
+
+  it("a dial change while playing is refused, not kept out of sight (Shift+arrow width nudge, 10-30)", () => {
+    const s = run({ type: "play" }, { type: "nudge", key: "hand.width", by: 5, base: 10, min: 0, max: 300 }, { type: "edit", key: "head.yaw", value: 1 });
+    expect(s.edits).toBeNull();
+  });
 });

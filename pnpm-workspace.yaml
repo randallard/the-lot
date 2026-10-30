@@ -4,6 +4,7 @@
 # `pnpm install` from stopping on ERR_PNPM_IGNORED_BUILDS, in CI and locally.
 allowBuilds:
   esbuild: true
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/9fe350fbef34c790675fb518b5f69108ef32aaea: set this to true or false
   # square-one is consumed as a pinned git dependency (planning ADR-0006) and its
   # dist/ is gitignored, so pnpm must run its `prepare` (a plain `tsc`) after cloning.
   #
@@ -25,7 +26,7 @@ allowBuilds:
   # it survived two bumps because nothing fails when a key nobody fetches is wrong. A key that
   # is not the current pin cannot be exercised, so keeping it only preserves the chance of a
   # future edit landing on the wrong line.
-  square-one@https://codeload.github.com/randallard/square-one/tar.gz/9fe350fbef34c790675fb518b5f69108ef32aaea: true
+  square-one@https://codeload.github.com/randallard/square-one/tar.gz/f11da07ddb94f31ba3d7c444b7da781977aacf0c: true
 
 # Age-gate new releases at the package manager. 1440 minutes (1 day) is pnpm's
 # own recommendation and its v11 default; stated explicitly rather than inherited
