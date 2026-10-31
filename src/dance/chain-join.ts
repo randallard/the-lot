@@ -30,6 +30,20 @@ import { BREAK_HOLD, standingFrame } from "./whole-move-twirl";
 
 const D2R = Math.PI / 180;
 
+// Checked reads, as in `whole-move.ts` (10-31 (7), (8)): in range by the arithmetic, and a
+// RangeError naming the index if it's ever wrong, where a `!` let `undefined` through.
+// `rd` for Float64Arrays, `nth` for ordinary arrays.
+const rd = (a: Float64Array, i: number): number => {
+  const x = a[i];
+  if (x === undefined) throw new RangeError(`chain-join: index ${String(i)} outside ${String(a.length)}`);
+  return x;
+};
+const nth = <T>(a: readonly T[], i: number): T => {
+  const x = a[i];
+  if (x === undefined) throw new RangeError(`chain-join: index ${String(i)} outside ${String(a.length)}`);
+  return x;
+};
+
 /** One danced call: its bake (if any) and the engine's paths it was solved on (`couplePaths`). */
 export interface ChainCall {
   readonly bake: BakedTrack | undefined;
@@ -66,8 +80,8 @@ function pathFrames(p: NonNullable<ChainCall["paths"]>, bodies: readonly [Body, 
     ];
   });
   for (const k of [0, 1] as const) for (let i = 1; i < out.length; i++) {
-    const prev = out[i - 1]![k].yaw;
-    const cur = out[i]![k];
+    const prev = nth(out, i - 1)[k].yaw;
+    const cur = nth(out, i)[k];
     while (cur.yaw - prev > Math.PI) cur.yaw -= 2 * Math.PI;
     while (cur.yaw - prev < -Math.PI) cur.yaw += 2 * Math.PI;
   }
@@ -132,7 +146,7 @@ function unpackValues(v: Float64Array, i: number, base: Frame, original: Readonl
   const values: Record<string, number> = { ...original };
   let k = i * PER;
   const arm = () => {
-    const a = { raise: v[k]!, toward: v[k + 1]!, ulen: v[k + 2]!, pitch: v[k + 3]!, heading: v[k + 4]!, flen: v[k + 5]! };
+    const a = { raise: rd(v, k), toward: rd(v, k + 1), ulen: rd(v, k + 2), pitch: rd(v, k + 3), heading: rd(v, k + 4), flen: rd(v, k + 5) };
     k += 6;
     return a;
   };
@@ -140,8 +154,8 @@ function unpackValues(v: Float64Array, i: number, base: Frame, original: Readonl
     const arms = [arm(), arm()] as Frame[0]["arms"];
     for (const [key, x] of Object.entries(toDials({ ...base[d], arms }, d))) if (ARM_DIAL.test(key)) values[key] = x;
   }
-  const out = v[k]!;
-  const side = v[k + 1]!;
+  const out = rd(v, k);
+  const side = rd(v, k + 1);
   const ux = base[0].x - base[1].x;
   const uz = base[0].z - base[1].z;
   const ul = Math.hypot(ux, uz) || 1;
@@ -149,7 +163,7 @@ function unpackValues(v: Float64Array, i: number, base: Frame, original: Readonl
   values["0.offset.x"] = Math.round(lx * 10) / 10;
   values["0.offset.z"] = Math.round(lz * 10) / 10;
   for (const d of [0, 1] as const) {
-    const g = Math.round(v[k + 2 + d]! * 1000) / 10;
+    const g = Math.round(rd(v, k + 2 + d) * 1000) / 10;
     const key = `${String(d)}.torso.grow`;
     if (g !== 0 || key in values) values[key] = g;
   }
@@ -165,8 +179,8 @@ const wrapTo = (x: number, near: number) => x - 2 * Math.PI * Math.round((x - ne
  * and a bake can name nearly the same heading 360° apart, and smoothness would pay for the turn.
  */
 function unwrap(v: Float64Array, n: number, from: number): void {
-  for (let i = from + 1; i < n; i++) for (const k of ROUND) v[i * PER + k] = wrapTo(v[i * PER + k]!, v[(i - 1) * PER + k]!);
-  for (let i = from - 1; i >= 0; i--) for (const k of ROUND) v[i * PER + k] = wrapTo(v[i * PER + k]!, v[(i + 1) * PER + k]!);
+  for (let i = from + 1; i < n; i++) for (const k of ROUND) v[i * PER + k] = wrapTo(rd(v, i * PER + k), rd(v, (i - 1) * PER + k));
+  for (let i = from - 1; i >= 0; i--) for (const k of ROUND) v[i * PER + k] = wrapTo(rd(v, i * PER + k), rd(v, (i + 1) * PER + k));
 }
 
 const ease = (x: number) => x * x * (3 - 2 * x);
@@ -174,7 +188,7 @@ const ease = (x: number) => x * x * (3 - 2 * x);
 /** A run of a bake's samples as solver variables, angles unwrapped along it. */
 function packAll(values: readonly Readonly<Record<string, number>>[], frames: readonly Frame[], bodies: readonly [Body, Body]): Float64Array {
   const v = new Float64Array(values.length * PER);
-  values.forEach((x, j) => packValues(x, frames[j]!, bodies, v, j));
+  values.forEach((x, j) => packValues(x, nth(frames, j), bodies, v, j));
   unwrap(v, values.length, 0);
   return v;
 }
@@ -187,9 +201,9 @@ function packAll(values: readonly Readonly<Record<string, number>>[], frames: re
 function eased(bake: Float64Array, n: number, onto: Float64Array, at: number, share: (j: number) => number): Float64Array {
   const v = Float64Array.from(bake);
   for (let k = 0; k < PER; k++) {
-    let d = onto[k]! - bake[at * PER + k]!;
+    let d = rd(onto, k) - rd(bake, at * PER + k);
     if ((ROUND as readonly number[]).includes(k)) d = wrapTo(d, 0);
-    for (let j = 0; j < n; j++) v[j * PER + k] = bake[j * PER + k]! + d * share(j);
+    for (let j = 0; j < n; j++) v[j * PER + k] = rd(bake, j * PER + k) + d * share(j);
   }
   return v;
 }
@@ -323,10 +337,10 @@ export function joinChain(
       const frames = w.path.slice(0, K + 1);
       const bake = packAll(w.values.slice(0, K + 1), frames, bodies);
       const stand = new Float64Array(PER);
-      packStanding(shapes, bodies, frames[0]!, stand, 0);
+      packStanding(shapes, bodies, nth(frames, 0), stand, 0);
       const v = eased(bake, K + 1, stand, 0, (j) => 1 - ease(j / K));
       const r = polish(frames, v, fromStanding, bodies, w.bake.grow, iters);
-      for (let j = 0; j < K; j++) w.values[j] = unpackValues(r, j, frames[j]!, w.values[j]!);
+      for (let j = 0; j < K; j++) w.values[j] = unpackValues(r, j, nth(frames, j), nth(w.values, j));
     }
     // Its end: the dance ends waiting (ADR-0026's release), a wait follows, or a call the floor
     // poses follows.
@@ -335,10 +349,10 @@ export function joinChain(
       const frames = w.path.slice(n - 1 - K);
       const bake = packAll(w.values.slice(n - 1 - K), frames, bodies);
       const stand = new Float64Array(PER);
-      packStanding(shapes, bodies, frames[K]!, stand, 0);
+      packStanding(shapes, bodies, nth(frames, K), stand, 0);
       const v = eased(bake, K + 1, stand, K, (j) => ease(j / K));
       const r = polish(frames, v, intoStanding, bodies, w.bake.grow, iters);
-      for (let j = 1; j <= K; j++) w.values[n - 1 - K + j] = unpackValues(r, j, frames[j]!, w.values[n - 1 - K + j]!);
+      for (let j = 1; j <= K; j++) w.values[n - 1 - K + j] = unpackValues(r, j, nth(frames, j), nth(w.values, n - 1 - K + j));
       return;
     }
     // Into the next bake: one window over the join, hands held across it (ADR-0026's merge). Each
@@ -346,22 +360,22 @@ export function joinChain(
     // a call's start or end ({@link JoinOptions.join}), so it takes in each bake's own lowering.
     const J = Math.min(joinK, Math.floor((n - 1) / 2), Math.floor((next.path.length - 1) / 2));
     const tail = w.path.slice(n - 1 - J);
-    const head = placeOnto(next.path, next.path[0]!, w.path[n - 1]!).slice(0, J + 1);
+    const head = placeOnto(next.path, nth(next.path, 0), nth(w.path, n - 1)).slice(0, J + 1);
     const a = packAll(w.values.slice(n - 1 - J), tail, bodies);
     const b = packAll(next.values.slice(0, J + 1), next.path.slice(0, J + 1), bodies);
     const natural: ArchArms = [[bodies[0].upper0, bodies[0].fore0], [bodies[1].upper0, bodies[1].fore0]];
     const mid = new Float64Array(PER);
     for (let k = 0; k < PER; k++) {
-      const x = a[J * PER + k]!;
-      const y = (ROUND as readonly number[]).includes(k) ? wrapTo(b[k]!, x) : b[k]!;
+      const x = rd(a, J * PER + k);
+      const y = (ROUND as readonly number[]).includes(k) ? wrapTo(rd(b, k), x) : rd(b, k);
       mid[k] = (x + y) / 2;
     }
     // The held arms: the arch, held (unless a break is on either side: then the hands only reach),
     // when both calls hold. A free call on either side (10-28) joins hands free.
     const bothHeld = isHeld(w.bake) && isHeld(next.bake);
     if (bothHeld && holdWeight(w.bake) === 1 && holdWeight(next.bake) === 1) {
-      packArch(bodies, tail[J]!, natural, mid);
-      for (const k of ROUND) mid[k] = wrapTo(mid[k]!, a[J * PER + k]!);
+      packArch(bodies, nth(tail, J), natural, mid);
+      for (const k of ROUND) mid[k] = wrapTo(rd(mid, k), rd(a, J * PER + k));
     }
     const va = eased(a, J + 1, mid, J, (j) => ease(j / J));
     const vb = eased(b, J + 1, mid, 0, (j) => 1 - ease(j / J));
@@ -380,18 +394,18 @@ export function joinChain(
     // hands dipped to the chest at the join (10-27): each bake alone lowers them for its own end,
     // and gravity did the rest.
     const last = frames.length - 1;
-    const edge = Math.min(handHeight(v, 0, frames[0]!, bodies), handHeight(v, last, frames[last]!, bodies));
-    const lift = frames.map(() => Math.min(archHeight(bodies, tail[J]!, natural) - 0.1, edge));
+    const edge = Math.min(handHeight(v, 0, nth(frames, 0), bodies), handHeight(v, last, nth(frames, last), bodies));
+    const lift = frames.map(() => Math.min(archHeight(bodies, nth(tail, J), natural) - 0.1, edge));
     const r = polish(frames, v, holds, bodies, w.bake.grow ?? next.bake.grow, iters, !bothHeld || holdWeight(w.bake) < 1 || holdWeight(next.bake) < 1 ? undefined : lift);
-    for (let j = 1; j <= J; j++) w.values[n - 1 - J + j] = unpackValues(r, j, tail[j]!, w.values[n - 1 - J + j]!);
+    for (let j = 1; j <= J; j++) w.values[n - 1 - J + j] = unpackValues(r, j, nth(tail, j), nth(w.values, n - 1 - J + j));
     // The join itself and after it, in the next call's own frame: the same pose, so the hand-over is exact.
-    for (let j = 0; j < J; j++) next.values[j] = unpackValues(r, J + j, next.path[j]!, next.values[j]!);
+    for (let j = 0; j < J; j++) next.values[j] = unpackValues(r, J + j, nth(next.path, j), nth(next.values, j));
   });
 
   return calls.map((c, i) => {
     const w = work[i];
     if (w === undefined) return c.bake;
-    const keyframes: BakedKeyframe[] = w.bake.keyframes.map((k, j) => ({ ...k, values: w.values[j]! }));
+    const keyframes: BakedKeyframe[] = w.bake.keyframes.map((k, j) => ({ ...k, values: nth(w.values, j) }));
     return { ...w.bake, keyframes };
   });
 }
