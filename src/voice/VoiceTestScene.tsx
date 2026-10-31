@@ -25,6 +25,7 @@ import { VOICE_CALLS, type VoiceCall } from "./call-vocabulary";
 import { callsFrom } from "square-one";
 import { CHAIN_LENGTH, formationName, makeChain } from "./chain";
 import { hearCalls } from "./sound-alike";
+import { VAD_START, vadStep } from "./vad";
 import { initialSession, perCallLatency, reduce, summarise, summariseChains, type Mode, type Spread, type Trial } from "./voice-test-session";
 
 // ── The Web Speech API, as much of it as this page uses (lib.dom doesn't declare it) ──────────
@@ -64,11 +65,12 @@ const LANG = "en-US";
 
 // ── The level meter: end of speech, independent of the recogniser ───────────────────────────────
 
-/** Speech is a level this many times the room's quiet, and at least {@link MIN_LEVEL}. */
-const OVER_QUIET = 4;
-const MIN_LEVEL = 0.012;
-/** Quiet this long ends an utterance; the end is stamped at the last loud sample. */
-const HANGOVER_MS = 300;
+// The level's speech segments come from `vad.ts` (10-30 (12)); the microphone is band-passed to
+// speech frequencies first, so rumble and hiss count less.
+const BAND = { low: 150, high: 4000 } as const;
+/** The level trace saved with the results, for replaying the detector offline: every Nth sample, capped. */
+const TRACE_EVERY = 2;
+const TRACE_MAX = 60_000;
 const SAMPLE_MS = 10;
 
 type Pool = "dancing" | "basic" | "all";
@@ -91,6 +93,7 @@ export function VoiceTestScene() {
   const rec = useRef<Recognition | null>(null);
   const wanted = useRef(false);
   const audio = useRef<{ ctx: AudioContext; stream: MediaStream; timer: number } | null>(null);
+  const levelTrace = useRef<[number, number][]>([]);
 
   const sum = useMemo(() => summarise(s), [s]);
   const chainSum = useMemo(() => summariseChains(s), [s]);
@@ -140,11 +143,12 @@ export function VoiceTestScene() {
     const ctx = new AudioContext();
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 512;
-    ctx.createMediaStreamSource(stream).connect(analyser);
+    const highpass = new BiquadFilterNode(ctx, { type: "highpass", frequency: BAND.low });
+    const lowpass = new BiquadFilterNode(ctx, { type: "lowpass", frequency: BAND.high });
+    ctx.createMediaStreamSource(stream).connect(highpass).connect(lowpass).connect(analyser);
     const buf = new Float32Array(analyser.fftSize);
-    let quiet = 0.005;
-    let speaking = false;
-    let lastLoud = 0;
+    let vad = VAD_START;
+    let n = 0;
     // setInterval, not requestAnimationFrame: rAF stops when the window is hidden, and the
     // microphone shouldn't.
     const timer = window.setInterval(() => {
@@ -153,18 +157,13 @@ export function VoiceTestScene() {
       for (const v of buf) sq += v * v;
       const rms = Math.sqrt(sq / buf.length);
       const now = performance.now();
-      const loud = rms > Math.max(MIN_LEVEL, quiet * OVER_QUIET);
-      // The room's quiet: a slow average of the samples that aren't speech.
-      if (!loud) quiet = quiet * 0.95 + rms * 0.05;
-      if (loud) {
-        lastLoud = now;
-        if (!speaking) {
-          speaking = true;
-          dispatch({ type: "speech-start", at: now });
-        }
-      } else if (speaking && now - lastLoud > HANGOVER_MS) {
-        speaking = false;
-        dispatch({ type: "speech-end", at: lastLoud });
+      const step = vadStep(vad, rms, now);
+      vad = step.state;
+      for (const e of step.events) dispatch(e);
+      if (n++ % TRACE_EVERY === 0) {
+        const trace = levelTrace.current;
+        trace.push([Math.round(now), Math.round(rms * 1e5) / 1e5]);
+        if (trace.length > TRACE_MAX) trace.splice(0, trace.length - TRACE_MAX);
       }
       setLevel(rms);
     }, SAMPLE_MS);
@@ -245,13 +244,16 @@ export function VoiceTestScene() {
     }
   }, []);
 
-  const results = useMemo(
-    () => JSON.stringify({ format: "voice-test", version: 3, at: new Date().toISOString(), userAgent: navigator.userAgent, bpm: s.bpm, summary: sum, chainSummary: chainSum, trials: s.trials }, null, 1),
-    [s.bpm, s.trials, sum, chainSum],
-  );
+  // Built when saved, not on render: the level trace grows between renders (a ref).
+  const results = () =>
+    JSON.stringify({
+      format: "voice-test", version: 4, at: new Date().toISOString(), userAgent: navigator.userAgent, bpm: s.bpm, summary: sum, chainSummary: chainSum, trials: s.trials,
+      // [performance.now() ms, band-passed RMS], every 20 ms: replay `vad.ts` on it offline.
+      levels: levelTrace.current,
+    });
   const download = () => {
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([results], { type: "application/json" }));
+    a.href = URL.createObjectURL(new Blob([results()], { type: "application/json" }));
     a.download = `voice-test-${new Date().toISOString().slice(0, 19).replace(/:/g, "")}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
@@ -259,7 +261,7 @@ export function VoiceTestScene() {
   // Dev server only (vite.config.ts `save-voice-results`): writes to ~/Downloads on the dev machine.
   const saveToDevMachine = async () => {
     try {
-      const r = await fetch("/__voice-results", { method: "POST", headers: { "content-type": "application/json" }, body: results });
+      const r = await fetch("/__voice-results", { method: "POST", headers: { "content-type": "application/json" }, body: results() });
       if (!r.ok) throw new Error(await r.text());
       const { path } = (await r.json()) as { path: string };
       dispatch({ type: "notice", text: `Saved to ${path}` });
@@ -388,7 +390,7 @@ export function VoiceTestScene() {
           </>
         )}
         <div style={row}>
-          <button onClick={() => { void navigator.clipboard.writeText(results); }}>copy results</button>
+          <button onClick={() => { void navigator.clipboard.writeText(results()); }}>copy results</button>
           <button onClick={download}>download results</button>
           {import.meta.env.DEV && <button onClick={() => { void saveToDevMachine(); }}>save to dev machine</button>}
           <button onClick={() => { dispatch({ type: "clear" }); }}>clear</button>

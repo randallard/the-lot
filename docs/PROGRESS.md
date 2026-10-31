@@ -6,7 +6,21 @@ _Last updated: 2026-10-30_
 
 **Standards:** last compliance review 2026-10-30 ([note](compliance/2026-10-30.md)), its gaps worked the same day (Ryan: *"all that and commit"*; [journal 10-30 (8)](journal/2026-10-30-8-the-standard-pieces.md)). In: square-one re-pinned to `v0.11.0`; exact pins; `fast-check` properties for both reducers (they found a real bug, fixed); ADRs 1000–1017 and the `project-conventions` / `stance-review` skills; tier recorded honestly as none yet; ADR-1012/1015 answered as Proposed ADRs 0066–0068. ⏳ **Still to take:** Ryan decides 0066–0068 · first stance review · tsconfig flags (179 type errors, dry run) · lint `strictTypeChecked` + the three rules (2,756 findings in 173 files, dry run) · TypeScript 6.0.x · then claim provable-lite (also needs CI's test job green: 38 known failures)
 
-> ### ▶ PICK UP HERE — 2026-10-30 (11) — the interims settle it; re-timing fixed
+> ### ▶ PICK UP HERE — 2026-10-30 (12) — a level meter that holds up in noise
+>
+> [`journal/2026-10-30-12-a-meter-for-noise.md`](journal/2026-10-30-12-a-meter-for-noise.md) · 🧪
+> uncommitted, for Ryan's look.
+>
+> - `src/voice/vad.ts`: band-passed level, a noise floor tracked by its minimum (slow to rise,
+>   slower during speech), start at 4× / carry on at 2.5×, 60 ms onset, 150 ms minimum, 350 ms
+>   hangover. 8 tests on synthetic noise, clicks, soft voices and long calling.
+> - The page saves its level trace (results v4), to replay the detector on real rooms.
+>
+> ⏳ **Next:** Ryan: a noisy run, saved; replay the trace and tune; then live calling.
+>
+> ---
+>
+> ### 2026-10-30 (11) — the interims settle it; re-timing fixed
 >
 > [`journal/2026-10-30-11-the-interims-settle-it.md`](journal/2026-10-30-11-the-interims-settle-it.md)
 > · 🧪 uncommitted, for Ryan's look.
