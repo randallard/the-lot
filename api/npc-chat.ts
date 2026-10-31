@@ -6,6 +6,19 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+/**
+ * A JSON value's own field, or `undefined`. The request body and Anthropic's response are both
+ * read as `unknown` and taken apart with this, rather than trusted as `any`.
+ */
+function field(v: unknown, key: string): unknown {
+  if (typeof v !== "object" || v === null || !(key in v)) return undefined;
+  const value: unknown = Reflect.get(v, key);
+  return value;
+}
+
+/** The value if it's a string. */
+const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+
 export default async function handler(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS });
@@ -27,17 +40,22 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    const { systemPrompt, gameResults, context, messages, useTool, useEscalate } = await req.json();
+    const body: unknown = await req.json();
+    const messages = field(body, "messages");
+    const gameResults = field(body, "gameResults");
 
     // Build messages: either from chat history or game results
-    let apiMessages;
-    if (messages && Array.isArray(messages)) {
+    let apiMessages: unknown;
+    if (Array.isArray(messages)) {
       apiMessages = messages;
     } else {
+      // No history means a game result, which must be there (the 500 below, as before).
+      if (typeof gameResults !== "object" || gameResults === null) throw new TypeError("no messages and no gameResults");
+      const score = (k: string) => String(field(gameResults, k));
       apiMessages = [
         {
           role: "user",
-          content: `Game just ended. ${context} Score: player ${gameResults.playerScore} - ${gameResults.opponentScore} you. React casually — a few words is fine.`,
+          content: `Game just ended. ${String(field(body, "context"))} Score: player ${score("playerScore")} - ${score("opponentScore")} you. React casually — a few words is fine.`,
         },
       ];
     }
@@ -72,14 +90,14 @@ export default async function handler(req: Request): Promise<Response> {
     const apiBody: Record<string, unknown> = {
       model: "claude-haiku-4-5-20251001",
       max_tokens: 200,
-      system: systemPrompt,
+      system: field(body, "systemPrompt"),
       messages: apiMessages,
     };
 
-    if (useTool) {
+    if (field(body, "useTool")) {
       apiBody.tools = [toolDef];
       apiBody.tool_choice = { type: "tool", name: "respond" };
-    } else if (useEscalate) {
+    } else if (field(body, "useEscalate")) {
       apiBody.tools = [escalateTool];
       // Let the model decide whether to escalate (auto) — don't force it
       apiBody.tool_choice = { type: "auto" };
@@ -104,7 +122,9 @@ export default async function handler(req: Request): Promise<Response> {
       });
     }
 
-    const data = await response.json();
+    const data: unknown = await response.json();
+    const content = field(data, "content");
+    const blocks: readonly unknown[] = Array.isArray(content) ? content : [];
 
     // Extract response — tool use or plain text
     let dialogue = "good game!";
@@ -113,17 +133,18 @@ export default async function handler(req: Request): Promise<Response> {
     let defaultAction = "chat";
     let escalate = false;
 
-    const toolBlock = data.content?.find((b: { type: string }) => b.type === "tool_use");
-    if (toolBlock?.name === "escalate_to_ryan" && toolBlock?.input) {
-      dialogue = toolBlock.input.dialogue ?? "let me pass that along to Ryan";
+    const toolBlock = blocks.find((b) => field(b, "type") === "tool_use");
+    const input = field(toolBlock, "input");
+    if (field(toolBlock, "name") === "escalate_to_ryan" && input) {
+      dialogue = str(field(input, "dialogue")) ?? "let me pass that along to Ryan";
       escalate = true;
-    } else if (toolBlock?.input) {
-      dialogue = toolBlock.input.dialogue ?? dialogue;
-      continues = !!toolBlock.input.continues;
-      defaultReply = toolBlock.input.defaultReply ?? "";
-      defaultAction = toolBlock.input.defaultAction ?? "chat";
+    } else if (input) {
+      dialogue = str(field(input, "dialogue")) ?? dialogue;
+      continues = !!field(input, "continues");
+      defaultReply = str(field(input, "defaultReply")) ?? "";
+      defaultAction = str(field(input, "defaultAction")) ?? "chat";
     } else {
-      dialogue = data.content?.[0]?.text ?? dialogue;
+      dialogue = str(field(blocks[0], "text")) ?? dialogue;
     }
 
     return new Response(JSON.stringify({ dialogue, continues, defaultReply, defaultAction, escalate }), {
