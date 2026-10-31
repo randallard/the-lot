@@ -63,9 +63,9 @@ jobs:
       - name: fmt
         run: cargo fmt --all --check
       - name: clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings # --locked: ADR-1006
       - name: test
-        run: cargo test --all-features
+        run: cargo test --locked --all-features
 
   rust-proofs:
     name: rust proofs (kani)
@@ -80,10 +80,20 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           persist-credentials: false
+      # ADR-1004: plain `cargo kani` with no #[kani::proof] harnesses prints "No proof
+      # harnesses found" and EXITS 0, so without this step the job is green while proving
+      # nothing. (Harness-free panic checks exist only in the experimental
+      # `cargo kani autoharness -Z autoharness`.) Not using Kani? Record that in a project
+      # ADR and delete this job.
+      - name: require at least one proof harness
+        run: |
+          if ! git grep -q 'kani::proof' -- '*.rs'; then
+            echo "::error::No #[kani::proof] harnesses found: Kani would pass while proving nothing. Write a harness for the pure core, or record a project ADR opting out of Kani and delete this job (ADR-1004)."
+            exit 1
+          fi
       - uses: model-checking/kani-github-action@f838096619a707b0f6b2118cf435eaccfa33e51f # v1.1
         with:
-          # Point this at the pure core crate. Kani needs zero annotations to
-          # give you panic-freedom, so this earns its place from day one.
+          # Point this at the pure core crate.
           args: --workspace
 
   rust-supply-chain:
@@ -194,6 +204,8 @@ jobs:
       contents: read
       security-events: write
       actions: read
+    # No timeout-minutes here (ADR-1005's one exception): GitHub rejects it on a job that calls a
+    # reusable workflow; the called workflow's own jobs carry their limits.
     # Reusable workflow, pinned to the commit SHA like every action here; the trailing
     # comment is its tag. Bump both together, deliberately.
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8

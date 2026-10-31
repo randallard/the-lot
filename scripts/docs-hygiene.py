@@ -233,8 +233,13 @@ def check_review_freshness(rep: Report) -> None:
     review_dir = os.path.join(DOCS, "reviews")
     if not os.path.isdir(review_dir):
         return
+    # Only stance reviews count. Other dated records can live in docs/reviews/ (or near it), and
+    # counting them would let a fresh unrelated note hide an overdue stance review. Same glob as
+    # stance-review.yml.
     entries = sorted(
-        f for f in os.listdir(review_dir) if re.match(r"^\d{4}-\d{2}-\d{2}-", f)
+        f
+        for f in os.listdir(review_dir)
+        if re.match(r"^\d{4}-\d{2}-\d{2}-.*stance-review\.md$", f)
     )
     if not entries:
         rep.warn("no stance review recorded yet — see docs/reviews/README.md")

@@ -4,7 +4,7 @@ _Last updated: 2026-10-31_
 
 ## Status / next
 
-**Standards:** last compliance review 2026-10-31; its small gaps fixed the same day (dead `allowBuilds` key, this line, the date). ⏳ **Still to take:** first stance review · TypeScript 6.0.x · tsconfig flags (179 type errors, dry run) · lint `strictTypeChecked` + the three rules (2,756 findings, dry run) · then claim provable-lite. The minimatch ignore (GHSA-g3hv-75wg-m249) stays until eslint/typescript-eslint use minimatch ≥ 11.0.1 or 3.x/10.x get a backport ([note](compliance/2026-10-31.md))
+**Standards:** last compliance review 2026-10-31; its small gaps fixed the same day (dead `allowBuilds` key, this line, the date). First stance review 2026-10-31 ([review](reviews/2026-10-31-stance-review.md)): 2 ADRs proposed for Ryan (NPC model → Haiku 5.5, or defer to a deprecation notice; narrow the `src/dance/**` hooks exception); its small template fixes applied; pnpm 12 due with square-one. ⏳ **Still to take:** TypeScript 6.0.x · tsconfig flags (179 type errors, dry run) · lint `strictTypeChecked` + the three rules (2,756 findings, dry run) · then claim provable-lite. The minimatch ignore (GHSA-g3hv-75wg-m249) stays until eslint/typescript-eslint use minimatch ≥ 11.0.1 or 3.x/10.x get a backport ([note](compliance/2026-10-31.md))
 
 > ### ▶ PICK UP HERE — 2026-10-31 (2) — the shoulder rides the torso; 27 bakes re-made
 >
