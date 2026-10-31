@@ -168,6 +168,16 @@ const sub = (a: Vec, b: Vec): Vec => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const dot = (a: Vec, b: Vec) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const len = (a: Vec) => Math.sqrt(dot(a, a));
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
+/**
+ * An indexed read the solver's arithmetic keeps in range (a flat buffer of points, a gradient,
+ * a Jacobian). Under `noUncheckedIndexedAccess` the read is `number | undefined`; this says it
+ * isn't, and throws if the arithmetic is ever wrong, where a `!` would let `NaN` through.
+ */
+const rd = (a: ArrayLike<number>, i: number): number => {
+  const x = a[i];
+  if (x === undefined) throw new RangeError(`whole-move: index ${String(i)} outside ${String(a.length)}`);
+  return x;
+};
 
 /** Closest distance between segments p1–q1 and p2–q2 (Ericson, Real-Time Collision Detection 5.1.9). */
 export function segSeg(p1: Vec, q1: Vec, p2: Vec, q2: Vec): number {
@@ -549,7 +559,7 @@ export const HELD_MARGIN = 0.02;
 
 function heldArms(m: Move, t: number, a: string, b: string): boolean {
   return held(m, t).some((h) => {
-    const arm = (n: string, side: number) => n === `upper-${SIDES[side]}` || n === `forearm-${SIDES[side]}`;
+    const arm = (n: string, side: 0 | 1) => n === `upper-${SIDES[side]}` || n === `forearm-${SIDES[side]}`;
     return arm(a, h.beau) && arm(b, h.belle) && (a.startsWith("upper") || b.startsWith("upper"));
   });
 }
@@ -632,7 +642,8 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
     }
     const over = m.over?.[i];
     if (over !== undefined) {
-      const head = B.find((s) => s.name === "head")!;
+      const head = B.find((s) => s.name === "head");
+      if (!head) throw new Error("whole-move: shapesOf() gave no head"); // shapesOf always makes one
       const low = head.a[1] + head.r + over - (ha.a[1] + hb.a[1]) / 2;
       if (low > 0) c += w.clip * low * low;
     }
@@ -726,7 +737,7 @@ export function targetsFromKeyframes(
         unused.add(key);
         continue;
       }
-      const base = { dancer: (m[1] === "0" ? 0 : 1) as 0 | 1, side: (m[3] === "left" ? 0 : 1) as 0 | 1, key: spec.key, value: value * spec.scale };
+      const base = { dancer: m[1] === "0" ? 0 : 1, side: m[3] === "left" ? 0 : 1, key: spec.key, value: value * spec.scale } as const;
       const w = k.weight ?? 1;
       if (1 - frac > 1e-6) targets.push({ ...base, i: i0, weight: w * (1 - frac) });
       if (frac > 1e-6 && i1 !== i0) targets.push({ ...base, i: i1, weight: w * frac });
@@ -855,7 +866,7 @@ export function turnCost(v: Float64Array, n: number, w: Weights, grad?: Float64A
     const b = a + PER;
     // Upper arm: (raise, toward) at +0, +1. Forearm: (pitch, heading) at +3, +4.
     for (const [r, up] of [[0, true], [3, false]] as const) {
-      const xa = v[a + r]!, ya = v[a + r + 1]!, xb = v[b + r]!, yb = v[b + r + 1]!;
+      const xa = rd(v, a + r), ya = rd(v, a + r + 1), xb = rd(v, b + r), yb = rd(v, b + r + 1);
       const sa = Math.sin(xa), ca = Math.cos(xa), sb = Math.sin(xb), cb = Math.cos(xb);
       const cd = Math.cos(ya - yb), sd = Math.sin(ya - yb);
       // Upper: sinR·sinR'·cos ΔT + cosR·cosR'. Forearm: cosP·cosP'·cos ΔH + sinP·sinP'.
@@ -868,10 +879,10 @@ export function turnCost(v: Float64Array, n: number, w: Weights, grad?: Float64A
       const dxa = up ? ca * sb * cd - sa * cb : -sa * cb * cd + ca * sb;
       const dxb = up ? sa * cb * cd - ca * sb : -ca * sb * cd + sa * cb;
       const dy = up ? -sa * sb * sd : -ca * cb * sd;
-      grad[a + r] = grad[a + r]! + g * dxa;
-      grad[b + r] = grad[b + r]! + g * dxb;
-      grad[a + r + 1] = grad[a + r + 1]! + g * dy;
-      grad[b + r + 1] = grad[b + r + 1]! - g * dy;
+      grad[a + r] = rd(grad, a + r) + g * dxa;
+      grad[b + r] = rd(grad, b + r) + g * dxb;
+      grad[a + r + 1] = rd(grad, a + r + 1) + g * dy;
+      grad[b + r + 1] = rd(grad, b + r + 1) - g * dy;
     }
   }
   return c;
@@ -950,9 +961,9 @@ const SEG_N = new Float64Array(3);
 /** `segSeg` on `PTS` by point index; leaves the closest points' parameters and their unit direction. */
 function segSegAt(p1: number, q1: number, p2: number, q2: number): number {
   const P = PTS;
-  const d1x = P[q1]! - P[p1]!, d1y = P[q1 + 1]! - P[p1 + 1]!, d1z = P[q1 + 2]! - P[p1 + 2]!;
-  const d2x = P[q2]! - P[p2]!, d2y = P[q2 + 1]! - P[p2 + 1]!, d2z = P[q2 + 2]! - P[p2 + 2]!;
-  const rx = P[p1]! - P[p2]!, ry = P[p1 + 1]! - P[p2 + 1]!, rz = P[p1 + 2]! - P[p2 + 2]!;
+  const d1x = rd(P, q1) - rd(P, p1), d1y = rd(P, q1 + 1) - rd(P, p1 + 1), d1z = rd(P, q1 + 2) - rd(P, p1 + 2);
+  const d2x = rd(P, q2) - rd(P, p2), d2y = rd(P, q2 + 1) - rd(P, p2 + 1), d2z = rd(P, q2 + 2) - rd(P, p2 + 2);
+  const rx = rd(P, p1) - rd(P, p2), ry = rd(P, p1 + 1) - rd(P, p2 + 1), rz = rd(P, p1 + 2) - rd(P, p2 + 2);
   const a = d1x * d1x + d1y * d1y + d1z * d1z;
   const e = d2x * d2x + d2y * d2y + d2z * d2z;
   const f = d2x * rx + d2y * ry + d2z * rz;
@@ -994,9 +1005,9 @@ function segSegAt(p1: number, q1: number, p2: number, q2: number): number {
 }
 
 const addPt = (p: number, k: number, x: number, y: number, z: number) => {
-  GPT[p] = GPT[p]! + k * x;
-  GPT[p + 1] = GPT[p + 1]! + k * y;
-  GPT[p + 2] = GPT[p + 2]! + k * z;
+  GPT[p] = rd(GPT, p) + k * x;
+  GPT[p + 1] = rd(GPT, p + 1) + k * y;
+  GPT[p + 2] = rd(GPT, p + 2) + k * z;
 };
 
 /**
@@ -1015,8 +1026,8 @@ export function frameCostGrad(
   const ul = Math.hypot(ux0, uz0) || 1;
   const ux = ux0 / ul;
   const uz = uz0 / ul;
-  const out = v[o + 24]!;
-  const side = v[o + 25]!;
+  const out = rd(v, o + 24);
+  const side = rd(v, o + 25);
   // Forward: every point in the floor frame.
   for (let d = 0; d < 2; d++) {
     const b = m.bodies[d as 0 | 1];
@@ -1032,14 +1043,14 @@ export function frameCostGrad(
       PTS[j + 2] = -x * s + z * c + tz;
     };
     // Growing (10-27): the torso's top, the head and the shoulders rise; the feet stay put.
-    const gr = v[o + 26 + d]!;
+    const gr = rd(v, o + 26 + d);
     const R = b.rise;
     put(0, b.torso.a[0], b.torso.a[1], b.torso.a[2]);
     put(1, b.torso.b[0] + R.top[0] * gr, b.torso.b[1] + R.top[1] * gr, b.torso.b[2] + R.top[2] * gr);
     put(2, b.head.c[0] + R.head[0] * gr, b.head.c[1] + R.head[1] * gr, b.head.c[2] + R.head[2] * gr);
     for (let sd = 0; sd < 2; sd++) {
       const k = o + d * 12 + sd * 6;
-      const raise = v[k]!, toward = v[k + 1]!, ulen = v[k + 2]!, pitch = v[k + 3]!, heading = v[k + 4]!, flen = v[k + 5]!;
+      const raise = rd(v, k), toward = rd(v, k + 1), ulen = rd(v, k + 2), pitch = rd(v, k + 3), heading = rd(v, k + 4), flen = rd(v, k + 5);
       const S0 = b.shoulder[sd as 0 | 1];
       const RS = R.shoulder[sd as 0 | 1];
       const S = [S0[0] + RS[0] * gr, S0[1] + RS[1] * gr, S0[2] + RS[2] * gr] as const;
@@ -1072,14 +1083,14 @@ export function frameCostGrad(
   }
   let cost = 0;
   const pen = (da: number, sa: number, db: number, sb: number, margin: number) => {
-    const p1 = (da * NPT + SHAPE_PTS[sa * 2]!) * 3, q1 = (da * NPT + SHAPE_PTS[sa * 2 + 1]!) * 3;
-    const p2 = (db * NPT + SHAPE_PTS[sb * 2]!) * 3, q2 = (db * NPT + SHAPE_PTS[sb * 2 + 1]!) * 3;
+    const p1 = (da * NPT + rd(SHAPE_PTS, sa * 2)) * 3, q1 = (da * NPT + rd(SHAPE_PTS, sa * 2 + 1)) * 3;
+    const p2 = (db * NPT + rd(SHAPE_PTS, sb * 2)) * 3, q2 = (db * NPT + rd(SHAPE_PTS, sb * 2 + 1)) * 3;
     const dist = segSegAt(p1, q1, p2, q2);
-    const over = SHAPE_R[da * 8 + sa]! + SHAPE_R[db * 8 + sb]! + margin - dist;
+    const over = rd(SHAPE_R, da * 8 + sa) + rd(SHAPE_R, db * 8 + sb) + margin - dist;
     if (over <= 0) return;
     cost += w.clip * over * over;
     const k = -2 * w.clip * over;
-    const nx = SEG_N[0]!, ny = SEG_N[1]!, nz = SEG_N[2]!;
+    const nx = rd(SEG_N, 0), ny = rd(SEG_N, 1), nz = rd(SEG_N, 2);
     addPt(p1, k * (1 - segS), nx, ny, nz);
     addPt(q1, k * segS, nx, ny, nz);
     addPt(p2, -k * (1 - segT), nx, ny, nz);
@@ -1090,10 +1101,10 @@ export function frameCostGrad(
   // Hands above the floor.
   for (let d = 0; d < 2; d++) for (let sd = 0; sd < 2; sd++) {
     const p = (d * NPT + HAND_PT(sd as 0 | 1)) * 3;
-    const under = m.bodies[d as 0 | 1].handR - PTS[p + 1]!;
+    const under = m.bodies[d as 0 | 1].handR - rd(PTS, p + 1);
     if (under > 0) {
       cost += w.clip * under * under;
-      GPT[p + 1] = GPT[p + 1]! - 2 * w.clip * under;
+      GPT[p + 1] = rd(GPT, p + 1) - 2 * w.clip * under;
     }
   }
   // Held hands meet, in their plane, and (early in the run) near the guide.
@@ -1113,14 +1124,14 @@ export function frameCostGrad(
         const wp = ep + 3;
         let u = 0;
         if (slide) {
-          const dx = PTS[wp]! - PTS[ep]!, dy = PTS[wp + 1]! - PTS[ep + 1]!, dz = PTS[wp + 2]! - PTS[ep + 2]!;
+          const dx = rd(PTS, wp) - rd(PTS, ep), dy = rd(PTS, wp + 1) - rd(PTS, ep + 1), dz = rd(PTS, wp + 2) - rd(PTS, ep + 2);
           const l2 = dx * dx + dy * dy + dz * dz;
-          if (l2 > 1e-12) u = clamp01(((PTS[hp]! - PTS[ep]!) * dx + (PTS[hp + 1]! - PTS[ep + 1]!) * dy + (PTS[hp + 2]! - PTS[ep + 2]!) * dz) / l2);
+          if (l2 > 1e-12) u = clamp01(((rd(PTS, hp) - rd(PTS, ep)) * dx + (rd(PTS, hp + 1) - rd(PTS, ep + 1)) * dy + (rd(PTS, hp + 2) - rd(PTS, ep + 2)) * dz) / l2);
         }
-        const cx = PTS[ep]! + (PTS[wp]! - PTS[ep]!) * u;
-        const cy = PTS[ep + 1]! + (PTS[wp + 1]! - PTS[ep + 1]!) * u;
-        const cz = PTS[ep + 2]! + (PTS[wp + 2]! - PTS[ep + 2]!) * u;
-        const x = PTS[hp]! - cx, y = PTS[hp + 1]! - cy, z = PTS[hp + 2]! - cz;
+        const cx = rd(PTS, ep) + (rd(PTS, wp) - rd(PTS, ep)) * u;
+        const cy = rd(PTS, ep + 1) + (rd(PTS, wp + 1) - rd(PTS, ep + 1)) * u;
+        const cz = rd(PTS, ep + 2) + (rd(PTS, wp + 2) - rd(PTS, ep + 2)) * u;
+        const x = rd(PTS, hp) - cx, y = rd(PTS, hp + 1) - cy, z = rd(PTS, hp + 2) - cz;
         const dist = Math.sqrt(x * x + y * y + z * z);
         cost += wh * (dist - want) * (dist - want);
         if (dist > 1e-12) {
@@ -1132,14 +1143,14 @@ export function frameCostGrad(
       }
       if (h.gripHeight !== undefined) {
         for (const p of [pa, pb, ea, eb]) {
-          const dy = PTS[p + 1]! - h.gripHeight;
+          const dy = rd(PTS, p + 1) - h.gripHeight;
           cost += w.plane * dy * dy;
-          GPT[p + 1] = GPT[p + 1]! + 2 * w.plane * dy;
+          GPT[p + 1] = rd(GPT, p + 1) + 2 * w.plane * dy;
         }
         // The elbows' midpoint over the two held shoulders' (point 3 + 4·side).
         const fa = (3 + 4 * h.beau) * 3, fb = (NPT + 3 + 4 * h.belle) * 3;
-        const mx = (PTS[ea]! + PTS[eb]! - PTS[fa]! - PTS[fb]!) / 2;
-        const mz = (PTS[ea + 2]! + PTS[eb + 2]! - PTS[fa + 2]! - PTS[fb + 2]!) / 2;
+        const mx = (rd(PTS, ea) + rd(PTS, eb) - rd(PTS, fa) - rd(PTS, fb)) / 2;
+        const mz = (rd(PTS, ea + 2) + rd(PTS, eb + 2) - rd(PTS, fa + 2) - rd(PTS, fb + 2)) / 2;
         cost += w.plane * (mx * mx + mz * mz);
         addPt(ea, w.plane, mx, 0, mz);
         addPt(eb, w.plane, mx, 0, mz);
@@ -1148,7 +1159,7 @@ export function frameCostGrad(
       }
       continue;
     }
-    const x = PTS[pa]! - PTS[pb]!, y = PTS[pa + 1]! - PTS[pb + 1]!, z = PTS[pa + 2]! - PTS[pb + 2]!;
+    const x = rd(PTS, pa) - rd(PTS, pb), y = rd(PTS, pa + 1) - rd(PTS, pb + 1), z = rd(PTS, pa + 2) - rd(PTS, pb + 2);
     const dist = Math.sqrt(x * x + y * y + z * z);
     const want = w.clasp * (m.bodies[0].handR + m.bodies[1].handR);
     const wh = w.hold * (h.weight ?? 1);
@@ -1158,7 +1169,7 @@ export function frameCostGrad(
       addPt(pa, k, x, y, z);
       addPt(pb, -k, x, y, z);
     }
-    const mx = (PTS[pa]! + PTS[pb]!) / 2, my = (PTS[pa + 1]! + PTS[pb + 1]!) / 2, mz = (PTS[pa + 2]! + PTS[pb + 2]!) / 2;
+    const mx = (rd(PTS, pa) + rd(PTS, pb)) / 2, my = (rd(PTS, pa + 1) + rd(PTS, pb + 1)) / 2, mz = (rd(PTS, pa + 2) + rd(PTS, pb + 2)) / 2;
     if (h.plane !== undefined) {
       const { p, n } = h.plane;
       const off = (mx - p[0]) * n[0] + (my - p[1]) * n[1] + (mz - p[2]) * n[2];
@@ -1185,7 +1196,7 @@ export function frameCostGrad(
     if (over !== undefined) {
       // The belle's head is her point 2; its height carries her grow.
       const hd = (NPT + 2) * 3;
-      const low = PTS[hd + 1]! + m.bodies[1].head.r + over - my;
+      const low = rd(PTS, hd + 1) + m.bodies[1].head.r + over - my;
       if (low > 0) {
         cost += w.clip * low * low;
         addPt(pa, -w.clip * low, 0, 1, 0);
@@ -1198,100 +1209,100 @@ export function frameCostGrad(
   for (let d = 0; d < 2; d++) {
     const b = m.bodies[d as 0 | 1];
     const gk = o + 26 + d;
-    const gr = v[gk]!;
+    const gr = rd(v, gk);
     const room = m.grow?.[d];
     if (room !== undefined) {
       const wg = growEnds(m, i, w);
       cost += wg * room.weight * gr * gr / b.rise.height;
-      grad[gk] = grad[gk]! + 2 * wg * room.weight * gr / b.rise.height;
+      grad[gk] = rd(grad, gk) + 2 * wg * room.weight * gr / b.rise.height;
       if (gr < room.min) {
         cost += w.clip * (room.min - gr) ** 2;
-        grad[gk] = grad[gk]! - 2 * w.clip * (room.min - gr);
+        grad[gk] = rd(grad, gk) - 2 * w.clip * (room.min - gr);
       }
       if (gr > room.max) {
         cost += w.clip * (gr - room.max) ** 2;
-        grad[gk] = grad[gk]! + 2 * w.clip * (gr - room.max);
+        grad[gk] = rd(grad, gk) + 2 * w.clip * (gr - room.max);
       }
     }
     const shoulderY = b.shoulder[0][1] + b.rise.shoulder[0][1] * gr;
     for (let sd = 0; sd < 2; sd++) {
       const k = o + d * 12 + sd * 6;
-      const raise = v[k]!, toward = v[k + 1]!, ulen = v[k + 2]!, pitch = v[k + 3]!, heading = v[k + 4]!, flen = v[k + 5]!;
+      const raise = rd(v, k), toward = rd(v, k + 1), ulen = rd(v, k + 2), pitch = rd(v, k + 3), heading = rd(v, k + 4), flen = rd(v, k + 5);
       const su = ulen / b.upper0 - 1;
       const sf = flen / b.fore0 - 1;
       cost += w.stretch * (su * su + sf * sf);
-      grad[k + 2] = grad[k + 2]! + (2 * w.stretch * su) / b.upper0;
-      grad[k + 5] = grad[k + 5]! + (2 * w.stretch * sf) / b.fore0;
+      grad[k + 2] = rd(grad, k + 2) + (2 * w.stretch * su) / b.upper0;
+      grad[k + 5] = rd(grad, k + 5) + (2 * w.stretch * sf) / b.fore0;
       if (su < -SHRINK) {
         cost += w.range * (su + SHRINK) ** 2;
-        grad[k + 2] = grad[k + 2]! + (2 * w.range * (su + SHRINK)) / b.upper0;
+        grad[k + 2] = rd(grad, k + 2) + (2 * w.range * (su + SHRINK)) / b.upper0;
       }
       if (ulen > b.upper0) {
         cost += OVER * w.clip * (ulen - b.upper0) ** 2;
-        grad[k + 2] = grad[k + 2]! + 2 * OVER * w.clip * (ulen - b.upper0);
+        grad[k + 2] = rd(grad, k + 2) + 2 * OVER * w.clip * (ulen - b.upper0);
       }
       if (ulen < FOLD * b.upper0) {
         cost += OVER * w.clip * (FOLD * b.upper0 - ulen) ** 2;
-        grad[k + 2] = grad[k + 2]! - 2 * OVER * w.clip * (FOLD * b.upper0 - ulen);
+        grad[k + 2] = rd(grad, k + 2) - 2 * OVER * w.clip * (FOLD * b.upper0 - ulen);
       }
       if (sf < -SHRINK) {
         cost += w.range * (sf + SHRINK) ** 2;
-        grad[k + 5] = grad[k + 5]! + (2 * w.range * (sf + SHRINK)) / b.fore0;
+        grad[k + 5] = rd(grad, k + 5) + (2 * w.range * (sf + SHRINK)) / b.fore0;
       }
       if (plan.heldArm[d * 2 + sd] === true) {
         const pe = (d * NPT + 4 + 4 * sd) * 3;
         const ph = (d * NPT + 6 + 4 * sd) * 3;
-        cost += w.gravity * (PTS[pe + 1]! + PTS[ph + 1]! - 2 * shoulderY);
-        GPT[pe + 1] = GPT[pe + 1]! + w.gravity;
-        GPT[ph + 1] = GPT[ph + 1]! + w.gravity;
-        grad[gk] = grad[gk]! - 2 * w.gravity * b.rise.shoulder[0][1];
+        cost += w.gravity * (rd(PTS, pe + 1) + rd(PTS, ph + 1) - 2 * shoulderY);
+        GPT[pe + 1] = rd(GPT, pe + 1) + w.gravity;
+        GPT[ph + 1] = rd(GPT, ph + 1) + w.gravity;
+        grad[gk] = rd(grad, gk) - 2 * w.gravity * b.rise.shoulder[0][1];
       } else {
         const dp = pitch + Math.PI / 2;
         cost += w.rest * (raise * raise + dp * dp + 0.1 * (heading * heading + toward * toward));
-        grad[k] = grad[k]! + 2 * w.rest * raise;
-        grad[k + 1] = grad[k + 1]! + 0.2 * w.rest * toward;
-        grad[k + 3] = grad[k + 3]! + 2 * w.rest * dp;
-        grad[k + 4] = grad[k + 4]! + 0.2 * w.rest * heading;
+        grad[k] = rd(grad, k) + 2 * w.rest * raise;
+        grad[k + 1] = rd(grad, k + 1) + 0.2 * w.rest * toward;
+        grad[k + 3] = rd(grad, k + 3) + 2 * w.rest * dp;
+        grad[k + 4] = rd(grad, k + 4) + 0.2 * w.rest * heading;
       }
       const back = -Math.sin(raise) * Math.cos(toward);
       if (back > 0.3) {
         cost += w.range * (back - 0.3) ** 2;
         const g = 2 * w.range * (back - 0.3);
-        grad[k] = grad[k]! - g * Math.cos(raise) * Math.cos(toward);
-        grad[k + 1] = grad[k + 1]! + g * Math.sin(raise) * Math.sin(toward);
+        grad[k] = rd(grad, k) - g * Math.cos(raise) * Math.cos(toward);
+        grad[k + 1] = rd(grad, k + 1) + g * Math.sin(raise) * Math.sin(toward);
       }
       if (raise < 0) {
         cost += w.range * raise * raise;
-        grad[k] = grad[k]! + 2 * w.range * raise;
+        grad[k] = rd(grad, k) + 2 * w.range * raise;
       }
       if (raise > Math.PI) {
         cost += w.range * (raise - Math.PI) ** 2;
-        grad[k] = grad[k]! + 2 * w.range * (raise - Math.PI);
+        grad[k] = rd(grad, k) + 2 * w.range * (raise - Math.PI);
       }
       if (pitch > Math.PI / 2) {
         cost += w.range * (pitch - Math.PI / 2) ** 2;
-        grad[k + 3] = grad[k + 3]! + 2 * w.range * (pitch - Math.PI / 2);
+        grad[k + 3] = rd(grad, k + 3) + 2 * w.range * (pitch - Math.PI / 2);
       }
       if (pitch < -Math.PI / 2) {
         cost += w.range * (pitch + Math.PI / 2) ** 2;
-        grad[k + 3] = grad[k + 3]! + 2 * w.range * (pitch + Math.PI / 2);
+        grad[k + 3] = rd(grad, k + 3) + 2 * w.range * (pitch + Math.PI / 2);
       }
     }
   }
   if (m.trade === true && m.grow !== undefined) {
-    const [c, db, dg] = tradeCost(v[o + 26]!, v[o + 27]!, m.bodies[0].rise.height, m.bodies[1].rise.height, m.grow, w.clip);
+    const [c, db, dg] = tradeCost(rd(v, o + 26), rd(v, o + 27), m.bodies[0].rise.height, m.bodies[1].rise.height, m.grow, w.clip);
     cost += c;
-    grad[o + 26] = grad[o + 26]! + db;
-    grad[o + 27] = grad[o + 27]! + dg;
+    grad[o + 26] = rd(grad, o + 26) + db;
+    grad[o + 27] = rd(grad, o + 27) + dg;
   }
   // Ryan's keyframes.
   for (const g of plan.targets) {
     const k = o + g.dancer * 12 + g.side * 6 + ARM_KEYS.indexOf(g.key);
-    const x = v[k]!;
+    const x = rd(v, k);
     const scale = isLength(g.key) ? METRE : 1;
     const dv = isLength(g.key) ? (x - g.value) * METRE : wrapRad(x - g.value);
     cost += w.target * g.weight * dv * dv;
-    grad[k] = grad[k]! + 2 * w.target * g.weight * dv * scale;
+    grad[k] = rd(grad, k) + 2 * w.target * g.weight * dv * scale;
   }
   // Back: points → dials and the beau's step.
   for (let d = 0; d < 2; d++) {
@@ -1304,47 +1315,47 @@ export function frameCostGrad(
     // Each point's floor gradient, turned into the rig's frame, in place.
     for (let p = 0; p < NPT; p++) {
       const j = (d * NPT + p) * 3;
-      const gx = GPT[j]!, gz = GPT[j + 2]!;
+      const gx = rd(GPT, j), gz = rd(GPT, j + 2);
       sumX += gx;
       sumZ += gz;
       GPT[j] = gx * c - gz * s;
       GPT[j + 2] = gx * s + gz * c;
     }
     if (d === 0) {
-      grad[o + 24] = grad[o + 24]! + sumX * ux + sumZ * uz;
-      grad[o + 25] = grad[o + 25]! - sumX * uz + sumZ * ux;
+      grad[o + 24] = rd(grad, o + 24) + sumX * ux + sumZ * uz;
+      grad[o + 25] = rd(grad, o + 25) - sumX * uz + sumZ * ux;
     }
     // Growing moves the torso's top and the head, and each shoulder with its whole arm.
     {
       const R = b.rise;
       const at = (p: number, r: Vec) => {
         const j = (d * NPT + p) * 3;
-        return GPT[j]! * r[0] + GPT[j + 1]! * r[1] + GPT[j + 2]! * r[2];
+        return rd(GPT, j) * r[0] + rd(GPT, j + 1) * r[1] + rd(GPT, j + 2) * r[2];
       };
       let gg = at(1, R.top) + at(2, R.head);
       for (let sd = 0; sd < 2; sd++) for (let p = 3; p < 7; p++) gg += at(p + 4 * sd, R.shoulder[sd as 0 | 1]);
-      grad[o + 26 + d] = grad[o + 26 + d]! + gg;
+      grad[o + 26 + d] = rd(grad, o + 26 + d) + gg;
     }
     for (let sd = 0; sd < 2; sd++) {
       const k = o + d * 12 + sd * 6;
-      const flen = v[k + 5]!;
+      const flen = rd(v, k + 5);
       const J = (d * 2 + sd) * 18;
       const je = (d * NPT + 4 + 4 * sd) * 3;
       const jw = je + 3;
       const jh = je + 6;
       // Elbow dials move the elbow, wrist and hand alike.
-      const Sx = GPT[je]! + GPT[jw]! + GPT[jh]!;
-      const Sy = GPT[je + 1]! + GPT[jw + 1]! + GPT[jh + 1]!;
-      const Sz = GPT[je + 2]! + GPT[jw + 2]! + GPT[jh + 2]!;
-      grad[k] = grad[k]! + Sx * JAC[J]! + Sy * JAC[J + 1]! + Sz * JAC[J + 2]!;
-      grad[k + 1] = grad[k + 1]! + Sx * JAC[J + 3]! + Sy * JAC[J + 4]! + Sz * JAC[J + 5]!;
-      grad[k + 2] = grad[k + 2]! + Sx * JAC[J + 6]! + Sy * JAC[J + 7]! + Sz * JAC[J + 8]!;
+      const Sx = rd(GPT, je) + rd(GPT, jw) + rd(GPT, jh);
+      const Sy = rd(GPT, je + 1) + rd(GPT, jw + 1) + rd(GPT, jh + 1);
+      const Sz = rd(GPT, je + 2) + rd(GPT, jw + 2) + rd(GPT, jh + 2);
+      grad[k] = rd(grad, k) + Sx * rd(JAC, J) + Sy * rd(JAC, J + 1) + Sz * rd(JAC, J + 2);
+      grad[k + 1] = rd(grad, k + 1) + Sx * rd(JAC, J + 3) + Sy * rd(JAC, J + 4) + Sz * rd(JAC, J + 5);
+      grad[k + 2] = rd(grad, k + 2) + Sx * rd(JAC, J + 6) + Sy * rd(JAC, J + 7) + Sz * rd(JAC, J + 8);
       // Forearm dials: the wrist sits forearm/fore0 of the way along the hand's reach.
       const kl = b.forearm / b.fore0;
-      const Tx = GPT[jw]! * kl + GPT[jh]!, Ty = GPT[jw + 1]! * kl + GPT[jh + 1]!, Tz = GPT[jw + 2]! * kl + GPT[jh + 2]!;
-      grad[k + 3] = grad[k + 3]! + flen * (Tx * JAC[J + 12]! + Ty * JAC[J + 13]! + Tz * JAC[J + 14]!);
-      grad[k + 4] = grad[k + 4]! + flen * (Tx * JAC[J + 15]! + Ty * JAC[J + 16]! + Tz * JAC[J + 17]!);
-      grad[k + 5] = grad[k + 5]! + Tx * JAC[J + 9]! + Ty * JAC[J + 10]! + Tz * JAC[J + 11]!;
+      const Tx = rd(GPT, jw) * kl + rd(GPT, jh), Ty = rd(GPT, jw + 1) * kl + rd(GPT, jh + 1), Tz = rd(GPT, jw + 2) * kl + rd(GPT, jh + 2);
+      grad[k + 3] = rd(grad, k + 3) + flen * (Tx * rd(JAC, J + 12) + Ty * rd(JAC, J + 13) + Tz * rd(JAC, J + 14));
+      grad[k + 4] = rd(grad, k + 4) + flen * (Tx * rd(JAC, J + 15) + Ty * rd(JAC, J + 16) + Tz * rd(JAC, J + 17));
+      grad[k + 5] = rd(grad, k + 5) + Tx * rd(JAC, J + 9) + Ty * rd(JAC, J + 10) + Tz * rd(JAC, J + 11);
     }
   }
   return cost;
@@ -1609,7 +1620,8 @@ export function toDials(d: DancerFrame, dancer: number): Record<string, number> 
   out[k("torso", "facing")] = Math.round(wrapDeg(d.yaw * R2D));
   // 🧪 Not a `#review2` dial: the floor wears it as a reshape (`DanceFloor`, under a bake).
   if (d.grow !== undefined && d.grow !== 0) out[k("torso", "grow")] = Math.round(d.grow * 1000) / 10;
-  d.arms.forEach((a, side) => {
+  ([0, 1] as const).forEach((side) => {
+    const a = d.arms[side];
     const s = SIDES[side];
     out[k(`upper-arm-${s}`, "raise")] = Math.round(a.raise * R2D * 10) / 10;
     out[k(`upper-arm-${s}`, "toward")] = Math.round(wrapDeg(a.toward * R2D) * 10) / 10;
