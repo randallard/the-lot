@@ -1,4 +1,5 @@
 import { describe as suite, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import {
   RULES,
   SKIN,
@@ -48,7 +49,7 @@ function ellipsoid(c: P, rx: number, ry: number, rz: number, n = 14): Hull {
       );
     }
   }
-  return { points: pts };
+  return { points: new Float64Array(pts) };
 }
 
 const sphere = (c: P, r: number) => ellipsoid(c, r, r, r);
@@ -56,10 +57,10 @@ const sphere = (c: P, r: number) => ellipsoid(c, r, r, r);
 /** A vertical capsule: two spheres, which is all a convex hull needs of one. */
 function capsule(x: number, y0: number, y1: number, r: number): Hull {
   return {
-    points: [
-      ...Array.from(sphere({ x, y: y0, z: 0 }, r).points),
-      ...Array.from(sphere({ x, y: y1, z: 0 }, r).points),
-    ],
+    points: new Float64Array([
+      ...sphere({ x, y: y0, z: 0 }, r).points,
+      ...sphere({ x, y: y1, z: 0 }, r).points,
+    ]),
   };
 }
 
@@ -85,7 +86,7 @@ function cone(a: P, b: P, ra = 0.06, rb = 0.03, n = 12): Hull {
       );
     }
   }
-  return { points: pts };
+  return { points: new Float64Array(pts) };
 }
 
 /** A hand whose palm faces along world z: wide in x and y, thin in z. */
@@ -145,7 +146,7 @@ suite("signedGap — how far apart two drawn solids are", () => {
     for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
       pts.push(c.x + sx * hx, c.y + sy * hy, c.z + sz * hz);
     }
-    return { points: pts };
+    return { points: new Float64Array(pts) };
   }
   const O = { x: 0, y: 0, z: 0 };
 
@@ -205,7 +206,7 @@ suite("signedGap — how far apart two drawn solids are", () => {
       const t = (deg * Math.PI) / 180;
       pts.push(c.x + 0.1 * Math.cos(t), c.y, c.z + 0.1 * Math.sin(t));
     }
-    const three = signedGap(headHull, { points: pts });
+    const three = signedGap(headHull, { points: new Float64Array(pts) });
     expect(round).toBeLessThan(-0.03);
     expect(three).toBeGreaterThan(0);
   });
@@ -316,7 +317,7 @@ suite("rule 3 — an arm keeps its length", () => {
     const stretched = arm(-0.55, { x: -0.55, y: SHOULDER_Y - UPPER - 0.2, z: 0 }, { x: -0.55, y: 0.5, z: 0 });
     const hit = only(measurePose([dancer(-1, { left: stretched }), dancer(1)], APART), RULES.length);
     expect(hit).toHaveLength(1);
-    expect(hit[0]!.margin).toBeCloseTo(-0.2, 6);
+    expect(defined(hit[0], "the hit").margin).toBeCloseTo(-0.2, 6);
   });
 
   it("does not mind a bent arm", () => {
@@ -361,7 +362,7 @@ suite("rule 5 — joined hands touch, where the style keeps contact", () => {
   it("catches a hold that has come apart", () => {
     const hit = only(measurePose(joinedAt(0.2), held), RULES.contact);
     expect(hit).toHaveLength(1);
-    expect(hit[0]!.margin).toBeCloseTo(-0.2, 3);
+    expect(defined(hit[0], "the hit").margin).toBeCloseTo(-0.2, 3);
   });
 
   it("does not ask it of a style that breaks the hold", () => {
@@ -392,7 +393,7 @@ suite("reporting", () => {
     });
     const v = violations(measurePose([a, dancer(1)], APART));
     expect(v.length).toBeGreaterThan(0);
-    for (let i = 1; i < v.length; i++) expect(v[i]!.margin).toBeGreaterThanOrEqual(v[i - 1]!.margin);
-    expect(describe(v[0]!, ["Myco", "Ember"])).toMatch(/^Myco's left (forearm|hand) is \d\.\d{3} into own head$/);
+    for (let i = 1; i < v.length; i++) expect(defined(v[i], "a violation").margin).toBeGreaterThanOrEqual(defined(v[i - 1], "a violation").margin);
+    expect(describe(defined(v[0], "the worst violation"), ["Myco", "Ember"])).toMatch(/^Myco's left (forearm|hand) is \d\.\d{3} into own head$/);
   });
 });

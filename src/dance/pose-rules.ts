@@ -58,7 +58,7 @@ import type { Vec3 } from "./arm-pose";
 
 /** A convex solid as drawn: its mesh's vertices in world space, flat `x, y, z, x, y, z, …`. */
 export interface Hull {
-  readonly points: ArrayLike<number>;
+  readonly points: Float64Array;
 }
 
 /** One arm as drawn. */
@@ -175,6 +175,13 @@ export interface PoseContext {
  * about 9° apart, which is only the *starting* guess — {@link signedGap} then closes in.
  */
 const COARSE = 160;
+/** A checked read, as in `whole-move.ts` (10-31 (7)): throws naming the index rather than passing `undefined` on. */
+const rd = (a: Float64Array, i: number): number => {
+  const x = a[i];
+  if (x === undefined) throw new RangeError(`pose-rules: index ${String(i)} outside ${String(a.length)}`);
+  return x;
+};
+
 const DIRS: Float64Array = (() => {
   const out = new Float64Array(COARSE * 3);
   const golden = Math.PI * (3 - Math.sqrt(5));
@@ -197,10 +204,10 @@ function extentsOf(h: Hull): Float64Array {
   e = new Float64Array(COARSE * 2);
   const p = h.points;
   for (let i = 0; i < COARSE; i++) {
-    const dx = DIRS[i * 3]!, dy = DIRS[i * 3 + 1]!, dz = DIRS[i * 3 + 2]!;
+    const dx = rd(DIRS, i * 3), dy = rd(DIRS, i * 3 + 1), dz = rd(DIRS, i * 3 + 2);
     let hi = -Infinity, lo = Infinity;
     for (let k = 0; k + 2 < p.length; k += 3) {
-      const t = p[k]! * dx + p[k + 1]! * dy + p[k + 2]! * dz;
+      const t = rd(p, k) * dx + rd(p, k + 1) * dy + rd(p, k + 2) * dz;
       if (t > hi) hi = t;
       if (t < lo) lo = t;
     }
@@ -216,11 +223,11 @@ function gapAlong(a: Hull, b: Hull, dx: number, dy: number, dz: number): number 
   let hi = -Infinity, lo = Infinity;
   const p = a.points, q = b.points;
   for (let k = 0; k + 2 < p.length; k += 3) {
-    const t = p[k]! * dx + p[k + 1]! * dy + p[k + 2]! * dz;
+    const t = rd(p, k) * dx + rd(p, k + 1) * dy + rd(p, k + 2) * dz;
     if (t > hi) hi = t;
   }
   for (let k = 0; k + 2 < q.length; k += 3) {
-    const t = q[k]! * dx + q[k + 1]! * dy + q[k + 2]! * dz;
+    const t = rd(q, k) * dx + rd(q, k + 1) * dy + rd(q, k + 2) * dz;
     if (t < lo) lo = t;
   }
   return lo - hi;
@@ -246,15 +253,15 @@ export function signedGap(a: Hull, b: Hull): number {
   let bx = 0, by = 1, bz = 0;
   for (let i = 0; i < COARSE; i++) {
     // Along +d: b's near side minus a's far side. Along −d: the same with the roles' signs flipped.
-    const fwd = eb[i * 2 + 1]! - ea[i * 2]!;
-    const back = ea[i * 2 + 1]! - eb[i * 2]!;
+    const fwd = rd(eb, i * 2 + 1) - rd(ea, i * 2);
+    const back = rd(ea, i * 2 + 1) - rd(eb, i * 2);
     if (fwd > best) {
       best = fwd;
-      bx = DIRS[i * 3]!; by = DIRS[i * 3 + 1]!; bz = DIRS[i * 3 + 2]!;
+      bx = rd(DIRS, i * 3); by = rd(DIRS, i * 3 + 1); bz = rd(DIRS, i * 3 + 2);
     }
     if (back > best) {
       best = back;
-      bx = -DIRS[i * 3]!; by = -DIRS[i * 3 + 1]!; bz = -DIRS[i * 3 + 2]!;
+      bx = -rd(DIRS, i * 3); by = -rd(DIRS, i * 3 + 1); bz = -rd(DIRS, i * 3 + 2);
     }
   }
 
@@ -294,7 +301,7 @@ export function signedGap(a: Hull, b: Hull): number {
 /** The lowest `y` among a hull's corners. */
 function lowestOf(h: Hull): number {
   let lo = Infinity;
-  for (let k = 1; k < h.points.length; k += 3) if (h.points[k]! < lo) lo = h.points[k]!;
+  for (let k = 1; k < h.points.length; k += 3) if (rd(h.points, k) < lo) lo = rd(h.points, k);
   return lo;
 }
 
@@ -312,7 +319,7 @@ function localX(d: DancerSolids, x: number, z: number): number {
 function furthestOnSide(d: DancerSolids, h: Hull, sign: number): number {
   let hi = -Infinity;
   for (let k = 0; k + 2 < h.points.length; k += 3) {
-    const t = sign * localX(d, h.points[k]!, h.points[k + 2]!);
+    const t = sign * localX(d, rd(h.points, k), rd(h.points, k + 2));
     if (t > hi) hi = t;
   }
   return hi;
