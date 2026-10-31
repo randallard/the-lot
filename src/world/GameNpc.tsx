@@ -62,7 +62,7 @@ export function GameNpc({
 
     // Expose world position for tracker arrow
     if (worldPosRef) {
-      (worldPosRef as React.MutableRefObject<THREE.Vector3 | null>).current =
+      (worldPosRef).current =
         groupRef.current.position.clone();
     }
 
@@ -71,13 +71,13 @@ export function GameNpc({
     const headPos = new THREE.Vector3(0, headY, -0.3);
     const worldPos = headPos.applyMatrix4(groupRef.current.matrixWorld);
     const projected = worldPos.project(camera);
-    screenPos.current!.x = (projected.x + 1) / 2;
-    screenPos.current!.y = (-projected.y + 1) / 2;
-    screenPos.current!.visible = projected.z < 1;
+    screenPos.current.x = (projected.x + 1) / 2;
+    screenPos.current.y = (-projected.y + 1) / 2;
+    screenPos.current.visible = projected.z < 1;
     const topY = asleep ? 0.8 : 1.35;
     const headTop = new THREE.Vector3(0, topY, 0).applyMatrix4(groupRef.current.matrixWorld).project(camera);
     const feet = new THREE.Vector3(0, 0, 0).applyMatrix4(groupRef.current.matrixWorld).project(camera);
-    screenPos.current!.screenHeight = Math.abs((-headTop.y + 1) / 2 - (-feet.y + 1) / 2) * window.innerHeight;
+    screenPos.current.screenHeight = Math.abs((-headTop.y + 1) / 2 - (-feet.y + 1) / 2) * window.innerHeight;
 
     // Face the player (freeze on hover, skip when asleep)
     if (!asleep && playerPosition.current && !hovered.current) {

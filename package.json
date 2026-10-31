@@ -13,6 +13,7 @@
     "dev": "node scripts/link-engine.mjs && vite",
     "build": "node scripts/link-engine.mjs && tsc -b && vite build",
     "lint": "eslint .",
+    "lint:strict": "eslint -c eslint.strict.config.js .",
     "preview": "vite preview",
     "test": "node scripts/link-engine.mjs && vitest",
     "test:ui": "vitest --ui",

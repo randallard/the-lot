@@ -264,7 +264,7 @@ function Timeline({ emote, selectedId, scrubTime, onScrub, onSelect }: {
 
   const trackRows: Array<{ name: TrackName; kfs: Array<{ id: string; time: number }> }> = TRACK_NAMES.map(name => ({
     name,
-    kfs: (emote.tracks[name] as Array<{ id: string; time: number }>),
+    kfs: (emote.tracks[name]),
   })).filter(r => r.kfs.length > 0);
 
   return (
@@ -272,7 +272,7 @@ function Timeline({ emote, selectedId, scrubTime, onScrub, onSelect }: {
       {/* Ruler */}
       <div style={{ position: "relative", height: 18, marginBottom: 4, userSelect: "none" }}
         onClick={e => {
-          const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+          const rect = (e.currentTarget).getBoundingClientRect();
           onScrub(((e.clientX - rect.left) / rect.width) * dur);
         }}
       >
@@ -296,7 +296,7 @@ function Timeline({ emote, selectedId, scrubTime, onScrub, onSelect }: {
           </span>
           <div style={{ flex: 1, position: "relative", height: "100%", borderBottom: "1px solid #1a1a28" }}
             onClick={e => {
-              const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+              const rect = (e.currentTarget).getBoundingClientRect();
               onScrub(((e.clientX - rect.left) / rect.width) * dur);
             }}
           >

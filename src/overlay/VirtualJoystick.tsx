@@ -37,8 +37,8 @@ export function VirtualJoystick({ inputDir }: VirtualJoystickProps) {
       }
 
       // Map to input: x = left/right, z = forward/back (y on screen = z in world)
-      inputDir.current!.x = dx / MAX_DIST;
-      inputDir.current!.z = dy / MAX_DIST;
+      inputDir.current.x = dx / MAX_DIST;
+      inputDir.current.z = dy / MAX_DIST;
     },
     [inputDir]
   );
@@ -48,8 +48,8 @@ export function VirtualJoystick({ inputDir }: VirtualJoystickProps) {
     if (knobRef.current) {
       knobRef.current.style.transform = "translate(0px, 0px)";
     }
-    inputDir.current!.x = 0;
-    inputDir.current!.z = 0;
+    inputDir.current.x = 0;
+    inputDir.current.z = 0;
   }, [inputDir]);
 
   const onTouchStart = useCallback(

@@ -98,8 +98,8 @@ export function figureMove(
   if (contact !== undefined) for (let i = 0; i < first; i++) {
     const f = start[i]!;
     start[i] = [
-      { ...f[0], arms: f[0].arms.map((a, s) => (s === span.beau ? { ...a, heading: contact[0].arms[s]!.heading } : a)) as typeof f[0]["arms"] },
-      { ...f[1], arms: f[1].arms.map((a, s) => (s === span.belle ? { ...a, heading: contact[1].arms[s]!.heading } : a)) as typeof f[1]["arms"] },
+      { ...f[0], arms: f[0].arms.map((a, s) => (s === span.beau ? { ...a, heading: contact[0].arms[s].heading } : a)) as typeof f[0]["arms"] },
+      { ...f[1], arms: f[1].arms.map((a, s) => (s === span.belle ? { ...a, heading: contact[1].arms[s].heading } : a)) as typeof f[1]["arms"] },
     ];
   }
   return { move, path, start };

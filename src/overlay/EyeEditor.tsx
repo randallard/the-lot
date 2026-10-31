@@ -90,7 +90,7 @@ function EyeShapePanel({ eye, base, onChange, onResetField, rotationMirrored, on
 
   function field(f: keyof EyeShape) {
     return {
-      overridden: isExp ? eye[f] !== base![f] : undefined,
+      overridden: isExp ? eye[f] !== base[f] : undefined,
       onReset: isExp && onResetField ? () => onResetField(f) : undefined,
     };
   }

@@ -94,19 +94,19 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
     if (!groupRef.current) return;
     // Expose world position for tracker arrow
     if (worldPosRef) {
-      (worldPosRef as React.MutableRefObject<THREE.Vector3 | null>).current = groupRef.current.position.clone();
+      (worldPosRef).current = groupRef.current.position.clone();
     }
     // Mouth position: head center (y=1.05) minus a bit, offset forward toward player
     const mouthLocal = new THREE.Vector3(0, 0.9, -0.3);
     const mouthWorld = mouthLocal.applyMatrix4(groupRef.current.matrixWorld);
     const projected = mouthWorld.project(camera);
-    screenPos.current!.x = (projected.x + 1) / 2;
-    screenPos.current!.y = (-projected.y + 1) / 2;
-    screenPos.current!.visible = projected.z < 1;
+    screenPos.current.x = (projected.x + 1) / 2;
+    screenPos.current.y = (-projected.y + 1) / 2;
+    screenPos.current.visible = projected.z < 1;
     // Screen height: project head top and feet
     const headTop = new THREE.Vector3(0, 1.35, 0).applyMatrix4(groupRef.current.matrixWorld).project(camera);
     const feet = new THREE.Vector3(0, 0, 0).applyMatrix4(groupRef.current.matrixWorld).project(camera);
-    screenPos.current!.screenHeight = Math.abs((-headTop.y + 1) / 2 - (-feet.y + 1) / 2) * window.innerHeight;
+    screenPos.current.screenHeight = Math.abs((-headTop.y + 1) / 2 - (-feet.y + 1) / 2) * window.innerHeight;
   });
 
   // When relaxing starts, compute camp position based on player direction

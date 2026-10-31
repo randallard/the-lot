@@ -107,12 +107,12 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
   // Forearms, not arms: the shoulders stay pinned inside `Player`/`Npc` with no ref on
   // them, so a driver can bend an elbow and cannot move a shoulder (ADR-0017).
   const playerForearms = useRef({
-    left: { current: null } as React.RefObject<THREE.Group | null>,
-    right: { current: null } as React.RefObject<THREE.Group | null>,
+    left: { current: null },
+    right: { current: null },
   }).current;
   const npcForearms = useRef({
-    left: { current: null } as React.RefObject<THREE.Group | null>,
-    right: { current: null } as React.RefObject<THREE.Group | null>,
+    left: { current: null },
+    right: { current: null },
   }).current;
   const drivenArms = useRef({ left: false, right: false });
   // Placement ownership for an approaching move (ADR-0018). Same contract as
@@ -162,15 +162,15 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
     const headPos = playerPos.current.clone();
     headPos.y += 0.8;
     const projected = headPos.project(camera);
-    playerScreenPos.current!.x = (projected.x + 1) / 2;
-    playerScreenPos.current!.y = (-projected.y + 1) / 2;
-    playerScreenPos.current!.visible = projected.z < 1;
+    playerScreenPos.current.x = (projected.x + 1) / 2;
+    playerScreenPos.current.y = (-projected.y + 1) / 2;
+    playerScreenPos.current.visible = projected.z < 1;
     // Player capsule: y=0.75, radius=0.3, segment=0.8 → top ~1.55, bottom ~0.15
     const pTop = playerPos.current.clone(); pTop.y = 1.55;
     const pBot = playerPos.current.clone(); pBot.y = 0.15;
     const topProj = pTop.project(camera);
     const botProj = pBot.project(camera);
-    playerScreenPos.current!.screenHeight = Math.abs((-topProj.y + 1) / 2 - (-botProj.y + 1) / 2) * window.innerHeight;
+    playerScreenPos.current.screenHeight = Math.abs((-topProj.y + 1) / 2 - (-botProj.y + 1) / 2) * window.innerHeight;
   });
 
   // Detect player walking away from NPC while phone is out

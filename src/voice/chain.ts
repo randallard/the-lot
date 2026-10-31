@@ -54,7 +54,7 @@ export function phraseOf(id: ApplicationCallId, app: StandardApplication): strin
 export function nextSteps(at: FormationId): readonly ChainStep[] {
   const out: ChainStep[] = [];
   for (const id of Object.keys(STANDARD_APPLICATIONS) as ApplicationCallId[]) {
-    for (const app of STANDARD_APPLICATIONS[id].applications as readonly StandardApplication[]) {
+    for (const app of STANDARD_APPLICATIONS[id].applications) {
       if (app.to === undefined || app.from === "any" || !formationsHolding(app.from).includes(at)) continue;
       const say = phraseOf(id, app);
       if (say === null || out.some((s) => s.id === id && s.say === say)) continue;

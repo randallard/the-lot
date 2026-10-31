@@ -96,7 +96,7 @@ export function SolvedFloor({ call, cast, shapes, beats, paused = false, seek, o
   return (
     // One parent for the four, so `#review2`'s pick finds each dancer's index among its siblings.
     <group visible={solved !== null}>
-      {shapes.map((shape, i) => <Dancer key={i} rig={rigs[i]!} shape={shape} color={COLORS[i % COLORS.length]!} />)}
+      {shapes.map((shape, i) => <Dancer key={i} rig={rigs[i]!} shape={shape} color={COLORS[i % COLORS.length]} />)}
     </group>
   );
 }

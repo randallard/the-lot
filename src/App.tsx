@@ -1112,7 +1112,7 @@ export default function App() {
             }
           }}
           onPlayGame={() => {
-            const npcId = moodCheckNpcId!;
+            const npcId = moodCheckNpcId;
             setMoodCheckNpcId(null);
             setSelectedNpcId(npcId);
             game.setPhaseOverride({ type: "game-invite", npcId });
@@ -1339,7 +1339,7 @@ export default function App() {
           onSend={handleChatSend}
           onClose={chatContinue ? handleChatClose : () => { setChatNpcId(null); setChatRespondingNpcId(null); setChatResponse(null); }}
           onPlayGame={() => {
-            const npcId = chatNpcId!;
+            const npcId = chatNpcId;
             setChatNpcId(null);
             setChatResponse(null);
             setChatRespondingNpcId(null);

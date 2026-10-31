@@ -47,7 +47,7 @@ describe("buildLaunchUrl", () => {
     const compressed = defined(url.split("#lot=")[1], "the fragment");
     const json = LZString.decompressFromEncodedURIComponent(compressed);
     expect(json).toBeTruthy();
-    const payload = JSON.parse(json!);
+    const payload = JSON.parse(json);
     expect(payload.npcId).toBe("myco");
     expect(payload.npcDisplayName).toBe("Myco");
     expect(payload.opponentType).toBe("ai-agent");
@@ -60,7 +60,7 @@ describe("buildLaunchUrl", () => {
     const url = buildLaunchUrl(mockNpc);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
     const payload = JSON.parse(
-      LZString.decompressFromEncodedURIComponent(compressed)!,
+      LZString.decompressFromEncodedURIComponent(compressed),
     );
     expect(payload.modelAssignments).toBeUndefined();
   });
@@ -75,7 +75,7 @@ describe("buildLaunchUrl", () => {
     const url = buildLaunchUrl(mockNpc);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
     const payload = JSON.parse(
-      LZString.decompressFromEncodedURIComponent(compressed)!,
+      LZString.decompressFromEncodedURIComponent(compressed),
     );
     expect(payload.sessionId).toBe("existing-session-456");
   });
@@ -84,7 +84,7 @@ describe("buildLaunchUrl", () => {
     const url = buildLaunchUrl(mockNpc);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
     const payload = JSON.parse(
-      LZString.decompressFromEncodedURIComponent(compressed)!,
+      LZString.decompressFromEncodedURIComponent(compressed),
     );
     expect(payload.sessionId).toBe("test-uuid-123");
   });
@@ -94,7 +94,7 @@ describe("buildLaunchUrl", () => {
     const url = buildLaunchUrl(mockNpc);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
     const payload = JSON.parse(
-      LZString.decompressFromEncodedURIComponent(compressed)!,
+      LZString.decompressFromEncodedURIComponent(compressed),
     );
     expect(payload.sessionId).toBe("test-uuid-123");
   });
@@ -138,7 +138,7 @@ describe("buildKingsChessLaunchUrl", () => {
   it("encodes kings-cooking payload correctly", () => {
     const url = buildKingsChessLaunchUrl(kcNpc);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
-    const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed)!);
+    const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed));
     expect(payload.npcId).toBe("sprout");
     expect(payload.npcDisplayName).toBe("Sprout");
     expect(payload.agentType).toBe("scripted_1");
@@ -150,14 +150,14 @@ describe("buildKingsChessLaunchUrl", () => {
     const npcWithoutKC: NpcConfig = { ...kcNpc, games: {} };
     const url = buildKingsChessLaunchUrl(npcWithoutKC);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
-    const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed)!);
+    const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed));
     expect(payload.agentType).toBe("scripted_1");
   });
 
   it("does not include spaces-game fields", () => {
     const url = buildKingsChessLaunchUrl(kcNpc);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
-    const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed)!);
+    const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed));
     expect(payload.opponentType).toBeUndefined();
     expect(payload.skillLevel).toBeUndefined();
     expect(payload.modelAssignments).toBeUndefined();

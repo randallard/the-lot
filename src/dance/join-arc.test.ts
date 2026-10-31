@@ -7,10 +7,10 @@ import { arcAngle, joinArcAt, planJoinArc, type Sampled } from "./join-arc";
 function twirl() {
   const couple = partnerUp("a", "b", undefined, undefined, 0.9 / scale, 0.6 / scale);
   const shapeAt = () => ({ width: 0.9 / scale, archClearance: 0.6 / scale });
-  const motions = flattenSequence(danceCoupleSequence(["california-twirl"] as never, couple, shapeAt as never)) as Record<string, never>;
+  const motions = flattenSequence(danceCoupleSequence(["california-twirl"] as never, couple, shapeAt)) as Record<string, never>;
   const frame = makeFrame({ x: 0, z: 0 }, scale, 0);
   const at = (key: string) => (beat: number): Sampled => {
-    const s = sampleMotion(motions[key]!, beat) as { position: { x: number; y: number }; facing: number };
+    const s = sampleMotion(motions[key]!, beat);
     const w = toWorld(frame, s.position);
     return { x: w.x, z: w.z, yaw: facingToRotationY(frame, s.facing) };
   };

@@ -36,7 +36,7 @@ const isAngle = (k: number) => k < 24 && [0, 1, 3, 4].includes(k % 6);
  * heading of 179° and another's of −181° are the same answer to the model.
  */
 export function unwrapLike(v: ArrayLike<number>, ref: ArrayLike<number>, n: number): Float64Array {
-  const out = Float64Array.from(v as ArrayLike<number>);
+  const out = Float64Array.from(v);
   for (let k = 0; k < PER; k++) {
     if (!isAngle(k)) continue;
     let d = 0;

@@ -110,7 +110,7 @@ step   ${((m?.step ?? 0) * 100).toFixed(0)} cm`}
             <meshStandardMaterial color="#e8e8e2" />
           </mesh>
           <gridHelper args={[40, 40, "#b9b9b3", "#d6d6d0"]} />
-          {rigs.map((rig, i) => <Dancer key={i} rig={rig} shape={shapes[i]!} color={COLORS[i]!} />)}
+          {rigs.map((rig, i) => <Dancer key={i} rig={rig} shape={shapes[i]!} color={COLORS[i]} />)}
           {solved !== null && <Player frames={solved.frames} rigs={rigs} shapes={shapes} clock={clock} />}
         </Canvas>
       </div>

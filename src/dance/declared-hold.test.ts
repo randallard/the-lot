@@ -65,7 +65,7 @@ function walkTwirl(beauShape: CharacterBodyShape, belleShape: CharacterBodyShape
   );
   const shapeAt = () => ({ width: sized.width / scale, archClearance: sized.wanted / scale });
   const motions = flattenSequence(
-    danceCoupleSequence(["california-twirl"] as never, couple, shapeAt as never),
+    danceCoupleSequence(["california-twirl"] as never, couple, shapeAt),
   ) as Record<string, { beats: number; grips: readonly { hand: string; grip: string }[] }>;
 
   const archHand = (key: string) =>
@@ -73,10 +73,7 @@ function walkTwirl(beauShape: CharacterBodyShape, belleShape: CharacterBodyShape
 
   const frame = makeFrame({ x: 0, z: 0 }, scale, 0);
   const at = (key: string, beat: number) => {
-    const s = sampleMotion(motions[key]! as never, beat) as {
-      position: { x: number; y: number };
-      facing: number;
-    };
+    const s = sampleMotion(motions[key]! as never, beat);
     const w = toWorld(frame, s.position);
     return { x: w.x, z: w.z, yaw: facingToRotationY(frame, s.facing) };
   };

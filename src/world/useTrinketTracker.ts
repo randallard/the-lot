@@ -23,8 +23,8 @@ export function useTrinketTracker(
 
   useFrame(() => {
     if (!playerPosition.current || !targetPos.current || !active) {
-      out.current!.showArrow = false;
-      out.current!.distance = 0;
+      out.current.showArrow = false;
+      out.current.distance = 0;
       arrowActivated = false;
       return;
     }
@@ -46,8 +46,8 @@ export function useTrinketTracker(
     if (dist > SHOW_ARROW_DISTANCE || !onScreen) arrowActivated = true;
     if (dist < HIDE_ARROW_DISTANCE && onScreen) arrowActivated = false;
 
-    out.current!.distance = dist;
-    out.current!.showArrow = arrowActivated;
+    out.current.distance = dist;
+    out.current.showArrow = arrowActivated;
 
     if (arrowActivated) {
       let sx = projected.x;
@@ -59,11 +59,11 @@ export function useTrinketTracker(
       }
       const screenDir = new THREE.Vector2(sx, sy);
       if (screenDir.length() > 0) {
-        out.current!.angle = Math.atan2(screenDir.x, screenDir.y);
+        out.current.angle = Math.atan2(screenDir.x, screenDir.y);
         screenDir.normalize().multiplyScalar(0.7);
       }
-      out.current!.screenX = (screenDir.x + 1) / 2;
-      out.current!.screenY = (-screenDir.y + 1) / 2;
+      out.current.screenX = (screenDir.x + 1) / 2;
+      out.current.screenY = (-screenDir.y + 1) / 2;
     }
   });
 }

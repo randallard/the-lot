@@ -49,7 +49,7 @@ describe("bodyMeshScale — the torso stretches with the dancer wearing it", () 
     for (const shape of [SPROUT_DEFAULTS, MYCO_DEFAULTS]) {
       for (const delta of [0, 0.2, 0.735, -0.15]) {
         const worn = growBody(shape, delta);
-        expect(meshTop(shape, worn), `${String(delta)}`).toBeCloseTo(bodyTop(worn), 9);
+        expect(meshTop(shape, worn), String(delta)).toBeCloseTo(bodyTop(worn), 9);
       }
     }
   });
@@ -84,7 +84,7 @@ describe("standingLift — a body grows from where it stands", () => {
     for (const shape of [MYCO_DEFAULTS, SPROUT_DEFAULTS, EMBER_DEFAULTS]) {
       const rest = bottom(shape, 0);
       for (const delta of [0.05, 0.3, 0.735, 1.2, -0.1, -0.2]) {
-        expect(bottom(shape, delta), `${String(delta)}`).toBeCloseTo(rest, 9);
+        expect(bottom(shape, delta), String(delta)).toBeCloseTo(rest, 9);
       }
     }
   });

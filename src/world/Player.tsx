@@ -212,7 +212,7 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
         groupRef.current.rotation.y = Math.atan2(dir.x, dir.z);
       }
     } else if (!isEmoting) {
-      const { x, z } = inputDir.current!;
+      const { x, z } = inputDir.current;
       if (x !== 0 || z !== 0) {
         const direction = new THREE.Vector3(x, 0, z).normalize();
         groupRef.current.position.addScaledVector(direction, SPEED * delta);

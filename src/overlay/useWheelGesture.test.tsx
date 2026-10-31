@@ -18,9 +18,7 @@ function Harness(props: Omit<UseWheelGestureOptions, "count"> & { count?: number
 
 /** happy-dom has no PointerEvent capture, so stub what the hook calls. */
 function target() {
-  const el = screen.getByTestId("target") as HTMLElement & {
-    setPointerCapture: (id: number) => void;
-  };
+  const el = screen.getByTestId("target");
   el.setPointerCapture = vi.fn();
   el.releasePointerCapture = vi.fn();
   return el;

@@ -644,7 +644,7 @@ describe("the approach — a move may bring the pair into position", () => {
   it("defaults an absent field to none, so moves authored before this keep behaving", () => {
     const legacy = { ...move };
     delete (legacy as { approach?: unknown }).approach;
-    expect(approachOf(legacy as ContactMove)).toBe("none");
+    expect(approachOf(legacy)).toBe("none");
   });
 
   it("turns both of them to face each other, whatever they were looking at", () => {

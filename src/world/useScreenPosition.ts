@@ -16,7 +16,7 @@ export function useScreenPosition(
 
   useFrame(() => {
     if (!worldPos.current) {
-      out.current!.visible = false;
+      out.current.visible = false;
       return;
     }
 
@@ -26,8 +26,8 @@ export function useScreenPosition(
       projected.y >= -1 && projected.y <= 1 &&
       projected.z < 1;
 
-    out.current!.x = (projected.x + 1) / 2;
-    out.current!.y = (-projected.y + 1) / 2;
-    out.current!.visible = onScreen;
+    out.current.x = (projected.x + 1) / 2;
+    out.current.y = (-projected.y + 1) / 2;
+    out.current.visible = onScreen;
   });
 }

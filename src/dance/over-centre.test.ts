@@ -47,10 +47,10 @@ function walk(bs0: CharacterBodyShape, ls0: CharacterBodyShape, centred: boolean
   const lM = plan.bodyDeltas.belle === 0 ? l0 : armMetrics(lShape, NPC_BODY_CENTER_Y, standingLift(ls, lShape));
   const couple = partnerUp("a", "b", undefined, undefined, hold0.width / scale, bodies / scale, undefined, pairGripRadius(armMetrics(bs0), armMetrics(ls0)) / scale);
   const shapeAt = () => ({ width: sized.width / scale, archClearance: sized.wanted / scale });
-  const motions = flattenSequence(danceCoupleSequence(["california-twirl"] as never, couple, shapeAt as never)) as Record<string, { beats: number }>;
+  const motions = flattenSequence(danceCoupleSequence(["california-twirl"] as never, couple, shapeAt)) as Record<string, { beats: number }>;
   const frame = makeFrame({ x: 0, z: 0 }, scale, 0);
   const at = (key: string, beat: number): Placement => {
-    const s = sampleMotion(motions[key]! as never, beat) as { position: { x: number; y: number }; facing: number };
+    const s = sampleMotion(motions[key]! as never, beat);
     const w = toWorld(frame, s.position);
     return { x: w.x, z: w.z, yaw: facingToRotationY(frame, s.facing) };
   };

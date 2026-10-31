@@ -166,6 +166,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0067](0067-accessibility-lint-for-the-html-overlays.md) | Accessibility lint (jsx-a11y) for the HTML overlays | Accepted |
 | [0068](0068-no-rust-core.md) | No Rust/WASM core in the client; the-lot's logic stays at TypeScript with property tests | Accepted |
 | [0069](0069-the-react-hooks-exception-names-the-dance-files-that-write-from-a-frame-loop.md) | The react-hooks exception names the dance files that write from a frame loop, not `src/dance/**` | Accepted |
+| [0070](0070-strict-lint-with-two-react-shaped-options.md) | The strict lint pass runs `strictTypeChecked` with two options relaxed for React, and lints `scripts/` without types | Accepted |
 | [1000](1000-template-standards-adrs-are-inherited.md) | Template standards ADRs are inherited, numbered 1000 and up | Accepted |
 | [1001](1001-project-conventions-is-the-canonical-standard.md) | project-conventions is the canonical provable-code standard | Accepted |
 | [1002](1002-provable-is-a-four-rung-ladder.md) | "Provable" means a four-rung ladder, and a project claims only the rungs CI enforces | Accepted |

@@ -84,8 +84,8 @@ export function EmotePanel({ emotes, onPlay, open, onToggle, onClose }: EmotePan
                   fontSize: 14,
                   fontWeight: 500,
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(106,76,147,0.25)"; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+                onMouseEnter={e => { (e.currentTarget).style.background = "rgba(106,76,147,0.25)"; }}
+                onMouseLeave={e => { (e.currentTarget).style.background = "transparent"; }}
               >
                 {/* Key hint — only on non-touch */}
                 {!isTouchDevice && i < 10 && (

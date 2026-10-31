@@ -71,8 +71,8 @@ function atBeatZero(
   const shapeAt = isArch
     ? () => ({ width: sized.width / scale, archClearance: sized.wanted / scale })
     : undefined;
-  const motions = flattenSequence(danceCoupleSequence(sequence as never, couple, shapeAt as never));
-  const states = createPerformance({ motions: motions as never }).sample() as {
+  const motions = flattenSequence(danceCoupleSequence(sequence as never, couple, shapeAt));
+  const states = createPerformance({ motions: motions }).sample() as {
     position: { x: number; y: number };
     facing: number;
   }[];

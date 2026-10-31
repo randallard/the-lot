@@ -71,7 +71,7 @@ export function TownReport({ onBack, onShowRank }: TownReportProps) {
           return (
             <div
               key={npc.id}
-              onClick={clickable ? () => onShowRank!(npc.id) : undefined}
+              onClick={clickable ? () => onShowRank(npc.id) : undefined}
               style={{
                 display: "flex",
                 alignItems: "center",
