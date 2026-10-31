@@ -25,4 +25,4 @@ id = "GHSA-g3hv-75wg-m249"
 # → @npmcli (10.x): dev tooling only, never in the shipped bundle, and only our own patterns.
 # Forcing 3.x to 11 breaks eslint. Retire when eslint and typescript-eslint depend on
 # minimatch >= 11.0.1, or a backport lands (then override instead).
-reason = "Dev tooling only, never shipped, patterns are ours; no fix within minimatch 3.x/10.x (eslint needs 3.x). Retire when eslint and typescript-eslint use minimatch >= 11.0.1 or a backport lands."
+reason = "Dev tooling only, never shipped, patterns are ours; no fix within minimatch 3.x/10.x (eslint 9 needs 3.x, eslint 10 needs 10.x). Retire when eslint and typescript-eslint use minimatch >= 11.0.1 or a backport lands."

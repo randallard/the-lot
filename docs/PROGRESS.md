@@ -1,10 +1,10 @@
 # Progress & Status
 
-_Last updated: 2026-10-30_
+_Last updated: 2026-10-31_
 
 ## Status / next
 
-**Standards:** last compliance review 2026-10-30 ([note](compliance/2026-10-30.md)), its gaps worked the same day (Ryan: *"all that and commit"*; [journal 10-30 (8)](journal/2026-10-30-8-the-standard-pieces.md)). In: square-one re-pinned to `v0.11.0`; exact pins; `fast-check` properties for both reducers (they found a real bug, fixed); ADRs 1000–1017 and the `project-conventions` / `stance-review` skills; tier recorded honestly as none yet; ADR-1012/1015 answered as Proposed ADRs 0066–0068. ⏳ **Still to take:** Ryan decides 0066–0068 · first stance review · tsconfig flags (179 type errors, dry run) · lint `strictTypeChecked` + the three rules (2,756 findings in 173 files, dry run) · TypeScript 6.0.x · then claim provable-lite
+**Standards:** last compliance review 2026-10-31; its small gaps fixed the same day (dead `allowBuilds` key, this line, the date). ⏳ **Still to take:** first stance review · TypeScript 6.0.x · tsconfig flags (179 type errors, dry run) · lint `strictTypeChecked` + the three rules (2,756 findings, dry run) · then claim provable-lite. The minimatch ignore (GHSA-g3hv-75wg-m249) stays until eslint/typescript-eslint use minimatch ≥ 11.0.1 or 3.x/10.x get a backport ([note](compliance/2026-10-31.md))
 
 > ### ▶ PICK UP HERE — 2026-10-31 (2) — the shoulder rides the torso; 27 bakes re-made
 >
