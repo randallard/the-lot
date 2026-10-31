@@ -3,11 +3,17 @@ import { bodyMeshScale } from "./dancer-mesh";
 import {
   MYCO_DEFAULTS,
   SPROUT_DEFAULTS,
-  computePositions,
   NPC_BODY_CENTER_Y,
 } from "../services/body-shapes";
 import { growBody, standingLift } from "./accommodation";
 import { EMBER_DEFAULTS } from "../services/body-shapes";
+
+/**
+ * The worn body's own top, where `computePositions` puts the shoulders by default. Since
+ * 2026-09-19 `layout.shoulderY` can move the arm's joint off it (Myco's does), so the tests here
+ * compare against the body's top, which is what they always meant (re-pinned 2026-10-31).
+ */
+const bodyTop = (worn: typeof MYCO_DEFAULTS): number => NPC_BODY_CENTER_Y + worn.body.height / 2 + worn.body.radius;
 
 /** Where the drawn capsule's top ends up, given the scale applied to the built geometry. */
 function meshTop(built: typeof MYCO_DEFAULTS, worn: typeof MYCO_DEFAULTS): number {
@@ -33,7 +39,7 @@ describe("bodyMeshScale — the torso stretches with the dancer wearing it", () 
     expect(bodyMeshScale(SPROUT_DEFAULTS, grown).height).toBeGreaterThan(1.5);
   });
 
-  it("🔴 puts the drawn top exactly where the shoulders are, caps and all", () => {
+  it("🔴 puts the drawn top exactly where the body's top is, caps and all", () => {
     // A capsule is not a box: scaling Y by `h'/h` stretches the two hemispherical caps too, so
     // the mesh top would land at `(h/2 + r)·h'/h` while `computePositions` puts the shoulders at
     // `h'/2 + r` with the radius unscaled. On Sprout grown by 0.735 that is 0.245 of torso
@@ -41,8 +47,7 @@ describe("bodyMeshScale — the torso stretches with the dancer wearing it", () 
     for (const shape of [SPROUT_DEFAULTS, MYCO_DEFAULTS]) {
       for (const delta of [0, 0.2, 0.735, -0.15]) {
         const worn = growBody(shape, delta);
-        const shoulders = computePositions(worn, NPC_BODY_CENTER_Y).shoulderY;
-        expect(meshTop(shape, worn), `${String(delta)}`).toBeCloseTo(shoulders, 9);
+        expect(meshTop(shape, worn), `${String(delta)}`).toBeCloseTo(bodyTop(worn), 9);
       }
     }
   });
@@ -67,10 +72,10 @@ describe("standingLift — a body grows from where it stands", () => {
     return standingLift(built, worn) + NPC_BODY_CENTER_Y - worn.body.height / 2 - worn.body.radius;
   };
 
-  /** World Y of the top — which is where the shoulders are, by `computePositions`. */
+  /** World Y of the body's top (the shoulders' default height; `layout.shoulderY` can move them). */
   const top = (built: typeof MYCO_DEFAULTS, delta: number): number => {
     const worn = growBody(built, delta);
-    return standingLift(built, worn) + computePositions(worn, NPC_BODY_CENTER_Y).shoulderY;
+    return standingLift(built, worn) + bodyTop(worn);
   };
 
   it("🔴 leaves the bottom exactly where it started, whatever the change", () => {
@@ -91,7 +96,7 @@ describe("standingLift — a body grows from where it stands", () => {
     expect(bottom(EMBER_DEFAULTS, -0.5)).toBeCloseTo(rest, 9);
   });
 
-  it("puts the whole change into the top, which is where the shoulders are", () => {
+  it("puts the whole change into the body's top", () => {
     for (const delta of [0.2, 0.735, -0.15]) {
       expect(top(MYCO_DEFAULTS, delta) - top(MYCO_DEFAULTS, 0)).toBeCloseTo(delta, 9);
     }

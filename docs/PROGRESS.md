@@ -4,9 +4,23 @@ _Last updated: 2026-10-30_
 
 ## Status / next
 
-**Standards:** last compliance review 2026-10-30 ([note](compliance/2026-10-30.md)), its gaps worked the same day (Ryan: *"all that and commit"*; [journal 10-30 (8)](journal/2026-10-30-8-the-standard-pieces.md)). In: square-one re-pinned to `v0.11.0`; exact pins; `fast-check` properties for both reducers (they found a real bug, fixed); ADRs 1000–1017 and the `project-conventions` / `stance-review` skills; tier recorded honestly as none yet; ADR-1012/1015 answered as Proposed ADRs 0066–0068. ⏳ **Still to take:** Ryan decides 0066–0068 · first stance review · tsconfig flags (179 type errors, dry run) · lint `strictTypeChecked` + the three rules (2,756 findings in 173 files, dry run) · TypeScript 6.0.x · then claim provable-lite (also needs CI's test job green: 38 known failures)
+**Standards:** last compliance review 2026-10-30 ([note](compliance/2026-10-30.md)), its gaps worked the same day (Ryan: *"all that and commit"*; [journal 10-30 (8)](journal/2026-10-30-8-the-standard-pieces.md)). In: square-one re-pinned to `v0.11.0`; exact pins; `fast-check` properties for both reducers (they found a real bug, fixed); ADRs 1000–1017 and the `project-conventions` / `stance-review` skills; tier recorded honestly as none yet; ADR-1012/1015 answered as Proposed ADRs 0066–0068. ⏳ **Still to take:** Ryan decides 0066–0068 · first stance review · tsconfig flags (179 type errors, dry run) · lint `strictTypeChecked` + the three rules (2,756 findings in 173 files, dry run) · TypeScript 6.0.x · then claim provable-lite
 
-> ### ▶ PICK UP HERE — 2026-10-30 (12) — a level meter that holds up in noise
+> ### ▶ PICK UP HERE — 2026-10-31 (1) — the 38 failing tests, sorted
+>
+> [`journal/2026-10-31-1-the-38-sorted.md`](journal/2026-10-31-1-the-38-sorted.md) · 🧪
+> uncommitted, for Ryan's look.
+>
+> - **Suite: 1235 passed, 31 expected fail, 0 failing.** 7 stale tests fixed (re-stated or
+>   re-pinned with reasons); 31 real findings kept as `it.fails`, each noting what it waits on.
+> - Likely bug found: an authored shoulder doesn't follow a growing torso (`expression-channels`).
+>
+> ⏳ **Next:** the findings are the pose-review worklist (the shoulder fix first, then the default
+> hold sign-off, then the arch). The voice test still waits on a noisy run.
+>
+> ---
+>
+> ### 2026-10-30 (12) — a level meter that holds up in noise
 >
 > [`journal/2026-10-30-12-a-meter-for-noise.md`](journal/2026-10-30-12-a-meter-for-noise.md) · 🧪
 > uncommitted, for Ryan's look.
@@ -19,7 +33,8 @@ _Last updated: 2026-10-30_
 > - **CI (10-31):** OSV went red at 23:20 UTC 10-30 on two advisories published 23:09, fixed only in
 >   new majors: glob GHSA-3g3m-2fjr-6pw4 (overridden 13 → 14) and minimatch GHSA-g3hv-75wg-m249
 >   (ignored in both scanners, with reason and retirement condition: dev tooling only, eslint
->   needs minimatch 3). The test job is still red with the 38 known failures (since 09-12).
+>   needs minimatch 3). The test job was red with 38 known failures (since 09-12); sorted
+>   10-31 (1): 7 fixed, 31 kept as `it.fails` findings.
 >
 > ⏳ **Next:** Ryan: a noisy run, saved; replay the trace and tune; then live calling.
 >

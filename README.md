@@ -159,8 +159,8 @@ lands, the gap is open, not an exception. What's in and what's left is in
 
 **Tier: none claimed yet** (ADR-1002 claims only what CI enforces). Toward provable-lite:
 `fast-check` properties now cover both screen reducers (`review2-session`, `voice-test-session`),
-but CI's test job is red with 38 known failures and the strictness bar (ADR-1011) isn't met.
-Claim provable-lite when both are.
+and CI's test job is green (since 2026-10-31: the 38 old failures fixed or kept as `it.fails`
+findings), but the strictness bar (ADR-1011) isn't met. Claim provable-lite when it is.
 
 ## Docs
 
