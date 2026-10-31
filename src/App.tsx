@@ -73,6 +73,12 @@ import type { ScreenPos } from "./world/useScreenPosition";
 
 export default function App() {
   const game = useGameState();
+  // The actions are stable `useCallback`s; destructured so hooks can name them as dependencies
+  // (calling `game.x()` passes `game` as `this`, which exhaustive-deps then wants listed).
+  const {
+    collectPart, completeAssembly, clearOverride, setPhaseOverride, npcWalkAway, clearResults,
+    completeIntro, launchGame: enterLaunchingGame,
+  } = game;
   const { phase, inventory } = game;
 
   const [pocketOpen, setPocketOpen] = useState(false);
@@ -148,9 +154,13 @@ export default function App() {
       const npc = localStorage.getItem("townage-playing-npc");
       const pos = localStorage.getItem("townage-player-pos");
       if (npc && pos) {
-        const parsed = JSON.parse(pos);
+        const parsed: unknown = JSON.parse(pos);
         console.log("[restore] npc:", npc, "pos:", parsed);
-        return parsed;
+        // Only a position this code wrote is restored; anything else starts from the default.
+        if (
+          typeof parsed === "object" && parsed !== null && "x" in parsed && "z" in parsed &&
+          typeof parsed.x === "number" && typeof parsed.z === "number"
+        ) return { x: parsed.x, z: parsed.z };
       }
       console.log("[restore] no saved position, npc:", npc, "pos:", pos);
     } catch {}
@@ -260,7 +270,7 @@ export default function App() {
             winner: r.winner as "player" | "opponent" | "tie",
             completedAt: Date.now(),
           }));
-        processAsyncResults(asyncResults).then((count) => {
+        void processAsyncResults(asyncResults).then((count) => {
           if (count > 0) setUnreadCount(getTotalUnreadCount());
         });
       }
@@ -336,7 +346,7 @@ export default function App() {
 
   // Fetch pending results from Vercel KV for games completed without returning
   useEffect(() => {
-    fetchPendingResults().then(async (results) => {
+    void fetchPendingResults().then(async (results) => {
       if (results.length === 0) return;
       console.log("[App] Found", results.length, "pending async results");
       const count = await processAsyncResults(results);
@@ -360,8 +370,8 @@ export default function App() {
       // First time — show the long intro text
       markIntroSeen(gameAcceptNpcId);
       const introText = isKingsChess
-        ? (npc.personality.kingsChessAcceptText ?? npc.personality.gameAcceptText ?? "let's do this!")
-        : npc.personality.gameAcceptText ?? "let's do this!";
+        ? (npc.personality.kingsChessAcceptText ?? npc.personality.gameAcceptText)
+        : npc.personality.gameAcceptText;
       setGameAcceptText(introText);
       return;
     }
@@ -381,22 +391,22 @@ export default function App() {
 
   const handlePart1Pickup = useCallback(() => {
     rushMode.current = 0;
-    game.collectPart();
-  }, [game.collectPart]);
+    collectPart();
+  }, [collectPart]);
 
   const handlePart2Pickup = useCallback(() => {
     rushMode.current = 0;
-    game.collectPart();
-  }, [game.collectPart]);
+    collectPart();
+  }, [collectPart]);
 
   const handleAssemblyComplete = useCallback(() => {
-    game.completeAssembly();
-  }, [game.completeAssembly]);
+    completeAssembly();
+  }, [completeAssembly]);
 
   const handleAssemblyRevealDone = useCallback(() => {
-    game.clearOverride();
+    clearOverride();
     setShowNpcIntro(true);
-  }, [game.clearOverride]);
+  }, [clearOverride]);
 
   const handlePlayEmote = useCallback((emote: Emote) => {
     playerAnimController.current.interrupt(emote, { resume: false });
@@ -520,7 +530,7 @@ export default function App() {
     } else {
       openChatWithNpc(npcId);
     }
-  }, [game.state.phaseOverride, game.state.tutorialComplete, chatNpcId, chatRespondingNpcId, moodCheckNpcId, openChatWithNpc]);
+  }, [game.state.phaseOverride, game.state.tutorialComplete, chatNpcId, chatRespondingNpcId, moodCheckNpcId, openChatWithNpc, setShowChatInfo]);
 
   const handleNpcClick = useCallback(() => {
     handleGameNpcClick("ryan");
@@ -533,8 +543,8 @@ export default function App() {
 
   const handlePlayOpponent = useCallback((npcId: string) => {
     setSelectedNpcId(npcId);
-    game.setPhaseOverride({ type: "game-select" });
-  }, [game.setPhaseOverride]);
+    setPhaseOverride({ type: "game-select" });
+  }, [setPhaseOverride]);
 
   const handleGameSelect = useCallback((selectedGame: string) => {
     const npc = getNpcById(selectedNpcId);
@@ -552,30 +562,30 @@ export default function App() {
     } else {
       launchGame(npc);
     }
-    game.launchGame();
-  }, [game.launchGame, selectedNpcId]);
+    enterLaunchingGame();
+  }, [enterLaunchingGame, selectedNpcId]);
 
   const handleGameSelectBack = useCallback(() => {
-    game.setPhaseOverride({ type: "opponents-list" });
-  }, [game.setPhaseOverride]);
+    setPhaseOverride({ type: "opponents-list" });
+  }, [setPhaseOverride]);
 
   const handleNpcWalkAway = useCallback(() => {
     if (game.state.tutorialComplete) return; // No walk-away after tutorial
     if (!game.state.npcRelaxing) {
       setPocketOpen(false);
-      game.npcWalkAway(true);
+      npcWalkAway(true);
     }
-  }, [game.npcWalkAway, game.state.npcRelaxing, game.state.tutorialComplete]);
+  }, [npcWalkAway, game.state.npcRelaxing, game.state.tutorialComplete]);
 
   const handleNpcByeDismiss = useCallback(() => {
-    game.clearOverride();
-  }, [game.clearOverride]);
+    clearOverride();
+  }, [clearOverride]);
 
   const handleCommentaryDismiss = useCallback(() => {
     setNpcDialogue(null);
-    game.clearResults();
-    setTimeout(() => game.npcWalkAway(false), 1000);
-  }, [game.clearResults, game.npcWalkAway]);
+    clearResults();
+    setTimeout(() => npcWalkAway(false), 1000);
+  }, [clearResults, npcWalkAway]);
 
   const handleOptInAccept = useCallback(() => {
     setPreferences({ useHaiku: true, optInShown: true });
@@ -700,7 +710,7 @@ export default function App() {
         setChatContinue(true);
       }, 1500);
     }
-  }, [chatNpcId, askingPlayerName]);
+  }, [chatNpcId, askingPlayerName, setShowChatInfo]);
 
   const dismissChatResponse = useCallback(() => {
     const wasPostGame = postGameChat.current;
@@ -730,35 +740,35 @@ export default function App() {
     game.skipToFreePlay();
     setShowPlayAgainModal(false);
     setSelectedNpcId(npcId);
-    game.setPhaseOverride({ type: "game-invite", npcId });
-  }, [game]);
+    setPhaseOverride({ type: "game-invite", npcId });
+  }, [game, setPhaseOverride]);
 
   const handlePlayAgainClose = useCallback(() => {
     setShowPlayAgainModal(false);
-    game.npcWalkAway(false);
-  }, [game.npcWalkAway]);
+    npcWalkAway(false);
+  }, [npcWalkAway]);
 
   const handleFind = useCallback((npcId: string) => {
     setFindTargetNpcId(npcId);
-    game.clearOverride(); // close phone
-  }, [game.clearOverride]);
+    clearOverride(); // close phone
+  }, [clearOverride]);
 
   const togglePocket = useCallback(() => {
     // First time pressing E during or after NPC intro — skip tutorial, go straight to phone
     if ((game.state.npcSpoken || showNpcIntro || showPhoneHint) && !game.state.tutorialComplete) {
       setShowNpcIntro(false);
       setShowPhoneHint(false);
-      game.completeIntro();
-      game.setPhaseOverride({ type: "phone-home" });
+      completeIntro();
+      setPhaseOverride({ type: "phone-home" });
       return;
     }
 
     // Post-tutorial: pocket button opens/closes phone homescreen
     if (game.state.tutorialComplete) {
       if (phase.type === "phone-home" || phase.type === "find-app" || phase.type === "chat-app" || phase.type === "settings-app" || phase.type === "rank-detail" || phase.type === "town-report") {
-        game.clearOverride();
+        clearOverride();
       } else if (!game.state.phaseOverride) {
-        game.setPhaseOverride({ type: "phone-home" });
+        setPhaseOverride({ type: "phone-home" });
       }
       return;
     }
@@ -773,7 +783,7 @@ export default function App() {
       phase.type === "launching-game" ||
       phase.type === "npc-commentary";
     if (!blocked) setPocketOpen((prev) => !prev);
-  }, [phase.type, game.state.npcSpoken, game.state.tutorialComplete, game.state.phaseOverride, game.clearOverride, game.setPhaseOverride, game.completeIntro, showNpcIntro, showPhoneHint]);
+  }, [phase.type, game.state.npcSpoken, game.state.tutorialComplete, game.state.phaseOverride, clearOverride, setPhaseOverride, completeIntro, showNpcIntro, showPhoneHint]);
 
   const handleRush = useCallback(() => {
     rushMode.current = 1;
@@ -793,13 +803,13 @@ export default function App() {
     if (phase.type !== "phone-home") return;
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === "f") { e.preventDefault(); game.setPhaseOverride({ type: "find-app" }); }
-      else if (e.key === "m") { e.preventDefault(); game.setPhaseOverride({ type: "chat-app" }); }
-      else if (e.key === "s") { e.preventDefault(); game.setPhaseOverride({ type: "settings-app" }); }
+      if (e.key === "f") { e.preventDefault(); setPhaseOverride({ type: "find-app" }); }
+      else if (e.key === "m") { e.preventDefault(); setPhaseOverride({ type: "chat-app" }); }
+      else if (e.key === "s") { e.preventDefault(); setPhaseOverride({ type: "settings-app" }); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [phase.type, game.setPhaseOverride]);
+  }, [phase.type, setPhaseOverride]);
 
   // Enter key / tap on empty space → rush toward arrow target or chat with closest NPC
   const showArrowRef = useRef(false);
@@ -863,7 +873,7 @@ export default function App() {
       if (trinketArrowRef.current) {
         if (dist > 0 && dist < ENTER_PICKUP_DIST) {
           rushMode.current = 0;
-          game.collectPart();
+          collectPart();
         } else if (dist > 0) {
           handleRush();
         }
@@ -901,7 +911,7 @@ export default function App() {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("click", onClick);
     };
-  }, [handleRush, game.collectPart, togglePocket, chatWithClosestNpc]);
+  }, [handleRush, collectPart, togglePocket, chatWithClosestNpc]);
 
   // Derive flags for World component
   const part1CutsceneDone = game.state.partsCollected >= 1 && phase.type !== "part1-cutscene";
@@ -932,7 +942,7 @@ export default function App() {
 
   return (
     <div style={{ width: "100vw", height: "100vh", background: "#ffffff" }}>
-      <StartupNotification onOpenSettings={() => game.setPhaseOverride({ type: "settings-app" })} />
+      <StartupNotification onOpenSettings={() => setPhaseOverride({ type: "settings-app" })} />
       <Canvas
         shadows={{ type: THREE.BasicShadowMap }}
         camera={{ position: [0, 8, 12], fov: 50 }}
@@ -1026,7 +1036,7 @@ export default function App() {
 
       {/* Part 1 pickup cutscene */}
       {phase.type === "part1-cutscene" && (
-        <PickupCutscene onDismiss={() => { console.log("[app] part1 cutscene dismissed"); game.clearOverride(); }} />
+        <PickupCutscene onDismiss={() => { console.log("[app] part1 cutscene dismissed"); clearOverride(); }} />
       )}
 
       {/* Assembly drag-to-fit cutscene */}
@@ -1039,7 +1049,7 @@ export default function App() {
         <AssemblyReveal
           step={phase.step}
           onStepChange={(step) =>
-            game.setPhaseOverride({ type: "assembly-reveal", step })
+            setPhaseOverride({ type: "assembly-reveal", step })
           }
           onDone={handleAssemblyRevealDone}
         />
@@ -1060,16 +1070,16 @@ export default function App() {
             if (prefs.useHaiku) {
               setShowNpcIntro(false);
               game.markNpcSpoken();
-              setTimeout(() => game.npcWalkAway(false), 1000);
+              setTimeout(() => npcWalkAway(false), 1000);
             } else {
               setShowPhoneHint(true);
             }
           }}
           onPlayGame={() => {
             setShowNpcIntro(false);
-            game.completeIntro();
+            completeIntro();
             setSelectedNpcId("ryan");
-            game.setPhaseOverride({ type: "game-invite", npcId: "ryan" });
+            setPhaseOverride({ type: "game-invite", npcId: "ryan" });
           }}
         />
       )}
@@ -1080,7 +1090,7 @@ export default function App() {
             setShowPhoneHint(false);
             setShowNpcIntro(false);
             game.markNpcSpoken();
-            setTimeout(() => game.npcWalkAway(false), 1000);
+            setTimeout(() => npcWalkAway(false), 1000);
           }}
           speakerScreenPos={npcScreenPos}
         />
@@ -1115,7 +1125,7 @@ export default function App() {
             const npcId = moodCheckNpcId;
             setMoodCheckNpcId(null);
             setSelectedNpcId(npcId);
-            game.setPhaseOverride({ type: "game-invite", npcId });
+            setPhaseOverride({ type: "game-invite", npcId });
           }}
         />
       )}
@@ -1133,15 +1143,15 @@ export default function App() {
       {phase.type === "board-creation" && (
         <>
           <PhoneOverlay mode="app" onClose={() => {
-            if (game.state.tutorialComplete) game.clearOverride(); else game.npcWalkAway(true);
+            if (game.state.tutorialComplete) clearOverride(); else npcWalkAway(true);
           }}>
             <BoardCreator
               boardSize={2}
               onBoardSaved={(board) => {
                 game.saveBoard(board);
-                game.setPhaseOverride({ type: "opponents-list" });
+                setPhaseOverride({ type: "opponents-list" });
               }}
-              onCancel={() => game.npcWalkAway(true)}
+              onCancel={() => npcWalkAway(true)}
             />
           </PhoneOverlay>
           <SpeechBubble
@@ -1155,7 +1165,7 @@ export default function App() {
       {/* Opponents list */}
       {phase.type === "opponents-list" && (
         <PhoneOverlay mode="app" onClose={() => {
-          if (game.state.tutorialComplete) game.clearOverride(); else game.npcWalkAway(true);
+          if (game.state.tutorialComplete) clearOverride(); else npcWalkAway(true);
         }}>
           <OpponentsList onPlay={handlePlayOpponent} />
         </PhoneOverlay>
@@ -1181,15 +1191,15 @@ export default function App() {
               choices={[
                 ...(inviteNpc?.games?.["spaces-game"] !== undefined || !inviteNpc?.games ? [{
                   label: "Spaces Game",
-                  action: () => game.setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "spaces-game" as const }),
+                  action: () => setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "spaces-game" as const }),
                 }] : []),
                 ...(inviteNpc?.games?.["kings-cooking"] ? [{
                   label: "King's Cooking",
-                  action: () => game.setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "kings-cooking" as const }),
+                  action: () => setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "kings-cooking" as const }),
                 }] : []),
                 {
                   label: `You choose, ${inviteNpc?.displayName ?? "friend"}`,
-                  action: () => game.setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "npc-choice" as const }),
+                  action: () => setPhaseOverride({ type: "game-accept", npcId: phase.npcId, playerChose: "npc-choice" as const }),
                 },
               ]}
             />
@@ -1223,7 +1233,7 @@ export default function App() {
               } else {
                 launchGame(npc);
               }
-              game.launchGame();
+              enterLaunchingGame();
             }}
             speakerScreenPos={npcPos}
           />
@@ -1238,7 +1248,7 @@ export default function App() {
 
       {phase.type === "game-select" && (
         <PhoneOverlay mode="app" onClose={() => {
-          if (game.state.tutorialComplete) game.clearOverride(); else game.npcWalkAway(true);
+          if (game.state.tutorialComplete) clearOverride(); else npcWalkAway(true);
         }}>
           <GameSelect
             npcName={getNpcById(selectedNpcId)?.displayName ?? selectedNpcId}
@@ -1253,52 +1263,52 @@ export default function App() {
       {phase.type === "phone-home" && (
         <PhoneOverlay
           onFindClick={() => {
-            game.setPhaseOverride({ type: "find-app" });
+            setPhaseOverride({ type: "find-app" });
           }}
           onChatClick={() => {
-            game.setPhaseOverride({ type: "chat-app" });
+            setPhaseOverride({ type: "chat-app" });
           }}
           onSettingsClick={() => {
-            game.setPhaseOverride({ type: "settings-app" });
+            setPhaseOverride({ type: "settings-app" });
           }}
           onTownReportClick={() => {
-            game.setPhaseOverride({ type: "town-report" });
+            setPhaseOverride({ type: "town-report" });
           }}
           onGamesClick={() => {
-            game.setPhaseOverride({ type: "games-app" });
+            setPhaseOverride({ type: "games-app" });
           }}
-          onClose={() => game.clearOverride()}
+          onClose={() => clearOverride()}
           chatUnreadCount={unreadCount}
         />
       )}
 
       {/* Games app */}
       {phase.type === "games-app" && (
-        <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
-          <GamesApp onBack={() => game.setPhaseOverride({ type: "phone-home" })} />
+        <PhoneOverlay mode="app" onClose={() => clearOverride()}>
+          <GamesApp onBack={() => setPhaseOverride({ type: "phone-home" })} />
         </PhoneOverlay>
       )}
 
       {/* Find app */}
       {phase.type === "find-app" && (
-        <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
+        <PhoneOverlay mode="app" onClose={() => clearOverride()}>
           <FindApp
             onFind={handleFind}
-            onClose={() => game.clearOverride()}
-            onShowRank={(npcId) => game.setPhaseOverride({ type: "rank-detail", npcId, from: "find-app" })}
+            onClose={() => clearOverride()}
+            onShowRank={(npcId) => setPhaseOverride({ type: "rank-detail", npcId, from: "find-app" })}
           />
         </PhoneOverlay>
       )}
 
       {/* Rank detail */}
       {phase.type === "rank-detail" && (
-        <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
+        <PhoneOverlay mode="app" onClose={() => clearOverride()}>
           <RankDetail
             npcId={phase.npcId}
-            onBack={() => game.setPhaseOverride({ type: phase.from ?? "find-app" })}
+            onBack={() => setPhaseOverride({ type: phase.from ?? "find-app" })}
             onFind={() => {
               setFindTargetNpcId(phase.npcId);
-              game.clearOverride();
+              clearOverride();
             }}
             onOpenBodyEditor={() => setBodyEditorSubject(phase.npcId)}
           />
@@ -1307,9 +1317,9 @@ export default function App() {
 
       {/* Chat app */}
       {phase.type === "chat-app" && (
-        <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
+        <PhoneOverlay mode="app" onClose={() => clearOverride()}>
           <ChatApp
-            onClose={() => game.clearOverride()}
+            onClose={() => clearOverride()}
             onUnreadChange={() => setUnreadCount(getTotalUnreadCount())}
           />
         </PhoneOverlay>
@@ -1317,17 +1327,17 @@ export default function App() {
 
       {/* Settings app */}
       {phase.type === "settings-app" && (
-        <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
-          <SettingsApp onClose={() => game.clearOverride()} onOpenBodyEditor={() => setBodyEditorSubject("player")} />
+        <PhoneOverlay mode="app" onClose={() => clearOverride()}>
+          <SettingsApp onClose={() => clearOverride()} onOpenBodyEditor={() => setBodyEditorSubject("player")} />
         </PhoneOverlay>
       )}
 
       {/* Town report */}
       {phase.type === "town-report" && (
-        <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
+        <PhoneOverlay mode="app" onClose={() => clearOverride()}>
           <TownReport
-            onBack={() => game.setPhaseOverride({ type: "phone-home" })}
-            onShowRank={(npcId) => game.setPhaseOverride({ type: "rank-detail", npcId, from: "town-report" })}
+            onBack={() => setPhaseOverride({ type: "phone-home" })}
+            onShowRank={(npcId) => setPhaseOverride({ type: "rank-detail", npcId, from: "town-report" })}
           />
         </PhoneOverlay>
       )}
@@ -1336,7 +1346,7 @@ export default function App() {
       {chatNpcId && (
         <NpcChatBubble
           playerScreenPos={playerScreenPos}
-          onSend={handleChatSend}
+          onSend={(message) => { void handleChatSend(message); }}
           onClose={chatContinue ? handleChatClose : () => { setChatNpcId(null); setChatRespondingNpcId(null); setChatResponse(null); }}
           onPlayGame={() => {
             const npcId = chatNpcId;
@@ -1345,7 +1355,7 @@ export default function App() {
             setChatRespondingNpcId(null);
             setChatContinue(false);
             setSelectedNpcId(npcId);
-            game.setPhaseOverride({ type: "game-invite", npcId });
+            setPhaseOverride({ type: "game-invite", npcId });
           }}
           continueMode={chatContinue}
         />
@@ -1441,7 +1451,7 @@ export default function App() {
 
       {/* Launching game — navigating to spaces-game */}
       {phase.type === "launching-game" && (
-        <PhoneOverlay mode="app" onClose={() => game.clearOverride()}>
+        <PhoneOverlay mode="app" onClose={() => clearOverride()}>
           <div
             style={{
               display: "flex",
@@ -1530,15 +1540,11 @@ function AssemblyReveal({
   // "npc-speech": ignore clicks for 1s, then clickable
   React.useEffect(() => {
     setClickable(false);
-    let t: ReturnType<typeof setTimeout>;
-    if (step === "they-fit") {
-      t = setTimeout(() => setClickable(true), 400);
-    } else if (step === "its-a-bot") {
-      t = setTimeout(() => onStepChange("npc-speech"), 1200);
-    } else if (step === "npc-speech") {
-      t = setTimeout(() => setClickable(true), 1000);
-    }
-    return () => clearTimeout(t!);
+    const t =
+      step === "they-fit" ? setTimeout(() => setClickable(true), 400)
+      : step === "its-a-bot" ? setTimeout(() => onStepChange("npc-speech"), 1200)
+      : setTimeout(() => setClickable(true), 1000); // "npc-speech"
+    return () => clearTimeout(t);
   }, [step, onStepChange]);
 
   const advance = React.useCallback(() => {
