@@ -392,6 +392,28 @@ export interface ComputedPositions {
 }
 
 /**
+ * The same shape with its torso resized, and an **authored shoulder moved with the torso's top**.
+ *
+ * `layout.shoulderY` (2026-09-19) is measured from the body's centre, so on its own a taller torso
+ * left it where it was while the top and the head rose: the arms detached from a growing torso
+ * again, for every body with an authored shoulder (Myco's), the defect `expression-channels`
+ * pinned when the shoulder was always the top (found 2026-10-31). The top is
+ * `centre + height/2 + radius`, so the shoulder moves by half the height change plus the radius
+ * change. A body without an authored shoulder needs nothing: its shoulder *is* the top. For a
+ * change to a worn body (an emote, an accommodation), not for authoring, where the shoulder is set
+ * on its own.
+ */
+export function resizeBody(shape: CharacterBodyShape, height: number, radius: number): CharacterBodyShape {
+  const topMoves = (height - shape.body.height) / 2 + (radius - shape.body.radius);
+  const shoulderY = shape.layout.shoulderY;
+  return {
+    ...shape,
+    body: { ...shape.body, height, radius },
+    layout: shoulderY === undefined ? shape.layout : { ...shape.layout, shoulderY: shoulderY + topMoves },
+  };
+}
+
+/**
  * Derive mesh center positions from shape params.
  * bodyCenterY is the Y of the body capsule mesh within the character group.
  */

@@ -26,7 +26,7 @@
  * restated: the rig faces +z, +x is the anatomical left, `rotation.y` is the facing.
  */
 
-import { computePositions, NPC_BODY_CENTER_Y, SHAPE_BOUNDS, type CharacterBodyShape } from "../services/body-shapes";
+import { resizeBody, computePositions, NPC_BODY_CENTER_Y, SHAPE_BOUNDS, type CharacterBodyShape } from "../services/body-shapes";
 
 export type Vec = readonly [number, number, number];
 
@@ -72,8 +72,9 @@ export interface Body {
   /**
    * 🧪 What growing does (2026-10-27, step 3b): how far each point moves per metre the body's
    * height grows, the way the floor draws it (`growBody` with `standingLift`, ADR-0043: the bottom
-   * of the body stays put). The torso's top and the head rise one for one; a shoulder rises by
-   * what `computePositions` gives it (half for a body with an authored `shoulderY`). The arms ride
+   * of the body stays put). The torso's top, the head and the shoulders rise one for one (an
+   * authored `shoulderY` too since 2026-10-31, `resizeBody`; it rose by half before, the bug that
+   * detached a grown torso's arms). The arms ride
    * the shoulder at their own lengths. `height` is the dancer standing (crown over the floor), and
    * `room` is the shape editor's own limits on the change (`growBody` clamps to them). Not part of
    * a body's print (`bodyPrint`): it follows from the rest.
@@ -86,7 +87,7 @@ export function bodyOf(shape: CharacterBodyShape): Body {
   const { head, body, forearm, hand } = shape;
   // Linear in the height, so one step measures it; unclamped, so the slope is the slope.
   const D = 0.1;
-  const grown = computePositions({ ...shape, body: { ...body, height: body.height + D } }, NPC_BODY_CENTER_Y);
+  const grown = computePositions(resizeBody(shape, body.height + D, body.radius), NPC_BODY_CENTER_Y);
   const lift = D / 2;
   const shoulderRise: Vec = [0, (grown.shoulderY - pos.shoulderY + lift) / D, (grown.shoulderZ - pos.shoulderZ) / D];
   const { min, max } = SHAPE_BOUNDS.body.height;

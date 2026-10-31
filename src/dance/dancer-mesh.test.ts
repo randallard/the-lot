@@ -3,7 +3,9 @@ import { bodyMeshScale } from "./dancer-mesh";
 import {
   MYCO_DEFAULTS,
   SPROUT_DEFAULTS,
+  computePositions,
   NPC_BODY_CENTER_Y,
+  resizeBody,
 } from "../services/body-shapes";
 import { growBody, standingLift } from "./accommodation";
 import { EMBER_DEFAULTS } from "../services/body-shapes";
@@ -94,6 +96,30 @@ describe("standingLift — a body grows from where it stands", () => {
     const rest = bottom(EMBER_DEFAULTS, 0);
     expect(rest).toBeLessThan(0);
     expect(bottom(EMBER_DEFAULTS, -0.5)).toBeCloseTo(rest, 9);
+  });
+
+  it("moves an authored shoulder with the body's top, so the arms stay on a grown torso (10-31)", () => {
+    // Myco's shoulder is authored (`layout.shoulderY`), measured from the body's centre. Before
+    // `resizeBody` a taller torso left it where it was while the top rose: the arms detached.
+    expect(MYCO_DEFAULTS.layout.shoulderY).toBeDefined();
+    for (const delta of [0.2, 0.735, -0.15]) {
+      const worn = growBody(MYCO_DEFAULTS, delta);
+      const shoulderBelowTop = (s: typeof MYCO_DEFAULTS) => bodyTop(s) - computePositions(s, NPC_BODY_CENTER_Y).shoulderY;
+      expect(shoulderBelowTop(worn), String(delta)).toBeCloseTo(shoulderBelowTop(MYCO_DEFAULTS), 9);
+    }
+  });
+
+  it("follows a radius change as well, since the top is centre + height/2 + radius (an emote can change both)", () => {
+    const worn = resizeBody(MYCO_DEFAULTS, MYCO_DEFAULTS.body.height + 0.1, MYCO_DEFAULTS.body.radius + 0.05);
+    const below = (s: typeof MYCO_DEFAULTS) => bodyTop(s) - computePositions(s, NPC_BODY_CENTER_Y).shoulderY;
+    expect(below(worn)).toBeCloseTo(below(MYCO_DEFAULTS), 9);
+  });
+
+  it("and a body with no authored shoulder is untouched: its shoulder is its top", () => {
+    const worn = growBody(SPROUT_DEFAULTS, 0.3);
+    expect(SPROUT_DEFAULTS.layout.shoulderY).toBeUndefined();
+    expect(worn.layout).toBe(SPROUT_DEFAULTS.layout);
+    expect(computePositions(worn, NPC_BODY_CENTER_Y).shoulderY).toBeCloseTo(bodyTop(worn), 9);
   });
 
   it("puts the whole change into the body's top", () => {

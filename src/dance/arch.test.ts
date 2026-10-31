@@ -112,9 +112,8 @@ describe("🔴 the default cast cannot make an arch at all, and that is the prem
 });
 
 describe("the reshape", () => {
-  // ⏳ Known finding, kept as `it.fails` (2026-10-31): vitest reports it red the day it passes, which is when to re-pin it.
-  // One of the arch findings the 09-12 to 09-30 arm work left open (journals 2026-09-21-3, 2026-09-30-1): the figure it pins moved with the arms. Waits on reviewing the arch in #review2 and choosing the accommodation (and on whether the solver's reach supersedes ADR-0048, 10-27).
-  it.fails("🔴 makes the arch, and both dancers keep hold", () => {
+  // Was a known finding (it.fails) until 2026-10-31: the authored-shoulder bug (`resizeBody`) was behind it.
+  it("🔴 makes the arch, and both dancers keep hold", () => {
     const p = plan(MYCO_DEFAULTS, EMBER_DEFAULTS, RESHAPE);
     expect(p.gap).toBeCloseTo(0, 6);
     expect(p.hands.beau.height).toBeCloseTo(p.hands.belle.height, 6);
@@ -685,18 +684,22 @@ describe("archHeight — the join rises when the pair can lift it clear", () => 
       [EMBER_DEFAULTS, SPROUT_DEFAULTS],
       [MYCO_DEFAULTS, EMBER_DEFAULTS],
     ] as const) {
-      const { w, plan: p } = at(beauShape, belleShape);
+      const { plan: p } = at(beauShape, belleShape);
       const b = wearing(armMetrics(beauShape), beauShape, p.bodyDeltas.beau);
       const l = wearing(armMetrics(belleShape), belleShape, p.bodyDeltas.belle);
-      const both = Math.min(reachCeiling(b, w), reachCeiling(l, w));
+      // Measured as `planArch` clamps: at the separation the plan was asked for, the arch's own
+      // lateral, and each dancer from their own side (the belle's is +1). It used lateral 0 and the
+      // beau's side for both, an approximation that held until Myco's shoulders rode her grown
+      // torso (10-31): Myco 0.75 taller under Ember, the join 8 mm over the approximate bound with
+      // both hands on it (gap 2e-16).
+      const both = Math.min(reachCeiling(b, width, p.lateral, -1), reachCeiling(l, width, p.lateral, 1));
       const floor = crownOf(l) + Math.max(b.handRadius, l.handRadius);
       expect(p.height).toBeLessThanOrEqual(Math.max(floor, both) + 1e-9);
     }
   });
 
-  // ⏳ Known finding, kept as `it.fails` (2026-10-31): vitest reports it red the day it passes, which is when to re-pin it.
-  // One of the arch findings the 09-12 to 09-30 arm work left open (journals 2026-09-21-3, 2026-09-30-1): the figure it pins moved with the arms. Waits on reviewing the arch in #review2 and choosing the accommodation (and on whether the solver's reach supersedes ADR-0048, 10-27).
-  it.fails("leaves a pair who could already dance it exactly where they were", () => {
+  // Was a known finding (it.fails) until 2026-10-31: the authored-shoulder bug (`resizeBody`) was behind it.
+  it("leaves a pair who could already dance it exactly where they were", () => {
     // The regression guard. Raising the join unconditionally to clear both crowns was tried
     // first and it charged the whole cast for two pairings — including a hairline break in the
     // default pair's reshape, because growing the beau to reach the join also raises his crown.

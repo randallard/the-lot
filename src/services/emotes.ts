@@ -1,3 +1,4 @@
+import { resizeBody } from "./body-shapes";
 import type { ArmPose } from "./arm-actions";
 import { ZERO_POSE } from "./arm-actions";
 import type { EyeShape } from "./eye-shapes";
@@ -462,7 +463,7 @@ export function copyEmoteTo(emote: Emote, targetCharacterId: string): Emote {
 // Used by both CharacterPreview and the live Player/Npc components.
 
 export function mergeAnimation(shape: CharacterBodyShape, rp: ResolvedPose): CharacterBodyShape {
-  return {
+  const merged: CharacterBodyShape = {
     ...shape,
     head: {
       ...shape.head,
@@ -480,8 +481,8 @@ export function mergeAnimation(shape: CharacterBodyShape, rp: ResolvedPose): Cha
       ...shape.body,
       leanX:  shape.body.leanX  + rp.bodyLeanX,
       leanZ:  shape.body.leanZ  + rp.bodyLeanZ,
-      radius: shape.body.radius + rp.bodyRadiusDelta,
-      height: shape.body.height + rp.bodyHeightDelta,
     },
   };
+  // The torso's size through `resizeBody`, so an authored shoulder rides its top (10-31).
+  return resizeBody(merged, shape.body.height + rp.bodyHeightDelta, shape.body.radius + rp.bodyRadiusDelta);
 }

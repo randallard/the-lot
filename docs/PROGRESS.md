@@ -6,7 +6,22 @@ _Last updated: 2026-10-30_
 
 **Standards:** last compliance review 2026-10-30 ([note](compliance/2026-10-30.md)), its gaps worked the same day (Ryan: *"all that and commit"*; [journal 10-30 (8)](journal/2026-10-30-8-the-standard-pieces.md)). In: square-one re-pinned to `v0.11.0`; exact pins; `fast-check` properties for both reducers (they found a real bug, fixed); ADRs 1000–1017 and the `project-conventions` / `stance-review` skills; tier recorded honestly as none yet; ADR-1012/1015 answered as Proposed ADRs 0066–0068. ⏳ **Still to take:** Ryan decides 0066–0068 · first stance review · tsconfig flags (179 type errors, dry run) · lint `strictTypeChecked` + the three rules (2,756 findings in 173 files, dry run) · TypeScript 6.0.x · then claim provable-lite
 
-> ### ▶ PICK UP HERE — 2026-10-31 (1) — the 38 failing tests, sorted
+> ### ▶ PICK UP HERE — 2026-10-31 (2) — the shoulder rides the torso; 27 bakes re-made
+>
+> [`journal/2026-10-31-2-the-shoulder-rides-the-torso.md`](journal/2026-10-31-2-the-shoulder-rides-the-torso.md)
+>
+> - `resizeBody`: an authored shoulder (Myco's) now moves with a growing torso's top, in emotes,
+>   accommodations and the solver. 3 findings resolved; the duck's overhead join is a new one.
+> - 27 bakes where Myco grows re-baked: Allemande level, twirl `meet` better, Star Thru mixed
+>   (worse on myco-myco 19.5 cm, myco-player 10.2 cm).
+> - Suite 1240 passed, 29 expected fail.
+>
+> ⏳ **Next:** Ryan: Myco's grown figures in `#review2`, worst first (Star Thru myco-myco,
+> myco-player); then the Star Thru keyframes. The voice test still waits on a noisy run.
+>
+> ---
+>
+> ### 2026-10-31 (1) — the 38 failing tests, sorted
 >
 > [`journal/2026-10-31-1-the-38-sorted.md`](journal/2026-10-31-1-the-38-sorted.md) · 🧪
 > uncommitted, for Ryan's look.

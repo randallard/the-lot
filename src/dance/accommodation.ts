@@ -43,7 +43,7 @@
  * and not about arches, which is the other half of why it belongs here.
  */
 
-import { SHAPE_BOUNDS, type CharacterBodyShape } from "../services/body-shapes";
+import { resizeBody, SHAPE_BOUNDS, type CharacterBodyShape } from "../services/body-shapes";
 
 /** How a pair accommodates a hold their bodies cannot make. */
 export type Accommodation = typeof RESHAPE | typeof BREAK;
@@ -89,7 +89,8 @@ export const NO_DELTAS: BodyDeltas = { beau: 0, belle: 0 };
 export function growBody(shape: CharacterBodyShape, delta: number): CharacterBodyShape {
   const { min, max } = SHAPE_BOUNDS.body.height;
   const height = Math.max(min, Math.min(max, shape.body.height + delta));
-  return { ...shape, body: { ...shape.body, height } };
+  // An authored shoulder rides the top (`resizeBody`, 10-31).
+  return resizeBody(shape, height, shape.body.radius);
 }
 
 /**
