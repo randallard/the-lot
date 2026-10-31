@@ -156,7 +156,10 @@ function ArmKfCard({ kf, onChange, onDelete, isActive, onSelect, label }: {
   );
 }
 
-const EYE_NUM_FIELDS: Array<{ key: keyof EyeShape; label: string; min: number; max: number; step: number }> = [
+/** The eye's numeric fields (not `irisColor`), which are the ones a slider can animate. */
+type EyeNumKey = { [K in keyof EyeShape]: EyeShape[K] extends number ? K : never }[keyof EyeShape];
+
+const EYE_NUM_FIELDS: Array<{ key: EyeNumKey; label: string; min: number; max: number; step: number }> = [
   { key: "width",       label: "width",      min: 0.03, max: 0.28, step: 0.005 },
   { key: "height",      label: "height",     min: 0.02, max: 0.18, step: 0.005 },
   { key: "irisSize",    label: "iris size",  min: 0.2,  max: 1.0,  step: 0.05  },
@@ -189,17 +192,17 @@ function EyeKfCard({ kf, onChange, onDelete, isActive, onSelect }: {
       </div>
       <SliderRow label="time (s)" value={kf.time} min={0} max={20} step={0.05} onChange={v => onChange({ ...kf, time: v })} />
       {EYE_NUM_FIELDS.filter(f => activeKeys.includes(f.key)).map(f => (
-        <div key={String(f.key)} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <div key={f.key} style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ flex: 1 }}>
             <SliderRow
               label={f.label}
-              value={(kf.override[f.key] as number) ?? 0}
+              value={kf.override[f.key] ?? 0}
               min={f.min} max={f.max} step={f.step}
               onChange={v => onChange({ ...kf, override: { ...kf.override, [f.key]: v } })}
             />
           </div>
           <button
-            onClick={e => { e.stopPropagation(); const next = { ...kf.override }; delete next[f.key]; onChange({ ...kf, override: next }); }}
+            onClick={e => { e.stopPropagation(); const { [f.key]: _cleared, ...next } = kf.override; onChange({ ...kf, override: next }); }}
             style={{ ...BTN, border: "none", color: "#553333", padding: "0 2px", marginBottom: 6 }}>×</button>
         </div>
       ))}
@@ -211,7 +214,7 @@ function EyeKfCard({ kf, onChange, onDelete, isActive, onSelect }: {
           style={{ width: "100%", background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 5, color: "#666", fontSize: 10, padding: "3px 6px", marginBottom: 6 }}
         >
           <option value="">+ add field…</option>
-          {addableFields.map(f => <option key={String(f.key)} value={String(f.key)}>{f.label}</option>)}
+          {addableFields.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
         </select>
       )}
       <p style={SUB}>easing</p>
