@@ -130,6 +130,18 @@ describe("the voice test's reducer, over arbitrary action sequences", () => {
     }));
   });
 
+  it("every trial keeps its results, in time order, ending with the final that closed it", () => {
+    fc.assert(fc.property(sessions, ({ states }) => {
+      for (const s of states) {
+        for (const t of s.trials) {
+          expect(t.results.length).toBeGreaterThan(0);
+          expect(t.results[t.results.length - 1]?.final).toBe(true);
+          for (let k = 1; k < t.results.length; k++) expect((t.results[k]?.at ?? 0) >= (t.results[k - 1]?.at ?? 0)).toBe(true);
+        }
+      }
+    }));
+  });
+
   it("segments are well formed: each ends after it starts, and only the last can be open", () => {
     fc.assert(fc.property(sessions, ({ states }) => {
       for (const s of states) {

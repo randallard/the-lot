@@ -8,23 +8,42 @@
  * - **Sound.** Each word becomes a rough phonetic key ({@link soundKey}: "passed" and "pass" are
  *   both `pas`, "squared" and "square" `skwar`), filler words a recogniser adds or drops ("a",
  *   "the", "to", "and") are left out, and a call is matched by edit distance between keys.
- * - **What's legal.** A loose match is only allowed for a call that is Standard from the formation
- *   the dancers are in (square-one's `callsFrom`), and each call heard moves the formation on
- *   (`endingsFrom`). So "view to the left" can be Veer Left from Eight Chain Thru, where there are
- *   18–33 candidates instead of 75. An exact spelling is still taken anywhere: a caller may call an
- *   Extended application.
+ * - **What's legal.** A call Standard from the formation the dancers are in (square-one's
+ *   `callsFrom`) may be heard more loosely (within {@link LOOSE}); any call may be heard within the
+ *   stricter {@link STRICT}; an exact spelling anywhere (a caller may call an Extended
+ *   application). Of those, the closest sound wins, and legality breaks a tie. Each call heard
+ *   moves the formation on (`endingsFrom`). So "view to the left" is Veer Left from Eight Chain
+ *   Thru. Legality used to be a gate, but a floor gone wrong (the noisy run, 10-30 (10)) then
+ *   refused a clear "Allaman left", and a poor legal match could beat a perfect illegal one.
  *
- * Where the formation isn't known (no start, or a call with no known ending), every call is a
- * candidate, but only within the stricter {@link STRICT}: "Allaman left", "California tour" and
- * "passed through" are close enough. "Dodo" (0.33 from Dosado) isn't heard anywhere: it's past
- * {@link LOOSE} too, and a two-syllable guess is the riskiest kind.
+ * Where the formation isn't known (no start, or a call with no known ending), only {@link STRICT}
+ * applies: "Allaman left", "California tour" and "passed through" are close enough. "Dodo" (0.33
+ * from Dosado) isn't heard anywhere: it's past {@link LOOSE} too, and a two-syllable guess is the
+ * riskiest kind.
+ *
+ * **Re-sync** (10-30 (10)): the noisy run's floor went unknown after Separate and never came back.
+ * Some calls end in one formation whatever they're danced from (Allemande Left, Right and Left
+ * Grand, Lead Right, Circle to a Line, Ferris Wheel…: {@link FIXED_ENDING}). Heard where the floor
+ * is unknown, or where they aren't Standard, they put the floor back.
  *
  * Pure, so it's tested on the runs' own transcripts.
  */
 
-import { callsFrom, endingsFrom, type ApplicationCallId, type FormationId } from "square-one";
+import { callsFrom, endingsFrom, STANDARD_APPLICATIONS, type ApplicationCallId, type FormationId, type StandardApplication } from "square-one";
 import { VOICE_CALLS, type VoiceCall } from "./call-vocabulary";
 import { normalise } from "./match-call";
+
+/**
+ * The calls every Standard Application of which ends in the same formation (and says so): wherever
+ * they're danced from, that's where they leave the dancers.
+ */
+export const FIXED_ENDING: ReadonlyMap<string, FormationId> = new Map(
+  Object.entries(STANDARD_APPLICATIONS).flatMap(([id, c]) => {
+    const ends = new Set((c.applications as readonly StandardApplication[]).map((a) => a.to));
+    const [only] = ends;
+    return ends.size === 1 && only !== undefined && only !== "same" ? [[id, only] as const] : [];
+  }),
+);
 
 /** Words a recogniser adds or drops around a call; never part of a key. */
 const FILLER = new Set(["a", "an", "the", "to", "and", "of", "your", "you", "with"]);
@@ -119,21 +138,31 @@ interface Best {
   readonly exact: boolean;
 }
 
-/** The best match starting at word `i`: an exact spelling of any call, else the closest allowed key. */
+/**
+ * The best match starting at word `i`. A call may match if it's spelled exactly, or sounds within
+ * {@link LOOSE} and is legal where the dancers are, or sounds within {@link STRICT} whatever the
+ * floor. Of those, the closest sound wins; then an exact spelling, then a legal call, then the
+ * longer. So legality lets a call be heard more loosely, but never outranks a closer sound: "veer
+ * lift" from two-faced lines is Veer Left (0.00, not legal there), not Veer Right (0.29, legal),
+ * and a floor gone wrong (the noisy run's lost "square") can't make "Allaman left" unhearable.
+ */
 function bestAt(said: readonly string[], i: number, legal: ReadonlySet<string> | null): Best | null {
-  const limit = legal === null ? STRICT : LOOSE;
-  let best: Best | null = null;
+  let best: (Best & { readonly legal: boolean }) | null = null;
   for (const s of SPELLINGS) {
+    const isLegal = legal?.has(s.call.id) ?? false;
     for (let n = Math.max(1, s.words.length - 1); n <= s.words.length + 1 && i + n <= said.length; n++) {
       const window = said.slice(i, i + n);
       const exact = n === s.words.length && window.every((w, j) => w === s.words[j]);
-      if (!exact && legal !== null && !legal.has(s.call.id)) continue;
       const key = keyOf(window);
       const d = exact ? 0 : editDistance(key, s.key) / Math.max(key.length, s.key.length, 1);
-      if (d > limit) continue;
-      // An exact spelling beats a sound at the same distance ("passed" vs "pass" are both 0).
-      const better = best === null || d < best.d || (d === best.d && exact && !best.exact) || (d === best.d && exact === best.exact && n > best.n);
-      if (better) best = { s, n, d, exact };
+      if (!exact && !(isLegal && d <= LOOSE) && d > STRICT) continue;
+      const better =
+        best === null ||
+        d < best.d ||
+        (d === best.d && exact !== best.exact ? exact
+          : d === best.d && isLegal !== best.legal ? isLegal
+          : d === best.d && n > best.n);
+      if (better) best = { s, n, d, exact, legal: isLegal };
     }
   }
   return best;
@@ -141,9 +170,9 @@ function bestAt(said: readonly string[], i: number, legal: ReadonlySet<string> |
 
 /**
  * Every call in a transcript, in order, heard by sound. Walks the words left to right; at each,
- * the best match starting there wins: an exact spelling of any call first, then the closest key
- * among the calls legal where the dancers are (within {@link LOOSE}; {@link STRICT} when that isn't
- * known), longer before shorter on a tie. A loose match is passed over when the next word starts
+ * the best match starting there wins (`bestAt`: closest sound, then exact, then legal, then
+ * longer). A call with a fixed ending re-syncs the floor when it's unknown or the call isn't
+ * Standard from it. A loose match is passed over when the next word starts
  * a closer one: "centers passed through" is Pass Thru from "passed", not a near-Zoom ("centers
  * zoom") from "centers". `start` is the formation the transcript begins in, or the formations it
  * could be (a live floor after a call with several endings); null when unknown.
@@ -163,8 +192,9 @@ export function hearCalls(transcript: string, start: FormationId | readonly Form
       continue;
     }
     const call = best.s.call.id as ApplicationCallId;
-    const next: FormationId[] | null = at === null ? null : [...new Set(at.flatMap((f) => endingsFrom(call, f)))];
-    const to = next === null || next.length === 0 ? null : next;
+    const next: FormationId[] = at === null ? [] : [...new Set(at.flatMap((f) => endingsFrom(call, f)))];
+    const fixed = FIXED_ENDING.get(call);
+    const to = next.length > 0 ? next : fixed === undefined ? null : [fixed];
     out.push({ call: best.s.call, words: said.slice(i, i + best.n).join(" "), exact: best.exact, distance: best.d, from: at?.[0] ?? null, to });
     i += best.n;
     at = to;

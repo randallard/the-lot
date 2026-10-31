@@ -6,7 +6,23 @@ _Last updated: 2026-10-30_
 
 **Standards:** last compliance review 2026-10-30 ([note](compliance/2026-10-30.md)), its gaps worked the same day (Ryan: *"all that and commit"*; [journal 10-30 (8)](journal/2026-10-30-8-the-standard-pieces.md)). In: square-one re-pinned to `v0.11.0`; exact pins; `fast-check` properties for both reducers (they found a real bug, fixed); ADRs 1000–1017 and the `project-conventions` / `stance-review` skills; tier recorded honestly as none yet; ADR-1012/1015 answered as Proposed ADRs 0066–0068. ⏳ **Still to take:** Ryan decides 0066–0068 · first stance review · tsconfig flags (179 type errors, dry run) · lint `strictTypeChecked` + the three rules (2,756 findings in 173 files, dry run) · TypeScript 6.0.x · then claim provable-lite (also needs CI's test job green: 38 known failures)
 
-> ### ▶ PICK UP HERE — 2026-10-30 (8) — the compliance gaps, worked; everything committed
+> ### ▶ PICK UP HERE — 2026-10-30 (10) — a noisy run; every result logged; the floor re-syncs
+>
+> [`journal/2026-10-30-10-noise-and-the-floor.md`](journal/2026-10-30-10-noise-and-the-floor.md) ·
+> 🧪 uncommitted, for Ryan's look.
+>
+> - Noisy, soft-voiced free run: 39 calls heard, but in long utterances they were named only at the
+>   final, 10–20 s late. Now every interim and final is kept on the trial (results file v3) to tell
+>   whether Safari stopped sending interims or a revision re-timed them.
+> - The floor re-syncs on calls with one ending everywhere (Allemande Left, Lead Right, Circle to a
+>   Line…); legality ranks matches instead of gating them. Replayed: floor known for 8 of 13 (was 2).
+> - The level meter fails in noise: latencies from that run aren't trustworthy. Not touched yet.
+>
+> ⏳ **Next:** Ryan: another noisy run; then read the interims; then the meter in noise.
+>
+> ---
+>
+> ### 2026-10-30 (8) — the compliance gaps, worked; everything committed
 >
 > [`journal/2026-10-30-8-the-standard-pieces.md`](journal/2026-10-30-8-the-standard-pieces.md) ·
 > square-one released `v0.11.0` and the-lot re-pinned to it; the 10-29 and 10-30 work committed.

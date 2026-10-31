@@ -246,7 +246,7 @@ export function VoiceTestScene() {
   }, []);
 
   const results = useMemo(
-    () => JSON.stringify({ format: "voice-test", version: 2, at: new Date().toISOString(), userAgent: navigator.userAgent, bpm: s.bpm, summary: sum, chainSummary: chainSum, trials: s.trials }, null, 1),
+    () => JSON.stringify({ format: "voice-test", version: 3, at: new Date().toISOString(), userAgent: navigator.userAgent, bpm: s.bpm, summary: sum, chainSummary: chainSum, trials: s.trials }, null, 1),
     [s.bpm, s.trials, sum, chainSum],
   );
   const download = () => {

@@ -32,6 +32,11 @@
  * or every call in the chain has been heard. A trial that does end mid-speech hands its open
  * segment to the next utterance, so that one still has a start.
  *
+ * **Every result is kept** (10-30 (10)): each interim and final, with its time and text, on the
+ * trial. The noisy run named nearly every call only when the final arrived, 10–20 s late, and
+ * without the interims there was no telling whether Safari stopped sending them or a revision of
+ * an early word re-timed everything after it.
+ *
  * **Calls are heard by sound** (`sound-alike.ts`), narrowed in chain mode by what's legal from the
  * chain's start and each call heard since.
  *
@@ -58,6 +63,13 @@ export interface Named {
   readonly from: FormationId | null;
   /** 0 for an exact spelling; otherwise how far its sound was. */
   readonly distance: number;
+}
+
+/** One result from the recogniser, as it came. */
+export interface Result {
+  readonly at: number;
+  readonly text: string;
+  readonly final: boolean;
 }
 
 /** A stretch of speech between pauses, by the level meter. `end` is null while still speaking. */
@@ -89,6 +101,8 @@ export interface Trial {
   readonly carried: number;
   /** Free mode: where the floor was when the utterance began (null: unknown, or not free mode). */
   readonly floor: readonly FormationId[] | null;
+  /** Every result the recogniser sent for this utterance, interim and final, in order. */
+  readonly results: readonly Result[];
 }
 
 interface Utterance {
@@ -102,6 +116,7 @@ interface Utterance {
   /** Chain mode: finals already heard in this trial, for matching (carry-over dropped) and as said. */
   readonly done: string;
   readonly said: string;
+  readonly results: readonly Result[];
 }
 
 export interface VoiceSession {
@@ -123,7 +138,7 @@ export interface VoiceSession {
 
 const SQUARE: readonly FormationId[] = ["squared-set"];
 
-const QUIET: Utterance = { speechStart: null, speechEnd: null, firstMatchAt: null, early: null, interim: "", named: [], segments: [], done: "", said: "" };
+const QUIET: Utterance = { speechStart: null, speechEnd: null, firstMatchAt: null, early: null, interim: "", named: [], segments: [], done: "", said: "", results: [] };
 
 export const initialSession = (target: string | null, engine: string): VoiceSession => ({
   trials: [],
@@ -204,6 +219,7 @@ export function reduce(s: VoiceSession, a: VoiceAction): VoiceSession {
         firstMatchAt: first ? a.at : s.now.firstMatchAt,
         early: first ? m.call.id : s.now.early,
         named: rename(s.now.named, heard.map((h) => ({ id: h.call.id, exact: h.exact, distance: h.distance, from: h.from })), a.at),
+        results: [...s.now.results, { at: a.at, text: a.transcript, final: a.final }],
       };
       if (!a.final) return { ...s, now };
       const open = now.segments[now.segments.length - 1]?.end === null;
@@ -229,6 +245,7 @@ export function reduce(s: VoiceSession, a: VoiceAction): VoiceSession {
         segments: now.segments,
         carried,
         floor,
+        results: now.results,
       };
       // The floor moves on with the utterance's last call; one that heard nothing leaves it.
       const last = heard[heard.length - 1];

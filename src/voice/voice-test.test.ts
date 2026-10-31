@@ -3,7 +3,7 @@ import { callsFrom, endingsFrom, STANDARD_APPLICATIONS, type ApplicationCallId, 
 import { VOICE_CALLS } from "./call-vocabulary";
 import { inOrder, makeChain, nextSteps, type ChainPrompt } from "./chain";
 import { matchCall, matchCalls, normalise } from "./match-call";
-import { editDistance, hearCalls, soundKey } from "./sound-alike";
+import { editDistance, FIXED_ENDING, hearCalls, soundKey } from "./sound-alike";
 import {
   dropCarry, initialSession, perCallLatency, reduce, spread, summarise, summariseChains, type VoiceAction, type VoiceSession,
 } from "./voice-test-session";
@@ -68,6 +68,7 @@ describe("the voice test's session", () => {
       {
         target: "dosado", transcript: "do sa do", matched: "dosado", early: "dosado", speechStart: 1000, speechEnd: 1500, firstMatchAt: 1450, finalAt: 1900, engine: "web-speech",
         chain: null, calls: [{ id: "dosado", at: 1450, exact: true, distance: 0, from: null }], segments: [{ start: 1000, end: 1500 }], carried: 0, floor: null,
+        results: [{ at: 1200, text: "do", final: false }, { at: 1450, text: "do sa do", final: false }, { at: 1900, text: "do sa do", final: true }],
       },
     ]);
     const sum = summarise(s);
@@ -301,12 +302,20 @@ describe("sound-alike: calls heard by how they sound, narrowed by what's legal",
     for (const [said, asked] of RUN) expect(ids(said, "squared-set"), said).toEqual(asked);
   });
 
-  it("a loose call outside what's legal is refused; inside, it's taken", () => {
-    expect(ids("bend the lion", "squared-set")).toEqual([]);
-    expect(ids("bend the lion", "rh-two-faced-lines")).toEqual(["bend-the-line"]);
-    // Close to two calls, legal for one: "ferry wheel" from a Static Square is Flutterwheel.
-    expect(ids("ferry wheel", "squared-set")).toEqual(["flutterwheel"]);
-    expect(ids("ferry wheel", "rh-two-faced-lines")).toEqual(["ferris-wheel"]);
+  it("between the limits, legality decides: \"promenading\" (0.27 from Promenade)", () => {
+    expect(ids("promenading", "squared-set")).toEqual(["promenade"]);
+    expect(ids("promenading", "rh-two-faced-lines")).toEqual([]);
+  });
+
+  it("a close enough sound is heard anywhere, and the closest sound wins over a legal one", () => {
+    // Bend the Line isn't legal from a Static Square, but "lion" sounds exactly like "line".
+    expect(ids("bend the lion", "squared-set")).toEqual(["bend-the-line"]);
+    // From two-faced lines Veer Right is legal (0.29) and Veer Left isn't, but "lift" is "left".
+    expect(ids("veer lift", "rh-two-faced-lines")).toEqual(["veer-left"]);
+    // "ferry wheel": Ferris Wheel (0.11) over Flutterwheel (0.30, legal from a Static Square).
+    expect(ids("ferry wheel", "squared-set")).toEqual(["ferris-wheel"]);
+    // The noisy run (10-30 (10)): a floor gone wrong doesn't make a clear sound unhearable.
+    expect(ids("Through three Allaman left", "double-pass-thru")).toEqual(["allemande-left"]);
   });
 
   it("an exact spelling is taken anywhere: a caller may call an Extended application", () => {
@@ -379,6 +388,65 @@ describe("a chain isn't split by an early final", () => {
   it("outside chain mode a final still ends the trial", () => {
     const s = run(initialSession("pass-thru", "web-speech"), { type: "listening", on: true }, { type: "speech-start", at: 0 }, { type: "heard", transcript: "pass thru", final: true, at: 900 });
     expect(s.trials).toHaveLength(1);
+  });
+});
+
+describe("re-sync: a call with one ending everywhere puts an unknown floor back (10-30 (10))", () => {
+  it("the noisy run's calls that always end in one place qualify", () => {
+    expect(FIXED_ENDING.get("allemande-left")).toBe("rlg-circle");
+    expect(FIXED_ENDING.get("lead-right")).toBe("eight-chain-thru");
+    expect(FIXED_ENDING.get("circle-to-a-line")).toBe("facing-lines");
+    expect(FIXED_ENDING.get("ferris-wheel")).toBe("double-pass-thru");
+    // Not a call that keeps the formation, or one with an ending that depends.
+    expect(FIXED_ENDING.has("dosado")).toBe(false);
+    expect(FIXED_ENDING.has("separate")).toBe(false);
+  });
+
+  it("after Separate the floor is unknown; Allemande Left brings it back", () => {
+    const heard = hearCalls("heads separate around one to a line pass thru allemande left", "squared-set");
+    expect(heard.map((h) => h.to)).toEqual([null, null, ["rlg-circle"]]);
+  });
+
+  it("a call that isn't Standard where the floor is still re-syncs, if its ending is fixed", () => {
+    // Circle to a Line is Standard only from Eight Chain Thru, but it always ends in facing lines.
+    expect(hearCalls("circle to a line", "rh-parallel-waves")[0]?.to).toEqual(["facing-lines"]);
+  });
+
+  it("in free mode, the floor comes back on the next utterance", () => {
+    let s = run(initialSession(null, "web-speech"), { type: "listening", on: true }, { type: "mode", mode: "free" });
+    s = run(s, { type: "heard", transcript: "heads separate around one to a line", final: true, at: 100 });
+    expect(s.floor).toBeNull();
+    s = run(s, { type: "heard", transcript: "allemande left", final: true, at: 900 });
+    expect(s.floor).toEqual(["rlg-circle"]);
+  });
+});
+
+describe("every recogniser result is kept on the trial (10-30 (10))", () => {
+  it("interims and the final, in order, with their times", () => {
+    const s = run(
+      initialSession(null, "web-speech"),
+      { type: "listening", on: true },
+      { type: "mode", mode: "free" },
+      { type: "heard", transcript: "head star", final: false, at: 100 },
+      { type: "heard", transcript: "heads star thru", final: false, at: 300 },
+      { type: "heard", transcript: "Heads star thru.", final: true, at: 2000 },
+    );
+    expect(s.trials[0]?.results.map((r) => [r.at, r.final])).toEqual([[100, false], [300, false], [2000, true]]);
+  });
+
+  it("a chain held open by an early final keeps the results from both parts", () => {
+    const s = run(
+      initialSession(null, "web-speech"),
+      { type: "listening", on: true },
+      { type: "mode", mode: "chain" },
+      { type: "chain", chain: { start: "squared-set", steps: [{ id: "lead-right", say: "heads lead right", to: "eight-chain-thru" }, { id: "pass-thru", say: "pass thru", to: "trade-by" }] } },
+      { type: "speech-start", at: 0 },
+      { type: "heard", transcript: "heads lead right", final: true, at: 900 },
+      { type: "speech-end", at: 1500 },
+      { type: "heard", transcript: "pass thru", final: true, at: 2500 },
+    );
+    expect(s.trials).toHaveLength(1);
+    expect(s.trials[0]?.results.map((r) => r.text)).toEqual(["heads lead right", "pass thru"]);
   });
 });
 
