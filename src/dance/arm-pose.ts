@@ -1014,6 +1014,12 @@ const _F = vec3();
 const _Ftrial = vec3();
 /** The 3×3 Jacobian of `F`, row-major: `_jac[r * 3 + c]` is `∂F_r / ∂off_c`. */
 const _jac = new Float64Array(9);
+/** A checked read, as in `whole-move.ts` (10-31 (7)): throws naming the index rather than passing `undefined` on. */
+const rd = (arr: Float64Array, i: number): number => {
+  const x = arr[i];
+  if (x === undefined) throw new RangeError(`arm-pose: index ${String(i)} outside ${String(arr.length)}`);
+  return x;
+};
 
 /**
  * How many passes {@link settleTouch} gets to settle its wrist.
@@ -1218,9 +1224,11 @@ function settleTouch(
       _jac[6 + c] = (_Ftrial.z - _F.z) / SETTLE_DIFF;
     }
 
-    const [a, b, c2, d, e, f, g2, h2, i2] = _jac as unknown as number[];
+    const a = rd(_jac, 0), b = rd(_jac, 1), c2 = rd(_jac, 2);
+    const d = rd(_jac, 3), e = rd(_jac, 4), f = rd(_jac, 5);
+    const g2 = rd(_jac, 6), h2 = rd(_jac, 7), i2 = rd(_jac, 8);
     const det =
-      a! * (e! * i2! - f! * h2!) - b! * (d! * i2! - f! * g2!) + c2! * (d! * h2! - e! * g2!);
+      a * (e * i2 - f * h2) - b * (d * i2 - f * g2) + c2 * (d * h2 - e * g2);
 
     // Solve `J · step = −F`. A singular Jacobian means Newton has nothing to say here, so
     // fall back to the steepest sensible thing — a step along `−F` itself, which is the old
@@ -1234,9 +1242,9 @@ function settleTouch(
       const rx = -_F.x;
       const ry = -_F.y;
       const rz = -_F.z;
-      sx = (rx * (e! * i2! - f! * h2!) - b! * (ry * i2! - f! * rz) + c2! * (ry * h2! - e! * rz)) / det;
-      sy = (a! * (ry * i2! - f! * rz) - rx * (d! * i2! - f! * g2!) + c2! * (d! * rz - ry * g2!)) / det;
-      sz = (a! * (e! * rz - ry * h2!) - b! * (d! * rz - ry * g2!) + rx * (d! * h2! - e! * g2!)) / det;
+      sx = (rx * (e * i2 - f * h2) - b * (ry * i2 - f * rz) + c2 * (ry * h2 - e * rz)) / det;
+      sy = (a * (ry * i2 - f * rz) - rx * (d * i2 - f * g2) + c2 * (d * rz - ry * g2)) / det;
+      sz = (a * (e * rz - ry * h2) - b * (d * rz - ry * g2) + rx * (d * h2 - e * g2)) / det;
     }
 
     let stepped = false;
