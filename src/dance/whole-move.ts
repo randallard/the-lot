@@ -169,11 +169,22 @@ const dot = (a: Vec, b: Vec) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const len = (a: Vec) => Math.sqrt(dot(a, a));
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 /**
- * An indexed read the solver's arithmetic keeps in range (a flat buffer of points, a gradient,
- * a Jacobian). Under `noUncheckedIndexedAccess` the read is `number | undefined`; this says it
- * isn't, and throws if the arithmetic is ever wrong, where a `!` would let `NaN` through.
+ * Indexed reads the solver's arithmetic keeps in range. Under `noUncheckedIndexedAccess` a read
+ * is `T | undefined`; these say it isn't, and throw if the arithmetic is ever wrong, where a `!`
+ * would let `NaN` (or a missing body) through.
+ *
+ * Two functions, not one generic: each read site in a hot loop must see one kind of array, or V8
+ * stops optimising it. `rd` is for Float64Arrays, `nth` for ordinary arrays. And not exported:
+ * `whole-move-n.ts` restates them, because an imported call in a hot loop goes through the module
+ * namespace under vite-node, which the bakes run on. Shared, a four-dancer bake ran 4–5× slower
+ * (10-31 (8)).
  */
-const rd = (a: ArrayLike<number>, i: number): number => {
+const rd = (a: Float64Array, i: number): number => {
+  const x = a[i];
+  if (x === undefined) throw new RangeError(`whole-move: index ${String(i)} outside ${String(a.length)}`);
+  return x;
+};
+const nth = <T>(a: readonly T[], i: number): T => {
   const x = a[i];
   if (x === undefined) throw new RangeError(`whole-move: index ${String(i)} outside ${String(a.length)}`);
   return x;
@@ -1083,8 +1094,8 @@ export function frameCostGrad(
   }
   let cost = 0;
   const pen = (da: number, sa: number, db: number, sb: number, margin: number) => {
-    const p1 = (da * NPT + rd(SHAPE_PTS, sa * 2)) * 3, q1 = (da * NPT + rd(SHAPE_PTS, sa * 2 + 1)) * 3;
-    const p2 = (db * NPT + rd(SHAPE_PTS, sb * 2)) * 3, q2 = (db * NPT + rd(SHAPE_PTS, sb * 2 + 1)) * 3;
+    const p1 = (da * NPT + nth(SHAPE_PTS, sa * 2)) * 3, q1 = (da * NPT + nth(SHAPE_PTS, sa * 2 + 1)) * 3;
+    const p2 = (db * NPT + nth(SHAPE_PTS, sb * 2)) * 3, q2 = (db * NPT + nth(SHAPE_PTS, sb * 2 + 1)) * 3;
     const dist = segSegAt(p1, q1, p2, q2);
     const over = rd(SHAPE_R, da * 8 + sa) + rd(SHAPE_R, db * 8 + sb) + margin - dist;
     if (over <= 0) return;

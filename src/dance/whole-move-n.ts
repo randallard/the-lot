@@ -80,6 +80,18 @@ const METRE = 3;
 const isMetric = (k: number) => k >= 12 || k % 6 === 2 || k % 6 === 5;
 const sign = (side: 0 | 1) => (side === 0 ? 1 : -1);
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
+// `whole-move.ts`'s checked reads, restated here rather than imported: an imported call in a hot
+// loop goes through the module namespace under vite-node, which the bakes run on (10-31 (8)).
+const rd = (a: Float64Array, i: number): number => {
+  const x = a[i];
+  if (x === undefined) throw new RangeError(`whole-move-n: index ${String(i)} outside ${String(a.length)}`);
+  return x;
+};
+const nth = <T>(a: readonly T[], i: number): T => {
+  const x = a[i];
+  if (x === undefined) throw new RangeError(`whole-move-n: index ${String(i)} outside ${String(a.length)}`);
+  return x;
+};
 const isBack = (b: NHold["b"]): b is BackRef => "back" in b;
 
 /**
@@ -193,9 +205,9 @@ let segT = 0;
 const SEG_N = new Float64Array(3);
 
 function segSegAt(P: Float64Array, p1: number, q1: number, p2: number, q2: number): number {
-  const d1x = P[q1]! - P[p1]!, d1y = P[q1 + 1]! - P[p1 + 1]!, d1z = P[q1 + 2]! - P[p1 + 2]!;
-  const d2x = P[q2]! - P[p2]!, d2y = P[q2 + 1]! - P[p2 + 1]!, d2z = P[q2 + 2]! - P[p2 + 2]!;
-  const rx = P[p1]! - P[p2]!, ry = P[p1 + 1]! - P[p2 + 1]!, rz = P[p1 + 2]! - P[p2 + 2]!;
+  const d1x = rd(P, q1) - rd(P, p1), d1y = rd(P, q1 + 1) - rd(P, p1 + 1), d1z = rd(P, q1 + 2) - rd(P, p1 + 2);
+  const d2x = rd(P, q2) - rd(P, p2), d2y = rd(P, q2 + 1) - rd(P, p2 + 1), d2z = rd(P, q2 + 2) - rd(P, p2 + 2);
+  const rx = rd(P, p1) - rd(P, p2), ry = rd(P, p1 + 1) - rd(P, p2 + 1), rz = rd(P, p1 + 2) - rd(P, p2 + 2);
   const a = d1x * d1x + d1y * d1y + d1z * d1z;
   const e = d2x * d2x + d2y * d2y + d2z * d2z;
   const f = d2x * rx + d2y * ry + d2z * rz;
@@ -251,26 +263,26 @@ function scratch(nd: number): void {
 }
 
 const addPt = (p: number, k: number, x: number, y: number, z: number) => {
-  GPT[p] = GPT[p]! + k * x;
-  GPT[p + 1] = GPT[p + 1]! + k * y;
-  GPT[p + 2] = GPT[p + 2]! + k * z;
+  GPT[p] = rd(GPT, p) + k * x;
+  GPT[p + 1] = rd(GPT, p + 1) + k * y;
+  GPT[p + 2] = rd(GPT, p + 2) + k * z;
 };
 
 /** Sample `i`'s cost, its gradient added into `grad` (when given). */
 function frameCostN(m: NMove, plan: Plan, i: number, v: Float64Array, w: Weights, grad?: Float64Array): number {
   const nd = m.bodies.length;
-  const base = m.frames[i]!;
+  const base = nth(m.frames, i);
   scratch(nd);
   GPT.fill(0);
   // Forward.
   for (let d = 0; d < nd; d++) {
-    const b = m.bodies[d]!;
-    const f = base[d]!;
+    const b = nth(m.bodies, d);
+    const f = nth(base, d);
     const o = (i * nd + d) * PER_DANCER;
     const c = Math.cos(f.yaw);
     const s = Math.sin(f.yaw);
-    const tx = f.x + v[o + 12]!;
-    const tz = f.z + v[o + 13]!;
+    const tx = f.x + rd(v, o + 12);
+    const tz = f.z + rd(v, o + 13);
     const put = (p: number, x: number, y: number, z: number) => {
       const j = (d * NPT + p) * 3;
       PTS[j] = x * c + z * s + tx;
@@ -283,7 +295,7 @@ function frameCostN(m: NMove, plan: Plan, i: number, v: Float64Array, w: Weights
     put(11, ...backPoint(b));
     for (let sd = 0; sd < 2; sd++) {
       const k = o + sd * 6;
-      const raise = v[k]!, toward = v[k + 1]!, ulen = v[k + 2]!, pitch = v[k + 3]!, heading = v[k + 4]!, flen = v[k + 5]!;
+      const raise = rd(v, k), toward = rd(v, k + 1), ulen = rd(v, k + 2), pitch = rd(v, k + 3), heading = rd(v, k + 4), flen = rd(v, k + 5);
       const S = b.shoulder[sd as 0 | 1];
       const g = sign(sd as 0 | 1);
       const sr = Math.sin(raise), cr = Math.cos(raise), st = Math.sin(toward), ct = Math.cos(toward);
@@ -311,14 +323,14 @@ function frameCostN(m: NMove, plan: Plan, i: number, v: Float64Array, w: Weights
 
   let cost = 0;
   const pen = (da: number, sa: number, db: number, sb: number, margin: number) => {
-    const p1 = (da * NPT + SHAPE_PTS[sa * 2]!) * 3, q1 = (da * NPT + SHAPE_PTS[sa * 2 + 1]!) * 3;
-    const p2 = (db * NPT + SHAPE_PTS[sb * 2]!) * 3, q2 = (db * NPT + SHAPE_PTS[sb * 2 + 1]!) * 3;
+    const p1 = (da * NPT + nth(SHAPE_PTS, sa * 2)) * 3, q1 = (da * NPT + nth(SHAPE_PTS, sa * 2 + 1)) * 3;
+    const p2 = (db * NPT + nth(SHAPE_PTS, sb * 2)) * 3, q2 = (db * NPT + nth(SHAPE_PTS, sb * 2 + 1)) * 3;
     const dist = segSegAt(PTS, p1, q1, p2, q2);
-    const over = RAD[da * 8 + sa]! + RAD[db * 8 + sb]! + margin - dist;
+    const over = rd(RAD, da * 8 + sa) + rd(RAD, db * 8 + sb) + margin - dist;
     if (over <= 0) return;
     cost += w.clip * over * over;
     const k = -2 * w.clip * over;
-    const nx = SEG_N[0]!, ny = SEG_N[1]!, nz = SEG_N[2]!;
+    const nx = rd(SEG_N, 0), ny = rd(SEG_N, 1), nz = rd(SEG_N, 2);
     addPt(p1, k * (1 - segS), nx, ny, nz);
     addPt(q1, k * segS, nx, ny, nz);
     addPt(p2, -k * (1 - segT), nx, ny, nz);
@@ -327,8 +339,8 @@ function frameCostN(m: NMove, plan: Plan, i: number, v: Float64Array, w: Weights
   const held = Math.min(w.margin, HELD_MARGIN);
   for (let d = 0; d < nd; d++) for (let e = d + 1; e < nd; e++) {
     // Torsos too far apart for anything to touch: skip the pair (arms reach under 1.2 m a side).
-    const dx = PTS[d * NPT * 3]! - PTS[e * NPT * 3]!;
-    const dz = PTS[d * NPT * 3 + 2]! - PTS[e * NPT * 3 + 2]!;
+    const dx = rd(PTS, d * NPT * 3) - rd(PTS, e * NPT * 3);
+    const dz = rd(PTS, d * NPT * 3 + 2) - rd(PTS, e * NPT * 3 + 2);
     if (dx * dx + dz * dz > 2.6 * 2.6) continue;
     const mat = plan.exempt.get(d * nd + e);
     for (let a = 0; a < 8; a++) for (let b = 0; b < 8; b++) {
@@ -336,23 +348,23 @@ function frameCostN(m: NMove, plan: Plan, i: number, v: Float64Array, w: Weights
       if (x !== 1) pen(d, a, e, b, x === 2 ? held : w.margin);
     }
   }
-  for (let d = 0; d < nd; d++) for (let s = 2; s < 8; s++) for (const own of [0, 1] as const) pen(d, s, d, own, ownMargin(m.bodies[d]!, s, own, w.margin));
+  for (let d = 0; d < nd; d++) for (let s = 2; s < 8; s++) for (const own of [0, 1] as const) pen(d, s, d, own, ownMargin(nth(m.bodies, d), s, own, w.margin));
   // Hands above the floor.
   for (let d = 0; d < nd; d++) for (let sd = 0; sd < 2; sd++) {
     const p = (d * NPT + 6 + 4 * sd) * 3;
-    const under = m.bodies[d]!.handR - PTS[p + 1]!;
+    const under = nth(m.bodies, d).handR - rd(PTS, p + 1);
     if (under > 0) {
       cost += w.clip * under * under;
-      GPT[p + 1] = GPT[p + 1]! - 2 * w.clip * under;
+      GPT[p + 1] = rd(GPT, p + 1) - 2 * w.clip * under;
     }
   }
   // Holds.
   for (const h of plan.holds) {
     const pa = (h.a.dancer * NPT + 6 + 4 * h.a.side) * 3;
     const pb = isBack(h.b) ? (h.b.dancer * NPT + 11) * 3 : (h.b.dancer * NPT + 6 + 4 * h.b.side) * 3;
-    const ra = m.bodies[h.a.dancer]!.handR;
-    const want = isBack(h.b) ? ra : w.clasp * (ra + m.bodies[h.b.dancer]!.handR);
-    const x = PTS[pa]! - PTS[pb]!, y = PTS[pa + 1]! - PTS[pb + 1]!, z = PTS[pa + 2]! - PTS[pb + 2]!;
+    const ra = nth(m.bodies, h.a.dancer).handR;
+    const want = isBack(h.b) ? ra : w.clasp * (ra + nth(m.bodies, h.b.dancer).handR);
+    const x = rd(PTS, pa) - rd(PTS, pb), y = rd(PTS, pa + 1) - rd(PTS, pb + 1), z = rd(PTS, pa + 2) - rd(PTS, pb + 2);
     const dist = Math.sqrt(x * x + y * y + z * z);
     const wh = w.hold * (h.weight ?? 1);
     cost += wh * (dist - want) * (dist - want);
@@ -365,10 +377,10 @@ function frameCostN(m: NMove, plan: Plan, i: number, v: Float64Array, w: Weights
       // The hands' midpoint to the shoulders' midpoint and `forward` on, on the floor.
       const sa = (h.a.dancer * NPT + 3 + 4 * h.a.side) * 3;
       const sb = (h.b.dancer * NPT + 3 + 4 * h.b.side) * 3;
-      const ya = base[h.a.dancer]!.yaw, yb = base[h.b.dancer]!.yaw;
+      const ya = nth(base, h.a.dancer).yaw, yb = nth(base, h.b.dancer).yaw;
       const fx = (Math.sin(ya) + Math.sin(yb)) / 2, fz = (Math.cos(ya) + Math.cos(yb)) / 2;
-      const ex = (PTS[pa]! + PTS[pb]! - PTS[sa]! - PTS[sb]!) / 2 - h.forward * fx;
-      const ez = (PTS[pa + 2]! + PTS[pb + 2]! - PTS[sa + 2]! - PTS[sb + 2]!) / 2 - h.forward * fz;
+      const ex = (rd(PTS, pa) + rd(PTS, pb) - rd(PTS, sa) - rd(PTS, sb)) / 2 - h.forward * fx;
+      const ez = (rd(PTS, pa + 2) + rd(PTS, pb + 2) - rd(PTS, sa + 2) - rd(PTS, sb + 2)) / 2 - h.forward * fz;
       cost += wh * (ex * ex + ez * ez);
       addPt(pa, wh, ex, 0, ez);
       addPt(pb, wh, ex, 0, ez);
@@ -379,46 +391,46 @@ function frameCostN(m: NMove, plan: Plan, i: number, v: Float64Array, w: Weights
       // still out from the courtesy turn, crossed his (10-28).
       const wk = HANG * wh;
       for (const [s, e] of [[sa, sa + 3], [sb, sb + 3]] as const) {
-        const hx = PTS[e]! - PTS[s]!, hz = PTS[e + 2]! - PTS[s + 2]!;
+        const hx = rd(PTS, e) - rd(PTS, s), hz = rd(PTS, e + 2) - rd(PTS, s + 2);
         cost += wk * (hx * hx + hz * hz);
         addPt(e, 2 * wk, hx, 0, hz);
         addPt(s, -2 * wk, hx, 0, hz);
       }
     }
     if (h.height !== undefined) for (const p of isBack(h.b) ? [pa] : [pa, pb]) {
-      const dy = PTS[p + 1]! - h.height;
+      const dy = rd(PTS, p + 1) - h.height;
       cost += wh * dy * dy;
-      GPT[p + 1] = GPT[p + 1]! + 2 * wh * dy;
+      GPT[p + 1] = rd(GPT, p + 1) + 2 * wh * dy;
     }
   }
   // Natural, on the dials.
   for (let d = 0; d < nd; d++) {
-    const b = m.bodies[d]!;
+    const b = nth(m.bodies, d);
     const o = (i * nd + d) * PER_DANCER;
     for (let sd = 0; sd < 2; sd++) {
       const k = o + sd * 6;
-      const raise = v[k]!, toward = v[k + 1]!, ulen = v[k + 2]!, pitch = v[k + 3]!, heading = v[k + 4]!, flen = v[k + 5]!;
+      const raise = rd(v, k), toward = rd(v, k + 1), ulen = rd(v, k + 2), pitch = rd(v, k + 3), heading = rd(v, k + 4), flen = rd(v, k + 5);
       const su = ulen / b.upper0 - 1;
       const sf = flen / b.fore0 - 1;
       cost += w.stretch * (su * su + sf * sf);
       if (grad) {
-        grad[k + 2] = grad[k + 2]! + (2 * w.stretch * su) / b.upper0;
-        grad[k + 5] = grad[k + 5]! + (2 * w.stretch * sf) / b.fore0;
+        grad[k + 2] = rd(grad, k + 2) + (2 * w.stretch * su) / b.upper0;
+        grad[k + 5] = rd(grad, k + 5) + (2 * w.stretch * sf) / b.fore0;
       }
       if (plan.heldArm[d * 2 + sd] === true) {
         const pe = (d * NPT + 4 + 4 * sd) * 3;
         const ph = (d * NPT + 6 + 4 * sd) * 3;
-        cost += w.gravity * (PTS[pe + 1]! + PTS[ph + 1]! - 2 * b.shoulder[0][1]);
-        GPT[pe + 1] = GPT[pe + 1]! + w.gravity;
-        GPT[ph + 1] = GPT[ph + 1]! + w.gravity;
+        cost += w.gravity * (rd(PTS, pe + 1) + rd(PTS, ph + 1) - 2 * b.shoulder[0][1]);
+        GPT[pe + 1] = rd(GPT, pe + 1) + w.gravity;
+        GPT[ph + 1] = rd(GPT, ph + 1) + w.gravity;
       } else {
         const dp = pitch + Math.PI / 2;
         cost += w.rest * (raise * raise + dp * dp + 0.1 * (heading * heading + toward * toward));
         if (grad) {
-          grad[k] = grad[k]! + 2 * w.rest * raise;
-          grad[k + 1] = grad[k + 1]! + 0.2 * w.rest * toward;
-          grad[k + 3] = grad[k + 3]! + 2 * w.rest * dp;
-          grad[k + 4] = grad[k + 4]! + 0.2 * w.rest * heading;
+          grad[k] = rd(grad, k) + 2 * w.rest * raise;
+          grad[k + 1] = rd(grad, k + 1) + 0.2 * w.rest * toward;
+          grad[k + 3] = rd(grad, k + 3) + 2 * w.rest * dp;
+          grad[k + 4] = rd(grad, k + 4) + 0.2 * w.rest * heading;
         }
       }
       const back = -Math.sin(raise) * Math.cos(toward);
@@ -426,17 +438,17 @@ function frameCostN(m: NMove, plan: Plan, i: number, v: Float64Array, w: Weights
         cost += w.range * (back - 0.3) ** 2;
         if (grad) {
           const g = 2 * w.range * (back - 0.3);
-          grad[k] = grad[k]! - g * Math.cos(raise) * Math.cos(toward);
-          grad[k + 1] = grad[k + 1]! + g * Math.sin(raise) * Math.sin(toward);
+          grad[k] = rd(grad, k) - g * Math.cos(raise) * Math.cos(toward);
+          grad[k + 1] = rd(grad, k + 1) + g * Math.sin(raise) * Math.sin(toward);
         }
       }
       const range = (x: number, lo: number, hi: number, at: number) => {
         if (x < lo) {
           cost += w.range * (x - lo) ** 2;
-          if (grad) grad[at] = grad[at]! + 2 * w.range * (x - lo);
+          if (grad) grad[at] = rd(grad, at) + 2 * w.range * (x - lo);
         } else if (x > hi) {
           cost += w.range * (x - hi) ** 2;
-          if (grad) grad[at] = grad[at]! + 2 * w.range * (x - hi);
+          if (grad) grad[at] = rd(grad, at) + 2 * w.range * (x - hi);
         }
       };
       range(raise, 0, Math.PI, k);
@@ -446,8 +458,8 @@ function frameCostN(m: NMove, plan: Plan, i: number, v: Float64Array, w: Weights
   if (!grad) return cost;
   // Back: points → dials and steps.
   for (let d = 0; d < nd; d++) {
-    const b = m.bodies[d]!;
-    const f = base[d]!;
+    const b = nth(m.bodies, d);
+    const f = nth(base, d);
     const o = (i * nd + d) * PER_DANCER;
     const c = Math.cos(f.yaw);
     const s = Math.sin(f.yaw);
@@ -455,32 +467,32 @@ function frameCostN(m: NMove, plan: Plan, i: number, v: Float64Array, w: Weights
     let sumZ = 0;
     for (let p = 0; p < NPT; p++) {
       const j = (d * NPT + p) * 3;
-      const gx = GPT[j]!, gz = GPT[j + 2]!;
+      const gx = rd(GPT, j), gz = rd(GPT, j + 2);
       sumX += gx;
       sumZ += gz;
       GPT[j] = gx * c - gz * s;
       GPT[j + 2] = gx * s + gz * c;
     }
-    grad[o + 12] = grad[o + 12]! + sumX;
-    grad[o + 13] = grad[o + 13]! + sumZ;
+    grad[o + 12] = rd(grad, o + 12) + sumX;
+    grad[o + 13] = rd(grad, o + 13) + sumZ;
     for (let sd = 0; sd < 2; sd++) {
       const k = o + sd * 6;
-      const flen = v[k + 5]!;
+      const flen = rd(v, k + 5);
       const J = (d * 2 + sd) * 18;
       const je = (d * NPT + 4 + 4 * sd) * 3;
       const jw = je + 3;
       const jh = je + 6;
-      const Sx = GPT[je]! + GPT[jw]! + GPT[jh]!;
-      const Sy = GPT[je + 1]! + GPT[jw + 1]! + GPT[jh + 1]!;
-      const Sz = GPT[je + 2]! + GPT[jw + 2]! + GPT[jh + 2]!;
-      grad[k] = grad[k]! + Sx * JAC[J]! + Sy * JAC[J + 1]! + Sz * JAC[J + 2]!;
-      grad[k + 1] = grad[k + 1]! + Sx * JAC[J + 3]! + Sy * JAC[J + 4]! + Sz * JAC[J + 5]!;
-      grad[k + 2] = grad[k + 2]! + Sx * JAC[J + 6]! + Sy * JAC[J + 7]! + Sz * JAC[J + 8]!;
+      const Sx = rd(GPT, je) + rd(GPT, jw) + rd(GPT, jh);
+      const Sy = rd(GPT, je + 1) + rd(GPT, jw + 1) + rd(GPT, jh + 1);
+      const Sz = rd(GPT, je + 2) + rd(GPT, jw + 2) + rd(GPT, jh + 2);
+      grad[k] = rd(grad, k) + Sx * rd(JAC, J) + Sy * rd(JAC, J + 1) + Sz * rd(JAC, J + 2);
+      grad[k + 1] = rd(grad, k + 1) + Sx * rd(JAC, J + 3) + Sy * rd(JAC, J + 4) + Sz * rd(JAC, J + 5);
+      grad[k + 2] = rd(grad, k + 2) + Sx * rd(JAC, J + 6) + Sy * rd(JAC, J + 7) + Sz * rd(JAC, J + 8);
       const kl = b.forearm / b.fore0;
-      const Tx = GPT[jw]! * kl + GPT[jh]!, Ty = GPT[jw + 1]! * kl + GPT[jh + 1]!, Tz = GPT[jw + 2]! * kl + GPT[jh + 2]!;
-      grad[k + 3] = grad[k + 3]! + flen * (Tx * JAC[J + 12]! + Ty * JAC[J + 13]! + Tz * JAC[J + 14]!);
-      grad[k + 4] = grad[k + 4]! + flen * (Tx * JAC[J + 15]! + Ty * JAC[J + 16]! + Tz * JAC[J + 17]!);
-      grad[k + 5] = grad[k + 5]! + Tx * JAC[J + 9]! + Ty * JAC[J + 10]! + Tz * JAC[J + 11]!;
+      const Tx = rd(GPT, jw) * kl + rd(GPT, jh), Ty = rd(GPT, jw + 1) * kl + rd(GPT, jh + 1), Tz = rd(GPT, jw + 2) * kl + rd(GPT, jh + 2);
+      grad[k + 3] = rd(grad, k + 3) + flen * (Tx * rd(JAC, J + 12) + Ty * rd(JAC, J + 13) + Tz * rd(JAC, J + 14));
+      grad[k + 4] = rd(grad, k + 4) + flen * (Tx * rd(JAC, J + 15) + Ty * rd(JAC, J + 16) + Tz * rd(JAC, J + 17));
+      grad[k + 5] = rd(grad, k + 5) + Tx * rd(JAC, J + 9) + Ty * rd(JAC, J + 10) + Tz * rd(JAC, J + 11);
     }
   }
   return cost;
@@ -494,27 +506,27 @@ function smoothN(v: Float64Array, n: number, nd: number, w: Weights, grad?: Floa
     const kk = k % PER_DANCER;
     const sc = isMetric(kk) ? METRE * METRE : 1;
     for (let i = 0; i + 1 < n; i++) {
-      const d = v[(i + 1) * per + k]! - v[i * per + k]!;
+      const d = rd(v, (i + 1) * per + k) - rd(v, i * per + k);
       c += w.smooth1 * sc * d * d;
       if (grad) {
-        grad[(i + 1) * per + k] = grad[(i + 1) * per + k]! + 2 * w.smooth1 * sc * d;
-        grad[i * per + k] = grad[i * per + k]! - 2 * w.smooth1 * sc * d;
+        grad[(i + 1) * per + k] = rd(grad, (i + 1) * per + k) + 2 * w.smooth1 * sc * d;
+        grad[i * per + k] = rd(grad, i * per + k) - 2 * w.smooth1 * sc * d;
       }
     }
     for (let i = 1; i + 1 < n; i++) {
-      const a = v[(i + 1) * per + k]! - 2 * v[i * per + k]! + v[(i - 1) * per + k]!;
+      const a = rd(v, (i + 1) * per + k) - 2 * rd(v, i * per + k) + rd(v, (i - 1) * per + k);
       c += w.smooth2 * sc * a * a;
       if (grad) {
         const g = 2 * w.smooth2 * sc * a;
-        grad[(i + 1) * per + k] = grad[(i + 1) * per + k]! + g;
-        grad[i * per + k] = grad[i * per + k]! - 2 * g;
-        grad[(i - 1) * per + k] = grad[(i - 1) * per + k]! + g;
+        grad[(i + 1) * per + k] = rd(grad, (i + 1) * per + k) + g;
+        grad[i * per + k] = rd(grad, i * per + k) - 2 * g;
+        grad[(i - 1) * per + k] = rd(grad, (i - 1) * per + k) + g;
       }
     }
     if (kk >= 12) for (let i = 0; i < n; i++) {
-      const x = v[i * per + k]!;
+      const x = rd(v, i * per + k);
       c += w.step * x * x;
-      if (grad) grad[i * per + k] = grad[i * per + k]! + 2 * w.step * x;
+      if (grad) grad[i * per + k] = rd(grad, i * per + k) + 2 * w.step * x;
     }
   }
   return c;
@@ -536,20 +548,20 @@ export function startN(m: NMove): Float64Array {
   const n = m.frames.length;
   const frames = m.frames.map((f, i) => {
     const t = n > 1 ? i / (n - 1) : 0;
-    const out = f.map((d, j) => ({ ...d, arms: [restArm(m.bodies[j]!), restArm(m.bodies[j]!)] as [Arm, Arm] }));
+    const out = f.map((d, j) => ({ ...d, arms: [restArm(nth(m.bodies, j)), restArm(nth(m.bodies, j))] as [Arm, Arm] }));
     for (const h of m.holds) {
       if (t < h.from - 1e-9 || t > h.to + 1e-9) continue;
-      const A = m.bodies[h.a.dancer]!;
-      const fa = out[h.a.dancer]!;
+      const A = nth(m.bodies, h.a.dancer);
+      const fa = nth(out, h.a.dancer);
       const sa = toFloor(A.shoulder[h.a.side], fa);
       const pole: Vec = [sa[0] - fa.x, -0.4, sa[2] - fa.z];
       if (isBack(h.b)) {
-        const target = toFloor(backPoint(m.bodies[h.b.dancer]!), out[h.b.dancer]!);
+        const target = toFloor(backPoint(nth(m.bodies, h.b.dancer)), nth(out, h.b.dancer));
         fa.arms[h.a.side] = reachArm(A, h.a.side, fa, target, pole);
         continue;
       }
-      const B = m.bodies[h.b.dancer]!;
-      const fb = out[h.b.dancer]!;
+      const B = nth(m.bodies, h.b.dancer);
+      const fb = nth(out, h.b.dancer);
       const sb = toFloor(B.shoulder[h.b.side], fb);
       // In front of the two of them: by their facings' mean (none when they face each other, as in
       // a pull-by), past the wider torso. Between the shoulders alone is inside a side-by-side
@@ -592,15 +604,15 @@ export function solveN(m: NMove, o: SolveNOptions = {}): { v: Float64Array; cost
   for (let it = 1; it <= iters; it++) {
     const grad = new Float64Array(v.length);
     cost = smoothN(v, n, nd, w, grad);
-    for (let i = 0; i < n; i++) cost += frameCostN(m, plans[i]!, i, v, w, grad);
+    for (let i = 0; i < n; i++) cost += frameCostN(m, nth(plans, i), i, v, w, grad);
     const lr = lr0 * (lrEnd / lr0) ** ((it - 1) / Math.max(1, iters - 1));
     for (let j = 0; j < v.length; j++) {
-      const g = grad[j]!;
-      mom[j] = 0.9 * mom[j]! + 0.1 * g;
-      vel[j] = 0.999 * vel[j]! + 0.001 * g * g;
-      const mh = mom[j]! / (1 - 0.9 ** it);
-      const vh = vel[j]! / (1 - 0.999 ** it);
-      v[j] = v[j]! - (lr * mh) / (Math.sqrt(vh) + 1e-8);
+      const g = rd(grad, j);
+      mom[j] = 0.9 * rd(mom, j) + 0.1 * g;
+      vel[j] = 0.999 * rd(vel, j) + 0.001 * g * g;
+      const mh = rd(mom, j) / (1 - 0.9 ** it);
+      const vh = rd(vel, j) / (1 - 0.999 ** it);
+      v[j] = rd(v, j) - (lr * mh) / (Math.sqrt(vh) + 1e-8);
     }
     if (o.onProgress && (it % 250 === 0 || it === iters)) o.onProgress(it, cost);
   }
@@ -630,29 +642,29 @@ export function metricsN(m: NMove, v: Float64Array): MetricsN {
   const plans = planN(m);
   let clip = 0, clipAt = "", holdGap = 0, holdAt = "", jump = 0, jumpAt = "", step = 0;
   for (let i = 0; i < n; i++) {
-    const f = unpackN(v, i, m.frames[i]!);
-    const S = f.map((d, j) => shapesOf(m.bodies[j]!, d));
+    const f = unpackN(v, i, nth(m.frames, i));
+    const S = f.map((d, j) => shapesOf(nth(m.bodies, j), d));
     for (let d = 0; d < nd; d++) for (let e = d + 1; e < nd; e++) {
-      const mat = plans[i]!.exempt.get(d * nd + e);
-      S[d]!.forEach((a, sa) => S[e]!.forEach((b, sb) => {
+      const mat = nth(plans, i).exempt.get(d * nd + e);
+      nth(S, d).forEach((a, sa) => nth(S, e).forEach((b, sb) => {
         if ((mat?.[sa * 8 + sb] ?? 0) !== 0) return;
         const over = a.r + b.r - segSegV(a.a, a.b, b.a, b.b);
         if (over > clip) [clip, clipAt] = [over, `sample ${String(i)}: ${String(d)}.${a.name} / ${String(e)}.${b.name}`];
       }));
     }
-    for (const h of plans[i]!.holds) {
+    for (const h of nth(plans, i).holds) {
       if ((h.weight ?? 1) < 1) continue; // a reach, or a hold still coming on or letting go
-      const A = m.bodies[h.a.dancer]!;
-      const ha = toFloor(armPoints(A, h.a.side, f[h.a.dancer]!.arms[h.a.side]).h, f[h.a.dancer]!);
+      const A = nth(m.bodies, h.a.dancer);
+      const ha = toFloor(armPoints(A, h.a.side, nth(f, h.a.dancer).arms[h.a.side]).h, nth(f, h.a.dancer));
       const hb = isBack(h.b)
-        ? toFloor(backPoint(m.bodies[h.b.dancer]!), f[h.b.dancer]!)
-        : toFloor(armPoints(m.bodies[h.b.dancer]!, h.b.side, f[h.b.dancer]!.arms[h.b.side]).h, f[h.b.dancer]!);
-      const want = isBack(h.b) ? A.handR : WEIGHTS.clasp * (A.handR + m.bodies[h.b.dancer]!.handR);
+        ? toFloor(backPoint(nth(m.bodies, h.b.dancer)), nth(f, h.b.dancer))
+        : toFloor(armPoints(nth(m.bodies, h.b.dancer), h.b.side, nth(f, h.b.dancer).arms[h.b.side]).h, nth(f, h.b.dancer));
+      const want = isBack(h.b) ? A.handR : WEIGHTS.clasp * (A.handR + nth(m.bodies, h.b.dancer).handR);
       // A hold with a height is off by how far either hand is from it, too.
       let off = h.height === undefined ? 0 : Math.max(Math.abs(ha[1] - h.height), isBack(h.b) ? 0 : Math.abs(hb[1] - h.height));
       if (h.forward !== undefined && !isBack(h.b)) {
-        const fa = f[h.a.dancer]!, fb = f[h.b.dancer]!;
-        const sa = toFloor(A.shoulder[h.a.side], fa), sb = toFloor(m.bodies[h.b.dancer]!.shoulder[h.b.side], fb);
+        const fa = nth(f, h.a.dancer), fb = nth(f, h.b.dancer);
+        const sa = toFloor(A.shoulder[h.a.side], fa), sb = toFloor(nth(m.bodies, h.b.dancer).shoulder[h.b.side], fb);
         const fx = (Math.sin(fa.yaw) + Math.sin(fb.yaw)) / 2, fz = (Math.cos(fa.yaw) + Math.cos(fb.yaw)) / 2;
         off = Math.max(off, Math.hypot((ha[0] + hb[0] - sa[0] - sb[0]) / 2 - h.forward * fx, (ha[2] + hb[2] - sa[2] - sb[2]) / 2 - h.forward * fz));
       }
@@ -661,9 +673,9 @@ export function metricsN(m: NMove, v: Float64Array): MetricsN {
     }
     for (let d = 0; d < nd; d++) {
       const o = (i * nd + d) * PER_DANCER;
-      step = Math.max(step, Math.hypot(v[o + 12]!, v[o + 13]!));
+      step = Math.max(step, Math.hypot(rd(v, o + 12), rd(v, o + 13)));
       if (i > 0) for (const k of [0, 1, 3, 4, 6, 7, 9, 10]) {
-        const dv = v[o + k]! - v[o - nd * PER_DANCER + k]!;
+        const dv = rd(v, o + k) - rd(v, o - nd * PER_DANCER + k);
         const j = Math.abs(Math.atan2(Math.sin(dv), Math.cos(dv))) * R2D;
         if (j > jump) [jump, jumpAt] = [j, `sample ${String(i)}: ${String(d)}.${k < 6 ? "left" : "right"} ${ARM_KEYS[k % 6] ?? ""}`];
       }
