@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { getBodyShape } from "../services/body-shapes";
 import { bodyPrint } from "./baked-tracks";
 import { decodeRows, dialsAt, encodeRows, FIELDS, fourFileName, type FourBake } from "./baked-four";
 import { reviewPairings } from "./review-route";
 import { isSolved, REVIEW2_FIGURES } from "./review2-figures";
 
-const RLT_BEATS = REVIEW2_FIGURES.find((f) => isSolved(f) && f.solved === "right-and-left-thru")?.beats ?? 0;
+// Typed `string`: Right and Left Thru is the only solved figure today, which makes the comparison
+// look constant to the type checker; it stops being so when a second one is solved.
+const RLT: string = "right-and-left-thru";
+const RLT_BEATS = REVIEW2_FIGURES.find((f) => isSolved(f) && f.solved === RLT)?.beats ?? 0;
 import { rightAndLeftThru } from "./whole-move-rlt";
 
 const files = import.meta.glob("./baked-four/*.json", { eager: true, import: "default" });
@@ -18,13 +22,13 @@ describe("four-dancer bakes (2026-10-28)", () => {
     expect(rows[0]).toHaveLength(4 * FIELDS);
     const back = decodeRows(rows);
     frames.forEach((f, i) => f.forEach((d, k) => {
-      const e = back[i]![k]!;
+      const e = defined(defined(back[i], "back[i]")[k], "k");
       expect(Math.abs(e.x - d.x)).toBeLessThan(6e-5);
       expect(Math.abs(e.yaw - d.yaw)).toBeLessThan(6e-5);
       expect(Math.abs(e.arms[1].flen - d.arms[1].flen)).toBeLessThan(6e-5);
     }));
     // Every dancer's floor spot, in cm, for `applyToRigs`.
-    expect(dialsAt(back, 2, 0)["3.torso.x"]).toBeCloseTo(frames[0]![3]!.x * 100, 1);
+    expect(dialsAt(back, 2, 0)["3.torso.x"]).toBeCloseTo(defined(defined(frames[0], "frames[0]")[3], "3").x * 100, 1);
   });
 
   it("🔴 has a bake for every review pairing, solved on today's bodies", () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { danceCoupleSequence, partnerUp, flattenSequence, sampleMotion } from "square-one";
 import { armMetrics, touchHold, insideSide, touchingSide } from "./arm-pose";
 import {
@@ -69,11 +70,11 @@ function walkTwirl(beauShape: CharacterBodyShape, belleShape: CharacterBodyShape
   ) as Record<string, { beats: number; grips: readonly { hand: string; grip: string }[] }>;
 
   const archHand = (key: string) =>
-    (motions[key]!.grips.find((g) => g.grip === "arch")?.hand ?? "none") as "left" | "right" | "none";
+    (defined(motions[key], "motions[key]").grips.find((g) => g.grip === "arch")?.hand ?? "none") as "left" | "right" | "none";
 
   const frame = makeFrame({ x: 0, z: 0 }, scale, 0);
   const at = (key: string, beat: number) => {
-    const s = sampleMotion(motions[key]! as never, beat);
+    const s = sampleMotion(defined(motions[key], "motions[key]") as never, beat);
     const w = toWorld(frame, s.position);
     return { x: w.x, z: w.z, yaw: facingToRotationY(frame, s.facing) };
   };
@@ -117,14 +118,14 @@ describe("🔴 a declared hold keeps the hand the figure named", () => {
     // from — the swap at ~1.1 is his second image, the swap back at ~2.9 his third.
     const { frames } = walkTwirl(PLAYER_DEFAULTS, MYCO_DEFAULTS);
     const flips = frames.filter(
-      (f, i) => i > 0 && f.liveBelle !== frames[i - 1]!.liveBelle,
+      (f, i) => i > 0 && f.liveBelle !== defined(frames[i - 1], "frames[i - 1]").liveBelle,
     );
     expect(flips.map((f) => f.beat)).toEqual([1.25, 3]);
 
     // 🔑 And it is a phase error, not a change of side: the two rotations cancel at the ends.
     // That is what makes the figure's own answer safe to prefer — it loses no information.
-    expect(frames[0]!.liveBelle).toBe("left");
-    expect(frames[frames.length - 1]!.liveBelle).toBe("left");
+    expect(defined(frames[0], "frames[0]").liveBelle).toBe("left");
+    expect(defined(frames[frames.length - 1], "frames[frames.length - 1]").liveBelle).toBe("left");
   });
 
   it("🔴 and it briefly made BOTH dancers the beau, which pulls the hold apart", () => {
@@ -160,7 +161,7 @@ describe("🔴 a declared hold keeps the hand the figure named", () => {
     // the release would pop the arm across. They agree, for everyone.
     for (const [name, beauShape, belleShape] of PAIRS) {
       const { frames } = walkTwirl(beauShape, belleShape);
-      for (const f of [frames[0]!, frames[frames.length - 1]!]) {
+      for (const f of [defined(frames[0], "frames[0]"), defined(frames[frames.length - 1], "frames[frames.length - 1]")]) {
         expect(f.liveBeau, `${name}: the beau at beat ${f.beat}`).toBe("right");
         expect(f.liveBelle, `${name}: the belle at beat ${f.beat}`).toBe("left");
       }

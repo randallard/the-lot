@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { defined } from "../test/defined";
 import { NPC_CONFIGS, getNpcById, castRoster, PLAYER_ID } from "./npcs";
 
 describe("NPC_CONFIGS", () => {
@@ -24,8 +25,8 @@ describe("NPC_CONFIGS", () => {
     for (const npc of NPC_CONFIGS) {
       const sg = npc.games?.["spaces-game"];
       expect(sg).toBeDefined();
-      expect(sg!.opponentType).toBe("ai-agent");
-      expect(sg!.skillLevel).toBeTruthy();
+      expect(defined(sg, "sg").opponentType).toBe("ai-agent");
+      expect(defined(sg, "sg").skillLevel).toBeTruthy();
     }
   });
 
@@ -40,7 +41,7 @@ describe("getNpcById", () => {
   it("returns correct NPC for known id", () => {
     const myco = getNpcById("myco");
     expect(myco).toBeDefined();
-    expect(myco!.displayName).toBe("Myco");
+    expect(defined(myco, "myco").displayName).toBe("Myco");
   });
 
   it("returns undefined for unknown id", () => {

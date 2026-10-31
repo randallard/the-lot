@@ -42,7 +42,7 @@ describe("the turn-under styles", () => {
     // *"a different energy"* from a break reached by the coin is the pose, not the outcome.
     expect(accommodationFor(CASUAL)).toBe(BREAK);
     expect(ACCOMMODATIONS).toContain(accommodationFor(CASUAL));
-    expect(String(CASUAL)).not.toContain("lazy");
+    expect(CASUAL).not.toContain("lazy");
   });
 
   it("🔑 the two that keep the hold reshape, and never toss", () => {

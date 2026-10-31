@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { castRoster } from "../config/npcs";
 import { REVIEW_FIGURES } from "./review-steps";
 import {
@@ -42,10 +43,10 @@ describe("the review matrix", () => {
     // how a bad *moment* is told from a bad *pairing*.
     const cells = reviewCells();
     const pairings = reviewPairings();
-    const first = REVIEW_FIGURES[0]!;
-    expect(cells[0]?.id).toBe(cellId(first, first.steps[0]!, pairings[0]!));
-    expect(cells[1]?.id).toBe(cellId(first, first.steps[0]!, pairings[1]!));
-    expect(cells[pairings.length]?.id).toBe(cellId(first, first.steps[1]!, pairings[0]!));
+    const first = defined(REVIEW_FIGURES[0], "REVIEW_FIGURES[0]");
+    expect(cells[0]?.id).toBe(cellId(first, defined(first.steps[0], "first.steps[0]"), defined(pairings[0], "pairings[0]")));
+    expect(cells[1]?.id).toBe(cellId(first, defined(first.steps[0], "first.steps[0]"), defined(pairings[1], "pairings[1]")));
+    expect(cells[pairings.length]?.id).toBe(cellId(first, defined(first.steps[1], "first.steps[1]"), defined(pairings[0], "pairings[0]")));
   });
 
   it("gives every cell a distinct address", () => {
@@ -68,7 +69,7 @@ describe("the review's hash", () => {
   });
 
   it("stands the first cell up on a bare #review", () => {
-    const first = reviewCells()[0]!;
+    const first = defined(reviewCells()[0], "the first review cell");
     expect(reviewSceneCell("#review")?.id).toBe(first.id);
     expect(reviewSceneCell("#review=")?.id).toBe(first.id);
   });
@@ -76,7 +77,7 @@ describe("the review's hash", () => {
   it("falls back to the first cell rather than erroring on a stale address", () => {
     // A link kept in a note outlives the step it names. Opening the review is a better
     // answer than a blank page.
-    expect(reviewSceneCell("#review=nonsense/at/all")?.id).toBe(reviewCells()[0]!.id);
+    expect(reviewSceneCell("#review=nonsense/at/all")?.id).toBe(defined(reviewCells()[0], "the first review cell").id);
   });
 
   it("🔴 round-trips every cell, so a pose can be linked to and reopened", () => {

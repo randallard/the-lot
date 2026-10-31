@@ -89,7 +89,7 @@ function resolution(): RoleResolution {
  * copy of it — this now moves when the authored move moves.
  */
 function meetAt(a: ArmMetrics, b: ArmMetrics) {
-  const c = defined(fistBumpMove().constraints[0], "the first constraint");
+  const c = fistBumpMove().constraints[0];
   return c ? verticalHeight(c.vertical, a, b, c.absoluteHeight) : gripHeight(a, b);
 }
 

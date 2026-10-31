@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { danceCoupleSequence, partnerUp, createPerformance, flattenSequence } from "square-one";
 import { armMetrics, touchHold, standingAsCouple } from "./arm-pose";
 import {
@@ -82,14 +83,14 @@ function atBeatZero(
     const w = toWorld(frame, s.position);
     return { x: w.x, z: w.z, yaw: facingToRotationY(frame, s.facing) };
   });
-  const separation = Math.hypot(at[1]!.x - at[0]!.x, at[1]!.z - at[0]!.z);
+  const separation = Math.hypot(defined(at[1], "at[1]").x - defined(at[0], "at[0]").x, defined(at[1], "at[1]").z - defined(at[0], "at[0]").z);
   return {
     separation,
     stanceWidth: stance.width,
     restingWidth: resting.width,
     reached: sized.armDelta,
-    joined: standingAsCouple(at[0]!, at[1]!, stance.width),
-    joinedIfAskedResting: standingAsCouple(at[0]!, at[1]!, resting.width),
+    joined: standingAsCouple(defined(at[0], "at[0]"), defined(at[1], "at[1]"), stance.width),
+    joinedIfAskedResting: standingAsCouple(defined(at[0], "at[0]"), defined(at[1], "at[1]"), resting.width),
   };
 }
 
@@ -98,7 +99,7 @@ describe("🔴 a couple is holding hands at beat 0, whoever they are", () => {
     for (const [beauName, beauShape] of CAST) {
       for (const [belleName, belleShape] of CAST) {
         if (beauName === belleName) continue;
-        it(`${seq[0]!}: ${beauName} / ${belleName}`, () => {
+        it(`${defined(seq[0], "seq[0]")}: ${beauName} / ${belleName}`, () => {
           const r = atBeatZero(beauShape, belleShape, seq);
           expect(r.joined, `${beauName}/${belleName} reached ${r.reached.toFixed(2)}`).toBe(true);
         });
@@ -152,8 +153,8 @@ describe("🔴 a couple is holding hands at beat 0, whoever they are", () => {
     // Every one of them is a pair who reached — that is the whole mechanism.
     for (const name of lost) {
       const [bn, ln] = name.split("/");
-      const beauShape = CAST.find(([n]) => n === bn)![1];
-      const belleShape = CAST.find(([n]) => n === ln)![1];
+      const beauShape = defined(CAST.find(([n]) => n === bn), "CAST.find(([n]) => n === bn)")[1];
+      const belleShape = defined(CAST.find(([n]) => n === ln), "CAST.find(([n]) => n === ln)")[1];
       const r = atBeatZero(beauShape, belleShape, ["california-twirl", "california-twirl"]);
       expect(r.reached, name).toBeGreaterThan(0);
       expect(r.stanceWidth, name).toBeGreaterThan(r.restingWidth);

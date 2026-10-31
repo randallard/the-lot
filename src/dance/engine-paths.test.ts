@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { getBodyShape } from "../services/body-shapes";
 import { REVIEW2_SIZING } from "./baked-tracks";
 import { blendBody, rng, samplePair } from "./body-sample";
@@ -15,7 +16,7 @@ describe("🧪 a couple's paths without a browser (2026-10-26, step 3)", () => {
     for (const k of ["beau", "belle"] as const) {
       expect(r[k]).toHaveLength(41);
       r[k].forEach((p, i) => {
-        const c = captured[k][i]!;
+        const c = defined(captured[k][i], "captured[k][i]");
         expect(Math.hypot(p.x - c.x, p.z - c.z)).toBeLessThan(0.5);
         expect(Math.abs(wrap(p.facing - c.facing))).toBeLessThan(0.6);
       });

@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { defined } from "../test/defined";
 import { fetchPendingResults } from "./fetch-pending-results";
 import { saveActiveSession } from "./active-sessions";
 
-const mockFetch = vi.fn();
+const mockFetch = vi.fn<(input: string, init?: RequestInit) => Promise<unknown>>();
 vi.stubGlobal("fetch", mockFetch);
 
 /**
@@ -41,7 +42,7 @@ describe("fetchPendingResults", () => {
 
     await fetchPendingResults();
 
-    const url = mockFetch.mock.calls[0]![0] as string;
+    const url = defined(mockFetch.mock.calls[0], "mockFetch.mock.calls[0]")[0];
     expect(url).toContain("/api/lot-results?sessions=");
     expect(url).toContain("session-1");
     expect(url).toContain("session-2");
@@ -84,9 +85,9 @@ describe("fetchPendingResults", () => {
 
     // Second call should be the DELETE
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    const deleteCall = mockFetch.mock.calls[1]!;
-    expect(deleteCall[1]!.method).toBe("DELETE");
-    expect(JSON.parse(deleteCall[1]!.body as string)).toEqual({
+    const deleteCall = defined(mockFetch.mock.calls[1], "mockFetch.mock.calls[1]");
+    expect(defined(deleteCall[1], "deleteCall[1]").method).toBe("DELETE");
+    expect(JSON.parse(defined(deleteCall[1], "deleteCall[1]").body as string)).toEqual({
       sessions: ["session-1"],
     });
   });

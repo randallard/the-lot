@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import {
   CLEAR,
   LOW,
@@ -559,11 +560,11 @@ describe("sizeArch reaches before it lets go", () => {
     const [reshaped, broken] = ACCOMMODATIONS.map((mode) =>
       sizeArch(b, l, MYCO_DEFAULTS, SPROUT_DEFAULTS, w, bodies, mode),
     );
-    expect(reshaped!.armDelta).toBe(broken!.armDelta);
-    expect(reshaped!.width).toBeCloseTo(broken!.width, 9);
+    expect(defined(reshaped, "reshaped").armDelta).toBe(defined(broken, "broken").armDelta);
+    expect(defined(reshaped, "reshaped").width).toBeCloseTo(defined(broken, "broken").width, 9);
     // The draw still survives it — this is not a third accommodation (ADR-0028).
-    expect(reshaped!.accommodation).toBe(RESHAPE);
-    expect(broken!.accommodation).toBe(BREAK);
+    expect(defined(reshaped, "reshaped").accommodation).toBe(RESHAPE);
+    expect(defined(broken, "broken").accommodation).toBe(BREAK);
   });
 
   it("lands on the shape editor's own step, because a dance may not out-reach the sheet", () => {

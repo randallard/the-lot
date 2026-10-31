@@ -92,7 +92,7 @@ describe("wedge selection", () => {
         const { dx, dy } = polar(a);
         const idx = wedgeAt(dx, dy, count);
         expect(idx).not.toBeNull();
-        expect(idx! >= 0 && idx! < count).toBe(true);
+        expect(defined(idx, "idx") >= 0 && defined(idx, "idx") < count).toBe(true);
       }
     }
   });
@@ -139,7 +139,9 @@ describe("wedgeBounds and direction", () => {
   });
 
   it("points wedge 0 up and wedge directions are unit length", () => {
-    expect(wedgeDirection(0, 8)).toEqual({ x: expect.closeTo(0, 12), y: -1 });
+    const up = wedgeDirection(0, 8);
+    expect(up.x).toBeCloseTo(0, 12);
+    expect(up.y).toBe(-1);
     for (let i = 0; i < 8; i++) {
       const d = wedgeDirection(i, 8);
       expect(Math.hypot(d.x, d.y)).toBeCloseTo(1, 12);

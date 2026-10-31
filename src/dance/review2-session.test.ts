@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import type { Keyframe } from "./pose-events";
 import {
   editsHere,
@@ -59,11 +60,11 @@ describe("the posing session", () => {
 
   it("🔑 the keyframe under the playhead is derived, so keyframes that load late still match (the reload case)", () => {
     const s = run({ type: "seek", to: 0.5 });
-    expect(keyframeHere(s, [])).toBeUndefined();
+    expect(keyframeHere<{ keyframe: Keyframe; source: string }>(s, [])).toBeUndefined();
     const timeline = [{ keyframe: kf(0.5, { "0.torso.turn": 5 }), source: "draft" }];
     expect(keyframeHere(s, timeline)?.keyframe.t).toBe(0.5);
     expect(keyframeHere(reduce(s, { type: "play" }), timeline)).toBeUndefined();
-    expect(keyframeHere(s, [{ ...timeline[0]!, source: "hidden" }])).toBeUndefined();
+    expect(keyframeHere(s, [{ ...defined(timeline[0], "timeline[0]"), source: "hidden" }])).toBeUndefined();
   });
 
   it("what's set here is the keyframe's values with edits over them, and a null edit un-sets one", () => {

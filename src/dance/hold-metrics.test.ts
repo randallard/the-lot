@@ -68,7 +68,7 @@ describe("the standing couple's handhold, measured", () => {
     // pointed at: the child's arm is the one that ends up nearest vertical at a grown
     // partner's hold, so hers is the wrist with the most left to do.
     for (const w of [worst[0], worst[1]]) {
-      expect([w?.p.beau, w?.p.belle], `${w?.p.beau}/${w?.p.belle}`).toContain("sprout");
+      expect([w?.p.beau, w?.p.belle], `${String(w?.p.beau)}/${String(w?.p.belle)}`).toContain("sprout");
     }
   });
 

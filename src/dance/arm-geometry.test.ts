@@ -12,6 +12,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { applyCallToPair, createPerformance, type CallName } from "square-one";
 import { DEFAULT_SCALE, facingToRotationY, makeFrame, toWorld } from "./frame";
 import {
@@ -377,7 +378,7 @@ function pairSeparation(call: CallName, beat: number): number {
   perf.tick(beat);
   const states = perf.tick(0);
   const p = states.map((st) => toWorld(frame, st.position));
-  return Math.hypot(p[0]!.x - p[1]!.x, p[0]!.z - p[1]!.z);
+  return Math.hypot(defined(p[0], "p[0]").x - defined(p[1], "p[1]").x, defined(p[0], "p[0]").z - defined(p[1], "p[1]").z);
 }
 
 function pairCentre(call: CallName, beat: number): { x: number; z: number } {
@@ -388,8 +389,8 @@ function pairCentre(call: CallName, beat: number): { x: number; z: number } {
   const states = perf.tick(0);
   const points = states.map((st) => toWorld(frame, st.position));
   return {
-    x: (points[0]!.x + points[1]!.x) / 2,
-    z: (points[0]!.z + points[1]!.z) / 2,
+    x: (defined(points[0], "points[0]").x + defined(points[1], "points[1]").x) / 2,
+    z: (defined(points[0], "points[0]").z + defined(points[1], "points[1]").z) / 2,
   };
 }
 

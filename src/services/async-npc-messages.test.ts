@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { defined } from "../test/defined";
 import { processAsyncResults, type AsyncResult } from "./async-npc-messages";
 
 // Mock dependencies
@@ -74,8 +75,8 @@ describe("processAsyncResults", () => {
     await processAsyncResults([makeResult()]);
     const chats = getChats("myco");
     expect(chats).toHaveLength(1);
-    expect(chats[0]!.sender).toBe("npc");
-    expect(chats[0]!.isUnread).toBe(true);
+    expect(defined(chats[0], "chats[0]").sender).toBe("npc");
+    expect(defined(chats[0], "chats[0]").isUnread).toBe(true);
   });
 
   it("returns unread count matching messages generated", async () => {
@@ -109,14 +110,14 @@ describe("processAsyncResults", () => {
     await processAsyncResults([makeResult({ winner: "player" })]);
     const chats = getChats("myco");
     // Static fallback for player win = NPC's loseReaction
-    expect(chats[0]!.text).toBe("nice one... balance");
+    expect(defined(chats[0], "chats[0]").text).toBe("nice one... balance");
   });
 
   it("uses Haiku commentary when useHaiku is true", async () => {
     setPreferences({ useHaiku: true, optInShown: true });
     await processAsyncResults([makeResult()]);
     const chats = getChats("myco");
-    expect(chats[0]!.text).toBe("haiku response");
+    expect(defined(chats[0], "chats[0]").text).toBe("haiku response");
     expect(getNpcCommentary).toHaveBeenCalled();
   });
 
@@ -126,12 +127,12 @@ describe("processAsyncResults", () => {
     await processAsyncResults([makeResult({ winner: "opponent" })]);
     const chats = getChats("myco");
     // Static fallback for opponent win = NPC's winReaction
-    expect(chats[0]!.text).toBe("the network knows");
+    expect(defined(chats[0], "chats[0]").text).toBe("the network knows");
   });
 
   it("uses NPC greeting for tie static fallback", async () => {
     await processAsyncResults([makeResult({ winner: "tie" })]);
     const chats = getChats("myco");
-    expect(chats[0]!.text).toBe("hey");
+    expect(defined(chats[0], "chats[0]").text).toBe("hey");
   });
 });

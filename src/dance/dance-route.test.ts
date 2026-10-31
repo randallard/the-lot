@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { DEBUG_FIGURES, danceSceneFigure, danceSceneHash } from "./dance-route";
 
 describe("the debug scene's hash", () => {
@@ -30,6 +31,6 @@ describe("the debug scene's hash", () => {
 
   it("keeps the bare #dance for the default figure", () => {
     // The short URL is the one that gets typed; only the others need naming.
-    expect(danceSceneHash(DEBUG_FIGURES[0]!)).toBe("#dance");
+    expect(danceSceneHash(defined(DEBUG_FIGURES[0], "DEBUG_FIGURES[0]"))).toBe("#dance");
   });
 });

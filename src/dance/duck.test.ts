@@ -10,6 +10,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import {
   NO_DUCK,
   archLateral,
@@ -311,7 +312,7 @@ describe("🔴 the belle's DRAWN hand, through the real pose path", () => {
 
     const frame = makeFrame({ x: 0, z: 0 }, scale, 0);
     const at = (key: string, beat: number): Placement => {
-      const s = sampleMotion(motions[key]! as never, beat);
+      const s = sampleMotion(defined(motions[key], "motions[key]") as never, beat);
       const w = toWorld(frame, s.position);
       return { x: w.x, z: w.z, yaw: facingToRotationY(frame, s.facing) };
     };
@@ -355,6 +356,6 @@ describe("🔴 the belle's DRAWN hand, through the real pose path", () => {
     expect(over[2]).toBeLessThan(0.15);
     // And it is a large, unambiguous improvement rather than a nudge.
     const today = handOffHead(0);
-    for (let i = 0; i < over.length; i++) expect(over[i]).toBeLessThan(today[i]! / 3);
+    for (let i = 0; i < over.length; i++) expect(over[i]).toBeLessThan(defined(today[i], "today[i]") / 3);
   });
 });

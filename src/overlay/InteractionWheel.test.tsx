@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { defined } from "../test/defined";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { InteractionWheel, type WheelItem } from "./InteractionWheel";
 
@@ -136,7 +137,7 @@ describe("a single item draws a ring, not a sliver", () => {
 
   it("emits a closed two-subpath ring", () => {
     const { container } = renderWheel({ items: ONE });
-    const d = container.querySelector("path")!.getAttribute("d")!;
+    const d = defined(defined(container.querySelector("path"), "container.querySelector(\"path\")").getAttribute("d"), "defined(container.querySelector(\"path\"), \"container.querySelector(\\\"path\\\")\").getAttribute(\"d\")");
     // Two subpaths (outer and inner edge), four arcs, no straight join.
     expect(d.match(/M /g)).toHaveLength(2);
     expect(d.match(/A /g)).toHaveLength(4);
@@ -145,7 +146,7 @@ describe("a single item draws a ring, not a sliver", () => {
 
   it("spans the full width of the ring", () => {
     const { container } = renderWheel({ items: ONE });
-    const d = container.querySelector("path")!.getAttribute("d")!;
+    const d = defined(defined(container.querySelector("path"), "container.querySelector(\"path\")").getAttribute("d"), "defined(container.querySelector(\"path\"), \"container.querySelector(\\\"path\\\")\").getAttribute(\"d\")");
     const xs = [...d.matchAll(/-?\d+(?:\.\d+)?(?= \d)/g)].map(Number);
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(100);
   });
@@ -153,12 +154,12 @@ describe("a single item draws a ring, not a sliver", () => {
   it("still labels and still highlights", () => {
     const { container } = renderWheel({ items: ONE, activeIndex: 0 });
     expect(screen.getByText("new emote")).toBeInTheDocument();
-    expect(container.querySelector("path")!.getAttribute("stroke")).toBe("#c080e0");
+    expect(defined(container.querySelector("path"), "container.querySelector(\"path\")").getAttribute("stroke")).toBe("#c080e0");
   });
 
   it("keeps multi-item wedges as sectors", () => {
     const { container } = renderWheel();
-    expect(container.querySelector("path")!.getAttribute("d")).toContain("L ");
+    expect(defined(container.querySelector("path"), "container.querySelector(\"path\")").getAttribute("d")).toContain("L ");
   });
 });
 
@@ -178,7 +179,7 @@ describe("the active wedge", () => {
   it("marks the dead zone as live when nothing is aimed at — cancel is a state", () => {
     const { container: none } = renderWheel({ activeIndex: null });
     const { container: aimed } = renderWheel({ activeIndex: 0 });
-    const ring = (c: HTMLElement) => c.querySelector("circle")!.getAttribute("stroke-width");
+    const ring = (c: HTMLElement) => defined(c.querySelector("circle"), "c.querySelector(\"circle\")").getAttribute("stroke-width");
     expect(ring(none)).toBe("2");
     expect(ring(aimed)).toBe("1");
   });

@@ -3,6 +3,9 @@ import LZString from "lz-string";
 import { parseResultsFromHash, parseKingsChessResultsFromHash } from "./parse-results";
 import type { GameResults } from "./parse-results";
 
+/** One mock, cleared per test; asserted on directly rather than through `window.history`. */
+const replaceState = vi.fn();
+
 const validResults: GameResults = {
   sessionId: "abc-123",
   npcId: "myco",
@@ -30,7 +33,8 @@ function setHash(results: unknown) {
     },
     writable: true,
   });
-  window.history.replaceState = vi.fn();
+  replaceState.mockClear();
+    window.history.replaceState = replaceState;
 }
 
 describe("parseResultsFromHash", () => {
@@ -39,7 +43,8 @@ describe("parseResultsFromHash", () => {
       value: { hash: "", pathname: "/", search: "" },
       writable: true,
     });
-    window.history.replaceState = vi.fn();
+    replaceState.mockClear();
+    window.history.replaceState = replaceState;
   });
 
   it("returns null when no hash", () => {
@@ -63,7 +68,7 @@ describe("parseResultsFromHash", () => {
   it("clears hash after parsing", () => {
     setHash(validResults);
     parseResultsFromHash();
-    expect(window.history.replaceState).toHaveBeenCalledWith(
+    expect(replaceState).toHaveBeenCalledWith(
       {},
       expect.any(String),
       "/",
@@ -96,7 +101,8 @@ describe("parseKingsChessResultsFromHash", () => {
       value: { hash: "", pathname: "/", search: "" },
       writable: true,
     });
-    window.history.replaceState = vi.fn();
+    replaceState.mockClear();
+    window.history.replaceState = replaceState;
   });
 
   it("returns null when no hash", () => {
@@ -111,7 +117,8 @@ describe("parseKingsChessResultsFromHash", () => {
       value: { hash: `#r=${compressed}`, pathname: "/", search: "" },
       writable: true,
     });
-    window.history.replaceState = vi.fn();
+    replaceState.mockClear();
+    window.history.replaceState = replaceState;
     expect(parseKingsChessResultsFromHash()).toBeNull();
   });
 
@@ -127,7 +134,8 @@ describe("parseKingsChessResultsFromHash", () => {
       value: { hash: `#r=${compressed}`, pathname: "/", search: "" },
       writable: true,
     });
-    window.history.replaceState = vi.fn();
+    replaceState.mockClear();
+    window.history.replaceState = replaceState;
 
     const result = parseKingsChessResultsFromHash();
     expect(result?.sessionId).toBe("kc-session-1");
@@ -148,10 +156,11 @@ describe("parseKingsChessResultsFromHash", () => {
       value: { hash: `#r=${compressed}`, pathname: "/", search: "" },
       writable: true,
     });
-    window.history.replaceState = vi.fn();
+    replaceState.mockClear();
+    window.history.replaceState = replaceState;
 
     parseKingsChessResultsFromHash();
-    expect(window.history.replaceState).toHaveBeenCalled();
+    expect(replaceState).toHaveBeenCalled();
   });
 
   it("returns null for missing required fields", () => {
@@ -161,7 +170,8 @@ describe("parseKingsChessResultsFromHash", () => {
       value: { hash: `#r=${compressed}`, pathname: "/", search: "" },
       writable: true,
     });
-    window.history.replaceState = vi.fn();
+    replaceState.mockClear();
+    window.history.replaceState = replaceState;
     expect(parseKingsChessResultsFromHash()).toBeNull();
   });
 });

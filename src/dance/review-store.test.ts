@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import {
   clearCell,
   exportJson,
@@ -110,9 +111,9 @@ describe("the chart", () => {
   });
 
   it("puts a cell's score in its own row and column", () => {
-    const cell = reviewCells().find(
+    const cell = defined(reviewCells().find(
       (c) => c.id === "california-twirl/under-arch/myco-sprout",
-    )!;
+    ), "reviewCells().find( (c) => c.id === \"california-twirl/under-arch/myco-sprout\", )");
     const md = reviewChartMarkdown({
       [cell.id]: { rating: 0, note: "arm through the hand", at: 1 },
     });
@@ -123,14 +124,15 @@ describe("the chart", () => {
     // a different step. A test that has to be re-counted every time a step is added is a test
     // that will one day be re-counted wrong — and the thing being asserted is that a score
     // lands under *its own* heading, which is exactly what looking the heading up says.
-    const headings = md
-      .split("\n")
-      .find((l) => l.startsWith("| pairing |"))!
+    const headings = defined(
+      md.split("\n").find((l) => l.startsWith("| pairing |")),
+      "the | pairing | header row",
+    )
       .split("|")
       .map((s) => s.trim());
     const column = headings.indexOf(cell.step.label);
     expect(column, cell.step.label).toBeGreaterThan(0);
-    expect(row!.split("|").map((s) => s.trim())[column]).toBe("0");
+    expect(defined(row, "row").split("|").map((s) => s.trim())[column]).toBe("0");
     expect(md).toContain("1 of");
   });
 

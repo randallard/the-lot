@@ -125,8 +125,9 @@ describe("opening", () => {
   it("takes pointer capture on the element that was pressed", () => {
     render(<Harness onSelect={vi.fn()} />);
     const el = target();
+    const capture = vi.spyOn(el, "setPointerCapture");
     pointer("pointerdown", el, ORIGIN);
-    expect(el.setPointerCapture).toHaveBeenCalledWith(1);
+    expect(capture).toHaveBeenCalledWith(1);
   });
 
   it("honours a custom hold duration — adjustable per ADR-0015", () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { computePositions, getBodyShape, NPC_BODY_CENTER_Y } from "../services/body-shapes";
 import { armPoints, bodyOf, frameCost, frameCostGrad, fromDials, gripSlides, armThrough, growRoom, pack, tradeCost, PER, planOf, reachArm, restArm, segSeg, solve, targetsFromKeyframes, toDials, toFloor, toRig, turnCost, TURN_CAP, unpackOne, WEIGHTS, wornBody, type Arm, type DancerFrame, type Frame, type Move, type Vec } from "./whole-move";
 import { growBody, standingLift } from "./accommodation";
@@ -76,11 +77,11 @@ describe("🧪 Ryan's keyframes steer the solve (2026-10-26)", () => {
     expect(targets.some((g) => g.dancer === 0)).toBe(false);
     const raise = targets.filter((g) => g.key === "raise");
     expect(raise.map((g) => g.i)).toEqual([20, 21]);
-    expect(raise[0]!.weight).toBeCloseTo(0.75);
-    expect(raise[1]!.weight).toBeCloseTo(0.25);
-    expect(raise[0]!.value).toBeCloseTo(150 * D2R);
+    expect(defined(raise[0], "raise[0]").weight).toBeCloseTo(0.75);
+    expect(defined(raise[1], "raise[1]").weight).toBeCloseTo(0.25);
+    expect(defined(raise[0], "raise[0]").value).toBeCloseTo(150 * D2R);
     expect(raise[0]).toMatchObject({ dancer: 1, side: 0 });
-    expect(targets.find((g) => g.key === "flen")!.value).toBeCloseTo(0.4);
+    expect(defined(targets.find((g) => g.key === "flen"), "targets.find((g) => g.key === \"flen\")").value).toBeCloseTo(0.4);
     // The torso isn't a solver variable: reported, not dropped silently.
     expect(unused).toEqual(["1.torso.lean-fwd"]);
   });
@@ -107,7 +108,7 @@ describe("🧪 Ryan's keyframes steer the solve (2026-10-26)", () => {
       9,
     );
     const steered = solve({ ...base, targets }, { iterations: 300 }).frames;
-    const raise = (fs: Frame[], i: number) => fs[i]![0].arms[0].raise / D2R;
+    const raise = (fs: Frame[], i: number) => defined(fs[i], "fs[i]")[0].arms[0].raise / D2R;
     expect(raise(free, 4)).toBeLessThan(5);
     expect(raise(steered, 4)).toBeGreaterThan(60);
     // Smooth into and out of it: the samples beside it rise too, the ends least.
@@ -174,22 +175,22 @@ describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
     const guide = { at: [0.05, 1.7, 0] as Vec, weight: 120 };
     let clipping = 0;
     for (let i = 0; i < frames.length; i++) {
-      const base = frames[i]!;
+      const base = defined(frames[i], "frames[i]");
       const g = new Float64Array(v.length);
-      const c = frameCostGrad(m, plans[i]!, i, v, base, WEIGHTS, guide, g);
+      const c = frameCostGrad(m, defined(plans[i], "plans[i]"), i, v, base, WEIGHTS, guide, g);
       expect(c).toBeCloseTo(frameCost(m, i, unpackOne(v, i, base), WEIGHTS, guide), 6);
       if (c > 50) clipping++;
       const h = 1e-6;
       for (let k = 0; k < PER; k++) {
         const j = i * PER + k;
-        const x = v[j]!;
+        const x = defined(v[j], "v[j]");
         v[j] = x + h;
         const up = frameCost(m, i, unpackOne(v, i, base), WEIGHTS, guide);
         v[j] = x - h;
         const dn = frameCost(m, i, unpackOne(v, i, base), WEIGHTS, guide);
         v[j] = x;
         const num = (up - dn) / (2 * h);
-        expect(Math.abs(g[j]! - num)).toBeLessThan(1e-4 * Math.max(1, Math.abs(num)));
+        expect(Math.abs(defined(g[j], "g[j]") - num)).toBeLessThan(1e-4 * Math.max(1, Math.abs(num)));
       }
       // Only its own sample's variables.
       for (let j = 0; j < v.length; j++) if (j < i * PER || j >= (i + 1) * PER) expect(g[j]).toBe(0);
@@ -210,14 +211,14 @@ describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
     expect(c).toBeGreaterThan(0);
     const h = 1e-6;
     for (let j = 0; j < v.length; j++) {
-      const x = v[j]!;
+      const x = defined(v[j], "v[j]");
       v[j] = x + h;
       const up = turnCost(v, frames.length, WEIGHTS);
       v[j] = x - h;
       const dn = turnCost(v, frames.length, WEIGHTS);
       v[j] = x;
       const num = (up - dn) / (2 * h);
-      expect(Math.abs(g[j]! - num)).toBeLessThan(1e-4 * Math.max(1, Math.abs(num)));
+      expect(Math.abs(defined(g[j], "g[j]") - num)).toBeLessThan(1e-4 * Math.max(1, Math.abs(num)));
     }
     // Level arms swinging round 0.8 of the cap a sample (5 × 24° = 120° in all) cost nothing.
     const still = Float64Array.from(v);
@@ -243,7 +244,7 @@ describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
     let worst = 0;
     for (let i = 0; i < 7; i++) for (const d of [0, 1] as const) for (const s of [0, 1] as const)
       for (const k of ["raise", "toward", "ulen", "pitch", "heading", "flen"] as const)
-        worst = Math.max(worst, Math.abs(a.frames[i]![d].arms[s][k] - b.frames[i]![d].arms[s][k]));
+        worst = Math.max(worst, Math.abs(defined(a.frames[i], "a.frames[i]")[d].arms[s][k] - defined(b.frames[i], "b.frames[i]")[d].arms[s][k]));
     expect(worst).toBeLessThan(0.035);
   });
 });
@@ -257,7 +258,7 @@ describe("🧪 growing and shrinking (2026-10-27, step 3b)", () => {
         const grown = growBody(shape, g);
         const want = bodyOf(grown);
         const lift = standingLift(shape, grown);
-        const same = (a: Vec, b: Vec) => [0, 1, 2].forEach((k) => expect(a[k]! - (b[k]! + (k === 1 ? lift : 0))).toBeCloseTo(0, 9));
+        const same = (a: Vec, b: Vec) => [0, 1, 2].forEach((k) => expect(defined(a[k], "a[k]") - (defined(b[k], "b[k]") + (k === 1 ? lift : 0))).toBeCloseTo(0, 9));
         same(worn.torso.a, want.torso.a);
         same(worn.torso.b, want.torso.b);
         same(worn.head.c, want.head.c);
@@ -322,7 +323,7 @@ describe("🧪 a forearm grip between unequal forearms (10-28, 12)", () => {
   it("counts the shorter's hand held anywhere along the longer forearm", () => {
     // Only the hold weighted: sprout's hand on ember's forearm a third of the way along costs what
     // it costs two thirds along. Ember's own hand (at sprout's elbow) is the same in both.
-    const f = m.frames[0]!;
+    const f = defined(m.frames[0], "m.frames[0]");
     const { e, w } = armPoints(ember, 0, f[1].arms[0]);
     const elbow = toFloor(e, f[1]);
     const wrist = toFloor(w, f[1]);

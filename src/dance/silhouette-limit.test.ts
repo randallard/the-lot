@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import {
   clipSilhouette,
   inflatedParts,
@@ -46,9 +47,9 @@ describe("inflatedParts", () => {
       const want = rigidParts(shape, NPC_BODY_CENTER_Y);
       expect(got.length).toBe(want.length);
       got.forEach((p, i) => {
-        expect(p.radius).toBeCloseTo(want[i]!.radius, 12);
-        expect(p.y0).toBeCloseTo(want[i]!.y0, 12);
-        expect(p.y1).toBeCloseTo(want[i]!.y1, 12);
+        expect(p.radius).toBeCloseTo(defined(want[i], "want[i]").radius, 12);
+        expect(p.y0).toBeCloseTo(defined(want[i], "want[i]").y0, 12);
+        expect(p.y1).toBeCloseTo(defined(want[i], "want[i]").y1, 12);
       });
     }
   });
@@ -57,27 +58,27 @@ describe("inflatedParts", () => {
     const got = inflatedParts(myco, pose(), 1);
     const want = rigidParts(MYCO_DEFAULTS, NPC_BODY_CENTER_Y);
     got.forEach((p, i) => {
-      expect(p.radius).toBeCloseTo(want[i]!.radius, 12);
+      expect(p.radius).toBeCloseTo(defined(want[i], "want[i]").radius, 12);
     });
   });
 
   it("grows the body radius, the sideways lean and the head together", () => {
     const base = rigidParts(MYCO_DEFAULTS, NPC_BODY_CENTER_Y);
     const full = inflatedParts(myco, puffed(), 1);
-    expect(full[0]!.radius).toBeGreaterThan(base[0]!.radius);
-    expect(full[1]!.radius).toBeGreaterThan(base[1]!.radius);
+    expect(defined(full[0], "full[0]").radius).toBeGreaterThan(defined(base[0], "base[0]").radius);
+    expect(defined(full[1], "full[1]").radius).toBeGreaterThan(defined(base[1], "base[1]").radius);
   });
 
   it("lifts the head when the body grows underneath it", () => {
     const base = rigidParts(MYCO_DEFAULTS, NPC_BODY_CENTER_Y);
     const taller = inflatedParts(myco, pose({ bodyHeightDelta: 0.4 }), 1);
-    expect(taller[1]!.y0).toBeGreaterThan(base[1]!.y0);
+    expect(defined(taller[1], "taller[1]").y0).toBeGreaterThan(defined(base[1], "base[1]").y0);
   });
 
   it("counts a sideways lean but not a forward one", () => {
-    const sideways = inflatedParts(myco, pose({ bodyLeanZ: 30 }), 1)[0]!.radius;
-    const forward = inflatedParts(myco, pose({ bodyLeanX: 30 }), 1)[0]!.radius;
-    const rest = rigidParts(MYCO_DEFAULTS, NPC_BODY_CENTER_Y)[0]!.radius;
+    const sideways = defined(inflatedParts(myco, pose({ bodyLeanZ: 30 }), 1)[0], "the torso").radius;
+    const forward = defined(inflatedParts(myco, pose({ bodyLeanX: 30 }), 1)[0], "the torso").radius;
+    const rest = defined(rigidParts(MYCO_DEFAULTS, NPC_BODY_CENTER_Y)[0], "the torso").radius;
     expect(sideways).toBeGreaterThan(rest);
     expect(forward).toBeCloseTo(rest, 12);
   });

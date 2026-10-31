@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { getBodyShape } from "../services/body-shapes";
 import { costN, startN } from "./whole-move-n";
 import { rightAndLeftThru } from "./whole-move-rlt";
@@ -13,21 +14,21 @@ describe("🧪 the N-dancer solve (step 5, 2026-10-27)", () => {
     let seed = 7;
     for (let j = 0; j < v.length; j++) {
       seed = (seed * 1103515245 + 12345) % 2147483648;
-      v[j] = v[j]! + (seed / 2147483648 - 0.5) * 0.3;
+      v[j] = defined(v[j], "v[j]") + (seed / 2147483648 - 0.5) * 0.3;
     }
     const grad = new Float64Array(v.length);
     costN(m, v, undefined, grad);
     const h = 1e-6;
     let worst = 0;
     for (let j = 0; j < v.length; j += 3) {
-      const x = v[j]!;
+      const x = defined(v[j], "v[j]");
       v[j] = x + h;
       const up = costN(m, v);
       v[j] = x - h;
       const dn = costN(m, v);
       v[j] = x;
       const num = (up - dn) / (2 * h);
-      worst = Math.max(worst, Math.abs(num - grad[j]!) / Math.max(1, Math.abs(num)));
+      worst = Math.max(worst, Math.abs(num - defined(grad[j], "grad[j]")) / Math.max(1, Math.abs(num)));
     }
     expect(worst).toBeLessThan(1e-4);
   });

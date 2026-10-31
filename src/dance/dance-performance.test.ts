@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { renderHook } from "@testing-library/react";
 import type { CallName, DancerState } from "square-one";
 import { useDancePerformance } from "./useDancePerformance";
@@ -104,7 +105,7 @@ describe("the Partner Trade clears the bodies dancing it", () => {
       }
     }
     const scale = DEFAULT_SCALE;
-    const hold = touchHold(armMetrics(shapes[0]!), armMetrics(shapes[1]!));
+    const hold = touchHold(armMetrics(defined(shapes[0], "shapes[0]")), armMetrics(defined(shapes[1], "shapes[1]")));
     return { width: hold.width / scale, scale };
   }
 
@@ -122,7 +123,7 @@ describe("the Partner Trade clears the bodies dancing it", () => {
   ): number {
     const { width, scale } = coupleWidthEngine(shapes);
     const bodies =
-      CLEARANCE_MARGIN * lateralClearance(rigidParts(shapes[0]!), rigidParts(shapes[1]!));
+      CLEARANCE_MARGIN * lateralClearance(rigidParts(defined(shapes[0], "shapes[0]")), rigidParts(defined(shapes[1], "shapes[1]")));
     const clearance = bodies / scale;
     // 🔴 **Through `sizeArch`, the same function the scene uses** (ADR-0037). This helper has
     // duplicated the scene's arch sizing twice and been wrong both times — once by omitting the
@@ -133,11 +134,11 @@ describe("the Partner Trade clears the bodies dancing it", () => {
     // The draw is fixed to a reshape rather than random, so the suite is deterministic.
     const arch =
       sizeArch(
-        armMetrics(shapes[0]!),
-        armMetrics(shapes[1]!),
-        shapes[0]!,
-        shapes[1]!,
-        touchHold(armMetrics(shapes[0]!), armMetrics(shapes[1]!)).width,
+        armMetrics(defined(shapes[0], "shapes[0]")),
+        armMetrics(defined(shapes[1], "shapes[1]")),
+        defined(shapes[0], "shapes[0]"),
+        defined(shapes[1], "shapes[1]"),
+        touchHold(armMetrics(defined(shapes[0], "shapes[0]")), armMetrics(defined(shapes[1], "shapes[1]"))).width,
         bodies,
         RESHAPE,
       ).wanted / scale;
@@ -172,7 +173,7 @@ describe("the Partner Trade clears the bodies dancing it", () => {
     // cast, the closest approach over two Trades went **0.34 → 0.55** world units against
     // two torsos that need 0.52 — and **→ 0.71** once the clearance was passed (ADR-0031).
     const shapes = [MYCO_DEFAULTS, EMBER_DEFAULTS];
-    const torsos = shapes[0]!.body.radius + shapes[1]!.body.radius;
+    const torsos = defined(shapes[0], "shapes[0]").body.radius + defined(shapes[1], "shapes[1]").body.radius;
     const closest = closestApproach(shapes, ["partner-trade", "partner-trade"]);
     expect(closest).toBeGreaterThan(torsos);
   });
@@ -194,8 +195,8 @@ describe("the Partner Trade clears the bodies dancing it", () => {
       { ...EMBER_DEFAULTS, body: { ...EMBER_DEFAULTS.body, radius: radius[1] } },
     ];
     for (const shapes of [cast([0.6, 0.1]), cast([0.6, 0.6])]) {
-      const torsos = shapes[0]!.body.radius + shapes[1]!.body.radius;
-      const needed = CLEARANCE_MARGIN * lateralClearance(rigidParts(shapes[0]!), rigidParts(shapes[1]!));
+      const torsos = defined(shapes[0], "shapes[0]").body.radius + defined(shapes[1], "shapes[1]").body.radius;
+      const needed = CLEARANCE_MARGIN * lateralClearance(rigidParts(defined(shapes[0], "shapes[0]")), rigidParts(defined(shapes[1], "shapes[1]")));
       const closest = closestApproach(shapes, ["partner-trade"]);
       // Within half a percent of the full height-aware clearance, from 32% and 47% short.
       //
@@ -224,7 +225,7 @@ describe("the Partner Trade clears the bodies dancing it", () => {
     // to ride on the frame scale, so the delivered gap came out at the bare clearance and the
     // margin was invisible in every measurement here. It is on the clearance we pass now, which
     // means it shows up in the figure — the same daylight, attributed to the thing that wants it.
-    const needed = CLEARANCE_MARGIN * lateralClearance(rigidParts(shapes[0]!), rigidParts(shapes[1]!));
+    const needed = CLEARANCE_MARGIN * lateralClearance(rigidParts(defined(shapes[0], "shapes[0]")), rigidParts(defined(shapes[1], "shapes[1]")));
     expect(closestApproach(shapes, ["partner-trade"])).toBeGreaterThan((width / 2) * scale);
     expect(closestApproach(shapes, ["partner-trade"])).toBeCloseTo(needed, 2);
   });
@@ -239,7 +240,7 @@ describe("the Partner Trade clears the bodies dancing it", () => {
     // the pass gave 0.554; it now gives **0.709**, which is the wanted number less the chord
     // sag square-one's ADR-0022 bounded at a fifth of a percent.
     const shapes = [MYCO_DEFAULTS, EMBER_DEFAULTS];
-    const needed = CLEARANCE_MARGIN * lateralClearance(rigidParts(shapes[0]!), rigidParts(shapes[1]!));
+    const needed = CLEARANCE_MARGIN * lateralClearance(rigidParts(defined(shapes[0], "shapes[0]")), rigidParts(defined(shapes[1], "shapes[1]")));
     const closest = closestApproach(shapes, ["partner-trade"]);
     // 🔴 **Half a percent, not a fifth of one, as of ADR-0035.** The residual is square-one's
     // chord sag (its ADR-0022) and that ADR says it scales with the **bowed radius** — so

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { diskSlots, initialLayout, refocus, ringAngles, type Coord, type Layout } from "./couple-disk";
 
 const IDS = Array.from({ length: 25 }, (_, i) => `p${String(i)}`);
@@ -15,14 +16,14 @@ describe("the couple disk", () => {
     expect(byRing.map((r) => r.length)).toEqual([5, 9, 10]);
     for (const ring of ringAngles(24)) {
       const sorted = [...ring].sort((a, b) => a - b);
-      const steps = sorted.map((a, i) => (i + 1 < sorted.length ? sorted[i + 1]! : sorted[0]! + 2 * Math.PI) - a);
+      const steps = sorted.map((a, i) => (i + 1 < sorted.length ? defined(sorted[i + 1], "sorted[i + 1]") : defined(sorted[0], "sorted[0]") + 2 * Math.PI) - a);
       for (const step of steps) expect(step).toBeCloseTo((2 * Math.PI) / ring.length, 9);
     }
   });
 
   it("turns each outer ring off the inner couples' lines as far as even spacing allows", () => {
     const [r1, r2] = ringAngles(14);
-    const gap = Math.min(...r2!.flatMap((a) => r1!.map((b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))))));
+    const gap = Math.min(...defined(r2, "r2").flatMap((a) => defined(r1, "r1").map((b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))))));
     // 9 against 5 can be at most 4° off (their spacings share 8°); it gets there.
     expect((gap * 180) / Math.PI).toBeCloseTo(4, 0);
   });
@@ -40,12 +41,12 @@ describe("the couple disk", () => {
 
   it("🔑 a refocus keeps the new focus where it stands and fills the disk round it", () => {
     const before = initialLayout(IDS, "p0");
-    const edge = IDS.reduce((a, b) => (radius(before[b]!, [0, 0]) > radius(before[a]!, [0, 0]) ? b : a));
+    const edge = IDS.reduce((a, b) => (radius(defined(before[b], "before[b]"), [0, 0]) > radius(defined(before[a], "before[a]"), [0, 0]) ? b : a));
     const after = refocus(before, IDS, edge);
     expect(after[edge]).toEqual(before[edge]);
     expect(distinct(after)).toBe(25);
-    const disk = new Set(diskSlots(before[edge]!, 25).map(k));
-    for (const id of IDS) expect(disk.has(k(after[id]!))).toBe(true);
+    const disk = new Set(diskSlots(defined(before[edge], "before[edge]"), 25).map(k));
+    for (const id of IDS) expect(disk.has(k(defined(after[id], "after[id]")))).toBe(true);
   });
 
   it("refocusing on the couple already in focus moves nobody", () => {

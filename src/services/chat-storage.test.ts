@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { defined } from "../test/defined";
 import {
   addMessage,
   getChats,
@@ -71,7 +72,7 @@ describe("chat-storage unread features", () => {
 
     const chats = getChats("myco");
     expect(chats).toHaveLength(1);
-    expect(chats[0]!.text).toBe("test message");
-    expect(chats[0]!.isUnread).toBe(false);
+    expect(defined(chats[0], "chats[0]").text).toBe("test message");
+    expect(defined(chats[0], "chats[0]").isUnread).toBe(false);
   });
 });

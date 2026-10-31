@@ -71,6 +71,9 @@ const sessions = fc.array(fc.tuple(step, fc.integer({ min: 0, max: 2000 })), { m
   return { states, actions };
 });
 
+/** An object's values, as `unknown` (`Object.values` on an interface gives `any`). */
+const valuesOf = (o: object): unknown[] => Object.values(o);
+
 describe("the voice test's reducer, over arbitrary action sequences", () => {
   it("every call it names is a known call, named no later than the latest result", () => {
     fc.assert(fc.property(sessions, ({ states }) => {
@@ -148,7 +151,7 @@ describe("the voice test's reducer, over arbitrary action sequences", () => {
         const t = s.trials[s.trials.length - 1];
         const chained = before.mode === "chain" && before.chain !== null;
         expect(t?.chain === null).toBe(!chained);
-        if (chained) expect(t?.chain).toEqual(before.chain?.steps.map((c) => c.id));
+        if (chained) expect(t?.chain).toEqual(before.chain.steps.map((c) => c.id));
       });
     }));
   });
@@ -182,8 +185,8 @@ describe("the voice test's reducer, over arbitrary action sequences", () => {
     fc.assert(fc.property(sessions, ({ states }) => {
       for (const s of states) {
         expect(Number.isFinite(s.bpm) && s.bpm > 0).toBe(true);
-        const nums = [...Object.values(summarise(s)), ...Object.values(summariseChains(s))].flatMap((v) =>
-          typeof v === "number" ? [v] : v !== null && typeof v === "object" ? Object.values(v).filter((x): x is number => typeof x === "number") : [],
+        const nums = [...valuesOf(summarise(s)), ...valuesOf(summariseChains(s))].flatMap((v) =>
+          typeof v === "number" ? [v] : v !== null && typeof v === "object" ? valuesOf(v).filter((x): x is number => typeof x === "number") : [],
         );
         for (const x of nums) expect(Number.isNaN(x)).toBe(false);
       }

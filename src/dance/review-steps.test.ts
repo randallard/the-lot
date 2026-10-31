@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { applyCallToPair, applyStarThru, danceCoupleSequence, flattenSequence, partnerUp } from "square-one";
 import { REVIEW_FIGURES, type StepPose } from "./review-steps";
 import { TURN_UNDER_STYLES } from "./turn-under";
@@ -65,7 +66,7 @@ describe("the review step catalog", () => {
     // is meaningless at a beat where nobody is winding one. `stand` and `arch-up` are before the
     // turn and `end` is after the arch has been released — branching those would be four cells
     // asking one question.
-    const twirl = REVIEW_FIGURES.find((f) => f.id === "california-twirl")!;
+    const twirl = defined(REVIEW_FIGURES.find((f) => f.id === "california-twirl"), "REVIEW_FIGURES.find((f) => f.id === \"california-twirl\")");
     const branched = twirl.steps.filter((s) => s.turnUnder !== undefined);
     expect(branched).toHaveLength(TURN_UNDER_STYLES.length * 3);
     for (const beat of [1, 2, 3]) {
@@ -102,8 +103,8 @@ describe("the review step catalog", () => {
     // Beat 2 of a 4-beat exchange is the midpoint of the belle's diameter — where square-one
     // puts her at (0, 0), directly under the joined hands. To 5 places, which is the
     // engine's own `round` precision: its waypoints land on 1e-6, not on exact zero.
-    const motions = motionsOf(twirl!);
-    const belle = motions.b!;
+    const motions = motionsOf(defined(twirl, "twirl"));
+    const belle = defined(motions.b, "motions.b");
     const midpoint = belle.waypoints.find((w) => w.beat === 2);
     expect(midpoint?.x).toBeCloseTo(0, 5);
     expect(midpoint?.y).toBeCloseTo(0, 5);
@@ -115,14 +116,14 @@ describe("the review step catalog", () => {
     // A step that names a beat outside the grip span would be rated as an arch pose and
     // drawn as a free-handed one — so every step that is *about* the arch has to be inside
     // it. `end` is the deliberate exception and gets its own test below.
-    const twirl = REVIEW_FIGURES.find((f) => f.id === "california-twirl")!;
+    const twirl = defined(REVIEW_FIGURES.find((f) => f.id === "california-twirl"), "REVIEW_FIGURES.find((f) => f.id === \"california-twirl\")");
     const motions = motionsOf(twirl);
-    const span = motions.b!.grips.find((g) => g.grip === "arch");
+    const span = defined(motions.b, "motions.b").grips.find((g) => g.grip === "arch");
     expect(span).toBeDefined();
     for (const step of twirl.steps) {
       if (step.pose.kind !== "beat" || step.id === "end") continue;
-      expect(step.pose.beat, step.id).toBeGreaterThanOrEqual(span!.from);
-      expect(step.pose.beat, step.id).toBeLessThanOrEqual(span!.to);
+      expect(step.pose.beat, step.id).toBeGreaterThanOrEqual(defined(span, "span").from);
+      expect(step.pose.beat, step.id).toBeLessThanOrEqual(defined(span, "span").to);
     }
   });
 
@@ -136,13 +137,13 @@ describe("the review step catalog", () => {
     // 🔴 Outside the span is NOT hands free. `DanceFloor` targets arch blend 0 here, which is
     // the standing hold — hands joined, low and forward (ADR-0027) — so the couple finish
     // joined the ordinary way. `momentum.lastHand` is what still names the hand.
-    const twirl = REVIEW_FIGURES.find((f) => f.id === "california-twirl")!;
+    const twirl = defined(REVIEW_FIGURES.find((f) => f.id === "california-twirl"), "REVIEW_FIGURES.find((f) => f.id === \"california-twirl\")");
     const motions = motionsOf(twirl);
-    const span = motions.b!.grips.find((g) => g.grip === "arch");
+    const span = defined(motions.b, "motions.b").grips.find((g) => g.grip === "arch");
     const end = twirl.steps.find((s) => s.id === "end");
     expect(end?.pose.kind).toBe("beat");
-    expect(end?.pose.kind === "beat" ? end.pose.beat : NaN).toBeGreaterThan(span!.to);
-    expect(motions.b!.momentum.lastHand).not.toBe("none");
+    expect(end?.pose.kind === "beat" ? end.pose.beat : NaN).toBeGreaterThan(defined(span, "span").to);
+    expect(defined(motions.b, "motions.b").momentum.lastHand).not.toBe("none");
   });
 
   it("🔑 gives the Partner Trade a control step for every Twirl moment", () => {
@@ -154,8 +155,8 @@ describe("the review step catalog", () => {
     // branched four ways. A Trade has no arch and therefore no style, so it cannot gain the
     // same branch — and it does not need to: the control the Trade provides is for the moment,
     // and all four styles at beat 2 are measured against the same hands-free one.
-    const twirl = REVIEW_FIGURES.find((f) => f.id === "california-twirl")!;
-    const trade = REVIEW_FIGURES.find((f) => f.id === "partner-trade")!;
+    const twirl = defined(REVIEW_FIGURES.find((f) => f.id === "california-twirl"), "REVIEW_FIGURES.find((f) => f.id === \"california-twirl\")");
+    const trade = defined(REVIEW_FIGURES.find((f) => f.id === "partner-trade"), "REVIEW_FIGURES.find((f) => f.id === \"partner-trade\")");
     const moments = (f: (typeof REVIEW_FIGURES)[number]) => {
       const seen = new Map<string, StepPose>();
       for (const s of f.steps) seen.set(JSON.stringify(s.pose), s.pose);

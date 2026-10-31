@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { GABLE_FOREARM_LEAN, armMetrics, armPose, touchPose, upperArmStrain, type ArmMetrics } from "./arm-pose";
 import {
   PLAYER_DEFAULTS, MYCO_DEFAULTS, EMBER_DEFAULTS, RYAN_DEFAULTS, SPROUT_DEFAULTS,
@@ -40,11 +41,11 @@ function archTarget(m: ArmMetrics, sign: number, fraction: number) {
   const s = shoulder(m, sign);
   const reach = fraction * (m.elbowReach + m.drawnSpan);
   const d = [-sign * 0.45, 1, 0.12];
-  const len = Math.hypot(d[0]!, d[1]!, d[2]!);
+  const len = Math.hypot(defined(d[0], "d[0]"), defined(d[1], "d[1]"), defined(d[2], "d[2]"));
   return {
-    x: s.x + (d[0]! / len) * reach,
-    y: s.y + (d[1]! / len) * reach,
-    z: (d[2]! / len) * reach,
+    x: s.x + (defined(d[0], "d[0]") / len) * reach,
+    y: s.y + (defined(d[1], "d[1]") / len) * reach,
+    z: (defined(d[2], "d[2]") / len) * reach,
   };
 }
 
@@ -52,8 +53,8 @@ function archTarget(m: ArmMetrics, sign: number, fraction: number) {
 function offVertical(elbow: { x: number; y: number; z: number }, m: ArmMetrics, sign: number) {
   const s = shoulder(m, sign);
   const v = [elbow.x - s.x, elbow.y - s.y, elbow.z - s.z];
-  const len = Math.hypot(v[0]!, v[1]!, v[2]!) || 1;
-  return (Math.acos(Math.max(-1, Math.min(1, v[1]! / len))) * 180) / Math.PI;
+  const len = Math.hypot(defined(v[0], "v[0]"), defined(v[1], "v[1]"), defined(v[2], "v[2]")) || 1;
+  return (Math.acos(Math.max(-1, Math.min(1, defined(v[1], "v[1]") / len))) * 180) / Math.PI;
 }
 
 const FRACTIONS = [0.5, 0.65, 0.8, 0.9];
@@ -159,12 +160,12 @@ describe("🔑 a raised hold stands the upper arm up", () => {
           );
           const where = `${name} ${String(sign)} f${String(f)}`;
           for (let i = 1; i < angles.length; i++) {
-            expect(angles[i]!, `${where} step ${String(i)}`).toBeLessThanOrEqual(angles[i - 1]! + 1e-9);
+            expect(defined(angles[i], "angles[i]"), `${where} step ${String(i)}`).toBeLessThanOrEqual(defined(angles[i - 1], "angles[i - 1]") + 1e-9);
           }
           // And it actually moves — a rule that quietly did nothing would pass the monotonicity
           // above. Only where there is a circle to move on: see `onTheCircle`.
           if (onTheCircle(m, sign, t)) {
-            expect(angles[4]!, where).toBeLessThan(angles[0]! - 0.5);
+            expect(defined(angles[4], "angles[4]"), where).toBeLessThan(defined(angles[0], "angles[0]") - 0.5);
           }
         }
       }
@@ -222,11 +223,11 @@ describe("🧪 a raised elbow stops short of the hand, so the forearm leans up",
     const s = shoulder(m, sign);
     const reach = fraction * (m.elbowReach + m.drawnSpan);
     const d = [-sign * 0.45, rise, 0.6 * back];
-    const len = Math.hypot(d[0]!, d[1]!, d[2]!);
+    const len = Math.hypot(defined(d[0], "d[0]"), defined(d[1], "d[1]"), defined(d[2], "d[2]"));
     return {
-      x: s.x + (d[0]! / len) * reach,
-      y: s.y + (d[1]! / len) * reach,
-      z: s.z + (d[2]! / len) * reach,
+      x: s.x + (defined(d[0], "d[0]") / len) * reach,
+      y: s.y + (defined(d[1], "d[1]") / len) * reach,
+      z: s.z + (defined(d[2], "d[2]") / len) * reach,
     };
   }
   const lean = Math.sin(GABLE_FOREARM_LEAN);

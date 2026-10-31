@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { getBodyShape } from "../services/body-shapes";
 import { armMetrics, touchHold } from "./arm-pose";
 import { REVIEW2_SIZING } from "./baked-tracks";
@@ -22,10 +23,10 @@ describe("🧪 a call starts and ends as the floor's standing couple (step 4, 20
     for (const [a, b] of [["ryan", "ryan"], ["myco", "ryan"], ["ember", "sprout"], ["player", "ember"]] as const) {
       const { shapes, bodies, P } = couple(a, b);
       const { path } = twirlMove(P, bodies);
-      for (const f of [path[0]!, path[path.length - 1]!]) {
+      for (const f of [defined(path[0], "path[0]"), defined(path[path.length - 1], "path[path.length - 1]")]) {
         const s = standingFrame(shapes, bodies, f);
-        const hb = shapesOf(bodies[0], s[0]).find((x) => x.name === "hand-right")!;
-        const hg = shapesOf(bodies[1], s[1]).find((x) => x.name === "hand-left")!;
+        const hb = defined(shapesOf(bodies[0], s[0]).find((x) => x.name === "hand-right"), "shapesOf(bodies[0], s[0]).find((x) => x.name === \"hand-right\")");
+        const hg = defined(shapesOf(bodies[1], s[1]).find((x) => x.name === "hand-left"), "shapesOf(bodies[1], s[1]).find((x) => x.name === \"hand-left\")");
         const d = Math.hypot(hb.a[0] - hg.a[0], hb.a[1] - hg.a[1], hb.a[2] - hg.a[2]);
         expect(d).toBeCloseTo(WEIGHTS.clasp * (hb.r + hg.r), 3);
         // At the floor's own height for the hold (the taller dancer's waist, ADR-0046).
@@ -50,7 +51,7 @@ describe("🧪 a call starts and ends as the floor's standing couple (step 4, 20
     expect(home.move.home).toBe(true);
     // 2 ends × 2 dancers × 2 arms × 6 dials, all firm.
     expect(home.move.targets).toHaveLength(48);
-    expect(home.move.targets!.every((t) => (t.i === 0 || t.i === n - 1) && t.weight === HOME_WEIGHT)).toBe(true);
+    expect(defined(home.move.targets, "home.move.targets").every((t) => (t.i === 0 || t.i === n - 1) && t.weight === HOME_WEIGHT)).toBe(true);
     // A break is pinned the same way: it starts and ends holding hands.
     expect(twirlMove(P, bodies, [], "none", "break", shapes).move.targets).toHaveLength(48);
   });
@@ -61,12 +62,12 @@ describe("🧪 a call starts and ends as the floor's standing couple (step 4, 20
     const r = solve({ ...move, frames: start }, { iterations: 600, rate: 0.04, rateEnd: 0.005 });
     const n = path.length;
     for (const i of [0, n - 1]) {
-      const got = r.frames[i]!;
-      const want = standingFrame(shapes, bodies, path[i]!);
+      const got = defined(r.frames[i], "r.frames[i]");
+      const want = standingFrame(shapes, bodies, defined(path[i], "path[i]"));
       for (const k of [0, 1] as const) for (const side of [0, 1] as const) for (const key of ["raise", "toward", "pitch", "heading"] as const) {
         expect(wrapDeg(got[k].arms[side][key] - want[k].arms[side][key])).toBeLessThan(3);
       }
-      expect(Math.hypot(got[0].x - path[i]![0].x, got[0].z - path[i]![0].z)).toBeLessThan(0.01);
+      expect(Math.hypot(got[0].x - defined(path[i], "path[i]")[0].x, got[0].z - defined(path[i], "path[i]")[0].z)).toBeLessThan(0.01);
     }
   });
 });

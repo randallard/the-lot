@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import * as THREE from "three";
 import type { CharacterBodyShape } from "../services/body-shapes";
 import { EDGE_BLEND, WIDTH_KEY, applyToRigs, dialKey, ease, readRigs, sampleTrack } from "./pose-dials";
@@ -60,15 +61,16 @@ describe("dials written back onto the rig", () => {
   it("the right arm mirrors: 90° toward its own side is out to the right", () => {
     const rigs = [rig(0), rig(1)];
     applyToRigs(rigs, shapes, { [dialKey(0, "upper-arm-right", "raise")]: 90, [dialKey(0, "upper-arm-right", "toward")]: 90 });
-    const elbow = rigs[0]!.getObjectByName("forearm-right")!.parent!;
+    const forearm = defined(defined(rigs[0], "rigs[0]").getObjectByName("forearm-right"), "the right forearm");
+    const elbow = defined(forearm.parent, "the right forearm's parent");
     expect(elbow.position.x).toBeLessThan(-0.29);
   });
 
   it("couple width moves both dancers about their middle", () => {
     const rigs = [rig(-0.5), rig(0.5)];
     applyToRigs(rigs, shapes, { [WIDTH_KEY]: 160 });
-    expect(rigs[0]!.position.x).toBeCloseTo(-0.8);
-    expect(rigs[1]!.position.x).toBeCloseTo(0.8);
+    expect(defined(rigs[0], "rigs[0]").position.x).toBeCloseTo(-0.8);
+    expect(defined(rigs[1], "rigs[1]").position.x).toBeCloseTo(0.8);
     expect(readRigs(rigs, shapes)[WIDTH_KEY]).toBeCloseTo(160);
   });
 
@@ -77,7 +79,7 @@ describe("dials written back onto the rig", () => {
     const before = readRigs(rigs, shapes);
     applyToRigs(rigs, shapes, { [dialKey(1, "head", "nod")]: 12 });
     const after = readRigs(rigs, shapes);
-    for (const k of Object.keys(before)) if (k !== dialKey(1, "head", "nod")) expect(after[k], k).toBeCloseTo(before[k]!, 5);
+    for (const k of Object.keys(before)) if (k !== dialKey(1, "head", "nod")) expect(after[k], k).toBeCloseTo(defined(before[k], "before[k]"), 5);
   });
 });
 
@@ -118,8 +120,8 @@ describe("playing keyframes", () => {
 
   it("turns angles the short way round", () => {
     const frames = [k(0, { [facing]: 170 }), k(1, { [facing]: -170 })];
-    expect(Math.abs(sampleTrack(frames, 0.5)![facing]!)).toBeCloseTo(180);
+    expect(Math.abs(defined(defined(sampleTrack(frames, 0.5), "the sample")[facing], "facing"))).toBeCloseTo(180);
     const cm = [k(0, { [WIDTH_KEY]: 170 }), k(1, { [WIDTH_KEY]: -170 })];
-    expect(sampleTrack(cm, 0.5)![WIDTH_KEY]).toBeCloseTo(0);
+    expect(defined(sampleTrack(cm, 0.5), "sampleTrack(cm, 0.5)")[WIDTH_KEY]).toBeCloseTo(0);
   });
 });

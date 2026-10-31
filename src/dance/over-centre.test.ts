@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { NO_DUCK, OVER_CENTRE, breakEffort, crownOf, headroom, planArch, sizeArch, type Overhead } from "./arch";
 import { BREAK, RESHAPE, growBody, growForearm, standingLift } from "./accommodation";
 import {
@@ -50,7 +51,7 @@ function walk(bs0: CharacterBodyShape, ls0: CharacterBodyShape, centred: boolean
   const motions = flattenSequence(danceCoupleSequence(["california-twirl"] as never, couple, shapeAt)) as Record<string, { beats: number }>;
   const frame = makeFrame({ x: 0, z: 0 }, scale, 0);
   const at = (key: string, beat: number): Placement => {
-    const s = sampleMotion(motions[key]! as never, beat);
+    const s = sampleMotion(defined(motions[key], "motions[key]") as never, beat);
     const w = toWorld(frame, s.position);
     return { x: w.x, z: w.z, yaw: facingToRotationY(frame, s.facing) };
   };
@@ -109,7 +110,7 @@ function walk(bs0: CharacterBodyShape, ls0: CharacterBodyShape, centred: boolean
 describe("🧪 the join is held over the centre of the exchange", () => {
   it("🔑 she is exactly at that centre under the arch, so there it is over her own crown", () => {
     for (const [name, bs, ls] of PAIRS) {
-      expect(walk(bs, ls, true)[1]!.herFromCentre, name).toBeCloseTo(0, 4);
+      expect(defined(walk(bs, ls, true)[1], "the walk's second sample").herFromCentre, name).toBeCloseTo(0, 4);
     }
   });
 
@@ -127,8 +128,8 @@ describe("🧪 the join is held over the centre of the exchange", () => {
     // The control. Carried with the pair, her hand follows *her* — so at the quarter and the
     // three-quarter it has left the centre she has walked away from.
     const off = walk(PLAYER_DEFAULTS, PLAYER_DEFAULTS, false);
-    expect(off[0]!.herOffCentre).toBeGreaterThan(0.3);
-    expect(off[2]!.herOffCentre).toBeGreaterThan(0.3);
+    expect(defined(off[0], "off[0]").herOffCentre).toBeGreaterThan(0.3);
+    expect(defined(off[2], "off[2]").herOffCentre).toBeGreaterThan(0.3);
   });
 
   it("🔴 and 12 of 25 beaus stretch to get there, which is the next thing to fix", () => {
@@ -136,7 +137,7 @@ describe("🧪 the join is held over the centre of the exchange", () => {
     // his arm goes for half the cast — so the solve lengthens his undrawn upper arm rather than
     // letting the hands part. Recorded, not hidden: this is the number the pass distance (the
     // plan's step 2) is meant to bring down, and the test that says what it was.
-    const strained = PAIRS.filter(([, bs, ls]) => walk(bs, ls, true)[1]!.hisStrain > 0.01);
+    const strained = PAIRS.filter(([, bs, ls]) => defined(walk(bs, ls, true)[1], "the walk's second sample").hisStrain > 0.01);
     expect(strained.map(([name]) => name)).toHaveLength(12);
   });
 });
@@ -145,8 +146,8 @@ describe("🧪 sized over the centre: seat the gable, or break it (2026-10-13)",
   // Ryan: *"if we can't accommodate with one of these then we'll just assign a break to those
   // pairings … the gable just won't connect, but shows a bit of effort towards it."*
   const WALKS = PAIRS.map(([name, bs, ls]) => [name, walk(bs, ls, true, 0, OVER_CENTRE)] as const);
-  const seated = WALKS.filter(([, r]) => r[0]!.centreSized);
-  const broken = WALKS.filter(([, r]) => r[0]!.unseated);
+  const seated = WALKS.filter(([, r]) => defined(r[0], "r[0]").centreSized);
+  const broken = WALKS.filter(([, r]) => defined(r[0], "r[0]").unseated);
 
   it("🔑 every pairing is one or the other — nothing falls back to the old reshape", () => {
     expect(seated.length + broken.length).toBe(PAIRS.length);

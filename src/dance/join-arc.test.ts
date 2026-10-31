@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import { danceCoupleSequence, partnerUp, flattenSequence, sampleMotion } from "square-one";
 import { makeFrame, toWorld, facingToRotationY, DEFAULT_SCALE as scale } from "./frame";
 import { arcAngle, joinArcAt, planJoinArc, type Sampled } from "./join-arc";
@@ -7,14 +8,14 @@ import { arcAngle, joinArcAt, planJoinArc, type Sampled } from "./join-arc";
 function twirl() {
   const couple = partnerUp("a", "b", undefined, undefined, 0.9 / scale, 0.6 / scale);
   const shapeAt = () => ({ width: 0.9 / scale, archClearance: 0.6 / scale });
-  const motions = flattenSequence(danceCoupleSequence(["california-twirl"] as never, couple, shapeAt)) as Record<string, never>;
+  const motions = flattenSequence(danceCoupleSequence(["california-twirl"] as never, couple, shapeAt));
   const frame = makeFrame({ x: 0, z: 0 }, scale, 0);
   const at = (key: string) => (beat: number): Sampled => {
-    const s = sampleMotion(motions[key]!, beat);
+    const s = sampleMotion(defined(motions[key], "motions[key]"), beat);
     const w = toWorld(frame, s.position);
     return { x: w.x, z: w.z, yaw: facingToRotationY(frame, s.facing) };
   };
-  const grip = (motions["a"] as unknown as { grips: { grip: string; from: number; to: number }[] }).grips.find((g) => g.grip === "arch")!;
+  const grip = defined(defined(motions["a"], "the beau's motion").grips.find((g) => g.grip === "arch"), "the arch grip");
   return { beau: at("a"), belle: at("b"), grip };
 }
 

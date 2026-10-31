@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import * as THREE from "three";
 import { getBodyShape } from "../services/body-shapes";
 import {
@@ -80,7 +81,7 @@ describe("baked tracks", () => {
     expect(spanAt(spans, 3.99)?.index).toBe(0);
     expect(spanAt(spans, 4)?.index).toBe(1);
     expect(spanAt(spans, 9)?.index).toBe(1);
-    expect(spanAt([], 1)).toBeUndefined();
+    expect(spanAt<{ startBeat: number; beats: number }>([], 1)).toBeUndefined();
   });
 
   it("a body's print follows its geometry, not its colour", () => {
@@ -148,15 +149,15 @@ describe("baked tracks", () => {
       [{ t: 0.5, values: { "0.torso.x": -60, "0.torso.z": 0, "0.torso.facing": -90, "1.torso.x": 50, "1.torso.z": 0, "0.forearm-left.pitch": -40 } }],
       paths,
     );
-    expect(k!.values["0.torso.x"]).toBeUndefined();
-    expect(k!.values["0.torso.facing"]).toBeUndefined();
-    expect(k!.values["0.forearm-left.pitch"]).toBe(-40);
-    expect(k!.values["0.offset.x"]).toBeCloseTo(0, 6);
-    expect(k!.values["0.offset.z"]).toBeCloseTo(10, 6);
-    expect(k!.values["1.offset.x"]).toBeCloseTo(0, 6);
-    expect(k!.values["1.offset.z"]).toBeCloseTo(0, 6);
+    expect(defined(k, "k").values["0.torso.x"]).toBeUndefined();
+    expect(defined(k, "k").values["0.torso.facing"]).toBeUndefined();
+    expect(defined(k, "k").values["0.forearm-left.pitch"]).toBe(-40);
+    expect(defined(k, "k").values["0.offset.x"]).toBeCloseTo(0, 6);
+    expect(defined(k, "k").values["0.offset.z"]).toBeCloseTo(10, 6);
+    expect(defined(k, "k").values["1.offset.x"]).toBeCloseTo(0, 6);
+    expect(defined(k, "k").values["1.offset.z"]).toBeCloseTo(0, 6);
     // The engine had them 100 cm apart: that's the gap the arms were solved across.
-    expect(k!.values[GAP_KEY]).toBeCloseTo(100, 6);
+    expect(defined(k, "k").values[GAP_KEY]).toBeCloseTo(100, 6);
   });
 
   it("measures how far the live engine's spacing is from the solve's, before the bake's step", () => {
@@ -188,14 +189,15 @@ describe("baked tracks", () => {
     // What a floor picks (10-27): the torsos meeting in the middle, held without a toss.
     const k = chooseBake(BAKED_TRACKS, "california-twirl", [ryan, ryan], { grow: "meet", draw: () => "break" });
     expect(k).toBeDefined();
-    expect(k!.grow).toBe("meet");
+    expect(defined(k, "k").grow).toBe("meet");
     const broken = chooseBake(BAKED_TRACKS, "california-twirl", [ryan, ryan], { called: "break", draw: () => "reshape" });
     expect(broken?.sizing?.accommodation).toBe("break");
-    expect(k!.keyframes.length).toBe(41);
-    expect(k!.keyframes[0]!.t).toBe(0);
-    expect(k!.keyframes[k!.keyframes.length - 1]!.t).toBe(1);
+    const kfs = defined(k, "k").keyframes;
+    expect(kfs.length).toBe(41);
+    expect(defined(kfs[0], "the first keyframe").t).toBe(0);
+    expect(defined(kfs[kfs.length - 1], "the last keyframe").t).toBe(1);
     // It says how its figure was sized, and the gap at every keyframe.
-    expect(k!.sizing).toEqual({ accommodation: "reshape", overhead: 0, close: 0 });
-    expect(k!.keyframes.every((f) => f.values[GAP_KEY] !== undefined)).toBe(true);
+    expect(defined(k, "k").sizing).toEqual({ accommodation: "reshape", overhead: 0, close: 0 });
+    expect(defined(k, "k").keyframes.every((f) => f.values[GAP_KEY] !== undefined)).toBe(true);
   });
 });
