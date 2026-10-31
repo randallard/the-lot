@@ -9,7 +9,7 @@ export interface LotLaunchData {
   npcDisplayName: string;
   opponentType: "ai-agent";
   skillLevel: string;
-  modelAssignments?: Record<string, { modelId: string; label: string }>;
+  modelAssignments?: Record<string, { modelId: string; label: string }> | undefined;
   returnUrl: string;
 }
 
@@ -70,7 +70,7 @@ export interface KingsChessLotLaunchData {
   npcDisplayName: string;
   agentType: "scripted_1" | "scripted_2";
   returnUrl: string;
-  playerName?: string;
+  playerName?: string | undefined;
 }
 
 export function buildKingsChessLaunchUrl(npc: NpcConfig): string {

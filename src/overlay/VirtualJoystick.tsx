@@ -56,6 +56,7 @@ export function VirtualJoystick({ inputDir }: VirtualJoystickProps) {
     (e: React.TouchEvent) => {
       if (touchId.current !== null) return;
       const touch = e.changedTouches[0];
+      if (!touch) return; // a touchstart always carries the touch that started
       touchId.current = touch.identifier;
       const rect = stickRef.current!.getBoundingClientRect();
       origin.current = {
@@ -71,7 +72,7 @@ export function VirtualJoystick({ inputDir }: VirtualJoystickProps) {
     (e: React.TouchEvent) => {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
-        if (touch.identifier === touchId.current) {
+        if (touch && touch.identifier === touchId.current) {
           updateKnob(touch.clientX, touch.clientY);
           break;
         }
@@ -83,7 +84,7 @@ export function VirtualJoystick({ inputDir }: VirtualJoystickProps) {
   const onTouchEnd = useCallback(
     (e: React.TouchEvent) => {
       for (let i = 0; i < e.changedTouches.length; i++) {
-        if (e.changedTouches[i].identifier === touchId.current) {
+        if (e.changedTouches[i]?.identifier === touchId.current) {
           reset();
           break;
         }

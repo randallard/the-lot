@@ -91,6 +91,7 @@ export function SpeechBubble({
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const t = e.touches[0];
+    if (!t) return;
     startDrag(t.clientX, t.clientY);
   }, [startDrag]);
 
@@ -131,7 +132,8 @@ export function SpeechBubble({
     const onTouchMove = (e: TouchEvent) => {
       if (!dragging.current) return;
       e.preventDefault();
-      moveAt(e.touches[0].clientX, e.touches[0].clientY);
+      const t = e.touches[0];
+      if (t) moveAt(t.clientX, t.clientY);
     };
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", endDrag);
@@ -152,6 +154,7 @@ export function SpeechBubble({
       const t = setTimeout(() => setVisible(true), delay);
       return () => clearTimeout(t);
     }
+    return undefined;
   }, [delay]);
 
   useEffect(() => {

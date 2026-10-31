@@ -4,9 +4,8 @@ const BREAKPOINTS = [480, 768, 1024, 1280, 1600, 1920, 2560];
 
 export function getScreenSizeIndex(): number {
   const w = window.innerWidth;
-  for (let i = 0; i < BREAKPOINTS.length; i++) {
-    if (w <= BREAKPOINTS[i]) return i;
-  }
+  const i = BREAKPOINTS.findIndex((bp) => w <= bp);
+  if (i !== -1) return i;
   return BREAKPOINTS.length;
 }
 

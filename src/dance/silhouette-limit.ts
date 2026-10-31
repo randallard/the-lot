@@ -50,7 +50,7 @@ interface MutablePart {
 }
 
 /** Scratch, mutated in place every frame — the ADR-0002 idiom. */
-const _inflated: MutablePart[] = [
+const _inflated: [MutablePart, MutablePart] = [
   { y0: 0, y1: 0, radius: 0 },
   { y0: 0, y1: 0, radius: 0 },
 ];

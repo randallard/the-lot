@@ -64,7 +64,7 @@ interface DancerProps {
   shape: CharacterBodyShape;
   rig: DancerRig;
   /** Marker colour override — the debug scene tints dancers so paths are readable. */
-  color?: string;
+  color?: string | undefined;
   /** When provided, the driver may pose the arms (grip aiming). */
   arms?: DancerArmRigs;
   /**
@@ -141,7 +141,7 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
           which is why no test caught it and looking did. */}
       <mesh
         name="torso"
-        ref={expression?.body}
+        ref={expression?.body ?? null}
         position={[0, NPC_BODY_CENTER_Y, 0]}
         rotation={[deg2rad(body.leanX), 0, deg2rad(body.leanZ)]}
         castShadow
@@ -172,7 +172,7 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
           around the sphere instead of spinning a featureless ball. Anchored here
           rather than on each mesh so it stays right on caricature heads with
           offsets. */}
-      <group ref={expression?.head} position={[head.offsetX, pos.headY + head.offsetY, head.offsetZ]}>
+      <group ref={expression?.head ?? null} position={[head.offsetX, pos.headY + head.offsetY, head.offsetZ]}>
         <mesh name="head" castShadow>
           <sphereGeometry args={[head.radius, head.widthSegments, head.heightSegments]} />
           <meshStandardMaterial color={COLOR} />
@@ -200,13 +200,13 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
           driver chooses where a shoulder is. What the ref is for is the shoulder staying
           attached to a torso whose height has changed, which is a derivation and not a
           pose, and which nothing was doing. */}
-      <group ref={expression?.shoulders.right} position={[-pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
-        <group ref={arms?.right} position={[0, elbowLocalY, 0]}>
+      <group ref={expression?.shoulders.right ?? null} position={[-pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
+        <group ref={arms?.right ?? null} position={[0, elbowLocalY, 0]}>
           <mesh name="forearm-right" position={[0, forearmLocalY, 0]} castShadow>
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
             <meshStandardMaterial color={COLOR} />
           </mesh>
-          <mesh name="hand-right" ref={arms?.hands.right} position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.left}>
+          <mesh name="hand-right" ref={arms?.hands.right ?? null} position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.left}>
             <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
             <meshStandardMaterial color={COLOR} />
           </mesh>
@@ -214,13 +214,13 @@ export function Dancer({ shape, rig, color, arms, expression }: DancerProps) {
       </group>
 
       {/* Anatomical LEFT arm (at +x). */}
-      <group ref={expression?.shoulders.left} position={[pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
-        <group ref={arms?.left} position={[0, elbowLocalY, 0]}>
+      <group ref={expression?.shoulders.left ?? null} position={[pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
+        <group ref={arms?.left ?? null} position={[0, elbowLocalY, 0]}>
           <mesh name="forearm-left" position={[0, forearmLocalY, 0]} castShadow>
             <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
             <meshStandardMaterial color={COLOR} />
           </mesh>
-          <mesh name="hand-left" ref={arms?.hands.left} position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.right}>
+          <mesh name="hand-left" ref={arms?.hands.left ?? null} position={[0, handLocalY, 0]} scale={[1, 1, hand.open.flattenZ]} rotation={rot.right}>
             <sphereGeometry args={[hand.open.radius, hand.open.widthSegments, hand.open.heightSegments]} />
             <meshStandardMaterial color={COLOR} />
           </mesh>

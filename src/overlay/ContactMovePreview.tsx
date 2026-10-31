@@ -169,7 +169,7 @@ interface DriverProps {
   bLeft: React.RefObject<THREE.Group | null>;
   bRight: React.RefObject<THREE.Group | null>;
   /** Fixed blend when scrubbing; `undefined` plays the envelope on a loop. */
-  scrub?: number;
+  scrub?: number | undefined;
 }
 
 const DOWN = new THREE.Vector3(0, -1, 0);
@@ -247,7 +247,7 @@ export interface ContactMovePreviewProps {
   move: ContactMove;
   cast: { A: CastMember; B: CastMember };
   /** Fixed blend, 0 at rest and 1 at contact. Omit to loop the envelope. */
-  scrub?: number;
+  scrub?: number | undefined;
 }
 
 export function ContactMovePreview({ move, cast, scrub }: ContactMovePreviewProps) {

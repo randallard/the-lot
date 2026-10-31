@@ -21,6 +21,12 @@ function createEmptyGrid(size: number): CellContent[][] {
     .map(() => Array(size).fill("empty") as CellContent[]);
 }
 
+
+/** A copy of the grid with one cell changed. */
+function withCell(grid: CellContent[][], row: number, col: number, value: CellContent): CellContent[][] {
+  return grid.map((r, i) => (i === row ? r.map((c, j) => (j === col ? value : c)) : [...r]));
+}
+
 export function BoardCreator({
   boardSize,
   onBoardSaved,
@@ -65,7 +71,7 @@ export function BoardCreator({
     if (!piecePosition) return [];
 
     const adjacents = getAdjacentPositions(piecePosition);
-    return adjacents.filter((p) => grid[p.row][p.col] === "empty");
+    return adjacents.filter((p) => grid[p.row]?.[p.col] === "empty");
   }, [phase, piecePosition, grid, boardSize, getAdjacentPositions]);
 
   const handleCellClick = useCallback(
@@ -74,9 +80,7 @@ export function BoardCreator({
       if (!isValid) return;
 
       if (phase === "choosing-start") {
-        const newGrid = grid.map((r) => [...r]);
-        newGrid[row][col] = "piece";
-        setGrid(newGrid);
+        setGrid(withCell(grid, row, col, "piece"));
         setSequence([
           { position: { row, col }, type: "piece", order: 1 },
         ]);
@@ -86,8 +90,6 @@ export function BoardCreator({
       }
 
       const order = sequence.length + 1;
-      const newGrid = grid.map((r) => [...r]);
-
       // If placing on same row as piece (not advancing) → trap
       // If advancing toward row 0 → piece move
       // If this would reach row 0 → final
@@ -95,16 +97,14 @@ export function BoardCreator({
       const isFinal = row === 0;
 
       if (isTrap) {
-        newGrid[row][col] = "trap";
-        setGrid(newGrid);
+        setGrid(withCell(grid, row, col, "trap"));
         setSequence((prev) => [
           ...prev,
           { position: { row, col }, type: "trap", order },
         ]);
       } else {
         const type = isFinal ? "final" : "piece";
-        newGrid[row][col] = type;
-        setGrid(newGrid);
+        setGrid(withCell(grid, row, col, type));
         setSequence((prev) => [
           ...prev,
           { position: { row, col }, type, order },

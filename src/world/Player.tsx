@@ -38,9 +38,9 @@ interface PlayerProps {
   inputDir: React.RefObject<InputDirection>;
   rushMode: React.RefObject<RushMode>;
   rushTarget: React.RefObject<THREE.Vector3 | null>;
-  hidden?: boolean;
-  bodyShape?: CharacterBodyShape;
-  animController?: React.RefObject<AnimationController>;
+  hidden?: boolean | undefined;
+  bodyShape?: CharacterBodyShape | undefined;
+  animController?: React.RefObject<AnimationController> | undefined;
   /**
    * **Forearm** groups, exposed so a driver can pose them — the fist bump. Same shape
    * `Dancer` and `Npc` take. When a side is being driven the driver owns it outright for

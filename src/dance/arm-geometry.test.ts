@@ -103,9 +103,9 @@ function armsAt(call: CallName, beat: number, yaw = 0.4, emoting = false): Arm[]
     const poses = poseArms(
       armPoses(),
       METRICS[dancer],
-      METRICS[1 - dancer],
+      METRICS[dancer === 0 ? 1 : 0],
       placements[dancer],
-      placements[1 - dancer],
+      placements[dancer === 0 ? 1 : 0],
       grip?.hand === "left" ? { left: 1, right: 0 } : { left: 0, right: 0 },
       emoting ? wideOpen(METRICS[dancer]) : undefined,
     );

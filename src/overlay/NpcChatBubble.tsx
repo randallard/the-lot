@@ -7,7 +7,7 @@ interface NpcChatBubbleProps {
   playerScreenPos: React.RefObject<ScreenPos>;
   onSend: (message: string) => void;
   onClose: () => void;
-  onPlayGame?: () => void;
+  onPlayGame?: (() => void) | undefined;
   continueMode?: boolean;
   /** Pre-fill the text input (e.g. Haiku's suggested reply). */
   defaultText?: string;
@@ -68,6 +68,7 @@ export function NpcChatBubble({
     // On mobile, allow dragging from anywhere on the bubble
     if ((e.target as HTMLElement).closest("input")) return;
     const t = e.touches[0];
+    if (!t) return;
     startDrag(t.clientX, t.clientY);
   }, [startDrag]);
 
@@ -106,7 +107,8 @@ export function NpcChatBubble({
     const onTouchMove = (e: TouchEvent) => {
       if (!dragging.current) return;
       e.preventDefault();
-      moveAt(e.touches[0].clientX, e.touches[0].clientY);
+      const t = e.touches[0];
+      if (t) moveAt(t.clientX, t.clientY);
     };
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", endDrag);

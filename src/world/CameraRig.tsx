@@ -8,8 +8,8 @@ const FAST_LERP_FACTOR = 12;
 
 interface CameraRigProps {
   target: React.RefObject<THREE.Vector3 | null>;
-  offset?: React.RefObject<THREE.Vector3 | null>;
-  lookAtOffset?: React.RefObject<THREE.Vector3 | null>;
+  offset?: React.RefObject<THREE.Vector3 | null> | undefined;
+  lookAtOffset?: React.RefObject<THREE.Vector3 | null> | undefined;
 }
 
 export function CameraRig({ target, offset, lookAtOffset }: CameraRigProps) {

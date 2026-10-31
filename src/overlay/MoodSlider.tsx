@@ -20,7 +20,7 @@ interface MoodSliderProps {
   /** When true, this is the first-time intro — Haiku should mention the phone (E key). */
   isIntro?: boolean;
   /** Called when the player wants to play a game with this NPC. */
-  onPlayGame?: () => void;
+  onPlayGame?: (() => void) | undefined;
 }
 
 type Step = "greeting" | "asking" | "responding" | "npc-reply" | "player-reply" | "npc-followup";
@@ -186,9 +186,9 @@ export function MoodSlider({
         e.stopPropagation();
         const idx = FOCUS_ROWS.indexOf(focusRow);
         if (e.key === "ArrowUp" || (e.key === "Tab" && e.shiftKey)) {
-          setFocusRow(FOCUS_ROWS[Math.max(0, idx - 1)]);
+          setFocusRow(FOCUS_ROWS[Math.max(0, idx - 1)] ?? focusRow); // clamped, so always present
         } else {
-          setFocusRow(FOCUS_ROWS[Math.min(FOCUS_ROWS.length - 1, idx + 1)]);
+          setFocusRow(FOCUS_ROWS[Math.min(FOCUS_ROWS.length - 1, idx + 1)] ?? focusRow);
         }
         return;
       }

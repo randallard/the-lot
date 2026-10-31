@@ -30,12 +30,12 @@ interface NpcProps {
    */
   handPose?: "open" | "closed";
   playerPosition: React.RefObject<THREE.Vector3 | null>;
-  onClick?: () => void;
+  onClick?: (() => void) | undefined;
   relaxing: boolean;
   talking: boolean;
   screenPos: React.RefObject<ScreenPos>;
   worldPosRef?: React.RefObject<THREE.Vector3 | null>;
-  bodyShape?: CharacterBodyShape;
+  bodyShape?: CharacterBodyShape | undefined;
   /**
    * **Forearm** groups, for a driver that needs to pose this NPC's arms — the fist
    * bump. Same shape `Dancer` takes, and unset for every NPC nobody is posing.
@@ -69,7 +69,7 @@ interface NpcProps {
     onPointerMove: (e: WheelPointerEvent) => void;
     onPointerUp: (e: WheelPointerEvent) => void;
     onPointerCancel: (e: WheelPointerEvent) => void;
-  };
+  } | undefined;
 }
 
 const WALK_SPEED = 1.5;
@@ -287,7 +287,7 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
             driver writing the shoulder's own position. Rest hangs down local −y, which
             is the frame `arm-pose` and `fist-bump` assume. */}
         <group position={[-pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
-          <group ref={forearms?.left} position={[0, elbowLocalY, 0]}>
+          <group ref={forearms?.left ?? null} position={[0, elbowLocalY, 0]}>
             <mesh position={[0, forearmLocalY, 0]} castShadow>
               <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
               <meshStandardMaterial color={npcColor} />
@@ -300,7 +300,7 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
         </group>
 
         <group position={[pos.forearmX, pos.shoulderY, pos.shoulderZ]}>
-          <group ref={forearms?.right} position={[0, elbowLocalY, 0]}>
+          <group ref={forearms?.right ?? null} position={[0, elbowLocalY, 0]}>
             <mesh position={[0, forearmLocalY, 0]} castShadow>
               <cylinderGeometry args={[forearm.topRadius, forearm.bottomRadius, forearm.height, forearm.radialSegments]} />
               <meshStandardMaterial color={npcColor} />
@@ -382,7 +382,7 @@ function Camp({ position }: { position: THREE.Vector3 }) {
           <meshStandardMaterial color="#3a6b4a" />
         </mesh>
         {/* Legs */}
-        {[[-0.2, 0, -0.15], [0.2, 0, -0.15], [-0.2, 0, 0.15], [0.2, 0, 0.15]].map((p, i) => (
+        {([[-0.2, 0, -0.15], [0.2, 0, -0.15], [-0.2, 0, 0.15], [0.2, 0, 0.15]] as const).map((p, i) => (
           <mesh key={i} position={[p[0], 0.15, p[2]]}>
             <cylinderGeometry args={[0.015, 0.015, 0.3, 6]} />
             <meshStandardMaterial color="#666" />
@@ -441,6 +441,7 @@ function Campfire({ position }: { position: [number, number, number] }) {
     smokeRefs.current.forEach((mesh, i) => {
       if (!mesh) return;
       const d = smokeData.current[i];
+      if (!d) return; // one datum per smoke mesh, so never
       // Rise and reset
       mesh.position.y += d.speed * delta;
       if (mesh.position.y > 1.2) mesh.position.y = 0.25;

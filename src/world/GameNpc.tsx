@@ -16,11 +16,11 @@ interface GameNpcProps {
   position: [number, number, number];
   bodyColor: string;
   playerPosition: React.RefObject<THREE.Vector3 | null>;
-  onClick?: () => void;
+  onClick?: (() => void) | undefined;
   screenPos: React.RefObject<ScreenPos>;
   worldPosRef?: React.RefObject<THREE.Vector3 | null>;
-  asleep?: boolean;
-  bodyShape?: CharacterBodyShape;
+  asleep?: boolean | undefined;
+  bodyShape?: CharacterBodyShape | undefined;
 }
 
 // Z bubble state
@@ -92,6 +92,7 @@ export function GameNpc({
     if (asleep) {
       for (let i = 0; i < Z_COUNT; i++) {
         const z = zBubbles.current[i];
+        if (!z) continue; // Z_COUNT entries, so never
         z.phase = (z.phase + delta * z.speed) % 1;
         const mesh = zMeshes.current[i];
         if (mesh) {

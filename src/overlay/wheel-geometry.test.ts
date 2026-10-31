@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import {
   DEAD_ZONE_PX,
   angleFromUp,
@@ -110,7 +111,8 @@ describe("wedge selection", () => {
     const tally = new Array<number>(count).fill(0);
     for (let a = 0; a < TAU; a += 0.0005) {
       const { dx, dy } = polar(a);
-      tally[wedgeAt(dx, dy, count)!]++;
+      const w = defined(wedgeAt(dx, dy, count), "a wedge");
+      tally[w] = defined(tally[w], "the wedge's tally") + 1;
     }
     const min = Math.min(...tally);
     const max = Math.max(...tally);

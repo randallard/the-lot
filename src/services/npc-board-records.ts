@@ -86,7 +86,7 @@ export function getBoardWinStreak(npcId: string, boardSize: number): number {
   const recent = getRecentEntries(npcId, boardSize);
   let streak = 0;
   for (let i = recent.length - 1; i >= 0; i--) {
-    if (recent[i].winner === "player") streak++;
+    if (recent[i]?.winner === "player") streak++;
     else break;
   }
   return streak;
@@ -102,7 +102,7 @@ export function getBoardRank(npcId: string, boardSize: number): "S" | "A" | "B" 
 }
 
 const ALL_SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
-const RANK_VALUE: Record<string, number> = { S: 3, A: 2, B: 1 };
+const RANK_VALUE: Record<"S" | "A" | "B", number> = { S: 3, A: 2, B: 1 };
 
 /**
  * Overall Spaces Game rank against an NPC.

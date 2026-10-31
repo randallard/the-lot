@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defined } from "../test/defined";
 import {
   APPROACH_FRACTION,
   APPROACH_STEP,
@@ -88,7 +89,7 @@ function resolution(): RoleResolution {
  * copy of it — this now moves when the authored move moves.
  */
 function meetAt(a: ArmMetrics, b: ArmMetrics) {
-  const c = fistBumpMove().constraints[0];
+  const c = defined(fistBumpMove().constraints[0], "the first constraint");
   return c ? verticalHeight(c.vertical, a, b, c.absoluteHeight) : gripHeight(a, b);
 }
 
@@ -110,7 +111,7 @@ function handOf(pose: ReturnType<typeof armPose>, m: ArmMetrics) {
 
 describe("the fist bump, authored", () => {
   const move = fistBumpMove();
-  const c = move.constraints[0];
+  const c = defined(move.constraints[0], "the first constraint");
 
   it("wears closed hands on both sides", () => {
     expect(handFor(c, "A")).toBe("closed");
@@ -145,7 +146,7 @@ describe("the authored move and the hardcoded gesture agree", () => {
   // path — resolveContact + bumpPose with reach-fraction and mean-elbow — which is what
   // the driver did before it was authored.
   const move = fistBumpMove();
-  const c = move.constraints[0];
+  const c = defined(move.constraints[0], "the first constraint");
   const player = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
   const npc = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
 
@@ -187,7 +188,7 @@ describe("the authored move and the hardcoded gesture agree", () => {
       ...move,
       constraints: [{ ...c, aim: "natural" as const }],
     });
-    const bc = bent.constraints[0];
+    const bc = defined(bent.constraints[0], "the first constraint");
     const r = resolveRole(
       resolution(), scratch(), bent, bc, "A", player, npc, pa, pb, 1, "right-positive");
 
@@ -242,7 +243,7 @@ describe("rig handedness — which shoulder the arm goes back to", () => {
   // Getting the sign wrong is invisible in a contact assertion — the hands still meet at
   // exactly the right point — and shows up only as the wrong arm doing the move.
   const move = fistBumpMove();
-  const c = move.constraints[0];
+  const c = defined(move.constraints[0], "the first constraint");
   const player = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
   const npc = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
 
@@ -469,7 +470,7 @@ describe("staging a stance satisfies the stance", () => {
   // that will never be offered — so they are asserted against each other rather than
   // separately, which is the same reason both live in this module.
   const move = fistBumpMove();
-  const c = move.constraints[0];
+  const c = defined(move.constraints[0], "the first constraint");
   const a = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
   const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
 
@@ -500,7 +501,7 @@ describe("staging a stance satisfies the stance", () => {
 
 describe("availability is geometry and consent", () => {
   const move = fistBumpMove();
-  const c = move.constraints[0];
+  const c = defined(move.constraints[0], "the first constraint");
   const a = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
   const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
   const reach = maxSeparation(a, b, meetAt(a, b));
@@ -613,7 +614,7 @@ describe("the approach — a move may bring the pair into position", () => {
   // the approach says whether the move will *produce* it. Everything here is the pure
   // half — the driver eases toward an answer it did not compute itself.
   const move = fistBumpMove();
-  const c = move.constraints[0];
+  const c = defined(move.constraints[0], "the first constraint");
   const a = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
   const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
   const h = meetAt(a, b);
@@ -781,7 +782,7 @@ describe("the approach — a move may bring the pair into position", () => {
 
 describe("the approach widens the offer", () => {
   const move = fistBumpMove();
-  const c = move.constraints[0];
+  const c = defined(move.constraints[0], "the first constraint");
   const a = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
   const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
   const h = meetAt(a, b);
@@ -854,7 +855,7 @@ describe("squaring back up after the gesture", () => {
   // resumed and the player, having no such behaviour, was simply left turned. The twist is
   // spent to make the contact possible, so it comes back as the contact ends.
   const move = fistBumpMove();
-  const c = move.constraints[0];
+  const c = defined(move.constraints[0], "the first constraint");
   const a = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
   const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
   const h = meetAt(a, b);
@@ -925,7 +926,7 @@ describe("being moved needs a live yes (ADR-0021)", () => {
   // it does not hold when the other one is a person who has chosen nothing. Narrowed here
   // rather than remembered, because the gap is invisible from the geometry.
   const move = fistBumpMove();
-  const c = move.constraints[0];
+  const c = defined(move.constraints[0], "the first constraint");
   const a = metricsFor(c, "A", PLAYER_DEFAULTS, 0, PLAYER_RIG_Y);
   const b = metricsFor(c, "B", RYAN_DEFAULTS, 0.5, NPC_RIG_Y);
   const h = meetAt(a, b);

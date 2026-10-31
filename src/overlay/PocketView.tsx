@@ -3,7 +3,7 @@ import { useEffect } from "react";
 interface PocketViewProps {
   onClose: () => void;
   inventory: string[];
-  onPhoneClick?: () => void;
+  onPhoneClick?: (() => void) | undefined;
 }
 
 export function PocketView({ onClose, inventory, onPhoneClick }: PocketViewProps) {

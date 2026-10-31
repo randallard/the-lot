@@ -225,14 +225,14 @@ interface SceneProps {
   color: string;
   handPose: "open" | "closed";
   armPose: ArmPose;
-  animationPreview?: ArmAction;
+  animationPreview?: ArmAction | undefined;
   isPlaying?: boolean;
-  onLivepose?: (p: ArmPose) => void;
+  onLivepose?: ((p: ArmPose) => void) | undefined;
   // Emote
-  emotePreview?: Emote;
+  emotePreview?: Emote | undefined;
   isEmotePlaying?: boolean;
   onLiveEmotePose?: (p: ResolvedPose) => void;
-  resolvedPose?: ResolvedPose;
+  resolvedPose?: ResolvedPose | undefined;
 }
 
 function Scene({
@@ -287,7 +287,7 @@ export interface CharacterPreviewProps {
   focusMode?: "full" | "arms";
   /** Overrides arm pose for keyframe preview (arm-action editor) */
   armPoseOverride?: ArmPose;
-  animationPreview?: ArmAction;
+  animationPreview?: ArmAction | undefined;
   isPlaying?: boolean;
   onLivePose?: (p: ArmPose) => void;
   /** Emote preview — drives all tracks */
@@ -295,7 +295,7 @@ export interface CharacterPreviewProps {
   isEmotePlaying?: boolean;
   onLiveEmotePose?: (p: ResolvedPose) => void;
   /** Static resolved pose override (e.g. selected keyframe in emote editor) */
-  resolvedPoseOverride?: ResolvedPose;
+  resolvedPoseOverride?: ResolvedPose | undefined;
 }
 
 export function CharacterPreview({

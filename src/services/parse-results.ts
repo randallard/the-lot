@@ -29,8 +29,9 @@ function decompressHash(): string | null {
   const hash = window.location.hash;
   if (!hash) return null;
   const match = hash.match(/^#r=(.+)$/);
-  if (!match) return null;
-  return LZString.decompressFromEncodedURIComponent(match[1]);
+  const encoded = match?.[1];
+  if (encoded === undefined) return null;
+  return LZString.decompressFromEncodedURIComponent(encoded);
 }
 
 function clearHash(): void {

@@ -23,8 +23,10 @@ function clipShape(
   keepPos: boolean,
 ): THREE.Shape | null {
   const pts = shape.getPoints(64);
+  const first = pts[0];
+  const last = pts[pts.length - 1];
   const n =
-    pts.length > 1 && pts[0].distanceTo(pts[pts.length - 1]) < 1e-6
+    first && last && pts.length > 1 && first.distanceTo(last) < 1e-6
       ? pts.length - 1
       : pts.length;
 
@@ -32,6 +34,7 @@ function clipShape(
   for (let i = 0; i < n; i++) {
     const curr = pts[i];
     const next = pts[(i + 1) % n];
+    if (!curr || !next) continue; // i < n <= pts.length, so never; the index type can't say so
     const cv = axis === "x" ? curr.x : curr.y;
     const nv = axis === "x" ? next.x : next.y;
     const currIn = keepPos ? cv >= clipVal : cv <= clipVal;
@@ -47,9 +50,11 @@ function clipShape(
   }
   if (out.length < 3) return null;
 
+  const [start, ...rest] = out;
+  if (!start) return null; // out.length >= 3 above
   const clipped = new THREE.Shape();
-  clipped.moveTo(out[0].x, out[0].y);
-  for (let i = 1; i < out.length; i++) clipped.lineTo(out[i].x, out[i].y);
+  clipped.moveTo(start.x, start.y);
+  for (const p of rest) clipped.lineTo(p.x, p.y);
   clipped.closePath();
   return clipped;
 }
@@ -61,7 +66,7 @@ interface SingleEyeProps {
   eye: EyeShape;
   position: [number, number, number];
   /** Clip the sclera at this local x. keepRight=true keeps x >= clipX, false keeps x <= clipX */
-  whiteClipX?: number;
+  whiteClipX?: number | undefined;
   keepRight?: boolean;
   /** Negate the eye's rotation (used for left eye when rotationMirrored is on) */
   mirrorRotation?: boolean;
@@ -119,7 +124,7 @@ export interface EyesProps {
   /** If set, looks up and applies the matching expression overrides */
   expression?: string;
   /** Direct override — takes precedence over `expression` (used by the emote system) */
-  expressionOverride?: Partial<EyeShape>;
+  expressionOverride?: Partial<EyeShape> | undefined;
 }
 
 export function Eyes({ eyes, headY, headRadius, headOffsetX = 0, headOffsetZ = 0, expression, expressionOverride }: EyesProps) {

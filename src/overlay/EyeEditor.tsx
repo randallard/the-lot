@@ -445,13 +445,13 @@ export function EyeEditor({ eyes, onChange }: EyeEditorProps) {
       <p style={{ ...SUB, marginTop: 14, borderTop: "1px solid #1e1e30", paddingTop: 10 }}>expressions</p>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {expressionNames.map(name => (
+        {Object.entries(eyes.expressions).map(([name, override]) => (
           <ExpressionRow
             key={name}
             name={name}
             baseRight={eyes.right}
             baseLeft={eyes.left}
-            override={eyes.expressions[name]}
+            override={override}
             asymmetric={eyes.asymmetric}
             onUpdate={override => updateExpression(name, override)}
             onDelete={() => deleteExpression(name)}

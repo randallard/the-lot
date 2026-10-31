@@ -160,7 +160,8 @@ lands, the gap is open, not an exception. What's in and what's left is in
 **Tier: none claimed yet** (ADR-1002 claims only what CI enforces). Toward provable-lite:
 `fast-check` properties now cover both screen reducers (`review2-session`, `voice-test-session`),
 and CI's test job is green (since 2026-10-31: the 38 old failures fixed or kept as `it.fails`
-findings), but the strictness bar (ADR-1011) isn't met. Claim provable-lite when it is.
+findings), and the tsconfig half of the strictness bar (ADR-1011) is on (since 2026-10-31, `api/` included).
+The lint half isn't: `strictTypeChecked` and the three named rules. Claim provable-lite when it is.
 
 ## Docs
 

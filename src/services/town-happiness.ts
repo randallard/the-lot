@@ -38,5 +38,6 @@ export function getTownHappiness(): number {
 /** Map happiness score to emoji face. */
 export function getHappinessEmoji(level: number): string {
   const emojis = ["\u{1F610}", "\u{1F642}", "\u{1F60A}", "\u{1F604}", "\u{1F929}"];
-  return emojis[Math.max(0, Math.min(4, level))];
+  // getTownHappiness rounds, so the index is a whole 0–4 and always present.
+  return emojis[Math.max(0, Math.min(4, level))] ?? "\u{1F610}";
 }

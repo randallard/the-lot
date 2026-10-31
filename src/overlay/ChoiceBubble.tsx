@@ -48,6 +48,7 @@ export function ChoiceBubble({ choices, defaultIndex = 0, speakerScreenPos }: Ch
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if ((e.target as HTMLElement).closest("button")) return;
     const t = e.touches[0];
+    if (!t) return;
     startDrag(t.clientX, t.clientY);
   }, [startDrag]);
 
@@ -84,7 +85,8 @@ export function ChoiceBubble({ choices, defaultIndex = 0, speakerScreenPos }: Ch
     const onTouchMove = (e: TouchEvent) => {
       if (!dragging.current) return;
       e.preventDefault();
-      moveAt(e.touches[0].clientX, e.touches[0].clientY);
+      const t = e.touches[0];
+      if (t) moveAt(t.clientX, t.clientY);
     };
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", endDrag);

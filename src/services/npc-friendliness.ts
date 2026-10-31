@@ -35,14 +35,13 @@ function saveAll(records: Record<string, number>): void {
  */
 export function getFriendliness(npcId: string): number {
   const all = loadAll();
-  if (!(npcId in all)) {
-    // First encounter — random 0 or 1
-    const initial = Math.random() < 0.5 ? 0 : 1;
-    all[npcId] = initial;
-    saveAll(all);
-    return initial;
-  }
-  return all[npcId];
+  const existing = all[npcId];
+  if (existing !== undefined) return existing;
+  // First encounter — random 0 or 1
+  const initial = Math.random() < 0.5 ? 0 : 1;
+  all[npcId] = initial;
+  saveAll(all);
+  return initial;
 }
 
 /** Get the friendliness as a whole number for prompt selection. */

@@ -17,7 +17,7 @@ interface RankDetailProps {
   onOpenBodyEditor?: () => void;
 }
 
-const RANK_COLORS: Record<string, { bg: string; fg: string }> = {
+const RANK_COLORS: Record<"S" | "A" | "B", { bg: string; fg: string }> = {
   S: { bg: "#FFD700", fg: "#1a1a2e" },
   A: { bg: "#C0C0C0", fg: "#1a1a2e" },
   B: { bg: "#8B6914", fg: "#fff" },

@@ -502,7 +502,7 @@ export const FOLD = 0.25;
  * shorter holds further up, as the floor's `contactRadius` has always said. Held to the elbow both
  * ways, sprout → ember stretched sprout's forearm 1.5× and squashed ember's to 0.76×.
  */
-export const gripSlides = (m: Move, k: 0 | 1): boolean => m.bodies[k].fore0 < m.bodies[1 - k].fore0 - 1e-6;
+export const gripSlides = (m: Move, k: 0 | 1): boolean => m.bodies[k].fore0 < m.bodies[k === 0 ? 1 : 0].fore0 - 1e-6;
 
 /** Where on the segment `a`–`b` a hand at `p` holds: the closest point's parameter, or 0 (at `a`). */
 const along = (p: Vec, a: Vec, b: Vec, slide: boolean): number => {
@@ -1772,7 +1772,7 @@ export function startOnPath(m: Move, at: (i: number) => Vec): Frame[] {
       const arms = d.arms.map((a, side) => {
         const isHeld = hs.some((h) => (k === 0 ? h.beau : h.belle) === side);
         if (!isHeld) return a;
-        const s = toFloor(body.shoulder[side], d);
+        const s = toFloor(side === 0 ? body.shoulder[0] : body.shoulder[1], d);
         const out: Vec = [s[0] - d.x, -0.4, s[2] - d.z];
         return reachArm(body, side as 0 | 1, d, at(i), out);
       }) as [Arm, Arm];

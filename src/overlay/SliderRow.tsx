@@ -8,9 +8,9 @@ export interface SliderRowProps {
   step: number;
   onChange: (v: number) => void;
   /** Highlight label/track/value in override colour (EyeEditor expression mode) */
-  overridden?: boolean;
+  overridden?: boolean | undefined;
   /** Show a × reset button when overridden */
-  onReset?: () => void;
+  onReset?: (() => void) | undefined;
   /** minWidth of the label column — defaults to 82 */
   labelWidth?: number;
 }

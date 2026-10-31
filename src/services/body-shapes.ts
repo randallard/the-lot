@@ -109,7 +109,7 @@ export interface BodyLayout {
    * suit the new shoulder. That pairing — this and `upperArmSpacing` — is the whole
    * adjustment for a low-shouldered character.
    */
-  shoulderY?: number;
+  shoulderY?: number | undefined;
 }
 
 export interface CharacterBodyShape {

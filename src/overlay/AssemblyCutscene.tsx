@@ -28,6 +28,7 @@ export function AssemblyCutscene({ onComplete }: AssemblyCutsceneProps) {
       const timer = setTimeout(onComplete, 600);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [assembled, onComplete]);
 
   // Enter key auto-snaps pieces together

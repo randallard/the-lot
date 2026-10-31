@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import LZString from "lz-string";
+import { defined } from "../test/defined";
 import { buildLaunchUrl, buildKingsChessLaunchUrl } from "./launch-game";
 import { saveActiveSession, getActiveSession } from "./active-sessions";
 import type { NpcConfig } from "../config/npcs";
@@ -43,7 +44,7 @@ describe("buildLaunchUrl", () => {
 
   it("encodes payload that can be decompressed", () => {
     const url = buildLaunchUrl(mockNpc);
-    const compressed = url.split("#lot=")[1];
+    const compressed = defined(url.split("#lot=")[1], "the fragment");
     const json = LZString.decompressFromEncodedURIComponent(compressed);
     expect(json).toBeTruthy();
     const payload = JSON.parse(json!);
@@ -57,7 +58,7 @@ describe("buildLaunchUrl", () => {
 
   it("omits model assignments when not configured", () => {
     const url = buildLaunchUrl(mockNpc);
-    const compressed = url.split("#lot=")[1];
+    const compressed = defined(url.split("#lot=")[1], "the fragment");
     const payload = JSON.parse(
       LZString.decompressFromEncodedURIComponent(compressed)!,
     );
@@ -72,7 +73,7 @@ describe("buildLaunchUrl", () => {
   it("reuses existing session for same NPC", () => {
     saveActiveSession("myco", "existing-session-456");
     const url = buildLaunchUrl(mockNpc);
-    const compressed = url.split("#lot=")[1];
+    const compressed = defined(url.split("#lot=")[1], "the fragment");
     const payload = JSON.parse(
       LZString.decompressFromEncodedURIComponent(compressed)!,
     );
@@ -81,7 +82,7 @@ describe("buildLaunchUrl", () => {
 
   it("generates new session when no existing session", () => {
     const url = buildLaunchUrl(mockNpc);
-    const compressed = url.split("#lot=")[1];
+    const compressed = defined(url.split("#lot=")[1], "the fragment");
     const payload = JSON.parse(
       LZString.decompressFromEncodedURIComponent(compressed)!,
     );
@@ -91,7 +92,7 @@ describe("buildLaunchUrl", () => {
   it("does not reuse session from different NPC", () => {
     saveActiveSession("ember", "ember-session");
     const url = buildLaunchUrl(mockNpc);
-    const compressed = url.split("#lot=")[1];
+    const compressed = defined(url.split("#lot=")[1], "the fragment");
     const payload = JSON.parse(
       LZString.decompressFromEncodedURIComponent(compressed)!,
     );
@@ -136,7 +137,7 @@ describe("buildKingsChessLaunchUrl", () => {
 
   it("encodes kings-cooking payload correctly", () => {
     const url = buildKingsChessLaunchUrl(kcNpc);
-    const compressed = url.split("#lot=")[1];
+    const compressed = defined(url.split("#lot=")[1], "the fragment");
     const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed)!);
     expect(payload.npcId).toBe("sprout");
     expect(payload.npcDisplayName).toBe("Sprout");
@@ -148,14 +149,14 @@ describe("buildKingsChessLaunchUrl", () => {
   it("uses default agentType when npc has no kings-cooking config", () => {
     const npcWithoutKC: NpcConfig = { ...kcNpc, games: {} };
     const url = buildKingsChessLaunchUrl(npcWithoutKC);
-    const compressed = url.split("#lot=")[1];
+    const compressed = defined(url.split("#lot=")[1], "the fragment");
     const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed)!);
     expect(payload.agentType).toBe("scripted_1");
   });
 
   it("does not include spaces-game fields", () => {
     const url = buildKingsChessLaunchUrl(kcNpc);
-    const compressed = url.split("#lot=")[1];
+    const compressed = defined(url.split("#lot=")[1], "the fragment");
     const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed)!);
     expect(payload.opponentType).toBeUndefined();
     expect(payload.skillLevel).toBeUndefined();

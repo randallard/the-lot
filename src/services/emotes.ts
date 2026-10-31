@@ -97,7 +97,7 @@ export interface Emote {
   tracks: EmoteTracks;
   duration: number;     // total length in seconds
   loop: boolean;
-  loopCount?: number;   // undefined = infinite when loop=true
+  loopCount?: number | undefined;   // undefined = infinite when loop=true
   tags: string[];       // for semantic lookup ("happy", "sad", ...)
 }
 
@@ -157,8 +157,9 @@ export const MAX_STACK_DEPTH = 10;
 function uuid(): string {
   if (crypto.randomUUID) return crypto.randomUUID();
   const bytes = crypto.getRandomValues(new Uint8Array(16));
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  // 16 bytes, so both indexes are always present; `?? 0` only satisfies the index type.
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
   return [...bytes].map((b, i) =>
     ([4,6,8,10].includes(i) ? "-" : "") + b.toString(16).padStart(2, "0")
   ).join("");
@@ -261,16 +262,18 @@ function sampleTrack<T>(
   time: number,
   duration: number,
 ): T {
-  if (kfs.length === 0) return neutral();
   const sorted = [...kfs].sort((a, b) => getTime(a) - getTime(b));
-  const firstTime = getTime(sorted[0]);
-  const lastTime  = getTime(sorted[sorted.length - 1]);
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  if (first === undefined || last === undefined) return neutral();
+  const firstTime = getTime(first);
+  const lastTime  = getTime(last);
 
   // Before first keyframe: neutral → first
   if (time <= 0) return neutral();
   if (time < firstTime) {
     const raw = firstTime > 0 ? time / firstTime : 1;
-    return lerp(neutral(), sorted[0], applyEasing(raw, getEasing(sorted[0])));
+    return lerp(neutral(), first, applyEasing(raw, getEasing(first)));
   }
 
   // After last keyframe: last → neutral
@@ -278,20 +281,21 @@ function sampleTrack<T>(
   if (time > lastTime) {
     const span = duration - lastTime;
     const raw = span > 0 ? (time - lastTime) / span : 1;
-    return lerp(sorted[sorted.length - 1], neutral(), applyEasing(raw, "ease-in-out"));
+    return lerp(last, neutral(), applyEasing(raw, "ease-in-out"));
   }
 
   // Between keyframes
   for (let i = 0; i < sorted.length - 1; i++) {
     const a = sorted[i];
     const b = sorted[i + 1];
+    if (a === undefined || b === undefined) continue; // i + 1 < sorted.length, so never
     if (time >= getTime(a) && time <= getTime(b)) {
       const span = getTime(b) - getTime(a);
       const raw = span > 0 ? (time - getTime(a)) / span : 1;
       return lerp(a, b, applyEasing(raw, getEasing(b)));
     }
   }
-  return { ...sorted[sorted.length - 1] };
+  return { ...last };
 }
 
 // ---------------------------------------------------------------------------

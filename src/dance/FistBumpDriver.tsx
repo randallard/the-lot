@@ -133,7 +133,7 @@ export interface FistBumpDriverProps {
    * and nothing else. Kept up to date while idle too, so the answer is already correct on
    * the render that opens the wheel.
    */
-  availabilityRef?: React.RefObject<Availability>;
+  availabilityRef?: React.RefObject<Availability> | undefined;
   /** This player's stance on what may be done with them. */
   playerComfort?: ComfortPreferences;
   /** The NPC's. */

@@ -7,10 +7,16 @@ import { CameraRig } from "./CameraRig";
 import { BotParts } from "./BotParts";
 import { Npc } from "./Npc";
 import { FistBumpDriver, type BumpRequest } from "../dance/FistBumpDriver";
-import { fistBumpMove, handFor, type Availability } from "../dance/contact-move";
+import { fistBumpMove, handFor, type Availability, type ContactConstraint } from "../dance/contact-move";
 
 /** One instance, so the driver's constraint-id cache is not invalidated every render. */
 const FIST_BUMP = fistBumpMove();
+// The fist bump is authored with exactly one constraint (`fistBumpMove`), and its tests read it.
+const FIST_BUMP_CONSTRAINT = ((): ContactConstraint => {
+  const c = FIST_BUMP.constraints[0];
+  if (!c) throw new Error("fistBumpMove() has no constraint");
+  return c;
+})();
 import { PLAYER_DEFAULTS, NPC_DEFAULTS } from "../services/body-shapes";
 import { GameNpc } from "./GameNpc";
 import { useTrinketTracker, type TrinketTrackerState } from "./useTrinketTracker";
@@ -90,8 +96,8 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
   const [bumping, setBumping] = useState(false);
   const bumpMove = FIST_BUMP;
   const bumpHands = {
-    player: handFor(bumpMove.constraints[0], "A"),
-    npc: handFor(bumpMove.constraints[0], "B"),
+    player: handFor(FIST_BUMP_CONSTRAINT, "A"),
+    npc: handFor(FIST_BUMP_CONSTRAINT, "B"),
   };
 
   // Rigs and arm groups the fist-bump driver writes. Created here rather than in App
