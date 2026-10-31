@@ -450,6 +450,68 @@ describe("every recogniser result is kept on the trial (10-30 (10))", () => {
   });
 });
 
+describe("a revision doesn't re-time the calls it didn't change (10-30 (11))", () => {
+  // Utterance 1 of the 10-30 (11) run, the results where the text changed. The final rewrote
+  // "lead left view right" as "lead left the right": Veer Right dropped out, and every later call
+  // used to be re-timed to the final at 14.6 s.
+  const RESULTS: readonly (readonly [number, string, boolean])[] = [
+      [0, "Add", false],
+      [469, "Add pass", false],
+      [957, "Add pass through", false],
+      [1159, "Ed passed through", false],
+      [1659, "Ed passed through wheel", false],
+      [2130, "Ed passed through wheel around", false],
+      [3087, "Ed passed through wheel around lead", false],
+      [3320, "Add pass through wheel around lead", false],
+      [3332, "Add pass through wheel around lead left", false],
+      [4305, "Add pass through wheel around lead left view", false],
+      [4324, "Add pass through wheel around lead left rear", false],
+      [4561, "Add pass through wheel around lead left rear right", false],
+      [5496, "Add pass through wheel around lead left rear right couple", false],
+      [5965, "Add pass through wheel around lead left view right couples", false],
+      [6206, "Add pass through wheel around lead left view right couples circulate", false],
+      [7172, "Add pass through wheel around lead left view right couples circulate in", false],
+      [7411, "Add pass through wheel around lead left view right couples circulate in the", false],
+      [7411, "Add pass through wheel around lead left view right couples circulate in the line", false],
+      [8374, "Add pass through wheel around lead left view right couples circulate in the line star", false],
+      [8856, "Add pass through wheel around lead left view right couples circulate in the line star through", false],
+      [9564, "Add pass through wheel around lead left view right couples circulate in the line star through square", false],
+      [10047, "Add pass through wheel around lead left view right couples circulate in the line star through square through", false],
+      [10288, "Add pass through wheel around lead left view right couples circulate in the line star through square through three", false],
+      [11267, "Add pass through wheel around lead left view right couples circulate in the line star through square through three Alla", false],
+      [11489, "Add pass through wheel around lead left view right couples circulate in the line star through square through three Allaman", false],
+      [11730, "Add pass through wheel around lead left view right couples circulate in the line star through square through three Allaman left", false],
+      [12458, "Add pass through wheel around lead left view right couples circulate in the line star through square through three Allaman left right", false],
+      [12691, "Add pass through wheel around lead left view right couples circulate in the line star through square through three Allaman left right and left", false],
+      [13174, "Add pass through wheel around lead left view right couples circulate in the line star through square through three Allaman left right and left hand", false],
+      [14636, "Add pass through wheel around lead left the right couples circulate in the line star through square through three Allaman left right left hand", true],
+  ];
+
+  it("each call keeps the time it was first named, and none waits for the final", () => {
+    let s = run(initialSession(null, "web-speech"), { type: "listening", on: true }, { type: "mode", mode: "free" });
+    for (const [at, transcript, final] of RESULTS) s = run(s, { type: "heard", transcript, final, at });
+    const calls = s.trials[0]?.calls ?? [];
+    const at = (id: string) => calls.find((c) => c.id === id)?.at;
+    expect(at("pass-thru")).toBe(957);
+    expect(at("wheel-around")).toBe(2130);
+    expect(at("circulate")).toBe(6206);
+    expect(at("star-thru")).toBe(8856);
+    expect(calls.map((c) => c.id)).not.toContain("veer-right");
+    for (const c of calls) expect(c.at).toBeLessThan(14636);
+  });
+
+  it("a call inserted before others is new; the others keep their times", () => {
+    const s = run(
+      initialSession(null, "web-speech"),
+      { type: "listening", on: true },
+      { type: "mode", mode: "free" },
+      { type: "heard", transcript: "pass thru trade by", final: false, at: 100 },
+      { type: "heard", transcript: "pass thru swing thru trade by", final: false, at: 500 },
+    );
+    expect(s.now.named.map((n) => [n.id, n.at])).toEqual([["pass-thru", 100], ["swing-thru", 500], ["trade-by", 100]]);
+  });
+});
+
 describe("free mode is a live floor", () => {
   const free = () => run(initialSession(null, "web-speech"), { type: "listening", on: true }, { type: "mode", mode: "free" });
   const say = (s: VoiceSession, transcript: string, at: number) =>

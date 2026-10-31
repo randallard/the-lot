@@ -6,7 +6,21 @@ _Last updated: 2026-10-30_
 
 **Standards:** last compliance review 2026-10-30 ([note](compliance/2026-10-30.md)), its gaps worked the same day (Ryan: *"all that and commit"*; [journal 10-30 (8)](journal/2026-10-30-8-the-standard-pieces.md)). In: square-one re-pinned to `v0.11.0`; exact pins; `fast-check` properties for both reducers (they found a real bug, fixed); ADRs 1000–1017 and the `project-conventions` / `stance-review` skills; tier recorded honestly as none yet; ADR-1012/1015 answered as Proposed ADRs 0066–0068. ⏳ **Still to take:** Ryan decides 0066–0068 · first stance review · tsconfig flags (179 type errors, dry run) · lint `strictTypeChecked` + the three rules (2,756 findings in 173 files, dry run) · TypeScript 6.0.x · then claim provable-lite (also needs CI's test job green: 38 known failures)
 
-> ### ▶ PICK UP HERE — 2026-10-30 (10) — a noisy run; every result logged; the floor re-syncs
+> ### ▶ PICK UP HERE — 2026-10-30 (11) — the interims settle it; re-timing fixed
+>
+> [`journal/2026-10-30-11-the-interims-settle-it.md`](journal/2026-10-30-11-the-interims-settle-it.md)
+> · 🧪 uncommitted, for Ryan's look.
+>
+> - Safari sends interims steadily; the late naming was `rename` re-timing every call after an
+>   early revision. Now old and new call lists are aligned (LCS) and a call keeps its first time.
+>   Replayed: calls recorded only at the final 16 of 77 → 2.
+> - 77 calls heard in 9 long free utterances; last call median 165 ms after speech.
+>
+> ⏳ **Next:** the level meter in noise; then live calling (the floor acts on first naming).
+>
+> ---
+>
+> ### 2026-10-30 (10) — a noisy run; every result logged; the floor re-syncs
 >
 > [`journal/2026-10-30-10-noise-and-the-floor.md`](journal/2026-10-30-10-noise-and-the-floor.md) ·
 > 🧪 uncommitted, for Ryan's look.

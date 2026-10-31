@@ -167,11 +167,36 @@ export function dropCarry(transcript: string, lastFinal: string, beforeSpeech = 
   return carried ? { text: words.slice(prev.length).join(" "), carried: prev.length } : { text: transcript, carried: 0 };
 }
 
-/** The calls named so far: unchanged ones keep their first time; from the first change on, `at`. */
+/**
+ * The calls named so far. The new list is lined up against the old (their longest common
+ * subsequence of ids): a call still there keeps the time it was first named; a new or changed one
+ * takes `at`. Until 10-30 (11) it re-timed everything after the first change, and a final that
+ * rewrote one early word ("lead left view right" → "the right") pushed every later call to the
+ * end of a 15 s utterance, though each had been named seconds before.
+ */
 function rename(before: readonly Named[], heard: readonly Omit<Named, "at">[], at: number): readonly Named[] {
-  let same = 0;
-  while (same < before.length && same < heard.length && before[same]?.id === heard[same]?.id) same++;
-  return [...before.slice(0, same), ...heard.slice(same).map((h) => ({ ...h, at }))];
+  const n = before.length;
+  const m = heard.length;
+  // lcs[i][j]: the longest common run of ids in before[i..] and heard[j..].
+  const lcs = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      const row = lcs[i] ?? [];
+      row[j] = before[i]?.id === heard[j]?.id ? (lcs[i + 1]?.[j + 1] ?? 0) + 1 : Math.max(lcs[i + 1]?.[j] ?? 0, row[j + 1] ?? 0);
+    }
+  }
+  const out: Named[] = [];
+  let i = 0;
+  for (let j = 0; j < m; j++) {
+    const h = heard[j];
+    if (h === undefined) continue;
+    // Skip old calls that the alignment drops, then keep this one's time if it's the match.
+    while (i < n && before[i]?.id !== h.id && (lcs[i + 1]?.[j] ?? 0) >= (lcs[i]?.[j + 1] ?? 0)) i++;
+    const kept = i < n && before[i]?.id === h.id && (lcs[i]?.[j] ?? 0) === (lcs[i + 1]?.[j + 1] ?? 0) + 1;
+    out.push({ ...h, at: kept ? (before[i]?.at ?? at) : at });
+    if (kept) i++;
+  }
+  return out;
 }
 
 const join = (...parts: readonly string[]) => parts.filter((p) => p !== "").join(" ");

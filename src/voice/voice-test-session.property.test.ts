@@ -72,14 +72,37 @@ const sessions = fc.array(fc.tuple(step, fc.integer({ min: 0, max: 2000 })), { m
 });
 
 describe("the voice test's reducer, over arbitrary action sequences", () => {
-  it("every call it names is a known call, in the order first named", () => {
+  it("every call it names is a known call, named no later than the latest result", () => {
     fc.assert(fc.property(sessions, ({ states }) => {
       for (const s of states) {
-        for (const named of [s.now.named, ...s.trials.map((t) => t.calls)]) {
-          for (const n of named) expect(IDS.has(n.id)).toBe(true);
-          for (let k = 1; k < named.length; k++) expect((named[k]?.at ?? 0) >= (named[k - 1]?.at ?? 0)).toBe(true);
+        const latest = s.now.results[s.now.results.length - 1]?.at ?? Infinity;
+        for (const n of s.now.named) {
+          expect(IDS.has(n.id)).toBe(true);
+          expect(n.at).toBeLessThanOrEqual(latest);
+        }
+        for (const t of s.trials) {
+          for (const n of t.calls) {
+            expect(IDS.has(n.id)).toBe(true);
+            expect(n.at).toBeLessThanOrEqual(t.finalAt);
+            expect(n.at).toBeGreaterThanOrEqual(t.results[0]?.at ?? -Infinity);
+          }
         }
       }
+    }));
+  });
+
+  it("a result that only adds calls never moves one already named", () => {
+    fc.assert(fc.property(sessions, ({ states, actions }) => {
+      actions.forEach((a, i) => {
+        const before = states[i]?.now.named ?? [];
+        const after = states[i + 1];
+        if (a.type !== "heard" || after === undefined || after.now.results.length === 0) return;
+        const now = after.now.named;
+        // When the old list is a prefix of the new one, every old call keeps its time.
+        if (before.length <= now.length && before.every((b, k) => now[k]?.id === b.id)) {
+          before.forEach((b, k) => { expect(now[k]?.at).toBe(b.at); });
+        }
+      });
     }));
   });
 
