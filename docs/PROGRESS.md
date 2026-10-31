@@ -16,6 +16,11 @@ _Last updated: 2026-10-30_
 >   hangover. 8 tests on synthetic noise, clicks, soft voices and long calling.
 > - The page saves its level trace (results v4), to replay the detector on real rooms.
 >
+> - **CI (10-31):** OSV went red at 23:20 UTC 10-30 on two advisories published 23:09, fixed only in
+>   new majors: glob GHSA-3g3m-2fjr-6pw4 (overridden 13 → 14) and minimatch GHSA-g3hv-75wg-m249
+>   (ignored in both scanners, with reason and retirement condition: dev tooling only, eslint
+>   needs minimatch 3). The test job is still red with the 38 known failures (since 09-12).
+>
 > ⏳ **Next:** Ryan: a noisy run, saved; replay the trace and tune; then live calling.
 >
 > ---

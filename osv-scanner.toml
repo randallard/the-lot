@@ -7,10 +7,9 @@
 # them in sync. Deleting this file to "keep one ignore in one place" is what took the
 # osv-scan job red from 2026-07-26 to 2026-07-29 without anything reporting it.
 #
-# **There are currently no ignores, and that is the point.** Every advisory this repo
-# has carried is now cleared by a version override in pnpm-workspace.yaml rather than
-# waved through here. The file stays so the knowledge above survives, and so the next
-# ignore has a documented home instead of being invented under pressure.
+# **One ignore, since 2026-10-30.** Every other advisory this repo has carried is cleared by
+# a version override in pnpm-workspace.yaml rather than waved through here. The same ignore,
+# with the same reason, is in its auditConfig.ignoreGhsas.
 #
 # If you add one: say what it is, why no override works, whether it can reach the
 # shipped bundle, and what would make it removable. An ignore whose reason is not
@@ -18,3 +17,12 @@
 #
 # Verify locally — this matches CI line for line, and takes ten seconds:
 #   docker run --rm -v "$PWD:/src" -w /src ghcr.io/google/osv-scanner:v2.3.8 -r ./
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+# 2026-10-30, medium: minimatch denial of service via globparts amplification, fixed only in
+# 11.0.1 with no 3.x or 10.x backport. Via eslint/typescript-eslint (3.x) and license-checker
+# → @npmcli (10.x): dev tooling only, never in the shipped bundle, and only our own patterns.
+# Forcing 3.x to 11 breaks eslint. Retire when eslint and typescript-eslint depend on
+# minimatch >= 11.0.1, or a backport lands (then override instead).
+reason = "Dev tooling only, never shipped, patterns are ours; no fix within minimatch 3.x/10.x (eslint needs 3.x). Retire when eslint and typescript-eslint use minimatch >= 11.0.1 or a backport lands."

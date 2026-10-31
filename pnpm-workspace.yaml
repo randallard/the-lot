@@ -106,6 +106,9 @@ overrides:
   "source-map-js@1": ">=1.2.2 <2" # GHSA-68fv-2mgg-jv7q, via postcss → vite and magicast
   "zod@4": ">=4.6.6 <5" # GHSA-mrhx-c7xc-m3w5, via eslint-plugin-react-hooks
   "postcss-selector-parser@7": ">=7.1.6 <8" # GHSA-rj75-hqrm-r3gf, via license-checker → @npmcli/query
+  # 2026-10-30, published 23:09 UTC, fixed only in a new major. glob 13 comes via
+  # license-checker → @npmcli; 14 keeps its API for those callers and brings minimatch 11 (fixed).
+  "glob@13": ">=14.0.2 <15" # GHSA-3g3m-2fjr-6pw4
   "undici@6": ">=6.29.1 <7" # GHSA-8xcm-r25x-g524, -m8rv-5g2x-5cg5, -v3r7-h72x-cjcm; 10-29: -rfgv-xxqx-mfg5, -xjj6-f33q-929c, -2m5v-pch6-74hx, -qrxm-fqhp-jwvm, -4qv8-2p9j-2685, -9fm3-97px-rjf6, -3wwx-pv8p-q78v, -r53p-7pc4-xj5r
 
 auditConfig:
@@ -113,8 +116,14 @@ auditConfig:
   # from osv-scanner.toml — the same posture in a second format. Change one, change
   # the other.
   #
-  # **Empty on purpose, as of 2026-08-15.** The one standing ignore
-  # (GHSA-mh99-v99m-4gvg, brace-expansion) is gone: its reason was that no patched
-  # version was compatible with minimatch@3's API, and the 1.1.18 backport made that
-  # false. Both scanners now pass with nothing waved through. See the overrides above.
-  ignoreGhsas: []
+  # Empty from 2026-08-15 (the brace-expansion ignore retired by a backport) until:
+  #
+  # GHSA-g3hv-75wg-m249 (2026-10-30, medium): minimatch denial of service via globparts
+  # amplification. Fixed only in minimatch 11.0.1, with no 3.x or 10.x backport. minimatch 3
+  # comes via eslint and typescript-eslint, minimatch 10 via license-checker → @npmcli. All
+  # dev tooling: nothing reaches the shipped bundle, and every pattern it matches is ours
+  # (lint globs, the lockfile), never an attacker's. Forcing 3.x to 11 breaks eslint (the
+  # export changed). Retire when eslint and typescript-eslint depend on minimatch >= 11.0.1,
+  # or a 3.x/10.x backport lands (then a version override, as brace-expansion's was).
+  ignoreGhsas:
+    - GHSA-g3hv-75wg-m249
