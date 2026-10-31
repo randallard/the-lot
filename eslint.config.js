@@ -48,16 +48,21 @@ export default defineConfig([
   // These exceptions are scoped to the files that participate in that bridge and
   // nowhere else. A new file that needs one is a prompt to ask whether the
   // pattern is still paying for itself. Full reasoning, alternatives, and the
-  // promotion condition: docs/adr/0008-react-hooks-rules-excepted-at-the-ref-boundary.md
+  // promotion condition: docs/adr/0008-react-hooks-rules-excepted-at-the-ref-boundary.md,
+  // and its successor docs/adr/0069-the-react-hooks-exception-names-the-dance-files-that-write-from-a-frame-loop.md
   {
-    // Writers: the whole R3F scene layer, plus the one overlay component that
-    // writes input state back into the scene. `src/dance/**` joins them per
-    // ADR-0011 — the choreography driver writes dancer transforms from useFrame,
-    // which is the same ADR-0002 mechanism in a new directory.
+    // Writers: the whole R3F scene layer, the one overlay component that writes
+    // input state back into the scene, and the five dance files that write rigs,
+    // cameras or shared refs from a frame loop (ADR-0069). The rest of src/dance/
+    // keeps the rules on: list a file here only when it writes that way.
     files: [
       'src/world/**/*.{ts,tsx}',
-      'src/dance/**/*.{ts,tsx}',
       'src/overlay/VirtualJoystick.tsx',
+      'src/dance/DanceDebugScene.tsx',
+      'src/dance/DanceFloor.tsx',
+      'src/dance/FistBumpDriver.tsx',
+      'src/dance/Review2Scene.tsx',
+      'src/dance/SolveFourScene.tsx',
     ],
     rules: {
       'react-hooks/immutability': 'off',

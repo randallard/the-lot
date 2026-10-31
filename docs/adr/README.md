@@ -104,7 +104,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0005](0005-games-launch-by-url-hash-handoff.md) | Games are separate deployments, integrated by a compressed URL-hash handoff | Accepted |
 | [0006](0006-npc-dialogue-through-a-serverless-proxy.md) | NPC dialogue goes through a serverless proxy, opt-in, and degrades without it | Accepted |
 | [0007](0007-localstorage-with-a-versioned-backup-file.md) | Browser `localStorage` is the only store; a versioned backup file is the escape hatch | Accepted |
-| [0008](0008-react-hooks-rules-excepted-at-the-ref-boundary.md) | `react-hooks` compiler rules are excepted at the ADR-0002 ref boundary, not worked around | Accepted |
+| [0008](0008-react-hooks-rules-excepted-at-the-ref-boundary.md) | `react-hooks` compiler rules are excepted at the ADR-0002 ref boundary, not worked around | Superseded by [0069](0069-the-react-hooks-exception-names-the-dance-files-that-write-from-a-frame-loop.md) |
 | [0009](0009-empty-catch-is-the-best-effort-storage-idiom.md) | `no-empty` allows empty catch, because best-effort storage is a deliberate idiom | Accepted |
 | [0010](0010-emote-choreography-channel-contract.md) | Emote and choreography share a dancer by channel, classified owned / limited / free | Superseded by ADR-0059–0064 |
 | [0011](0011-frame-scale-derives-from-occupant-bodies.md) | The dance frame's scale derives from the occupants' bodies | Superseded by ADR-0012 |
@@ -165,6 +165,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0066](0066-casts-are-not-registered-until-the-lint-pass.md) | No `any` registry until the strict lint pass has run | Accepted |
 | [0067](0067-accessibility-lint-for-the-html-overlays.md) | Accessibility lint (jsx-a11y) for the HTML overlays | Accepted |
 | [0068](0068-no-rust-core.md) | No Rust/WASM core in the client; the-lot's logic stays at TypeScript with property tests | Accepted |
+| [0069](0069-the-react-hooks-exception-names-the-dance-files-that-write-from-a-frame-loop.md) | The react-hooks exception names the dance files that write from a frame loop, not `src/dance/**` | Accepted |
 | [1000](1000-template-standards-adrs-are-inherited.md) | Template standards ADRs are inherited, numbered 1000 and up | Accepted |
 | [1001](1001-project-conventions-is-the-canonical-standard.md) | project-conventions is the canonical provable-code standard | Accepted |
 | [1002](1002-provable-is-a-four-rung-ladder.md) | "Provable" means a four-rung ladder, and a project claims only the rungs CI enforces | Accepted |

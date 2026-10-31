@@ -139,3 +139,8 @@ The README gains an "In this repo" section that keeps the NPC-model item and say
 template drift without a `template` remote. In `ci.yml`'s inert Rust jobs: `--locked` and the Kani
 harness guard, plus the ADR-1005 note on the reusable-workflow job. The licence additions and the
 SHA-pin comment stay ours. The two proposed ADRs and the two deferrals stand.
+
+Later the same day, Ryan: *"narrow the lint exception to the 5 files - we'll worry about haiku
+later."* That became [ADR-0069](../adr/0069-the-react-hooks-exception-names-the-dance-files-that-write-from-a-frame-loop.md),
+which supersedes ADR-0008. The NPC model is deferred, with this trigger: a deprecation notice for
+`claude-haiku-4-5-20251001`.

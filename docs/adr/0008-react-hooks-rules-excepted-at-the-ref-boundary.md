@@ -1,5 +1,5 @@
 # ADR-0008: `react-hooks` compiler rules are excepted at the ADR-0002 ref boundary, not worked around
-- Status: Accepted
+- Status: Superseded by [ADR-0069](0069-the-react-hooks-exception-names-the-dance-files-that-write-from-a-frame-loop.md)
 - Date: 2026-07-25
 - Deciders: Ryan
 
