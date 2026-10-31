@@ -47,22 +47,20 @@ describe("buildLaunchUrl", () => {
     const compressed = defined(url.split("#lot=")[1], "the fragment");
     const json = LZString.decompressFromEncodedURIComponent(compressed);
     expect(json).toBeTruthy();
-    const payload = JSON.parse(json);
-    expect(payload.npcId).toBe("myco");
-    expect(payload.npcDisplayName).toBe("Myco");
-    expect(payload.opponentType).toBe("ai-agent");
-    expect(payload.skillLevel).toBe("scripted_5");
-    expect(payload.returnUrl).toBe("https://townage.vercel.app/");
-    expect(payload.sessionId).toBe("test-uuid-123");
+    const payload: unknown = JSON.parse(json);
+    expect(payload).toHaveProperty("npcId", "myco");
+    expect(payload).toHaveProperty("npcDisplayName", "Myco");
+    expect(payload).toHaveProperty("opponentType", "ai-agent");
+    expect(payload).toHaveProperty("skillLevel", "scripted_5");
+    expect(payload).toHaveProperty("returnUrl", "https://townage.vercel.app/");
+    expect(payload).toHaveProperty("sessionId", "test-uuid-123");
   });
 
   it("omits model assignments when not configured", () => {
     const url = buildLaunchUrl(mockNpc);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
-    const payload = JSON.parse(
-      LZString.decompressFromEncodedURIComponent(compressed),
-    );
-    expect(payload.modelAssignments).toBeUndefined();
+    const payload: unknown = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed));
+    expect(payload).not.toHaveProperty("modelAssignments");
   });
 
   it("saves session for the NPC after building URL", () => {
@@ -74,29 +72,23 @@ describe("buildLaunchUrl", () => {
     saveActiveSession("myco", "existing-session-456");
     const url = buildLaunchUrl(mockNpc);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
-    const payload = JSON.parse(
-      LZString.decompressFromEncodedURIComponent(compressed),
-    );
-    expect(payload.sessionId).toBe("existing-session-456");
+    const payload: unknown = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed));
+    expect(payload).toHaveProperty("sessionId", "existing-session-456");
   });
 
   it("generates new session when no existing session", () => {
     const url = buildLaunchUrl(mockNpc);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
-    const payload = JSON.parse(
-      LZString.decompressFromEncodedURIComponent(compressed),
-    );
-    expect(payload.sessionId).toBe("test-uuid-123");
+    const payload: unknown = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed));
+    expect(payload).toHaveProperty("sessionId", "test-uuid-123");
   });
 
   it("does not reuse session from different NPC", () => {
     saveActiveSession("ember", "ember-session");
     const url = buildLaunchUrl(mockNpc);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
-    const payload = JSON.parse(
-      LZString.decompressFromEncodedURIComponent(compressed),
-    );
-    expect(payload.sessionId).toBe("test-uuid-123");
+    const payload: unknown = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed));
+    expect(payload).toHaveProperty("sessionId", "test-uuid-123");
   });
 });
 
@@ -138,28 +130,28 @@ describe("buildKingsChessLaunchUrl", () => {
   it("encodes kings-cooking payload correctly", () => {
     const url = buildKingsChessLaunchUrl(kcNpc);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
-    const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed));
-    expect(payload.npcId).toBe("sprout");
-    expect(payload.npcDisplayName).toBe("Sprout");
-    expect(payload.agentType).toBe("scripted_1");
-    expect(payload.returnUrl).toBe("https://townage.vercel.app/");
-    expect(payload.sessionId).toBe("kc-uuid-999");
+    const payload: unknown = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed));
+    expect(payload).toHaveProperty("npcId", "sprout");
+    expect(payload).toHaveProperty("npcDisplayName", "Sprout");
+    expect(payload).toHaveProperty("agentType", "scripted_1");
+    expect(payload).toHaveProperty("returnUrl", "https://townage.vercel.app/");
+    expect(payload).toHaveProperty("sessionId", "kc-uuid-999");
   });
 
   it("uses default agentType when npc has no kings-cooking config", () => {
     const npcWithoutKC: NpcConfig = { ...kcNpc, games: {} };
     const url = buildKingsChessLaunchUrl(npcWithoutKC);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
-    const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed));
-    expect(payload.agentType).toBe("scripted_1");
+    const payload: unknown = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed));
+    expect(payload).toHaveProperty("agentType", "scripted_1");
   });
 
   it("does not include spaces-game fields", () => {
     const url = buildKingsChessLaunchUrl(kcNpc);
     const compressed = defined(url.split("#lot=")[1], "the fragment");
-    const payload = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed));
-    expect(payload.opponentType).toBeUndefined();
-    expect(payload.skillLevel).toBeUndefined();
-    expect(payload.modelAssignments).toBeUndefined();
+    const payload: unknown = JSON.parse(LZString.decompressFromEncodedURIComponent(compressed));
+    expect(payload).not.toHaveProperty("opponentType");
+    expect(payload).not.toHaveProperty("skillLevel");
+    expect(payload).not.toHaveProperty("modelAssignments");
   });
 });
