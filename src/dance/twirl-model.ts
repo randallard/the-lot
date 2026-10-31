@@ -57,27 +57,40 @@ export interface RidgeModel {
   outputs: number;
 }
 
+// Checked reads, as in `whole-move.ts` (10-31 (7), (8)): a RangeError naming the index where a
+// `!` let `undefined` through. `rd` for Float64Arrays, `nth` for ordinary arrays.
+const rd = (arr: Float64Array, i: number): number => {
+  const x = arr[i];
+  if (x === undefined) throw new RangeError(`twirl-model: index ${String(i)} outside ${String(arr.length)}`);
+  return x;
+};
+const nth = <T>(arr: readonly T[], i: number): T => {
+  const x = arr[i];
+  if (x === undefined) throw new RangeError(`twirl-model: index ${String(i)} outside ${String(arr.length)}`);
+  return x;
+};
+
 /** Solve A x = b in place (Gaussian elimination, partial pivoting); A is n × n, b is n × m. */
 function solveLinear(A: Float64Array, B: Float64Array, n: number, m: number): void {
   for (let c = 0; c < n; c++) {
     let p = c;
-    for (let r = c + 1; r < n; r++) if (Math.abs(A[r * n + c]!) > Math.abs(A[p * n + c]!)) p = r;
+    for (let r = c + 1; r < n; r++) if (Math.abs(rd(A, r * n + c)) > Math.abs(rd(A, p * n + c))) p = r;
     if (p !== c) {
-      for (let k = 0; k < n; k++) { const t = A[c * n + k]!; A[c * n + k] = A[p * n + k]!; A[p * n + k] = t; }
-      for (let k = 0; k < m; k++) { const t = B[c * m + k]!; B[c * m + k] = B[p * m + k]!; B[p * m + k] = t; }
+      for (let k = 0; k < n; k++) { const t = rd(A, c * n + k); A[c * n + k] = rd(A, p * n + k); A[p * n + k] = t; }
+      for (let k = 0; k < m; k++) { const t = rd(B, c * m + k); B[c * m + k] = rd(B, p * m + k); B[p * m + k] = t; }
     }
-    const piv = A[c * n + c]!;
+    const piv = rd(A, c * n + c);
     for (let r = 0; r < n; r++) {
       if (r === c) continue;
-      const f = A[r * n + c]! / piv;
+      const f = rd(A, r * n + c) / piv;
       if (f === 0) continue;
-      for (let k = c; k < n; k++) A[r * n + k] = A[r * n + k]! - f * A[c * n + k]!;
-      for (let k = 0; k < m; k++) B[r * m + k] = B[r * m + k]! - f * B[c * m + k]!;
+      for (let k = c; k < n; k++) A[r * n + k] = rd(A, r * n + k) - f * rd(A, c * n + k);
+      for (let k = 0; k < m; k++) B[r * m + k] = rd(B, r * m + k) - f * rd(B, c * m + k);
     }
   }
   for (let r = 0; r < n; r++) {
-    const piv = A[r * n + r]!;
-    for (let k = 0; k < m; k++) B[r * m + k] = B[r * m + k]! / piv;
+    const piv = rd(A, r * n + r);
+    for (let k = 0; k < m; k++) B[r * m + k] = rd(B, r * m + k) / piv;
   }
 }
 
@@ -93,15 +106,15 @@ export function fitRidge(xs: readonly number[][], ys: readonly ArrayLike<number>
   const A = new Float64Array(F * F);
   const B = new Float64Array(F * o);
   for (let s = 0; s < n; s++) {
-    const zs = z[s]!;
-    const y = ys[s]!;
+    const zs = nth(z, s);
+    const y = nth(ys, s);
     for (let a = 0; a < F; a++) {
-      const za = zs[a]!;
-      for (let b = 0; b < F; b++) A[a * F + b] = A[a * F + b]! + za * zs[b]!;
-      for (let k = 0; k < o; k++) B[a * o + k] = B[a * o + k]! + za * (y[k] ?? 0);
+      const za = nth(zs, a);
+      for (let b = 0; b < F; b++) A[a * F + b] = rd(A, a * F + b) + za * nth(zs, b);
+      for (let k = 0; k < o; k++) B[a * o + k] = rd(B, a * o + k) + za * (y[k] ?? 0);
     }
   }
-  for (let a = 0; a < f; a++) A[a * F + a] = A[a * F + a]! + lambda;
+  for (let a = 0; a < f; a++) A[a * F + a] = rd(A, a * F + a) + lambda;
   solveLinear(A, B, F, o);
   return { kind: "ridge", mean, std, w: Array.from(B), outputs: o };
 }
@@ -113,7 +126,7 @@ export function predictRidge(m: RidgeModel, x: readonly number[]): Float64Array 
     const z = a === F - 1 ? 1 : ((x[a] ?? 0) - (m.mean[a] ?? 0)) / (m.std[a] ?? 1);
     if (z === 0) continue;
     const row = a * m.outputs;
-    for (let k = 0; k < m.outputs; k++) out[k] = out[k]! + z * m.w[row + k]!;
+    for (let k = 0; k < m.outputs; k++) out[k] = rd(out, k) + z * nth(m.w, row + k);
   }
   return out;
 }
