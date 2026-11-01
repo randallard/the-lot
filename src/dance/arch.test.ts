@@ -838,7 +838,8 @@ describe("🔴 the cascade is derived, not fitted to the cast it was found on", 
         expect(growForearm(shape, armDelta).forearm.height).toBeLessThanOrEqual(max);
       }
     }
-  });
+    // 120 solves take 2.7–3.6s on a CI runner, and one run went past the default 5s.
+  }, 15_000);
 });
 
 describe("the reshape aims at whichever height asks the figure for less", () => {
