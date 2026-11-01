@@ -26,6 +26,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { defined } from "../../src/test/defined";
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -150,7 +151,7 @@ function report(results: readonly Result[], seconds: number): string {
       out.push(`| ${id} | 0 / ${String(rs.length)} | ${rs[0]?.unsupported ?? "—"} | | | | | |`);
       continue;
     }
-    const max = (k: (m: Metrics) => number) => Math.max(...ss.map((r) => k(r.metrics!)));
+    const max = (k: (m: Metrics) => number) => Math.max(...ss.map((r) => k(defined(r.metrics, "r.metrics"))));
     out.push(`| ${id} | ${String(ss.length)} / ${String(rs.length)} | ${String(ss.filter((r) => flags(r).length > 0).length)} | ${(max((m) => m.clip) * 100).toFixed(1)} cm | ${(max((m) => m.holdGap) * 100).toFixed(1)} cm | ${max((m) => m.jump).toFixed(0)}° | ${(max((m) => m.step) * 100).toFixed(0)} cm | ${(ss.reduce((a, r) => a + (r.ms ?? 0), 0) / ss.length / 1000).toFixed(1)} s |`);
   }
   out.push("");

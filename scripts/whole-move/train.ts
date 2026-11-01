@@ -10,6 +10,7 @@
  */
 
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { defined } from "../../src/test/defined";
 import { join } from "node:path";
 import { bodyOf, metrics, solve, unpackOne, WEIGHTS, type Body, type Frame, type GrowStyle } from "../../src/dance/whole-move";
 import { twirlMove } from "../../src/dance/whole-move-twirl";
@@ -66,7 +67,7 @@ if (outFile !== undefined) writeFileSync(outFile, JSON.stringify(model));
 
 // The baseline: the nearest training couple's solve, in standardised feature space.
 const nearest = (x: number[]) => {
-  let best = train[0]!;
+  let best = defined(train[0], "train[0]");
   let bd = Infinity;
   for (const s of train) {
     let d = 0;

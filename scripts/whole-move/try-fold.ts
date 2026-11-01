@@ -1,5 +1,6 @@
 // Scratch: the Allemande's geometry. Where does the grip ask each elbow to be, against the shoulder?
 import { getBodyShape } from "../../src/services/body-shapes";
+import { defined } from "../../src/test/defined";
 import { REVIEW2_SIZING } from "../../src/dance/baked-tracks";
 import { figurePaths } from "../../src/dance/engine-paths";
 import { RESHAPE } from "../../src/dance/accommodation";
@@ -17,7 +18,7 @@ for (const p of reviewPairings()) {
   const plan = planForearm(ma, mb, shapes[0], shapes[1], RESHAPE);
   const fm = figureMove("allemande-left", P, bodies, { gripHeight: plan.height });
   if ("unsupported" in fm) continue;
-  const h = fm.move.holds[0]!;
+  const h = defined(fm.move.holds[0], "fm.move.holds[0]");
   const R = contactRadius(ma, mb), S = contactSeparation(ma, mb);
   const worst = [0, 0], worstOut = [0, 0];
   const beatOf = (t: number) => t * P.beats;
@@ -37,7 +38,7 @@ for (const p of reviewPairings()) {
       const s = toFloor(bodies[k].shoulder[0], f[k]); // left shoulder
       const need = Math.hypot(ex - s[0], plan.height - s[1], ez - s[2]);
       const w = beatOf(t) <= 7 ? worst : worstOut;
-      w[k] = Math.max(w[k]!, need / bodies[k].upper0);
+      w[k] = Math.max(defined(w[k], "w[k]"), need / bodies[k].upper0);
     }
   });
   console.log(`${p.beau}-${p.belle}`.padEnd(14), `sep ${Math.min(...seps).toFixed(3)}–${Math.max(...seps).toFixed(3)} m`, `R ${R.toFixed(3)}`, `fore ${ma.forearmSpan.toFixed(3)}/${mb.forearmSpan.toFixed(3)}`, `upper ${bodies[0].upper0.toFixed(3)}/${bodies[1].upper0.toFixed(3)}`, `upper-arm × turn ${worst.map((x) => x.toFixed(2)).join('/')} out ${worstOut.map((x) => x.toFixed(2)).join('/')}`, `own r ${bodyGripRadius(ma, mb).toFixed(3)}/${bodyGripRadius(mb, ma).toFixed(3)} pair ${pairGripRadius(ma, mb).toFixed(3)}`);

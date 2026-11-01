@@ -7,6 +7,7 @@
  */
 
 import { getBodyShape } from "../../src/services/body-shapes";
+import { defined } from "../../src/test/defined";
 import { BAKED_TRACKS, chooseBake, REVIEW2_SIZING, stepToCouple } from "../../src/dance/baked-tracks";
 import { couplePaths } from "../../src/dance/engine-paths";
 import { joinChain } from "../../src/dance/chain-join";
@@ -21,12 +22,12 @@ for (const a of cast) for (const b of cast) {
   const bake = chooseBake(BAKED_TRACKS, "california-twirl", shapes, { grow: "meet", called: "reshape", draw: () => "reshape" });
   if (bake === undefined) { console.log(`${a} → ${b}: no bake`); continue; }
   const paths = couplePaths("california-twirl", shapes, bake.sizing ?? REVIEW2_SIZING);
-  const [t] = joinChain([{ bake, paths }, { bake, paths }], shapes);
-  const n = t!.keyframes.length;
+  const t = defined(joinChain([{ bake, paths }, { bake, paths }], shapes)[0], "the first twirl");
+  const n = t.keyframes.length;
   const frames: Frame[] = [];
   for (let i = n - 11; i < n; i++) {
-    const v = t!.keyframes[i]!.values;
-    const p = [paths.beau[i]!, paths.belle[i]!] as const;
+    const v = defined(t.keyframes[i], "keyframe i").values;
+    const p = [defined(paths.beau[i], "paths.beau[i]"), defined(paths.belle[i], "paths.belle[i]")] as const;
     const [sx, sz] = stepToCouple(v["0.offset.x"] ?? 0, v["0.offset.z"] ?? 0, p[0].facing * D2R);
     frames.push(([0, 1] as const).map((d) => ({
       ...fromDials(v, d, bodies[d]),

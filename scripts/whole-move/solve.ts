@@ -35,6 +35,7 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { defined } from "../../src/test/defined";
 import { dirname, join } from "node:path";
 import { getBodyShape } from "../../src/services/body-shapes";
 import { fromBundle, lockedBehind, pairingTimeline, reduce, timelinesOf, toBundle, makeEvent, type Keyframe, type PoseEvent } from "../../src/dance/pose-events";
@@ -155,8 +156,8 @@ const mid = (a: DancerFrame, b: DancerFrame): DancerFrame => ({
   z: lerp(a.z, b.z),
   yaw: lerp(a.yaw, b.yaw),
   arms: [0, 1].map((s) => {
-    const p = a.arms[s]!;
-    const q = b.arms[s]!;
+    const p = defined(a.arms[s], "a.arms[s]");
+    const q = defined(b.arms[s], "b.arms[s]");
     return { raise: lerp(p.raise, q.raise), toward: lerp(p.toward, q.toward), ulen: lerp(p.ulen, q.ulen), pitch: lerp(p.pitch, q.pitch), heading: lerp(p.heading, q.heading), flen: lerp(p.flen, q.flen) };
   }) as DancerFrame["arms"],
 });
@@ -165,8 +166,8 @@ const headGap = (f: Frame) => {
   let best = Infinity;
   let at = "";
   S.forEach((own, k) => {
-    const head = own.find((s) => s.name === "head")!;
-    for (const other of [...own.slice(2), ...S[1 - k]!.slice(2)]) {
+    const head = defined(own.find((s) => s.name === "head"), "own.find((s) => s.name === \"head\")");
+    for (const other of [...own.slice(2), ...defined(S[1 - k], "S[1 - k]").slice(2)]) {
       const gap = segSeg(head.a, head.b, other.a, other.b) - head.r - other.r;
       if (gap < best) { best = gap; at = `${k === 0 ? "beau" : "belle"} head / ${own.includes(other) ? "own" : "partner's"} ${other.name}`; }
     }
@@ -175,18 +176,18 @@ const headGap = (f: Frame) => {
 };
 const report = (label: string, fs: Frame[], ts: number[]) => {
   let worst = { gap: Infinity, at: "", t: 0 };
-  fs.forEach((f, i) => { const g = headGap(f); if (g.gap < worst.gap) worst = { ...g, t: ts[i]! }; });
+  fs.forEach((f, i) => { const g = headGap(f); if (g.gap < worst.gap) worst = { ...g, t: defined(ts[i], "ts[i]") }; });
   console.log(`closest to a head (${label}): ${(worst.gap * 100).toFixed(1)} cm at t=${worst.t.toFixed(3)} (${worst.at})`);
 };
 report("samples", out, out.map((_, i) => i / (n - 1)));
-report("halfway between", out.slice(1).map((f, i) => [mid(out[i]![0], f[0]), mid(out[i]![1], f[1])] as Frame), out.slice(1).map((_, i) => (i + 0.5) / (n - 1)));
+report("halfway between", out.slice(1).map((f, i) => [mid(defined(out[i], "out[i]")[0], f[0]), mid(defined(out[i], "out[i]")[1], f[1])] as Frame), out.slice(1).map((_, i) => (i + 0.5) / (n - 1)));
 
 // Where the joined hands are over the move, for the write-up.
 const rows = out.map((f, i) => {
   const hb = toFloor(armPoints(bodies[0], 1, f[0].arms[1]).h, f[0]);
   const g = f[1];
   const apart = Math.hypot(f[0].x - g.x, f[0].z - g.z);
-  const was = Math.hypot(frames[i]![0].x - g.x, frames[i]![0].z - g.z);
+  const was = Math.hypot(defined(frames[i], "frames[i]")[0].x - g.x, defined(frames[i], "frames[i]")[0].z - g.z);
   return `t=${(i / (n - 1)).toFixed(3)} beat ${(4 * i / (n - 1)).toFixed(1)}  hands y ${hb[1].toFixed(2)} at (${hb[0].toFixed(2)}, ${hb[2].toFixed(2)})  belle at (${g.x.toFixed(2)}, ${g.z.toFixed(2)})  apart ${apart.toFixed(2)} (floor ${was.toFixed(2)})`;
 });
 console.log(rows.filter((_, i) => i % 4 === 0).join("\n"));
@@ -197,16 +198,16 @@ if (his.length > 0) {
     const x = Math.min(1, Math.max(0, u)) * (n - 1);
     const i = Math.min(n - 2, Math.floor(x));
     const f = x - i;
-    const a = out[i]!;
-    const b = out[i + 1]!;
+    const a = defined(out[i], "out[i]");
+    const b = defined(out[i + 1], "out[i + 1]");
     const l = (p: number, q: number) => p + (q - p) * f;
     const mixD = (p: DancerFrame, q: DancerFrame): DancerFrame => ({
       x: l(p.x, q.x),
       z: l(p.z, q.z),
       yaw: l(p.yaw, q.yaw),
       arms: [0, 1].map((side) => {
-        const u = p.arms[side]!;
-        const v = q.arms[side]!;
+        const u = defined(p.arms[side], "p.arms[side]");
+        const v = defined(q.arms[side], "q.arms[side]");
         return { raise: l(u.raise, v.raise), toward: l(u.toward, v.toward), ulen: l(u.ulen, v.ulen), pitch: l(u.pitch, v.pitch), heading: l(u.heading, v.heading), flen: l(u.flen, v.flen) };
       }) as DancerFrame["arms"],
     });

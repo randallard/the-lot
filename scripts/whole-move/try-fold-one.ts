@@ -1,5 +1,6 @@
 // Scratch: one Allemande solve, sample by sample.
 import { getBodyShape } from "../../src/services/body-shapes";
+import { defined } from "../../src/test/defined";
 import { REVIEW2_SIZING } from "../../src/dance/baked-tracks";
 import { figurePaths } from "../../src/dance/engine-paths";
 import { armTurnGrip } from "../../src/dance/forearm-hold";
@@ -13,13 +14,13 @@ const g = armTurnGrip(bodies[0], bodies[1]);
 const fm = figureMove("allemande-left", P, bodies, { stepCap: 0.1, gripHeight: g.height, grow: "meet", trade: g.grow });
 if ("unsupported" in fm) throw new Error(fm.unsupported);
 const r = solveBest({ ...fm.move, frames: fm.start }, { weights: { ...WEIGHTS, margin: WEIGHTS.margin } });
-const h = fm.move.holds[0]!;
+const h = defined(fm.move.holds[0], "fm.move.holds[0]");
 const d = (a: Vec, b: Vec) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 console.log(`grip r ${g.radius.toFixed(3)} h ${g.height.toFixed(3)} hold ${h.from.toFixed(3)}–${h.to.toFixed(3)} cost ${r.cost.toFixed(0)}`);
 r.frames.forEach((f, i) => {
   const t = i / (r.frames.length - 1);
   const A = shapesOf(bodies[0], f[0]), B = shapesOf(bodies[1], f[1]);
-  const get = (S: typeof A, n: string) => S.find((s) => s.name === n)!;
+  const get = (S: typeof A, n: string) => defined(S.find((s) => s.name === n), "S.find((s) => s.name === n)");
   const ha = get(A, "hand-left"), hb = get(B, "hand-left"), ea = get(A, "forearm-left"), eb = get(B, "forearm-left");
   const gap = [d(ha.a, eb.a) - 0.6 * (ha.r + eb.r), d(hb.a, ea.a) - 0.6 * (hb.r + ea.r)];
   const arm = (k: 0 | 1) => { const a = f[k].arms[0]; return `r${(a.raise * 57.3).toFixed(0)} t${(a.toward * 57.3).toFixed(0)} p${(a.pitch * 57.3).toFixed(0)} h${(a.heading * 57.3).toFixed(0)} u${(a.ulen / bodies[k].upper0).toFixed(2)} f${(a.flen / bodies[k].fore0).toFixed(2)}`; };

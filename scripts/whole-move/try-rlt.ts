@@ -8,6 +8,7 @@
  */
 
 import { writeFileSync } from "node:fs";
+import { defined } from "../../src/test/defined";
 import { getBodyShape } from "../../src/services/body-shapes";
 import { metricsN, PER_DANCER, solveN, startN } from "../../src/dance/whole-move-n";
 import { WEIGHTS } from "../../src/dance/whole-move";
@@ -31,7 +32,7 @@ if (out !== undefined) writeFileSync(out, JSON.stringify({ ids, frames: r.frames
 if (process.argv.includes("--steps")) for (let i = 0; i < m.frames.length; i += 4) {
   const row = [0, 1, 2, 3].map((d) => {
     const o = (i * 4 + d) * PER_DANCER;
-    return `${(r.v[o + 12]! * 100).toFixed(0).padStart(4)},${(r.v[o + 13]! * 100).toFixed(0).padStart(4)}`;
+    return `${(defined(r.v[o + 12], "r.v[o + 12]") * 100).toFixed(0).padStart(4)},${(defined(r.v[o + 13], "r.v[o + 13]") * 100).toFixed(0).padStart(4)}`;
   });
   console.log(`  ${String(i).padStart(3)} ${row.join(" | ")}`);
 }

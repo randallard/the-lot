@@ -1,6 +1,6 @@
 /**
- * For tests under `noUncheckedIndexedAccess`: an indexed read is typed `T | undefined`, and
- * `expect(x).toBeDefined()` doesn't narrow. This throws with a message instead, so a missing
+ * For tests and the dev scripts under `noUncheckedIndexedAccess`: an indexed read is typed
+ * `T | undefined`, and `expect(x).toBeDefined()` doesn't narrow. This throws with a message instead, so a missing
  * value fails the test where it was read rather than at some later property access. `null`
  * counts as missing too, for the lookups that return it.
  */

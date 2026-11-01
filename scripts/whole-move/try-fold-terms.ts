@@ -1,5 +1,6 @@
 // Scratch: one Allemande frame's cost, term by term: the solve's pose against the placed start.
 import { getBodyShape } from "../../src/services/body-shapes";
+import { defined } from "../../src/test/defined";
 import { REVIEW2_SIZING } from "../../src/dance/baked-tracks";
 import { figurePaths } from "../../src/dance/engine-paths";
 import { armTurnGrip } from "../../src/dance/forearm-hold";
@@ -17,11 +18,11 @@ const r = solveBest({ ...fm.move, frames: fm.start }, { weights: W });
 const i = Math.round((fm.path.length - 1) / 2);
 const zero: Weights = Object.fromEntries(Object.keys(W).map((k) => [k, 0])) as unknown as Weights;
 const terms: [string, Partial<Weights>][] = [["clip", { clip: W.clip, margin: W.margin }], ["hold", { hold: W.hold, clasp: W.clasp }], ["plane", { plane: W.plane, clasp: W.clasp }], ["stretch", { stretch: W.stretch }], ["range", { range: W.range }], ["rest", { rest: W.rest }], ["gravity", { gravity: W.gravity }], ["grow", { grow: W.grow, clip: 0 }], ["smooth", { smooth1: W.smooth1, smooth2: W.smooth2 }]];
-for (const [name, frame] of [["solved", r.frames[i]!], ["start", fm.start[i]!]] as const) {
+for (const [name, frame] of [["solved", defined(r.frames[i], "r.frames[i]")], ["start", defined(fm.start[i], "fm.start[i]")]] as const) {
   console.log(name, terms.map(([n, w]) => `${n} ${frameCost(fm.move, i, frame, { ...zero, ...w }).toFixed(3)}`).join("  "), "total", frameCost(fm.move, i, frame, W).toFixed(2));
 }
 import { segSeg, shapesOf } from "../../src/dance/whole-move";
-for (const [name, f] of [["solved", r.frames[i]!], ["start", fm.start[i]!]] as const) {
+for (const [name, f] of [["solved", defined(r.frames[i], "r.frames[i]")], ["start", defined(fm.start[i], "fm.start[i]")]] as const) {
   const A = shapesOf(bodies[0], f[0]), B = shapesOf(bodies[1], f[1]);
   const out: string[] = [];
   for (const [X, Y, who] of [[A, B, "a/b"], [A, A, "a/a"], [B, B, "b/b"]] as const)

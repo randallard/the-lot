@@ -8,6 +8,7 @@
  */
 
 import { getBodyShape } from "../../src/services/body-shapes";
+import { defined } from "../../src/test/defined";
 import { REVIEW2_SIZING, BREAK_SIZING } from "../../src/dance/baked-tracks";
 import { couplePaths } from "../../src/dance/engine-paths";
 import { bodyOf, metrics, shapesOf, solveBest, WEIGHTS, type Frame } from "../../src/dance/whole-move";
@@ -36,10 +37,10 @@ for (const home of [false, true]) {
   const r = solveBest({ ...move, frames: start }, { weights: { ...WEIGHTS, margin: Number(process.argv.find((x) => x.startsWith("--margin="))?.slice(9) ?? 0.06) } });
   const m = metrics(move, r.frames, path);
   const n = r.frames.length;
-  const first = r.frames[0]!;
-  const last = r.frames[n - 1]!;
-  const s0 = standingFrame(shapes, bodies, path[0]!);
-  const s1 = standingFrame(shapes, bodies, path[n - 1]!);
+  const first = defined(r.frames[0], "r.frames[0]");
+  const last = defined(r.frames[n - 1], "r.frames[n - 1]");
+  const s0 = standingFrame(shapes, bodies, defined(path[0], "path[0]"));
+  const s1 = standingFrame(shapes, bodies, defined(path[n - 1], "path[n - 1]"));
   console.log(`${home ? "home" : "free"}  cost ${r.cost.toFixed(0).padStart(5)}  clip ${(m.clip * 100).toFixed(1)} cm  hands ${(m.holdGap * 100).toFixed(1)} cm  stretch ${m.stretch.toFixed(2)}  jump ${m.jump.toFixed(0)}°  | start vs standing ${apart(first, s0)}  end vs standing ${apart(last, s1)}  | seam (end→start) ${apart(last, first).replace(/ step.*/, "")}`);
 }
 
@@ -48,8 +49,8 @@ if (process.argv.includes("--trace")) {
   const { move, start } = twirlMove(P, bodies, [], broken ? "none" : "meet", broken ? "break" : "reshape", shapes);
   const r = solveBest({ ...move, frames: start }, { weights: { ...WEIGHTS, margin: Number(process.argv.find((x) => x.startsWith("--margin="))?.slice(9) ?? 0.06) } });
   r.frames.forEach((f, i) => {
-    const hb = shapesOf(bodies[0], f[0]).find((s) => s.name === "hand-right")!.a;
-    const hg = shapesOf(bodies[1], f[1]).find((s) => s.name === "hand-left")!.a;
+    const hb = defined(shapesOf(bodies[0], f[0]).find((s) => s.name === "hand-right"), "shapesOf(bodies[0], f[0]).find((s) => s.name === \"hand-right\")").a;
+    const hg = defined(shapesOf(bodies[1], f[1]).find((s) => s.name === "hand-left"), "shapesOf(bodies[1], f[1]).find((s) => s.name === \"hand-left\")").a;
     const d = Math.hypot(hb[0] - hg[0], hb[1] - hg[1], hb[2] - hg[2]) * 100;
     const prev = r.frames[i - 1];
     console.log(`${String(i).padStart(2)} hands ${d.toFixed(1).padStart(5)} cm  height ${(hb[1] * 100).toFixed(0).padStart(4)}  jump ${prev ? apart(prev, f) : "-"}`);
