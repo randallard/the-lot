@@ -138,7 +138,7 @@ export function PhoneOverlay({
                 );
               }
               if (onGamesClick) {
-                const i = idx++;
+                const i = idx;
                 icons.push(
                   <HomeIcon key="games" icon={<span style={{ fontSize: 20 }}>🎮</span>} label="games" bg="#2a2a3e" onClick={onGamesClick} selected={selectedIcon === i} />
                 );

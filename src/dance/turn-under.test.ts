@@ -122,5 +122,4 @@ describe("archLift", () => {
 });
 
 /** A compile-time check that the union and the roster cannot drift apart. */
-const _exhaustive: readonly TurnUnderStyle[] = TURN_UNDER_STYLES;
-void _exhaustive;
+TURN_UNDER_STYLES satisfies readonly TurnUnderStyle[];

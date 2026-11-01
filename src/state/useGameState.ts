@@ -136,7 +136,7 @@ export function useGameState() {
       const resume = prev.resumePhase;
       if (!resume) return { ...prev, phaseOverride: null };
 
-      let override: PhaseOverride | null = null;
+      let override: PhaseOverride;
       if (resume === "opponents-list") {
         override = { type: "opponents-list" };
       } else if (resume === "game-select") {

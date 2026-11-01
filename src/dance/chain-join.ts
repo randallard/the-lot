@@ -122,7 +122,7 @@ function packValues(values: Readonly<Record<string, number>>, base: Frame, bodie
   out[k++] = ((sx * ux + sz * uz) / ul) / 100;
   out[k++] = ((-sx * uz + sz * ux) / ul) / 100;
   out[k++] = (values["0.torso.grow"] ?? 0) / 100;
-  out[k++] = (values["1.torso.grow"] ?? 0) / 100;
+  out[k] = (values["1.torso.grow"] ?? 0) / 100;
 }
 
 /** The standing couple's variables on `base`: on their spots, as built. */

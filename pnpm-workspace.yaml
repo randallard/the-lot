@@ -75,6 +75,10 @@ overrides:
   "brace-expansion@2": ">=2.1.4 <3"
   "brace-expansion@5": ">=5.0.12 <6"
 
+  # GHSA-g3hv-75wg-m249, fixed only in 11.0.1 with no 10.x backport. eslint 10, typescript-eslint and
+  # license-checker all use minimatch 10, and 11 keeps the API they call.
+  "minimatch@10": ">=11.0.1 <12"
+
   # js-yaml, via eslint's `@eslint/eslintrc`. **Two advisories, and the second is why the
   # bound moved on 2026-09-12:** GHSA-5p4m-2wfm-xmqj (quadratic CPU in `!!omap` resolution)
   # is fixed in 4.3.1, and GHSA-2883-xcg3-v3hh (`maxTotalMergeKeys` does not limit CPU use
@@ -115,14 +119,6 @@ auditConfig:
   # from osv-scanner.toml — the same posture in a second format. Change one, change
   # the other.
   #
-  # Empty from 2026-08-15 (the brace-expansion ignore retired by a backport) until:
-  #
-  # GHSA-g3hv-75wg-m249 (2026-10-30, medium): minimatch denial of service via globparts
-  # amplification. Fixed only in minimatch 11.0.1, with no 3.x or 10.x backport. minimatch 3
-  # comes via eslint and typescript-eslint, minimatch 10 via license-checker → @npmcli. All
-  # dev tooling: nothing reaches the shipped bundle, and every pattern it matches is ours
-  # (lint globs, the lockfile), never an attacker's. Forcing 3.x to 11 breaks eslint (the
-  # export changed). Retire when eslint and typescript-eslint depend on minimatch >= 11.0.1,
-  # or a 3.x/10.x backport lands (then a version override, as brace-expansion's was).
-  ignoreGhsas:
-    - GHSA-g3hv-75wg-m249
+  # Empty again from 2026-11-01: GHSA-g3hv-75wg-m249 (minimatch) is cleared by the minimatch@10
+  # override above, now eslint 10 has dropped minimatch 3.
+  ignoreGhsas: []

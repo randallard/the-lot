@@ -215,10 +215,9 @@ export function palmMap(handMap: Mat3, aimX: number, aimY: number, aimZ: number)
  *
  * The number the review is watching, and the one the stagger decision turns on.
  */
-export function palmResidual(handMap: Mat3, aimX: number, aimY: number, aimZ: number, limit = WRIST_FLEXION_LIMIT): number {
+export function palmResidual(handMap: Mat3, aimX: number, aimY: number, aimZ: number, _limit = WRIST_FLEXION_LIMIT): number {
   const m = palmMap(handMap, aimX, aimY, aimZ);
   const n = norm([m[2] ?? 0, m[5] ?? 0, m[8] ?? 0]);
   const t = norm([aimX, -aimY, aimZ]);
-  void limit;
   return Math.acos(Math.min(1, Math.abs(dot(n, t))));
 }

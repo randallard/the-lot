@@ -6,7 +6,15 @@ _Last updated: 2026-11-01_
 
 **Standards:** last compliance review 2026-11-01 (second, [note](compliance/2026-11-01-2.md)): 5 gaps, all closed the same day ([journal 11-01 (5)](journal/2026-11-01-5-the-compliance-gaps.md)): `osv-scanner.toml`'s command, the pick-up block, `contact-move`'s random source, and ADRs 0073 (rung 3 here) and 0074 (`#review` and `App.tsx` wait for reducers). Stance review 2026-11-01 ([review](reviews/2026-11-01-stance-review.md)).
 
-> ### ▶ PICK UP HERE — 2026-11-01 (5) — standards current, a playtest outstanding
+> ### ▶ PICK UP HERE — 2026-11-01 (6) — ESLint 10 in, a playtest outstanding
+>
+> [`journal/2026-11-01-6-eslint-10.md`](journal/2026-11-01-6-eslint-10.md) · ESLint 10.14.0 and
+> `minimatch@10` → 11; GHSA-g3hv-75wg-m249 retired from both scanners; [ADR-0075](adr/0075-react-hooks-7-1-and-the-wider-ref-boundary.md)
+> accepted (`react-hooks` 7.1's findings excepted by file). 🧪 That journal's playtest list joins the two below.
+>
+> ---
+>
+> ### 2026-11-01 (5) — standards current, a playtest outstanding
 >
 > [`journal/2026-11-01-5-the-compliance-gaps.md`](journal/2026-11-01-5-the-compliance-gaps.md)
 > · [11-01 (4)](journal/2026-11-01-4-node-26-in-ci.md), Node 26 in CI (`2656a04`)
@@ -17,11 +25,7 @@ _Last updated: 2026-11-01_
 > ⏳ **Next:**
 >
 > 1. Ryan plays the playtest lists in journals 11-01 (2) and (3), if not already done.
-> 2. Unblocked by the lint pass reaching zero, not started (stance review 11-01): **eslint 10**,
->    with react-hooks 7.1.1 and react-refresh 0.5.x, then override minimatch 10 → 11 and retire
->    GHSA-g3hv-75wg-m249 from both scanners in one commit, re-checking ADR-0069's five files under
->    7.1's ref validation. **vite 8 + vitest 5**: the deferral's last condition is now met, so
->    evaluate it.
+> 2. **vite 8 + vitest 5**: the deferral's last condition is now met, so evaluate it.
 > 3. After the playtest: RFC 9457 errors in `api/` (`.spectral.yaml`'s `as-problem-json` override).
 > 4. The dance work resumes at 10-31 (2)'s next step, below.
 >

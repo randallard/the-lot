@@ -98,6 +98,41 @@ export default defineConfig([
       'react-hooks/refs': 'off',
     },
   },
+  {
+    // ADR-0075: react-hooks 7.1 validates refs and memoization further. These screens read and
+    // write shared refs during render on purpose (ADR-0002), so each lists only what it trips.
+    files: [
+      'src/App.tsx',
+      'src/dance/DanceDebugScene.tsx',
+      'src/dance/Review2Scene.tsx',
+      'src/world/Npc.tsx',
+      'src/world/Player.tsx',
+      'src/world/World.tsx',
+    ],
+    rules: {
+      'react-hooks/refs': 'off',
+    },
+  },
+  {
+    files: ['src/dance/DanceDebugScene.tsx', 'src/dance/Review2Scene.tsx', 'src/overlay/VirtualJoystick.tsx'],
+    rules: {
+      'react-hooks/preserve-manual-memoization': 'off',
+    },
+  },
+  {
+    // App.tsx waits for its reducer (ADR-0074), which is what will remove these.
+    files: ['src/App.tsx', 'src/world/World.tsx'],
+    rules: {
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
+  {
+    files: ['src/App.tsx'],
+    rules: {
+      'react-hooks/immutability': 'off',
+    },
+  },
+
   // ADR-0070: the bake and solve scripts are in no tsconfig, so they're linted without types.
   {
     files: ['scripts/**/*.ts'],

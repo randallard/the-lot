@@ -1,5 +1,5 @@
 # ADR-0069: The react-hooks exception names the dance files that write from a frame loop, not `src/dance/**`
-- Status: Accepted
+- Status: Superseded by [ADR-0075](0075-react-hooks-7-1-and-the-wider-ref-boundary.md)
 - Date: 2026-10-31
 - Deciders: Ryan (proposed by Claude, from the [2026-10-31 stance review](../reviews/2026-10-31-stance-review.md))
 - Supersedes: [ADR-0008](0008-react-hooks-rules-excepted-at-the-ref-boundary.md)

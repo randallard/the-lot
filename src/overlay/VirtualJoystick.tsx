@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useCallback } from "react";
 import type { InputDirection } from "../world/useInputDirection";
 
 const STICK_SIZE = 120;
@@ -10,11 +10,7 @@ interface VirtualJoystickProps {
 }
 
 export function VirtualJoystick({ inputDir }: VirtualJoystickProps) {
-  const [isTouchDevice, setIsTouchDevice] = useState(false);
-
-  useEffect(() => {
-    setIsTouchDevice("ontouchstart" in window || navigator.maxTouchPoints > 0);
-  }, []);
+  const [isTouchDevice] = useState(() => "ontouchstart" in window || navigator.maxTouchPoints > 0);
 
   const stickRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);

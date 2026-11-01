@@ -780,7 +780,7 @@ export function pack(frames: readonly Frame[]): Float64Array {
     v[k++] = 0;
     v[k++] = 0;
     v[k++] = f[0].grow ?? 0;
-    v[k++] = f[1].grow ?? 0;
+    v[k] = f[1].grow ?? 0;
   });
   return v;
 }

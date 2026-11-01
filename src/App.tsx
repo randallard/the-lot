@@ -124,12 +124,11 @@ export default function App() {
   }, []);
   const [bodyEditorSubject, setBodyEditorSubject] = useState<string | null>(null);
   // NPC sleep state — re-checked after each chat send
-  const [sleepVersion, setSleepVersion] = useState(0);
+  const [, setSleepVersion] = useState(0);
   const mycoAsleep = isAsleep("myco");
   const emberAsleep = isAsleep("ember");
   const sproutAsleep = isAsleep("sprout");
-  // Force re-evaluation when sleepVersion changes (used after recordMessage)
-  void sleepVersion;
+  // setSleepVersion re-renders, which re-evaluates these (used after recordMessage)
 
   const { dir: inputDir, disabled: inputDisabled } = useInputDirection();
   const rushMode = useRef<RushMode>(0);
@@ -1667,10 +1666,7 @@ function AssemblyReveal({
 }
 
 function PocketHint({ show }: { show: boolean }) {
-  const [isTouch, setIsTouch] = React.useState(false);
-  React.useEffect(() => {
-    setIsTouch("ontouchstart" in window || navigator.maxTouchPoints > 0);
-  }, []);
+  const [isTouch] = React.useState(() => "ontouchstart" in window || navigator.maxTouchPoints > 0);
 
   if (!show) return null;
 
