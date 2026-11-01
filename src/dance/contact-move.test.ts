@@ -986,3 +986,13 @@ describe("being moved needs a live yes (ADR-0021)", () => {
       .reason).toBe("needs-live-consent");
   });
 });
+
+describe("ids take their random source from the caller", () => {
+  it("uses the injected source for both the move and its constraint", () => {
+    const move = makeContactMove("", {}, () => 0.5);
+    const suffix = (id: string) => id.split("-").slice(2).join("-");
+    const constraint = defined(move.constraints[0], "move.constraints[0]");
+    expect(suffix(move.id)).toBe((0.5).toString(36).slice(2, 8));
+    expect(suffix(constraint.id)).toBe((0.5).toString(36).slice(2, 8));
+  });
+});

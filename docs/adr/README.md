@@ -169,6 +169,8 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0070](0070-strict-lint-with-two-react-shaped-options.md) | The strict lint pass runs `strictTypeChecked` with two options relaxed for React, and lints `scripts/` without types | Accepted |
 | [0071](0071-every-cast-is-registered.md) | Every cast is justified inline and registered | Accepted |
 | [0072](0072-accessibility-lint-is-deferred.md) | Accessibility lint is deferred until it supports ESLint 10 | Accepted |
+| [0073](0073-rung-three-here-means-fast-check-on-the-reducers.md) | Rung 3 here means `fast-check` on the screen reducers; the solver keeps its seeded tests | Accepted |
+| [0074](0074-the-review-and-game-screens-wait-for-their-reducers.md) | `#review` and `App.tsx` wait for their reducers until the work next reaches them | Accepted |
 | [1000](1000-template-standards-adrs-are-inherited.md) | Template standards ADRs are inherited, numbered 1000 and up | Accepted |
 | [1001](1001-project-conventions-is-the-canonical-standard.md) | project-conventions is the canonical provable-code standard | Accepted |
 | [1002](1002-provable-is-a-four-rung-ladder.md) | "Provable" means a four-rung ladder, and a project claims only the rungs CI enforces | Accepted |

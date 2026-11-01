@@ -4,27 +4,19 @@ _Last updated: 2026-11-01_
 
 ## Status / next
 
-**Standards:** compliance review 2026-11-01 ([note](compliance/2026-11-01.md)) and stance review 2026-11-01 ([review](reviews/2026-11-01-stance-review.md)). **Done since then** ([journal 11-01 (1)](journal/2026-11-01-1-osv-pnpm-12-and-an-openapi-contract.md)): ADR-1018 (OSV v2.7.0); pnpm 12.16.1; ADR-1019, with `openapi.yaml` for `api/` linting clean against api-standards v0.1.0 (four scoped overrides with reasons, including no auth on npc-chat and plain-JSON errors). Still open from the review: the minimatch ignore can retire via eslint 10 + an override; Haiku 4.5 still Active (deferred). TypeScript **6.0.3** in, with no code change ([journal 10-31 (4)](journal/2026-10-31-4-typescript-6.md)). tsconfig flags on, 179 errors fixed, `api/` now typechecked ([journal 10-31 (5)](journal/2026-10-31-5-the-tsconfig-flags.md)). Lint pass begun 10-31 ([journal 10-31 (6)](journal/2026-10-31-6-the-lint-pass-begins.md), [ADR-0070](adr/0070-strict-lint-with-two-react-shaped-options.md)) and **done 11-01: 0 findings, configs swapped, `pnpm lint` is strict with `--max-warnings 0`** ([journal 11-01 (2)](journal/2026-11-01-2-the-lint-pass-reaches-zero.md); its playtest list is there; bakes byte-identical). **Then (11-01 (3), [journal](journal/2026-11-01-3-the-cast-registry.md)): the cast registry** ([ADR-0071](adr/0071-every-cast-is-registered.md), supersedes 0066): 177 casts by the AST, 86 replaced (untrusted JSON guarded, `instanceof`, `satisfies`, test re-typings dropped), 91 registered in [`docs/any-registry.md`](any-registry.md) with inline reasons; **jsx-a11y deferred** ([ADR-0072](adr/0072-accessibility-lint-is-deferred.md), supersedes 0067) until it supports ESLint 10; **README claims provable-lite.** Committed with 11-01 (2) and pushed at Ryan's request (`41ca109`); both playtest lists are in the journals. The minimatch ignore (GHSA-g3hv-75wg-m249) stays until eslint/typescript-eslint use minimatch ≥ 11.0.1 or 3.x/10.x get a backport ([note](compliance/2026-10-31.md))
+**Standards:** last compliance review 2026-11-01 (second, [note](compliance/2026-11-01-2.md)): 5 gaps, all closed the same day ([journal 11-01 (5)](journal/2026-11-01-5-the-compliance-gaps.md)): `osv-scanner.toml`'s command, the pick-up block, `contact-move`'s random source, and ADRs 0073 (rung 3 here) and 0074 (`#review` and `App.tsx` wait for reducers). Stance review 2026-11-01 ([review](reviews/2026-11-01-stance-review.md)).
 
-> ### ▶ PICK UP HERE — 2026-11-01 (3) — lint at zero and the cast registry, pushed
+> ### ▶ PICK UP HERE — 2026-11-01 (5) — standards current, a playtest outstanding
 >
-> [`journal/2026-11-01-2-the-lint-pass-reaches-zero.md`](journal/2026-11-01-2-the-lint-pass-reaches-zero.md)
-> · [`journal/2026-11-01-3-the-cast-registry.md`](journal/2026-11-01-3-the-cast-registry.md) · 🧪
-> `41ca109`, pushed at Ryan's request; no playtest result is recorded. CI is green on a re-run of
-> the failed job: `arch.test.ts:823` ("never reaches past the length…") hit the 5s timeout on the
-> first attempt. It takes 2.7–3.6s on CI and that commit didn't slow it (1.87s before, 1.89s after,
-> locally), so its timeout is now 15s.
->
-> **Then (11-01 (4), [journal](journal/2026-11-01-4-node-26-in-ci.md)): Node 26 in CI**, template
-> ADR-1020, with `engines` and `@types/node` staying at 24. All gates pass locally on Node 26.8.1.
-> Uncommitted, for Ryan's check.
+> [`journal/2026-11-01-5-the-compliance-gaps.md`](journal/2026-11-01-5-the-compliance-gaps.md)
+> · [11-01 (4)](journal/2026-11-01-4-node-26-in-ci.md), Node 26 in CI (`2656a04`)
+> · [11-01 (3)](journal/2026-11-01-3-the-cast-registry.md) and
+> [(2)](journal/2026-11-01-2-the-lint-pass-reaches-zero.md), lint at zero and the cast registry
+> (`41ca109`) · 🧪 pushed, with no playtest result recorded.
 >
 > ⏳ **Next:**
 >
-> 1. Ryan checks 11-01 (4). Then commit, `gr push --only the-lot`, push to `origin`, read CI's first
->    run on 26, and re-run the compliance review: the 11-01 note predates lint at zero, so nothing
->    has reviewed the provable-lite claim, the cast registry or the ADR-0072 deferral.
->    Ryan plays both journals' playtest lists, if not already done.
+> 1. Ryan plays the playtest lists in journals 11-01 (2) and (3), if not already done.
 > 2. Unblocked by the lint pass reaching zero, not started (stance review 11-01): **eslint 10**,
 >    with react-hooks 7.1.1 and react-refresh 0.5.x, then override minimatch 10 → 11 and retire
 >    GHSA-g3hv-75wg-m249 from both scanners in one commit, re-checking ADR-0069's five files under

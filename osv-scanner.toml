@@ -16,7 +16,7 @@
 # checkable is a control that is not a control.
 #
 # Verify locally — this matches CI line for line, and takes ten seconds:
-#   docker run --rm -v "$PWD:/src" -w /src ghcr.io/google/osv-scanner:v2.3.8 -r ./
+#   docker run --rm -v "$PWD:/src" -w /src ghcr.io/google/osv-scanner:v2.7.0 -r ./
 
 [[IgnoredVulns]]
 id = "GHSA-g3hv-75wg-m249"

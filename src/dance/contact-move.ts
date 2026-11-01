@@ -976,12 +976,12 @@ export function resolveRole(
 // Construction
 
 let seq = 0;
-function nextId(prefix: string): string {
+function nextId(prefix: string, random: () => number): string {
   // `crypto.randomUUID` is what the emote and arm-action builders use; this module is
   // imported by tests in a jsdom environment where it exists, but the counter keeps ids
   // stable and readable for fixtures.
   seq += 1;
-  return `${prefix}-${seq}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}-${seq}-${random().toString(36).slice(2, 8)}`;
 }
 
 export function makeAnchor(role: RoleId, overrides: Partial<Anchor> = {}): Anchor {
@@ -995,9 +995,12 @@ export function makeAnchor(role: RoleId, overrides: Partial<Anchor> = {}): Ancho
   };
 }
 
-export function makeConstraint(overrides: Partial<ContactConstraint> = {}): ContactConstraint {
+export function makeConstraint(
+  overrides: Partial<ContactConstraint> = {},
+  random: () => number = Math.random,
+): ContactConstraint {
   return {
-    id: nextId("constraint"),
+    id: nextId("constraint", random),
     anchors: [makeAnchor("A"), makeAnchor("B")] as const,
     horizontal: "reach-fraction",
     vertical: "mean-elbow",
@@ -1006,16 +1009,20 @@ export function makeConstraint(overrides: Partial<ContactConstraint> = {}): Cont
   };
 }
 
-export function makeContactMove(name = "", overrides: Partial<ContactMove> = {}): ContactMove {
+export function makeContactMove(
+  name = "",
+  overrides: Partial<ContactMove> = {},
+  random: () => number = Math.random,
+): ContactMove {
   return {
-    id: nextId("move"),
+    id: nextId("move", random),
     name,
     stance: "facing-within-reach",
     handedness: "same-hand",
     outOfRange: "decline",
     exit: "return",
     approach: "turn-and-step",
-    constraints: [makeConstraint()],
+    constraints: [makeConstraint({}, random)],
     envelope: { extend: 0.25, hold: 0.35, withdraw: 0.3 },
     tags: [],
     ...overrides,

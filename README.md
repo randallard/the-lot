@@ -164,6 +164,10 @@ lands, the gap is open, not an exception. What's in and what's left is in
 - `fast-check` properties over both screen reducers (`review2-session`, `voice-test-session`), in
   a green test job (the old failures are fixed or kept as `it.fails` findings).
 
+Rung 3 is read narrowly here (ADR-0073): the solver and pose modules are tested over generated
+inputs by hand-seeded generators, not `fast-check`. `#review` and `App.tsx` have no reducer yet
+(ADR-0074).
+
 Kept by review, not CI: every remaining cast is justified inline and registered in
 [`docs/any-registry.md`](docs/any-registry.md) (ADR-0071).
 
