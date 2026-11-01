@@ -1,0 +1,31 @@
+# The api-standards ruleset, vendored at the tag in .spectral/api-standards.lock (ADR-1019).
+extends:
+  - ./.spectral/api-standards.yaml
+
+# Departures, each scoped to what it covers, with its reason. openapi.yaml describes the two edge
+# functions as they behave today; each entry below is a known gap, not a waiver (journal 11-01).
+overrides:
+  - files:
+      - "openapi.yaml#/paths"
+    rules:
+      # The functions ship in the same deploy as their only client, so there's never an old
+      # client to keep working. Revisit if a second client (another app, a script) calls them.
+      as-path-versioned: off
+      # Named by what they do, matching their files (api/npc-chat.ts, api/support.ts): neither is
+      # a collection. Revisit with the versioning above.
+      as-path-plural-resource: off
+  - files:
+      - "openapi.yaml#/paths/~1npc-chat"
+      - "openapi.yaml#/paths/~1support"
+    rules:
+      # Anonymous by design: players have no accounts (ADR-0007, nothing is shared). The secrets
+      # stay server-side. The cost is that anyone can call npc-chat and spend Anthropic credit.
+      # Revisit on abuse or a cost spike: a rate limit or a signed token, then real scopes.
+      as-operation-scopes: off
+  - files:
+      - "openapi.yaml#/components/responses/Error"
+    rules:
+      # The handlers return {"error": "..."} as application/json, and the client reads only the
+      # status. Moving to RFC 9457 is a small handler change; it waits for a playtest of the chat
+      # and support paths, which have no UI tests.
+      as-problem-json: off

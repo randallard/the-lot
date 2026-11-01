@@ -1,0 +1,4 @@
+# Written by scripts/vendor-api-standards.sh (ADR-1019). Don't edit by hand: re-run the script.
+tag=v0.1.0
+sha256=464134a27fdc761f2a64d63a672e16ae5e91e3a9430ded4d3d9263f6bda7eeda
+source=https://raw.githubusercontent.com/randallard/api-standards/v0.1.0/spectral/api-standards.yaml

@@ -1,0 +1,199 @@
+openapi: 3.1.2
+info:
+  title: the-lot edge functions
+  version: 1.0.0
+  description: |
+    The two Vercel edge functions this app serves to its own frontend (`api/`, ADR-0006). They
+    hold the secrets the browser must not see: the Anthropic API key and the Discord webhook.
+    This document describes what the handlers do today. Where that departs from api-standards,
+    `.spectral.yaml` records the departure and its reason (ADR-1019).
+  contact:
+    name: Ryan Khetlyr
+    url: https://github.com/randallard/the-lot
+  license:
+    name: MIT OR Apache-2.0
+    identifier: MIT OR Apache-2.0
+servers:
+  - url: /api
+    description: Same origin as the app; Vercel serves each file in `api/` at `/api/<name>`. The
+      NPC chat base can be overridden by `VITE_NPC_CHAT_URL`, which is why that endpoint allows any
+      origin.
+tags:
+  - name: npc
+    description: NPC dialogue through Claude.
+  - name: support
+    description: Player feedback, relayed to Discord.
+paths:
+  /npc-chat:
+    post:
+      operationId: createNpcReply
+      tags: [npc]
+      summary: Get an NPC's next line
+      description: |
+        Sends one turn to Claude (`api/npc-chat.ts`, model pinned there) and returns the NPC's
+        reply. The body carries either a chat history (`messages`) or a finished game's result
+        (`gameResults` with `context`). `useTool` forces a structured reply; `useEscalate` offers
+        the "pass this to Ryan" tool. Nothing is stored.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NpcChatRequest'
+      responses:
+        '200':
+          description: The NPC's reply. When Claude returns no usable text, `dialogue` falls back to
+            "good game!".
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NpcChatReply'
+        '405':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '502':
+          $ref: '#/components/responses/Error'
+    options:
+      operationId: preflightNpcChat
+      tags: [npc]
+      summary: CORS preflight
+      description: Answers the browser's preflight for a cross-origin `VITE_NPC_CHAT_URL`.
+      responses:
+        '204':
+          description: Preflight accepted (`POST, OPTIONS`; header `Content-Type`; any origin).
+  /support:
+    post:
+      operationId: createSupportMessage
+      tags: [support]
+      summary: Send player feedback
+      description: Posts the message to the project's Discord webhook as an embed. The message is
+        cut to 1024 characters there. Nothing is stored here.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportRequest'
+      responses:
+        '200':
+          description: Relayed to Discord.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportAccepted'
+        '400':
+          $ref: '#/components/responses/Error'
+        '405':
+          $ref: '#/components/responses/Error'
+        '500':
+          $ref: '#/components/responses/Error'
+        '502':
+          $ref: '#/components/responses/Error'
+components:
+  responses:
+    Error:
+      description: |
+        A failure, with a short reason. 405: not POST (the client's health check relies on it).
+        400: email or message missing (support only). 500: the server's secret isn't configured,
+        or an internal error. 502: Claude or Discord refused.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    ChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+          description: "`user` is the player, `assistant` the NPC."
+        content:
+          type: string
+    GameResults:
+      type: object
+      required: [playerScore, opponentScore]
+      properties:
+        playerScore:
+          type: integer
+        opponentScore:
+          type: integer
+        winner:
+          type: string
+          enum: [player, opponent, tie, incomplete]
+          description: "`incomplete`: the player left before the game finished."
+        rounds:
+          type: integer
+          description: Rounds played. Sent by the client; the server doesn't read it.
+    NpcChatRequest:
+      type: object
+      required: [systemPrompt]
+      properties:
+        npcId:
+          type: string
+          description: Sent with game results; the server doesn't read it.
+        systemPrompt:
+          type: string
+          description: The NPC's persona, built by the client.
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+          description: The chat so far. When absent, `gameResults` must be present.
+        gameResults:
+          $ref: '#/components/schemas/GameResults'
+        context:
+          type: string
+          description: One sentence describing how the game ended, used with `gameResults`.
+        useTool:
+          type: boolean
+          description: Force a structured reply (`continues`, `defaultReply`, `defaultAction`).
+        useEscalate:
+          type: boolean
+          description: Offer the escalation tool, which may set `escalate`.
+    NpcChatReply:
+      type: object
+      required: [dialogue, continues, defaultReply, defaultAction, escalate]
+      properties:
+        dialogue:
+          type: string
+        continues:
+          type: boolean
+          description: True when the NPC's line invites a reply.
+        defaultReply:
+          type: string
+          description: A suggested player reply, empty when there's none.
+        defaultAction:
+          type: string
+          enum: [chat, play]
+          description: "`chat` sends `defaultReply` as a message; `play` starts a game."
+        escalate:
+          type: boolean
+          description: True when the NPC chose to pass the player to the support form.
+    SupportRequest:
+      type: object
+      required: [email, message]
+      properties:
+        email:
+          type: string
+          description: Free text as the player typed it; not validated as an address.
+        message:
+          type: string
+        npcId:
+          type: string
+          description: The NPC the player was talking to; `ryan` when absent.
+    SupportAccepted:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          const: true
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string

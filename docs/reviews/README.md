@@ -49,6 +49,8 @@ By hand, the checklist is:
 5. **The template itself** — has `cr-ci-cd-rust-typescript-template` moved on since we
    scaffolded? (`git fetch template && git log --oneline HEAD..template/main -- docs/ .github/`)
 6. **Anything the last review deferred** — did the thing it was waiting on land?
+7. **HTTP API standard**, if the project has one (ADR-1019): is `.spectral/api-standards.lock`
+   at the latest `api-standards` tag, and does every `.spectral.yaml` override still have a reason?
 
 ## In this repo
 

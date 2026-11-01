@@ -1,0 +1,320 @@
+# Spectral ruleset for the API Standards (../api-standards.md).
+#
+# Every rule is prefixed `as-` and names the section it enforces, so a lint failure points at the
+# requirement, not just at a regex. Built-in Spectral functions only: no custom JS, so the ruleset
+# is one self-contained file that `extends:` can fetch by URL (ADR-0001).
+#
+# Use it from an API's repository, pinned to a tag:
+#   extends:
+#     - https://raw.githubusercontent.com/randallard/api-standards/v0.1.0/spectral/api-standards.yaml
+#
+# Record a granted departure (§19) as an `overrides` entry in that repository's .spectral.yaml,
+# with the reason in a comment, rather than turning a rule off globally.
+
+extends:
+  - [spectral:oas, recommended]
+
+aliases:
+  Operations:
+    - "$.paths[*][get,put,post,delete,patch,head,options,trace]"
+  PathKeys:
+    - "$.paths"
+  Parameters:
+    # Parameters declared on an operation, on a path item, or as reusable components.
+    - "$.paths[*][get,put,post,delete,patch,head,options,trace].parameters[*]"
+    - "$.paths[*].parameters[*]"
+    - "$.components.parameters[*]"
+  QueryOrPathParameters:
+    - "$.paths[*][get,put,post,delete,patch,head,options,trace].parameters[?(@.in == 'query' || @.in == 'path')]"
+    - "$.paths[*].parameters[?(@.in == 'query' || @.in == 'path')]"
+    - "$.components.parameters[?(@.in == 'query' || @.in == 'path')]"
+  QueryParameters:
+    - "$.paths[*][get,put,post,delete,patch,head,options,trace].parameters[?(@.in == 'query')]"
+    - "$.paths[*].parameters[?(@.in == 'query')]"
+    - "$.components.parameters[?(@.in == 'query')]"
+  SchemaProperties:
+    # Every `properties` map anywhere in the document, including inline response and request schemas.
+    - "$..properties"
+
+rules:
+  # ── §5 API-first and the contract ────────────────────────────────────────────
+  as-openapi-3-1-2:
+    description: "§5: every specification declares `openapi: 3.1.2`."
+    message: "Declare `openapi: 3.1.2` (§5); found {{value}}."
+    severity: error
+    given: "$"
+    then:
+      field: openapi
+      function: pattern
+      functionOptions:
+        match: "^3\\.1\\.2$"
+
+  # ── §8 / §12 Paths and versioning ───────────────────────────────────────────
+  as-path-versioned:
+    description: "§8, §12: every path begins with the major version, `/v{n}/`."
+    message: "Path `{{property}}` must begin with `/v{major}/` (§12)."
+    severity: error
+    given: "#PathKeys"
+    then:
+      field: "@key"
+      function: pattern
+      functionOptions:
+        match: "^/v[1-9][0-9]*/"
+
+  as-path-no-api-prefix:
+    description: "§8: no `/api` segment anywhere in the path; the base path belongs in `servers`."
+    message: "Path `{{property}}` carries an `/api` segment; move the base path to `servers` (§8)."
+    severity: error
+    given: "#PathKeys"
+    then:
+      field: "@key"
+      function: pattern
+      functionOptions:
+        notMatch: "(^|/)api(/|$)"
+
+  as-path-no-minor-version:
+    description: "§12: minor and patch versions never appear in the path."
+    message: "Path `{{property}}` carries a minor or patch version; only the major belongs in the path (§12)."
+    severity: error
+    given: "#PathKeys"
+    then:
+      field: "@key"
+      function: pattern
+      functionOptions:
+        notMatch: "/v[0-9]+[._][0-9]"
+
+  as-path-kebab-case:
+    description: "§8: literal path segments are lowercase kebab-case; parameters are `{camelCase}`."
+    message: "Path `{{property}}` has a segment that isn't lowercase kebab-case (§8)."
+    severity: error
+    given: "#PathKeys"
+    then:
+      field: "@key"
+      function: pattern
+      functionOptions:
+        # One or more segments, each either kebab-case or a {camelCase} parameter.
+        match: "^(/([a-z0-9]+(-[a-z0-9]+)*|\\{[a-z][a-zA-Z0-9]*\\}))+$"
+
+  as-path-plural-resource:
+    description: "§8: the first resource segment after the version is a plural noun (heuristic: ends in `s`)."
+    message: "`{{property}}`: the first resource segment should be plural, e.g. `/v1/documents` (§8)."
+    severity: warn
+    given: "#PathKeys"
+    then:
+      field: "@key"
+      function: pattern
+      functionOptions:
+        match: "^/v[0-9]+/[a-z0-9-]*s(/|$)"
+
+  as-path-no-action-verbs:
+    description: >-
+      §8: a state-changing action is a resource named for the event (`/deactivations`), never a
+      verb segment (`/deactivate`).
+    message: "Path `{{property}}` ends in an action verb; model the action as a resource named for the event (§8)."
+    severity: error
+    given: "#PathKeys"
+    then:
+      field: "@key"
+      function: pattern
+      functionOptions:
+        notMatch: "/(activate|deactivate|approve|reject|restore|resend|send|cancel|archive|unarchive|publish|unpublish|enable|disable|revoke|submit|close|reopen|lock|unlock|assign|unassign|export|import|sync|retry|refresh|reset|start|stop|pause|resume|execute|run|process|delete|remove|create|update|merge|split|move|copy|transfer|notify|confirm|verify|complete)(/|$)"
+
+  as-computation-marked:
+    description: >-
+      §8: a computation verb segment (`/validate`, `/calculate`, `/preview`, ...) is allowed only
+      as a POST marked `x-computation: true`, with no other methods on the path.
+    message: "{{error}} (§8 computations)"
+    severity: error
+    given: "$.paths[?(@property.match(/\\/(validate|calculate|preview|estimate|quote|convert|search|check|evaluate|simulate|parse|render|lookup)$/))]"
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [post]
+          not:
+            anyOf:
+              - required: [get]
+              - required: [put]
+              - required: [patch]
+              - required: [delete]
+          properties:
+            post:
+              type: object
+              required: [x-computation]
+              properties:
+                x-computation:
+                  const: true
+
+  # ── §8 / §9 Naming ──────────────────────────────────────────────────────────
+  as-parameter-camel-case:
+    description: "§8, §9: query and path parameter names are camelCase."
+    message: "Parameter `{{value}}` must be camelCase (§8)."
+    severity: error
+    given: "#QueryOrPathParameters"
+    then:
+      field: name
+      function: pattern
+      functionOptions:
+        match: "^[a-z][a-zA-Z0-9]*$"
+
+  as-property-camel-case:
+    description: "§9: schema property names are camelCase."
+    message: "Property `{{property}}` must be camelCase (§9)."
+    severity: error
+    given: "#SchemaProperties"
+    then:
+      field: "@key"
+      function: pattern
+      functionOptions:
+        match: "^[a-z][a-zA-Z0-9]*$"
+
+  as-enum-described:
+    description: "§9: every enumeration documents its values and their meanings."
+    message: "An `enum` needs a `description` that explains each value (§9)."
+    severity: error
+    given: "$..[?(@ && @.enum && !@.const)]"
+    then:
+      field: description
+      function: truthy
+
+  as-datetime-format:
+    description: "§9: properties named `...Date` carry an RFC 3339 format."
+    message: "`{{property}}` should declare `format: date-time` (or `date`) (§9)."
+    severity: warn
+    given: "$..properties[?(@property.match(/Date$/))]"
+    then:
+      - field: format
+        function: truthy
+      - field: format
+        function: enumeration
+        functionOptions:
+          values: [date-time, date]
+
+  # ── §11 Pagination ──────────────────────────────────────────────────────────
+  as-no-offset-pagination:
+    description: "§11: pagination is cursor-based; no offset or page-number parameters."
+    message: "`{{value}}` is offset/page pagination; use `cursor` and `limit` (§11)."
+    severity: error
+    given: "#QueryParameters"
+    then:
+      field: name
+      function: pattern
+      functionOptions:
+        notMatch: "^(offset|page|pageNumber|pageSize|pageIndex|skip|start)$"
+
+  as-no-total-count:
+    description: "§11: a collection response never includes a total count."
+    message: "`{{property}}` looks like a total count; collection responses must not include one (§11)."
+    severity: error
+    given: "#SchemaProperties"
+    then:
+      field: "@key"
+      function: pattern
+      functionOptions:
+        notMatch: "^(total|totalCount|totalSize|totalItems|totalElements|totalResults|totalRecords|count)$"
+
+  # ── §10 Errors ──────────────────────────────────────────────────────────────
+  as-problem-json:
+    description: "§10: 4xx and 5xx responses use `application/problem+json` (RFC 9457)."
+    message: "Error response must offer `application/problem+json` (§10)."
+    severity: error
+    given: "$.paths[*][*].responses[?(@property.match(/^[45]/))]"
+    then:
+      field: "content.application/problem+json"
+      function: truthy
+
+  # ── §7 Data interchange ─────────────────────────────────────────────────────
+  as-no-xml:
+    description: "§7: no XML media types, except a recorded legacy exception."
+    message: "`{{property}}` is an XML media type; payloads are JSON (§7)."
+    severity: error
+    given: "$..content"
+    then:
+      field: "@key"
+      function: pattern
+      functionOptions:
+        notMatch: "(^|[/+])xml($|;)"
+
+  as-upload-limits:
+    description: "§7: an operation that accepts a file declares `413` and `415` responses."
+    message: "{{error}} (§7 binary requests: declare 413 and 415)"
+    severity: error
+    given: "$.paths[*][?(@property.match(/^(post|put|patch)$/) && @.requestBody && @.requestBody.content && (@.requestBody.content['multipart/form-data'] || @.requestBody.content['application/octet-stream']))]"
+    then:
+      field: responses
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: ["413", "415"]
+
+  # ── §14 Security ────────────────────────────────────────────────────────────
+  as-operation-scopes:
+    description: "§14: every operation declares its security requirement and the scopes it needs."
+    message: "{{error}} (§14: declare `security` with at least one scope on every operation)"
+    severity: error
+    given: "#Operations"
+    then:
+      field: security
+      function: schema
+      functionOptions:
+        schema:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            minProperties: 1
+            additionalProperties:
+              type: array
+              minItems: 1
+
+  as-oauth2-only:
+    description: "§14: authentication is OAuth 2.0 (OpenID Connect is OAuth 2.0-based and allowed)."
+    message: "Security scheme `{{property}}` must be `oauth2` or `openIdConnect` (§14)."
+    severity: error
+    given: "$.components.securitySchemes[*]"
+    then:
+      field: type
+      function: enumeration
+      functionOptions:
+        values: [oauth2, openIdConnect]
+
+  as-no-tenant-parameter:
+    description: "§14: the tenant comes from the credential, never from a request parameter."
+    message: "`{{value}}` passes a tenant in the request; take it from the token's claim (§14)."
+    severity: error
+    given: "#Parameters"
+    then:
+      field: name
+      function: pattern
+      functionOptions:
+        notMatch: "/^(x-)?(tenant|tenantid|tenant-id|tenant_id|org|orgid|organizationid|organisationid|accountid)$/i"
+
+  # ── §13 Lifecycle ───────────────────────────────────────────────────────────
+  as-deprecation-headers:
+    description: "§13: a deprecated operation's success responses declare `Deprecation` and `Sunset`."
+    message: "{{error}} (§13: deprecated operations return Deprecation and Sunset)"
+    severity: error
+    given: "$.paths[*][?(@.deprecated == true)].responses[?(@property.match(/^2/))]"
+    then:
+      field: headers
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [Deprecation, Sunset]
+
+  # ── §17 Rate limits ─────────────────────────────────────────────────────────
+  as-429-retry-after:
+    description: "§17: a throttled response (`429`) declares the `Retry-After` header."
+    message: "{{error}} (§17: 429 declares Retry-After)"
+    severity: error
+    given: "$.paths[*][*].responses['429']"
+    then:
+      field: headers
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [Retry-After]

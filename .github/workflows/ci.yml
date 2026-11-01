@@ -31,6 +31,7 @@ jobs:
     outputs:
       rust: ${{ steps.d.outputs.rust }}
       ts: ${{ steps.d.outputs.ts }}
+      api: ${{ steps.d.outputs.api }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
@@ -38,12 +39,15 @@ jobs:
       - id: d
         run: |
           set -euo pipefail
-          rust=false; ts=false
+          rust=false; ts=false; api=false
           [ -f Cargo.toml ] && rust=true
           [ -f package.json ] && ts=true
+          # ADR-1019: an OpenAPI document at the top level or directly in openapi/.
+          { [ -f openapi.yaml ] || compgen -G 'openapi/*.yaml' >/dev/null; } && api=true
           echo "rust=$rust" >> "$GITHUB_OUTPUT"
           echo "ts=$ts" >> "$GITHUB_OUTPUT"
-          echo "rust=$rust ts=$ts"
+          echo "api=$api" >> "$GITHUB_OUTPUT"
+          echo "rust=$rust ts=$ts api=$api"
 
   # ── Rust ────────────────────────────────────────────────────────────────────
   rust-gates:
@@ -158,6 +162,8 @@ jobs:
         # version on a known-bad list", this asks "was this tarball actually
         # published by who the registry says, and built where it claims".
         run: pnpm audit signatures
+      # PSF-2.0 is the Python-2.0 licence under its newer SPDX id; argparse 3.x (via js-yaml,
+      # which markdownlint pulls in) uses it.
       - name: license allowlist
         # Four additions to the template's list, all permissive and all reached
         # through ordinary toolchain transitives:
@@ -168,8 +174,54 @@ jobs:
         #                       checker flagging "inferred, not stated"
         run: >
           pnpm exec license-checker-rseidelsohn
-          --onlyAllow "MIT;MIT*;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;CC0-1.0;Python-2.0;BlueOak-1.0.0;MPL-2.0;CC-BY-3.0;CC-BY-4.0;(MIT AND CC-BY-3.0)"
+          --onlyAllow "MIT;MIT*;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;CC0-1.0;Python-2.0;PSF-2.0;BlueOak-1.0.0;MPL-2.0;CC-BY-3.0;CC-BY-4.0;(MIT AND CC-BY-3.0)"
           --excludePrivatePackages
+
+  # ── HTTP APIs ───────────────────────────────────────────────────────────────
+  # ADR-1019: every OpenAPI document is linted against the api-standards ruleset, vendored at a
+  # pinned tag by scripts/vendor-api-standards.sh. The copy is checked against its lock before
+  # use, and Spectral is the standalone binary, pinned and checksum-verified like gitleaks (its
+  # npm tree fails trustPolicy, ADR-1016). Bump SPECTRAL_VERSION and SPECTRAL_SHA256 together:
+  #   gh api repos/stoplightio/spectral/releases/tags/v<version> \
+  #     -q '.assets[]|select(.name=="spectral-linux-x64")|.digest'
+  api-lint:
+    name: api lint
+    needs: detect
+    if: needs.detect.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15 # ADR-1005
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+      - name: vendored ruleset matches its lock
+        run: |
+          set -euo pipefail
+          if [ ! -f .spectral.yaml ] || [ ! -f .spectral/api-standards.lock ]; then
+            echo "::error::An OpenAPI document exists but the ruleset isn't vendored (ADR-1019). Run scripts/vendor-api-standards.sh <tag>."
+            exit 1
+          fi
+          sha="$(sed -n 's/^sha256=//p' .spectral/api-standards.lock)"
+          echo "${sha}  .spectral/api-standards.yaml" | sha256sum -c -
+          sed -n 's/^tag=/api-standards /p' .spectral/api-standards.lock
+      - name: install spectral (pinned, checksum-verified)
+        env:
+          SPECTRAL_VERSION: 6.17.0
+          SPECTRAL_SHA256: e6244baecff57dfb89ba8379a09563270fbb4ac7f73fb8692510a6160059ec53 # spectral-linux-x64
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o spectral "https://github.com/stoplightio/spectral/releases/download/v${SPECTRAL_VERSION}/spectral-linux-x64"
+          echo "${SPECTRAL_SHA256}  spectral" | sha256sum -c -
+          chmod +x spectral
+      - name: lint
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          docs=()
+          [ -f openapi.yaml ] && docs+=(openapi.yaml)
+          docs+=(openapi/*.yaml)
+          "$RUNNER_TEMP/spectral" lint --fail-severity=warn --ruleset .spectral.yaml "${docs[@]}"
 
   # ── Shared ──────────────────────────────────────────────────────────────────
   sbom:
@@ -206,9 +258,11 @@ jobs:
       actions: read
     # No timeout-minutes here (ADR-1005's one exception): GitHub rejects it on a job that calls a
     # reusable workflow; the called workflow's own jobs carry their limits.
+    # v2.7.0 at least (ADR-1018): pnpm 12 writes a two-document lockfile, and v2.3.8 reads only the
+    # first (pnpm's own packages), so it passes while scanning none of the project's.
     # Reusable workflow, pinned to the commit SHA like every action here; the trailing
     # comment is its tag. Bump both together, deliberately.
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
 
   # Runs on every project, with or without a manifest: a secret can be committed to any repo.
   # Not a marketplace action: gitleaks-action needs a paid license on organisation accounts, and
