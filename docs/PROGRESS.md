@@ -15,9 +15,16 @@ _Last updated: 2026-11-01_
 > first attempt. It takes 2.7–3.6s on CI and that commit didn't slow it (1.87s before, 1.89s after,
 > locally), so its timeout is now 15s.
 >
+> **Then (11-01 (4), [journal](journal/2026-11-01-4-node-26-in-ci.md)): Node 26 in CI**, template
+> ADR-1020, with `engines` and `@types/node` staying at 24. All gates pass locally on Node 26.8.1.
+> Uncommitted, for Ryan's check.
+>
 > ⏳ **Next:**
 >
-> 1. Ryan plays both journals' playtest lists, if not already done.
+> 1. Ryan checks 11-01 (4). Then commit, `gr push --only the-lot`, push to `origin`, read CI's first
+>    run on 26, and re-run the compliance review: the 11-01 note predates lint at zero, so nothing
+>    has reviewed the provable-lite claim, the cast registry or the ADR-0072 deferral.
+>    Ryan plays both journals' playtest lists, if not already done.
 > 2. Unblocked by the lint pass reaching zero, not started (stance review 11-01): **eslint 10**,
 >    with react-hooks 7.1.1 and react-refresh 0.5.x, then override minimatch 10 → 11 and retire
 >    GHSA-g3hv-75wg-m249 from both scanners in one commit, re-checking ADR-0069's five files under
