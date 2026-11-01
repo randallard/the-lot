@@ -6,7 +6,15 @@ _Last updated: 2026-11-01_
 
 **Standards:** last compliance review 2026-11-01 (second, [note](compliance/2026-11-01-2.md)): 5 gaps, all closed the same day ([journal 11-01 (5)](journal/2026-11-01-5-the-compliance-gaps.md)): `osv-scanner.toml`'s command, the pick-up block, `contact-move`'s random source, and ADRs 0073 (rung 3 here) and 0074 (`#review` and `App.tsx` wait for reducers). Stance review 2026-11-01 ([review](reviews/2026-11-01-stance-review.md)).
 
-> ### ▶ PICK UP HERE — 2026-11-01 (6) — ESLint 10 in, a playtest outstanding
+> ### ▶ PICK UP HERE — 2026-11-01 (7) — Node 26 as the floor
+>
+> [`journal/2026-11-01-7-node-26-floor.md`](journal/2026-11-01-7-node-26-floor.md) · template ADR-1022: `engines` `>=26.0.0`, `@types/node` 26.6.6.
+> ADR-1021 too: `renovate.json` from the template. Local gates passed. ⏳ **Ryan: install the Renovate app
+> on this repo**; until then the file does nothing.
+>
+> ---
+>
+> ### 2026-11-01 (6) — ESLint 10 in, a playtest outstanding
 >
 > [`journal/2026-11-01-6-eslint-10.md`](journal/2026-11-01-6-eslint-10.md) · ESLint 10.14.0 and
 > `minimatch@10` → 11; GHSA-g3hv-75wg-m249 retired from both scanners; [ADR-0075](adr/0075-react-hooks-7-1-and-the-wider-ref-boundary.md)
