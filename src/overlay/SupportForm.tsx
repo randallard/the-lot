@@ -21,11 +21,10 @@ export function SupportForm({ npcScreenPos, onClose }: SupportFormProps) {
 
   // Position near NPC
   useEffect(() => {
-    if (!npcScreenPos) return;
     let raf: number;
     const update = () => {
       const sp = npcScreenPos.current;
-      if (!sp || !sp.visible || !formRef.current) {
+      if (!sp.visible || !formRef.current) {
         raf = requestAnimationFrame(update);
         return;
       }
@@ -147,7 +146,7 @@ export function SupportForm({ npcScreenPos, onClose }: SupportFormProps) {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && message.trim()) {
                   e.preventDefault();
-                  handleSubmit();
+                  void handleSubmit();
                 }
               }}
               style={{
@@ -178,7 +177,7 @@ export function SupportForm({ npcScreenPos, onClose }: SupportFormProps) {
                 cancel
               </button>
               <button
-                onClick={handleSubmit}
+                onClick={() => { void handleSubmit(); }}
                 disabled={!message.trim() || sending}
                 style={{
                   padding: "8px 16px",

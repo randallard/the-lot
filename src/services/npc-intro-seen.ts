@@ -3,15 +3,12 @@
  * After the first time, Haiku generates shorter accept messages.
  */
 
+import { isBoolean, readStoredJson, recordOf } from "./json-guards";
+
 const STORAGE_KEY = "townage-npc-intro-seen";
 
 function load(): Record<string, boolean> {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : {};
-  } catch {
-    return {};
-  }
+  return recordOf(readStoredJson(STORAGE_KEY), isBoolean);
 }
 
 export function hasSeenIntro(npcId: string): boolean {

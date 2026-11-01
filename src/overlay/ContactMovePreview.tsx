@@ -28,8 +28,6 @@ import { bumpContact, envelopeWith, maxSeparation } from "../dance/fist-bump";
 import {
   type ContactMove,
   type RoleId,
-  type RoleResolution,
-  type RoleScratch,
   handFor,
   metricsFor,
   resolveRole,
@@ -178,8 +176,8 @@ function Driver({ move, cast, placements, aLeft, aRight, bLeft, bRight, scrub }:
   const s = useRef({
     time: 0,
     env: { t: 0, touching: false, done: false },
-    role: { local: { x: 0, z: 0, yaw: 0 }, rest: armPose() } as RoleScratch,
-    out: { pose: armPose(), side: "right", contact: bumpContact() } as RoleResolution,
+    role: { local: { x: 0, z: 0, yaw: 0 }, rest: armPose() },
+    out: { pose: armPose(), side: "right" as const, contact: bumpContact() },
     aim: new THREE.Vector3(),
     elbow: vec3(),
   });

@@ -13,17 +13,17 @@
  */
 
 import type { ContactMove } from "../dance/contact-move";
+import { arrayOf, isRecord, isString, readStoredJson } from "./json-guards";
 
 const STORAGE_KEY = "townage-contact-moves";
 
+/** A move's header; the rest is as the editor saved it (`approachOf` defaults what older moves lack). */
+function isContactMove(v: unknown): v is ContactMove {
+  return isRecord(v) && isString(v.id) && isString(v.name);
+}
+
 function load(): ContactMove[] {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    const parsed = data ? JSON.parse(data) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return arrayOf(readStoredJson(STORAGE_KEY), isContactMove);
 }
 
 function persist(all: ContactMove[]): void {

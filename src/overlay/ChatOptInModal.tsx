@@ -13,7 +13,7 @@ export function ChatOptInModal({ onAccept, onDecline }: ChatOptInModalProps) {
   const aiDisabled = serverStatus !== "ok";
 
   useEffect(() => {
-    checkChatServerHealth().then((ok) => {
+    void checkChatServerHealth().then((ok) => {
       setServerStatus(ok ? "ok" : "unavailable");
       if (ok) setSelected(0);
     });

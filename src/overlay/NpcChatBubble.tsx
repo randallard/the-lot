@@ -125,8 +125,10 @@ export function NpcChatBubble({
   }, []);
 
   // Auto-focus input (unless "let's play" is pre-selected)
+  // Decided by the first render's props: this runs once, on mount.
+  const focusOnMount = useRef(!(defaultPlay && onPlayGame));
   useEffect(() => {
-    if (!(defaultPlay && onPlayGame)) {
+    if (focusOnMount.current) {
       setTimeout(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
@@ -136,11 +138,11 @@ export function NpcChatBubble({
 
   // Track player position
   useEffect(() => {
-    if (!playerScreenPos) return;
+    const id = myId.current;
     let raf: number;
     const update = () => {
       const sp = playerScreenPos.current;
-      if (!sp || !sp.visible) {
+      if (!sp.visible) {
         raf = requestAnimationFrame(update);
         return;
       }
@@ -181,7 +183,7 @@ export function NpcChatBubble({
     raf = requestAnimationFrame(update);
     return () => {
       cancelAnimationFrame(raf);
-      unregisterBubble(myId.current);
+      unregisterBubble(id);
     };
   }, [playerScreenPos]);
 

@@ -1,5 +1,6 @@
 import { getPlayerName } from "./player-name";
 import { getPlayerId } from "./player-id";
+import { isRecord, isString } from "./json-guards";
 
 const BACKUP_VERSION = "1.1.0";
 
@@ -105,25 +106,25 @@ export type RestoreResult =
   | { ok: false; error: string };
 
 export function importBackup(json: string): RestoreResult {
-  let backup: TownageBackup;
+  let backup: unknown;
   try {
-    backup = JSON.parse(json) as TownageBackup;
+    backup = JSON.parse(json);
   } catch {
     return { ok: false, error: "Invalid JSON" };
   }
 
-  if (!backup.version || !backup.data || typeof backup.data !== "object") {
+  if (!isRecord(backup) || !isString(backup.version) || !backup.version || !isRecord(backup.data)) {
     return { ok: false, error: "Not a valid Townage backup file" };
   }
 
   const restoredKeys: string[] = [];
 
   // Restore player identity
-  if (backup.playerName) {
+  if (isString(backup.playerName) && backup.playerName) {
     localStorage.setItem("townage-player-name", backup.playerName);
     restoredKeys.push("townage-player-name");
   }
-  if (backup.playerId) {
+  if (isString(backup.playerId) && backup.playerId) {
     localStorage.setItem("townage-player-id", backup.playerId);
     restoredKeys.push("townage-player-id");
   }
@@ -145,7 +146,7 @@ export function importBackup(json: string): RestoreResult {
   }
 
   // Restore optional data
-  if (backup.optionalData) {
+  if (isRecord(backup.optionalData)) {
     for (const [key, value] of Object.entries(backup.optionalData)) {
       if (OPTIONAL_KEYS.includes(key)) {
         try {

@@ -9,6 +9,18 @@ import { getGameKnowledge, AVAILABLE_GAMES } from "../config/game-knowledge";
 import { SUPPORT_CONFIG } from "../config/support";
 import { getMessageCount } from "./npc-sleep";
 import { shouldWarn } from "../config/sleep";
+import { isRecord, isString } from "./json-guards";
+
+/**
+ * The npc-chat reply: its `dialogue`, and whether Ryan's support tool fired (`escalate`). A reply
+ * without dialogue is an error, so each caller falls back as it would for a failed request.
+ */
+async function readReply(response: Response): Promise<{ dialogue: string; escalate: boolean }> {
+  if (!response.ok) throw new Error(`API error: ${response.status}`);
+  const data: unknown = await response.json();
+  if (!isRecord(data) || !isString(data.dialogue)) throw new Error("npc-chat reply has no dialogue");
+  return { dialogue: data.dialogue, escalate: data.escalate === true };
+}
 
 /**
  * Build a full NPC system prompt combining:
@@ -75,10 +87,7 @@ export async function getNpcCommentary(
       }),
     });
 
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
-
-    const data = await response.json();
-    return data.dialogue;
+    return (await readReply(response)).dialogue;
   } catch {
     // Fall back to static personality strings
     if (results.winner === "incomplete") {
@@ -102,16 +111,10 @@ export async function getGameAcceptText(
   playerChose: "spaces-game" | "kings-cooking" | "npc-choice",
 ): Promise<{ dialogue: string; chosenGame: string }> {
   const games = AVAILABLE_GAMES.join(", ");
-  const gameName =
-    playerChose === "spaces-game"
-      ? "Spaces Game"
-      : playerChose === "kings-cooking"
-        ? "King's Cooking"
-        : null;
   const prompt =
     playerChose === "npc-choice"
       ? `The player asked you to choose a game from this list: ${games}. Pick one at random and let them know which one you chose. Keep it chill and short — like texting a friend.`
-      : `The player chose ${gameName!}. Acknowledge it casually — you're about to play. Keep it short, like between friends.`;
+      : `The player chose ${playerChose === "spaces-game" ? "Spaces Game" : "King's Cooking"}. Acknowledge it casually — you're about to play. Keep it short, like between friends.`;
 
   const response = await fetch(`${NPC_CHAT_BASE}/api/npc-chat`, {
     method: "POST",
@@ -123,10 +126,9 @@ export async function getGameAcceptText(
     }),
   });
 
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
-  const data = await response.json();
+  const { dialogue } = await readReply(response);
   const chosenGame = playerChose === "npc-choice" ? "spaces-game" : playerChose;
-  return { dialogue: data.dialogue, chosenGame };
+  return { dialogue, chosenGame };
 }
 
 export interface ChatResponse {
@@ -162,9 +164,8 @@ export async function chatWithNpc(
     }),
   });
 
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
-  const data = await response.json();
-  return { text: data.dialogue, escalate: !!data.escalate };
+  const { dialogue, escalate } = await readReply(response);
+  return { text: dialogue, escalate };
 }
 
 /** Health check — GET returns 405 if the server is reachable. No API credits used. */

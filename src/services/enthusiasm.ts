@@ -4,6 +4,8 @@
  * Per-NPC levels let players fine-tune individual NPCs.
  */
 
+import { isNumber, isRecord, isString, readStoredJson, recordOf } from "./json-guards";
+
 const STORAGE_KEY = "townage-enthusiasm";
 
 export interface EnthusiasmSettings {
@@ -20,16 +22,14 @@ export const MIN_LEVEL = 0;
 export const MAX_LEVEL = 5;
 
 function load(): EnthusiasmSettings {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return { perNpc: {}, moodToday: null, moodDate: null };
-    const parsed = JSON.parse(data);
-    // Migration: add moodDate if missing
-    if (!("moodDate" in parsed)) parsed.moodDate = null;
-    return parsed;
-  } catch {
-    return { perNpc: {}, moodToday: null, moodDate: null };
-  }
+  const parsed = readStoredJson(STORAGE_KEY);
+  if (!isRecord(parsed)) return { perNpc: {}, moodToday: null, moodDate: null };
+  return {
+    perNpc: recordOf(parsed.perNpc, isNumber),
+    moodToday: isNumber(parsed.moodToday) ? parsed.moodToday : null,
+    // A missing moodDate (settings saved before it existed) reads as null.
+    moodDate: isString(parsed.moodDate) ? parsed.moodDate : null,
+  };
 }
 
 function save(settings: EnthusiasmSettings): void {

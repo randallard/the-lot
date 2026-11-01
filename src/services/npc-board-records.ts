@@ -4,6 +4,8 @@
  * Used for per-board-size rank calculations (S rank = 5 win streak in last 3 months).
  */
 
+import { isNumber, isRecord, readStoredJson, recordOf } from "./json-guards";
+
 const STORAGE_KEY = "townage-npc-board-records";
 const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000;
 const MAX_ENTRIES = 100; // per npc+boardSize, prune older entries
@@ -19,13 +21,17 @@ function makeKey(npcId: string, boardSize: number): string {
   return `${npcId}:${boardSize}`;
 }
 
+function isEntry(v: unknown): v is BoardGameEntry {
+  return isRecord(v) && isNumber(v.timestamp) &&
+    (v.winner === "player" || v.winner === "opponent" || v.winner === "tie");
+}
+
+function isEntries(v: unknown): v is BoardGameEntry[] {
+  return Array.isArray(v) && v.every(isEntry);
+}
+
 function loadAll(): BoardRecords {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : {};
-  } catch {
-    return {};
-  }
+  return recordOf(readStoredJson(STORAGE_KEY), isEntries);
 }
 
 function saveAll(records: BoardRecords): void {
@@ -124,12 +130,12 @@ export function getOverallSpacesRank(npcId: string): "S" | "A" | "B" | null {
     }
   }
 
-  const ranked = recentRanks.filter((r) => r.rank !== null);
+  const ranked = recentRanks.flatMap((r) => (r.rank === null ? [] : [r.rank]));
   if (ranked.length === 0) return null;
 
   const allCovered = recentRanks.length === ALL_SIZES.length;
-  const allS = ranked.length === recentRanks.length && ranked.every((r) => r.rank === "S");
-  const allAPlus = ranked.length === recentRanks.length && ranked.every((r) => r.rank === "S" || r.rank === "A");
+  const allS = ranked.length === recentRanks.length && ranked.every((r) => r === "S");
+  const allAPlus = ranked.length === recentRanks.length && ranked.every((r) => r === "S" || r === "A");
 
   // S: S on every single board size
   if (allS && allCovered) return "S";
@@ -137,7 +143,7 @@ export function getOverallSpacesRank(npcId: string): "S" | "A" | "B" | null {
   // A: all played are S but missing sizes, OR A+ on all 9, OR average >= A
   if (allS && !allCovered) return "A";
   if (allAPlus && allCovered) return "A";
-  const avg = ranked.reduce((sum, r) => sum + RANK_VALUE[r.rank!], 0) / ranked.length;
+  const avg = ranked.reduce((sum, r) => sum + RANK_VALUE[r], 0) / ranked.length;
   if (avg >= 2) return "A";
 
   return "B";

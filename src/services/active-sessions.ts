@@ -6,6 +6,8 @@
  * On return with final results, the sessionId is cleared.
  */
 
+import { arrayOf, isRecord, isString, readStoredJson } from "./json-guards";
+
 const STORAGE_KEY = "townage-active-sessions";
 
 interface ActiveSession {
@@ -13,43 +15,34 @@ interface ActiveSession {
   sessionId: string;
 }
 
+function isActiveSession(v: unknown): v is ActiveSession {
+  return isRecord(v) && isString(v.npcId) && isString(v.sessionId);
+}
+
+function load(): ActiveSession[] {
+  return arrayOf(readStoredJson(STORAGE_KEY), isActiveSession);
+}
+
 export function getActiveSession(npcId: string): string | null {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return null;
-    const sessions: ActiveSession[] = JSON.parse(stored);
-    return sessions.find((s) => s.npcId === npcId)?.sessionId ?? null;
-  } catch {
-    return null;
-  }
+  return load().find((s) => s.npcId === npcId)?.sessionId ?? null;
 }
 
 export function saveActiveSession(npcId: string, sessionId: string): void {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    const sessions: ActiveSession[] = stored ? JSON.parse(stored) : [];
-    const filtered = sessions.filter((s) => s.npcId !== npcId);
+    const filtered = load().filter((s) => s.npcId !== npcId);
     filtered.push({ npcId, sessionId });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
   } catch {}
 }
 
 export function getAllActiveSessions(): ActiveSession[] {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return [];
-    return JSON.parse(stored);
-  } catch {
-    return [];
-  }
+  return load();
 }
 
 export function clearActiveSession(npcId: string): void {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return;
-    const sessions: ActiveSession[] = JSON.parse(stored);
-    const filtered = sessions.filter((s) => s.npcId !== npcId);
+    if (localStorage.getItem(STORAGE_KEY) === null) return;
+    const filtered = load().filter((s) => s.npcId !== npcId);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
   } catch {}
 }

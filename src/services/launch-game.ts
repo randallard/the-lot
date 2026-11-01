@@ -18,7 +18,8 @@ const KINGS_COOKING_URL =
   import.meta.env.VITE_KINGS_COOKING_URL || "https://randallard.github.io/kings-cooking";
 
 function generateSessionId(): string {
-  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+  // The types say randomUUID is always there, but it's missing outside a secure context.
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
   // Fallback for non-secure contexts (e.g. HTTP over Tailscale)

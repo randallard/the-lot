@@ -33,7 +33,7 @@ export function BoardGrid({
       {grid.map((row, r) =>
         row.map((_cell, c) => {
           const isHighlighted =
-            highlightCell?.row === r && highlightCell?.col === c;
+            highlightCell?.row === r && highlightCell.col === c;
           const movesHere = sequence.filter(
             (m) => m.position.row === r && m.position.col === c,
           );

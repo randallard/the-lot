@@ -11,6 +11,7 @@ import {
   migrateEyes,
   complementaryColor,
 } from "./eye-shapes";
+import { isNumber, isRecord, readStoredJson } from "./json-guards";
 import { getNpcById } from "../config/npcs";
 
 export type { CharacterEyes };
@@ -599,15 +600,11 @@ export function handDrawnMap(pose: HandPose, side: "left" | "right"): Mat3 {
 // Storage
 
 function load(): Record<string, unknown> {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : {};
-  } catch {
-    return {};
-  }
+  const all = readStoredJson(STORAGE_KEY);
+  return isRecord(all) ? all : {};
 }
 
-function save(shapes: Record<string, CharacterBodyShape>): void {
+function save(shapes: Record<string, unknown>): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(shapes));
   } catch {}
@@ -622,60 +619,72 @@ function defaultsForId(id: string): CharacterBodyShape {
   return NPC_DEFAULTS;
 }
 
-/** Migrate and fill defaults for any missing fields (handles schema evolution). */
+/** A saved number, or `undefined` when the field is missing or isn't one. */
+function num(v: unknown): number | undefined {
+  return isNumber(v) ? v : undefined;
+}
+
+/** A saved `[x, y, z]`, or `undefined` when the field is missing or isn't one. */
+function vec3(v: unknown): [number, number, number] | undefined {
+  if (!Array.isArray(v) || v.length !== 3) return undefined;
+  const items: unknown[] = v;
+  const [x, y, z] = items;
+  return isNumber(x) && isNumber(y) && isNumber(z) ? [x, y, z] : undefined;
+}
+
+/** The fields of a saved section; `{}` when it's missing or isn't an object. */
+function section(v: unknown): Record<string, unknown> {
+  return isRecord(v) ? v : {};
+}
+
+/**
+ * A hand pose from its saved fields over `d`; `flattenY` is the old name for `flattenZ`. A pose
+ * without `handForearmGap` takes the default's, not the layout's old gap: the old migration meant
+ * to carry that gap over but never did (the defaults were spread in first), so this keeps what
+ * players already see.
+ */
+function handPose(raw: Record<string, unknown>, d: HandPose): HandPose {
+  return {
+    radius:         num(raw.radius) ?? d.radius,
+    flattenZ:       num(raw.flattenZ) ?? num(raw.flattenY) ?? d.flattenZ,
+    widthSegments:  num(raw.widthSegments) ?? d.widthSegments,
+    heightSegments: num(raw.heightSegments) ?? d.heightSegments,
+    rotation:       vec3(raw.rotation) ?? d.rotation,
+    handForearmGap: num(raw.handForearmGap) ?? d.handForearmGap,
+  };
+}
+
+/**
+ * Migrate and fill defaults for any missing fields (handles schema evolution). A saved field is
+ * kept when it has its field's type; anything else falls back as a missing one would.
+ */
 function migrate(raw: unknown, id: string): CharacterBodyShape {
   const defaults = defaultsForId(id);
-  if (!raw || typeof raw !== "object") return JSON.parse(JSON.stringify(defaults));
+  if (!isRecord(raw)) return structuredClone(defaults);
 
-  const r = raw as Record<string, unknown>;
+  const r = raw;
+  const rawHand = section(r.hand);
+  const rawLayout = section(r.layout);
 
-  // Migrate old flat HandShape → new { open, closed } format
-  const rawHand = r.hand as Record<string, unknown> | undefined;
-  let hand: HandShape;
-  if (!rawHand || !rawHand.open) {
-    // Legacy: migrate flat fields into open pose
-    const legacyOpen: HandPose = {
-      radius:         (rawHand?.radius as number)         ?? defaults.hand.open.radius,
-      flattenZ:       (rawHand?.flattenZ as number) ?? (rawHand?.flattenY as number) ?? defaults.hand.open.flattenZ,
-      widthSegments:  (rawHand?.widthSegments as number)  ?? defaults.hand.open.widthSegments,
-      heightSegments: (rawHand?.heightSegments as number) ?? defaults.hand.open.heightSegments,
-      rotation:       [0, 0, 0],
-      handForearmGap: defaults.hand.open.handForearmGap,
-    };
-    hand = { open: legacyOpen, closed: JSON.parse(JSON.stringify(defaults.hand.closed)) };
-  } else {
-    const openRaw  = rawHand.open   as Record<string, unknown>;
-    const closedRaw = (rawHand.closed as Record<string, unknown> | undefined) ?? {};
-    hand = {
-      open: {
-        ...defaults.hand.open,
-        ...(openRaw as Partial<HandPose>),
-        // Migrate flattenY → flattenZ
-        flattenZ: (openRaw.flattenZ as number | undefined) ?? (openRaw.flattenY as number | undefined) ?? defaults.hand.open.flattenZ,
-      },
-      closed: {
-        ...defaults.hand.closed,
-        ...(closedRaw as Partial<HandPose>),
-        flattenZ: (closedRaw.flattenZ as number | undefined) ?? (closedRaw.flattenY as number | undefined) ?? defaults.hand.closed.flattenZ,
-      },
-    };
-    // Ensure rotation array exists in both poses
-    if (!hand.open.rotation)   hand.open.rotation   = [0, 0, 0];
-    if (!hand.closed.rotation) hand.closed.rotation = [0, 0, 0];
-    // Migrate handForearmGap from old layout location if missing from poses
-    const rawLayout = r.layout as Record<string, unknown> | undefined;
-    const legacyGap = rawLayout?.handForearmGap as number | undefined;
-    if (hand.open.handForearmGap   == null) hand.open.handForearmGap   = legacyGap ?? defaults.hand.open.handForearmGap;
-    if (hand.closed.handForearmGap == null) hand.closed.handForearmGap = legacyGap ?? defaults.hand.closed.handForearmGap;
-  }
+  // Old flat HandShape → { open, closed }: the flat fields become the open pose, at rest.
+  const hand: HandShape = isRecord(rawHand.open)
+    ? {
+        open:   handPose(rawHand.open, defaults.hand.open),
+        closed: handPose(section(rawHand.closed), defaults.hand.closed),
+      }
+    : {
+        open:   handPose(rawHand, { ...defaults.hand.open, rotation: [0, 0, 0] }),
+        closed: structuredClone(defaults.hand.closed),
+      };
 
-  // Migrate elbowYFromBodyCenter → upperArmSpacing
-  const rawLayout = r.layout as Record<string, unknown> | undefined;
-  const mergedLayout = { ...defaults.layout, ...(rawLayout as Partial<BodyLayout> ?? {}) };
-  if (mergedLayout.upperArmSpacing == null && rawLayout?.elbowYFromBodyCenter != null) {
-    // Can't recover exact bodyTop without body params here, so use default
-    mergedLayout.upperArmSpacing = defaults.layout.upperArmSpacing;
-  }
+  // An old `elbowYFromBodyCenter` can't be turned into `upperArmSpacing` without the body, so a
+  // layout missing `upperArmSpacing` takes the default either way.
+  const layout: BodyLayout = {
+    forearmXOffset:  num(rawLayout.forearmXOffset) ?? defaults.layout.forearmXOffset,
+    upperArmSpacing: num(rawLayout.upperArmSpacing) ?? defaults.layout.upperArmSpacing,
+    headBodyGap:     num(rawLayout.headBodyGap) ?? defaults.layout.headBodyGap,
+    shoulderY:       num(rawLayout.shoulderY) ?? defaults.layout.shoulderY,
+  };
 
   // Body color: saved value → NPC config color → default
   // "#5a5a6e" is the old generic NPC_DEFAULTS.bodyColor that got written for all NPCs
@@ -695,26 +704,36 @@ function migrate(raw: unknown, id: string): CharacterBodyShape {
       ? "#4a90d9"
       : complementaryColor(bodyColor);
 
-  const rawHead = r.head as Partial<HeadShape> | undefined;
-  const rawBody = r.body as Partial<BodyShape> | undefined;
+  const rawHead = section(r.head);
+  const rawBody = section(r.body);
+  const rawForearm = section(r.forearm);
 
   return {
     head: {
-      ...defaults.head,
-      ...rawHead,
-      offsetX: rawHead?.offsetX ?? 0,
-      offsetY: rawHead?.offsetY ?? 0,
-      offsetZ: rawHead?.offsetZ ?? 0,
+      radius:         num(rawHead.radius) ?? defaults.head.radius,
+      widthSegments:  num(rawHead.widthSegments) ?? defaults.head.widthSegments,
+      heightSegments: num(rawHead.heightSegments) ?? defaults.head.heightSegments,
+      rotation:       vec3(rawHead.rotation) ?? defaults.head.rotation,
+      offsetX:        num(rawHead.offsetX) ?? 0,
+      offsetY:        num(rawHead.offsetY) ?? 0,
+      offsetZ:        num(rawHead.offsetZ) ?? 0,
     },
     body: {
-      ...defaults.body,
-      ...rawBody,
-      leanX: rawBody?.leanX ?? 0,
-      leanZ: rawBody?.leanZ ?? 0,
+      radius:         num(rawBody.radius) ?? defaults.body.radius,
+      height:         num(rawBody.height) ?? defaults.body.height,
+      capSegments:    num(rawBody.capSegments) ?? defaults.body.capSegments,
+      radialSegments: num(rawBody.radialSegments) ?? defaults.body.radialSegments,
+      leanX:          num(rawBody.leanX) ?? 0,
+      leanZ:          num(rawBody.leanZ) ?? 0,
     },
-    forearm: { ...defaults.forearm, ...(r.forearm as Partial<ForearmShape> ?? {}) },
+    forearm: {
+      topRadius:      num(rawForearm.topRadius) ?? defaults.forearm.topRadius,
+      bottomRadius:   num(rawForearm.bottomRadius) ?? defaults.forearm.bottomRadius,
+      height:         num(rawForearm.height) ?? defaults.forearm.height,
+      radialSegments: num(rawForearm.radialSegments) ?? defaults.forearm.radialSegments,
+    },
     hand,
-    layout:  mergedLayout,
+    layout,
     eyes: migrateEyes(r.eyes, isPlayer, defaultIrisColor),
     bodyColor,
   };
@@ -726,15 +745,11 @@ export function getBodyShape(id: string): CharacterBodyShape {
 }
 
 export function setBodyShape(id: string, shape: CharacterBodyShape): void {
-  const all = load() as Record<string, CharacterBodyShape>;
-  all[id] = shape;
-  save(all);
+  save({ ...load(), [id]: shape });
 }
 
 export function resetBodyShape(id: string): CharacterBodyShape {
-  const fresh: CharacterBodyShape = JSON.parse(JSON.stringify(defaultsForId(id)));
-  const all = load() as Record<string, CharacterBodyShape>;
-  all[id] = fresh;
-  save(all);
+  const fresh = structuredClone(defaultsForId(id));
+  save({ ...load(), [id]: fresh });
   return fresh;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getTownHappiness, getHappinessEmoji } from "../services/town-happiness";
 
 interface PhoneOverlayProps {
@@ -27,14 +27,17 @@ export function PhoneOverlay({
   const [selectedIcon, setSelectedIcon] = useState(0);
 
   // Build list of available home actions for keyboard nav
-  const homeActions: (() => void)[] = [];
-  if (mode === "homescreen") {
-    if (onFindClick) homeActions.push(onFindClick);
-    if (onChatClick) homeActions.push(onChatClick);
-    if (onSettingsClick) homeActions.push(onSettingsClick);
-    if (onTownReportClick) homeActions.push(onTownReportClick);
-    if (onGamesClick) homeActions.push(onGamesClick);
-  }
+  const homeActions = useMemo(() => {
+    const actions: (() => void)[] = [];
+    if (mode === "homescreen") {
+      if (onFindClick) actions.push(onFindClick);
+      if (onChatClick) actions.push(onChatClick);
+      if (onSettingsClick) actions.push(onSettingsClick);
+      if (onTownReportClick) actions.push(onTownReportClick);
+      if (onGamesClick) actions.push(onGamesClick);
+    }
+    return actions;
+  }, [mode, onFindClick, onChatClick, onSettingsClick, onTownReportClick, onGamesClick]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -65,7 +68,7 @@ export function PhoneOverlay({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, mode, homeActions, selectedIcon]);
+  }, [onClose, mode, homeActions, selectedIcon, onTownReportClick]);
 
   const isApp = mode === "app";
 

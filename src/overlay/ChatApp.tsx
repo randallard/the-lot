@@ -368,7 +368,7 @@ function ConversationView({
         setShowOptIn(true);
         return;
       }
-      doSendMessage(msg);
+      void doSendMessage(msg);
     },
     [doSendMessage],
   );
@@ -378,7 +378,7 @@ function ConversationView({
       setPreferences({ useHaiku, optInShown: true });
       setShowOptIn(false);
       if (pendingMessage) {
-        doSendMessage(pendingMessage);
+        void doSendMessage(pendingMessage);
         setPendingMessage(null);
       }
     },
@@ -559,7 +559,7 @@ function ConversationView({
           }}
         >
           <p style={{ color: "#888", fontSize: 12, margin: "0 0 4px" }}>
-            {npc?.displayName ?? "NPC"} is sleeping... wakes {getTimeUntilWake(npcId) ?? "soon"}
+            {npc.displayName} is sleeping... wakes {getTimeUntilWake(npcId) ?? "soon"}
           </p>
           <button
             onClick={() => setShowInfo("sleeping")}

@@ -5,9 +5,20 @@
 
 import { getAllActiveSessions } from "./active-sessions";
 import type { AsyncResult } from "./async-npc-messages";
+import { arrayOf, isNumber, isRecord, isString } from "./json-guards";
 
 const GAME_API_URL =
   import.meta.env.VITE_SPACES_GAME_URL || "https://spaces-game-api.vercel.app";
+
+/** A result's header; its rounds are as the game server sent them. */
+function isAsyncResult(v: unknown): v is AsyncResult {
+  return (
+    isRecord(v) && isString(v.sessionId) && isString(v.npcId) &&
+    isNumber(v.playerScore) && isNumber(v.opponentScore) &&
+    (v.winner === "player" || v.winner === "opponent" || v.winner === "tie") &&
+    Array.isArray(v.rounds) && isNumber(v.completedAt)
+  );
+}
 
 /**
  * Fetch pending lot results for all active sessions from the server.
@@ -36,8 +47,8 @@ export async function fetchPendingResults(): Promise<AsyncResult[]> {
       return [];
     }
 
-    const data = await response.json();
-    const results: AsyncResult[] = data.results ?? [];
+    const data: unknown = await response.json();
+    const results = isRecord(data) ? arrayOf(data.results, isAsyncResult) : [];
 
     if (results.length === 0) return [];
 

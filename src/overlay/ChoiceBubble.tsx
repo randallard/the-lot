@@ -108,7 +108,7 @@ export function ChoiceBubble({ choices, defaultIndex = 0, speakerScreenPos }: Ch
     let raf: number;
     const update = () => {
       const sp = speakerScreenPos.current;
-      if (!sp || !sp.visible) {
+      if (!sp.visible) {
         raf = requestAnimationFrame(update);
         return;
       }

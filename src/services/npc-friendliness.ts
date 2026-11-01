@@ -4,6 +4,8 @@
  * Only dips below 0 if the player is genuinely cold/mean (requires sentiment).
  */
 
+import { isNumber, readStoredJson, recordOf } from "./json-guards";
+
 const STORAGE_KEY = "townage-npc-friendliness";
 
 export const FRIENDLINESS_MIN = -1;
@@ -15,12 +17,7 @@ function clamp(n: number): number {
 }
 
 function loadAll(): Record<string, number> {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : {};
-  } catch {
-    return {};
-  }
+  return recordOf(readStoredJson(STORAGE_KEY), isNumber);
 }
 
 function saveAll(records: Record<string, number>): void {

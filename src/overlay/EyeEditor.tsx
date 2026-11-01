@@ -53,15 +53,19 @@ function ColorRow({ label, value, onChange }: { label: string; value: string; on
 // ---------------------------------------------------------------------------
 // Mirror map — fields that flip left↔right when mirroring across the face centre
 
-const MIRROR_MAP: Partial<Record<keyof EyeShape, keyof EyeShape>> = {
-  cornerTL: "cornerTR",
-  cornerTR: "cornerTL",
-  cornerBL: "cornerBR",
-  cornerBR: "cornerBL",
-  arcLeft:  "arcRight",
-  arcRight: "arcLeft",
+type Mirrored = "cornerTL" | "cornerTR" | "cornerBL" | "cornerBR" | "arcLeft" | "arcRight";
+
+const MIRROR_PAIRS: readonly (readonly [Mirrored, Mirrored])[] = [
+  ["cornerTL", "cornerTR"],
+  ["cornerTR", "cornerTL"],
+  ["cornerBL", "cornerBR"],
+  ["cornerBR", "cornerBL"],
+  ["arcLeft",  "arcRight"],
+  ["arcRight", "arcLeft"],
   // arcTop, arcBottom, width, height, iris — copy directly (no left/right component)
-};
+];
+
+const MIRROR_MAP: Partial<Record<keyof EyeShape, keyof EyeShape>> = Object.fromEntries(MIRROR_PAIRS);
 
 // ---------------------------------------------------------------------------
 // Patch helpers
@@ -189,8 +193,7 @@ function ExpressionRow({ name, baseRight, override, onUpdate, onDelete }: Expres
   }
 
   function handleResetField(field: keyof EyeShape) {
-    const next = { ...override };
-    delete next[field];
+    const { [field]: _reset, ...next } = override;
     onUpdate(next);
   }
 
@@ -313,9 +316,7 @@ export function EyeEditor({ eyes, onChange }: EyeEditorProps) {
     if (!eyes.asymmetric) {
       // Mirror spatially: outside corner/arc of one eye maps to outside of the other
       const mirroredLeft = { ...updated };
-      (Object.keys(MIRROR_MAP) as (keyof EyeShape)[]).forEach(k => {
-        (mirroredLeft as unknown as Record<string, unknown>)[MIRROR_MAP[k]!] = (updated as unknown as Record<string, unknown>)[k];
-      });
+      for (const [from, to] of MIRROR_PAIRS) mirroredLeft[to] = updated[from];
       mirroredLeft.rotation = -updated.rotation;
       patch({ right: updated, left: mirroredLeft });
     } else if (mirror) {
@@ -346,8 +347,7 @@ export function EyeEditor({ eyes, onChange }: EyeEditorProps) {
   }
 
   function deleteExpression(name: string) {
-    const next = { ...eyes.expressions };
-    delete next[name];
+    const { [name]: _deleted, ...next } = eyes.expressions;
     patch({ expressions: next });
   }
 

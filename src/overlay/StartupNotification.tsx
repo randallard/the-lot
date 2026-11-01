@@ -13,9 +13,10 @@ export function StartupNotification({ onOpenSettings }: StartupNotificationProps
 
   const prefs = getPreferences();
 
+  // Checked once, on mount, against the preferences as they were then.
   useEffect(() => {
-    if (!prefs.optInShown) return;
-    checkChatServerHealth().then((ok) => setServerStatus(ok ? "ok" : "unavailable"));
+    if (!getPreferences().optInShown) return;
+    void checkChatServerHealth().then((ok) => setServerStatus(ok ? "ok" : "unavailable"));
   }, []);
 
   // Any click outside the notification closes it

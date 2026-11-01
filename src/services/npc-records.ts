@@ -3,6 +3,8 @@
  * Stored in localStorage under "townage-npc-records".
  */
 
+import { isNumber, isRecord, readStoredJson, recordOf } from "./json-guards";
+
 const STORAGE_KEY = "townage-npc-records";
 
 export interface NpcRecord {
@@ -26,13 +28,17 @@ function defaultRecord(): NpcRecord {
   };
 }
 
+function isNpcRecord(v: unknown): v is NpcRecord {
+  return (
+    isRecord(v) &&
+    isNumber(v.wins) && isNumber(v.losses) && isNumber(v.ties) && isNumber(v.totalGames) &&
+    isNumber(v.currentWinStreak) && isNumber(v.currentLossStreak) &&
+    (v.bestWinStreak === undefined || isNumber(v.bestWinStreak))
+  );
+}
+
 function loadAll(): Record<string, NpcRecord> {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : {};
-  } catch {
-    return {};
-  }
+  return recordOf(readStoredJson(STORAGE_KEY), isNpcRecord);
 }
 
 function saveAll(records: Record<string, NpcRecord>): void {

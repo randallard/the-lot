@@ -3,6 +3,7 @@ import type { ArmPose } from "./arm-actions";
 import { ZERO_POSE } from "./arm-actions";
 import type { EyeShape } from "./eye-shapes";
 import type { CharacterBodyShape } from "./body-shapes";
+import { isNumber, isRecord, isString, readStoredJson, recordOf } from "./json-guards";
 
 // ---------------------------------------------------------------------------
 // Shared primitives
@@ -155,7 +156,8 @@ export const MAX_STACK_DEPTH = 10;
 // Factory functions
 
 function uuid(): string {
-  if (crypto.randomUUID) return crypto.randomUUID();
+  // The types say randomUUID is always there, but it's missing outside a secure context.
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   // 16 bytes, so both indexes are always present; `?? 0` only satisfies the index type.
   bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;
@@ -205,7 +207,8 @@ function applyEasing(t: number, easing: Easing): number {
     case "ease-in":     return c * c;
     case "ease-out":    return 1 - (1 - c) * (1 - c);
     case "ease-in-out": return c < 0.5 ? 2 * c * c : 1 - Math.pow(-2 * c + 2, 2) / 2;
-    default:            return c;
+    case "linear":
+    default:            return c; // a saved emote can hold an easing this build doesn't know
   }
 }
 
@@ -302,7 +305,7 @@ function sampleTrack<T>(
 // Per-track samplers
 
 type BodySample = { deltaY: number; deltaRotY: number; leanX: number; leanZ: number; radiusDelta: number; heightDelta: number };
-const BODY_NEUTRAL = (): BodyKeyframe => ({ id: "", time: 0, deltaY: 0, deltaRotY: 0, leanX: 0, leanZ: 0, radiusDelta: 0, heightDelta: 0, easing: "linear" as Easing });
+const BODY_NEUTRAL = (): BodyKeyframe => ({ id: "", time: 0, deltaY: 0, deltaRotY: 0, leanX: 0, leanZ: 0, radiusDelta: 0, heightDelta: 0, easing: "linear" });
 
 export function sampleBodyTrack(kfs: BodyKeyframe[], time: number, duration: number): BodySample {
   const zero: BodySample = { deltaY: 0, deltaRotY: 0, leanX: 0, leanZ: 0, radiusDelta: 0, heightDelta: 0 };
@@ -323,7 +326,7 @@ export function sampleBodyTrack(kfs: BodyKeyframe[], time: number, duration: num
 }
 
 type HeadSample = { rotation: [number,number,number]; offsetX: number; offsetY: number; offsetZ: number; radiusDelta: number };
-const HEAD_NEUTRAL = (): HeadKeyframe => ({ id: "", time: 0, deltaRotation: [0,0,0] as [number,number,number], offsetX: 0, offsetY: 0, offsetZ: 0, radiusDelta: 0, easing: "linear" as Easing });
+const HEAD_NEUTRAL = (): HeadKeyframe => ({ id: "", time: 0, deltaRotation: [0,0,0] as [number,number,number], offsetX: 0, offsetY: 0, offsetZ: 0, radiusDelta: 0, easing: "linear" });
 
 export function sampleHeadTrack(kfs: HeadKeyframe[], time: number, duration: number): HeadSample {
   const zero: HeadSample = { rotation: [0,0,0], offsetX: 0, offsetY: 0, offsetZ: 0, radiusDelta: 0 };
@@ -349,7 +352,7 @@ export function sampleArmTrack(kfs: ArmKeyframe[], time: number, duration: numbe
     k => k.time,
     k => k.easing,
     (a, b, t) => ({ ...b, pose: lerpArmPose(a.pose, b.pose, t) }),
-    () => ({ id: "", time: 0, pose: { ...ZERO_POSE }, easing: "linear" as Easing }),
+    (): ArmKeyframe => ({ id: "", time: 0, pose: { ...ZERO_POSE }, easing: "linear" }),
     time,
     duration,
   );
@@ -363,7 +366,7 @@ export function sampleEyeTrack(kfs: EyeKeyframe[], time: number, duration: numbe
     k => k.time,
     k => k.easing,
     (a, b, t) => ({ ...b, override: lerpEyeOverride(a.override, b.override, t) }),
-    () => ({ id: "", time: 0, override: {}, easing: "linear" as Easing }),
+    (): EyeKeyframe => ({ id: "", time: 0, override: {}, easing: "linear" }),
     time,
     duration,
   );
@@ -425,11 +428,18 @@ export function lerpResolvedPose(a: ResolvedPose, b: ResolvedPose, t: number): R
 
 const STORAGE_KEY = "townage-emotes";
 
+/** An emote's header; its tracks are as the builder saved them. */
+function isEmote(v: unknown): v is Emote {
+  return isRecord(v) && isString(v.id) && isString(v.name) && isRecord(v.tracks) &&
+    isNumber(v.duration) && typeof v.loop === "boolean" && Array.isArray(v.tags);
+}
+
+function isEmotes(v: unknown): v is Emote[] {
+  return Array.isArray(v) && v.every(isEmote);
+}
+
 function loadAll(): Record<string, Emote[]> {
-  try {
-    const d = localStorage.getItem(STORAGE_KEY);
-    return d ? JSON.parse(d) : {};
-  } catch { return {}; }
+  return recordOf(readStoredJson(STORAGE_KEY), isEmotes);
 }
 
 function saveAll(all: Record<string, Emote[]>): void {

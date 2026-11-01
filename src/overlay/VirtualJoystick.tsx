@@ -57,8 +57,10 @@ export function VirtualJoystick({ inputDir }: VirtualJoystickProps) {
       if (touchId.current !== null) return;
       const touch = e.changedTouches[0];
       if (!touch) return; // a touchstart always carries the touch that started
+      const stick = stickRef.current;
+      if (!stick) return; // the touch landed on it, so it's mounted
       touchId.current = touch.identifier;
-      const rect = stickRef.current!.getBoundingClientRect();
+      const rect = stick.getBoundingClientRect();
       origin.current = {
         x: rect.left + rect.width / 2,
         y: rect.top + rect.height / 2,

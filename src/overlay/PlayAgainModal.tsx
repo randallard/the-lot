@@ -31,7 +31,8 @@ export function PlayAgainModal({ npcs, onSelectNpc, onClose }: PlayAgainModalPro
         setSelected((s) => (s + 1) % npcs.length);
       } else if (e.key === "Enter") {
         e.preventDefault();
-        onSelectNpc(npcs[selected]!.id);
+        const npc = npcs[selected];
+        if (npc) onSelectNpc(npc.id);
       } else if (e.key === "Escape") {
         e.preventDefault();
         onClose();

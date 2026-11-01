@@ -197,10 +197,11 @@ export function SpeechBubble({
   useEffect(() => {
     if (inModal || !speakerScreenPos || !visible) return;
 
+    const id = myId.current;
     let raf: number;
     const update = () => {
       const sp = speakerScreenPos.current;
-      if (!sp || !sp.visible || !bubbleRef.current) {
+      if (!sp.visible || !bubbleRef.current) {
         raf = requestAnimationFrame(update);
         return;
       }
@@ -252,7 +253,7 @@ export function SpeechBubble({
     raf = requestAnimationFrame(update);
     return () => {
       cancelAnimationFrame(raf);
-      unregisterBubble(myId.current);
+      unregisterBubble(id);
     };
   }, [inModal, speakerScreenPos, visible]);
 

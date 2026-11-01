@@ -13,11 +13,6 @@ export function TrinketArrow({ tracker, onRush }: TrinketArrowProps) {
   useEffect(() => {
     let raf: number;
     const update = () => {
-      if (!tracker.current) {
-        raf = requestAnimationFrame(update);
-        return;
-      }
-
       const { showArrow, screenX, screenY, angle } = tracker.current;
 
       if (showArrow !== visible) setVisible(showArrow);

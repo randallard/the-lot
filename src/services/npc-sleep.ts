@@ -5,16 +5,16 @@
  */
 
 import { SLEEP_CONFIG, WINDOW_MS } from "../config/sleep";
+import { isNumber, readStoredJson, recordOf } from "./json-guards";
 
 const STORAGE_KEY = "townage-npc-sleep";
 
+function isTimestamps(v: unknown): v is number[] {
+  return Array.isArray(v) && v.every(isNumber);
+}
+
 function loadAll(): Record<string, number[]> {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : {};
-  } catch {
-    return {};
-  }
+  return recordOf(readStoredJson(STORAGE_KEY), isTimestamps);
 }
 
 function saveAll(records: Record<string, number[]>): void {
@@ -114,9 +114,8 @@ export function almostAsleepAll(): void {
 /** DEV HELPER — clear sleep state for an NPC (or all if no id). */
 export function wakeSleep(npcId?: string): void {
   if (npcId) {
-    const all = loadAll();
-    delete all[npcId];
-    saveAll(all);
+    const { [npcId]: _cleared, ...rest } = loadAll();
+    saveAll(rest);
     console.log(`[npc-sleep] ${npcId} cleared`);
   } else {
     localStorage.removeItem(STORAGE_KEY);

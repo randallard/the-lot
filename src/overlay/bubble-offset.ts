@@ -1,3 +1,5 @@
+import { arrayOf, isNumber, isRecord, readStoredJson } from "../services/json-guards";
+
 // Screen size buckets for saving bubble position preferences.
 // Groups similar screen sizes so small resizes don't lose preferences.
 const BREAKPOINTS = [480, 768, 1024, 1280, 1600, 1920, 2560];
@@ -14,12 +16,8 @@ function storageKey(role: string, idx: number): string {
 }
 
 export function loadBubbleOffset(role: string): { x: number; y: number } | null {
-  const idx = getScreenSizeIndex();
-  try {
-    const saved = localStorage.getItem(storageKey(role, idx));
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  return null;
+  const saved = readStoredJson(storageKey(role, getScreenSizeIndex()));
+  return isRecord(saved) && isNumber(saved.x) && isNumber(saved.y) ? { x: saved.x, y: saved.y } : null;
 }
 
 export function saveBubbleOffset(role: string, offset: { x: number; y: number }): void {
@@ -37,21 +35,13 @@ export function hasOffsetForCurrentSize(role: string): boolean {
 const HINT_DISMISSED_KEY = "bubble-hint-dismissed";
 
 export function isBubbleHintDismissed(): boolean {
-  const idx = getScreenSizeIndex();
-  try {
-    const val = localStorage.getItem(HINT_DISMISSED_KEY);
-    if (!val) return false;
-    const sizes: number[] = JSON.parse(val);
-    return sizes.includes(idx);
-  } catch {}
-  return false;
+  return arrayOf(readStoredJson(HINT_DISMISSED_KEY), isNumber).includes(getScreenSizeIndex());
 }
 
 export function dismissBubbleHint(): void {
   const idx = getScreenSizeIndex();
   try {
-    const val = localStorage.getItem(HINT_DISMISSED_KEY);
-    const sizes: number[] = val ? JSON.parse(val) : [];
+    const sizes = arrayOf(readStoredJson(HINT_DISMISSED_KEY), isNumber);
     if (!sizes.includes(idx)) {
       sizes.push(idx);
       localStorage.setItem(HINT_DISMISSED_KEY, JSON.stringify(sizes));

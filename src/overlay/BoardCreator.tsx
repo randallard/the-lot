@@ -89,11 +89,12 @@ export function BoardCreator({
         return;
       }
 
+      if (piecePosition === null) return; // set when the start is chosen, before building
       const order = sequence.length + 1;
       // If placing on same row as piece (not advancing) → trap
       // If advancing toward row 0 → piece move
       // If this would reach row 0 → final
-      const isTrap = row === piecePosition!.row || row > piecePosition!.row;
+      const isTrap = row === piecePosition.row || row > piecePosition.row;
       const isFinal = row === 0;
 
       if (isTrap) {

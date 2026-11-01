@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { DEFAULT_LEVEL, MIN_LEVEL, MAX_LEVEL, setMoodToday } from "../services/enthusiasm";
 import { getMoodResponse } from "../services/mood-responses";
 import { getPreferences, setPreferences } from "../services/chat-storage";
+import { isRecord, isString } from "../services/json-guards";
 import { getNpcById } from "../config/npcs";
 import { SpeechBubble } from "./SpeechBubble";
 import { NpcChatBubble } from "./NpcChatBubble";
@@ -71,10 +72,12 @@ export function MoodSlider({
         useTool: true,
       }),
     })
-      .then((r) => r.ok ? r.json() : Promise.reject())
+      .then((r): Promise<unknown> => r.ok ? r.json() : Promise.reject(new Error(`npc-chat: ${r.status}`)))
       .then((data) => {
+        // A reply without dialogue falls back like a failed request.
+        if (!isRecord(data) || !isString(data.dialogue)) throw new Error("npc-chat reply has no dialogue");
         defaultActionRef.current = data.defaultAction === "play" ? "play" : "chat";
-        onResult(data.dialogue, !!data.continues, data.defaultReply ?? "");
+        onResult(data.dialogue, data.continues === true, isString(data.defaultReply) ? data.defaultReply : "");
       })
       .catch(() => {
         defaultActionRef.current = "chat";
@@ -109,7 +112,7 @@ export function MoodSlider({
       if (defaultReply) setReplyText(defaultReply);
       setChatHistory((prev) => [...prev, { role: "assistant", content: dialogue }]);
     });
-  }, [sendToHaiku]);
+  }, [sendToHaiku, isIntro]);
 
   const submitMood = useCallback((level: number, playerAnswer: string) => {
     const prefs = getPreferences();

@@ -21,9 +21,9 @@ export function EmotePanel({ emotes, onPlay, open, onToggle, onClose }: EmotePan
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      const match = e.code.match(/^Digit(\d)$/);
-      if (!match) return;
-      const digit = parseInt(match[1]!);
+      const digitText = e.code.match(/^Digit(\d)$/)?.[1];
+      if (digitText === undefined) return;
+      const digit = parseInt(digitText);
       const idx = digit === 0 ? 9 : digit - 1;
       const emote = emotes[idx];
       if (emote) onPlay(emote);

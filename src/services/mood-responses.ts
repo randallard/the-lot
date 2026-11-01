@@ -3,6 +3,8 @@
  * Each level (0-5) has a phrase the player "says" back to the NPC.
  */
 
+import { isString, readStoredJson, recordOf } from "./json-guards";
+
 const STORAGE_KEY = "townage-mood-responses";
 
 export const DEFAULT_MOOD_RESPONSES: Record<number, string> = {
@@ -15,13 +17,7 @@ export const DEFAULT_MOOD_RESPONSES: Record<number, string> = {
 };
 
 function load(): Record<number, string> {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return { ...DEFAULT_MOOD_RESPONSES };
-    return { ...DEFAULT_MOOD_RESPONSES, ...JSON.parse(data) };
-  } catch {
-    return { ...DEFAULT_MOOD_RESPONSES };
-  }
+  return { ...DEFAULT_MOOD_RESPONSES, ...recordOf(readStoredJson(STORAGE_KEY), isString) };
 }
 
 function save(responses: Record<number, string>): void {

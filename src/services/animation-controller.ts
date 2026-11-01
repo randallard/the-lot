@@ -112,14 +112,18 @@ export class AnimationController {
       if (emote.loop && (emote.loopCount === undefined || loopsCompleted < emote.loopCount)) {
         this.current = { emote, startClockTime: clockTime, loopsCompleted };
         this.blendIn = null;
-      } else if (this.stack.length > 0) {
-        this._resume(this.stack.pop()!, clockTime, this._computePose(clockTime));
-      } else if (this.queue.length > 0) {
-        this._start(this.queue.shift()!, clockTime, this._computePose(clockTime));
       } else {
-        this.current = null;
-        this.blendIn = null;
-        return clone(NEUTRAL_POSE);
+        const resumed = this.stack.pop();
+        const next = resumed === undefined ? this.queue.shift() : undefined;
+        if (resumed !== undefined) {
+          this._resume(resumed, clockTime, this._computePose(clockTime));
+        } else if (next !== undefined) {
+          this._start(next, clockTime, this._computePose(clockTime));
+        } else {
+          this.current = null;
+          this.blendIn = null;
+          return clone(NEUTRAL_POSE);
+        }
       }
     }
 

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { isBoolean, isNumber, isRecord, isString, recordOf } from "./json-guards";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -130,6 +131,24 @@ export function complementaryColor(hex: string): string {
   return `#${ch(r)}${ch(g)}${ch(b)}`;
 }
 
+const EYE_NUMBER_FIELDS = [
+  "width", "height", "cornerTL", "cornerTR", "cornerBL", "cornerBR",
+  "arcTop", "arcBottom", "arcLeft", "arcRight", "irisSize", "irisOffsetY", "rotation",
+] as const satisfies readonly (keyof EyeShape)[];
+
+/** The fields of a saved eye (or expression override) that have their field's type. */
+function eyeFields(raw: unknown): Partial<EyeShape> {
+  const out: Partial<EyeShape> = {};
+  if (!isRecord(raw)) return out;
+  for (const k of EYE_NUMBER_FIELDS) {
+    const v = raw[k];
+    if (isNumber(v)) out[k] = v;
+  }
+  if (isString(raw.irisColor)) out.irisColor = raw.irisColor;
+  if (isBoolean(raw.showWhite)) out.showWhite = raw.showWhite;
+  return out;
+}
+
 /**
  * Migrate a raw stored value to a valid CharacterEyes.
  * @param defaultIrisColor — used as the iris default when no saved iris exists.
@@ -141,7 +160,7 @@ export function migrateEyes(raw: unknown, isPlayer: boolean, defaultIrisColor?: 
     ? { irisColor: defaultIrisColor }
     : {};
 
-  if (!raw || typeof raw !== "object") {
+  if (!isRecord(raw)) {
     const fresh = structuredClone(defaults);
     if (defaultIrisColor) {
       fresh.right.irisColor = defaultIrisColor;
@@ -150,16 +169,22 @@ export function migrateEyes(raw: unknown, isPlayer: boolean, defaultIrisColor?: 
     return fresh;
   }
 
-  const r = raw as Record<string, unknown>;
+  const r = raw;
+  const positioning = isRecord(r.positioning) ? r.positioning : {};
   return {
-    positioning: { ...defaults.positioning, ...(r.positioning as Partial<EyePositioning> ?? {}) },
+    positioning: {
+      fromTopOfHead: isNumber(positioning.fromTopOfHead) ? positioning.fromTopOfHead : defaults.positioning.fromTopOfHead,
+      separation:    isNumber(positioning.separation)    ? positioning.separation    : defaults.positioning.separation,
+    },
     asymmetric:   typeof r.asymmetric   === "boolean" ? r.asymmetric   : false,
     clipOverlap:      typeof r.clipOverlap      === "boolean" ? r.clipOverlap      : false,
     rotationMirrored: typeof r.rotationMirrored === "boolean" ? r.rotationMirrored : true,
     // irisDefault goes between defaults and saved data: saved data always wins
-    right: { ...defaults.right, ...irisDefault, ...(r.right as Partial<EyeShape> ?? {}) },
-    left:  { ...defaults.left,  ...irisDefault, ...(r.left  as Partial<EyeShape> ?? {}) },
-    expressions: (r.expressions as Record<string, Partial<EyeShape>> | undefined) ?? {},
+    right: { ...defaults.right, ...irisDefault, ...eyeFields(r.right) },
+    left:  { ...defaults.left,  ...irisDefault, ...eyeFields(r.left) },
+    expressions: Object.fromEntries(
+      Object.entries(recordOf(r.expressions, isRecord)).map(([name, e]) => [name, eyeFields(e)]),
+    ),
   };
 }
 

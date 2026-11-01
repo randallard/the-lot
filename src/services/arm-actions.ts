@@ -1,3 +1,5 @@
+import { isNumber, isRecord, isString, readStoredJson, recordOf } from "./json-guards";
+
 const STORAGE_KEY = "townage-arm-actions";
 
 export interface ArmPose {
@@ -86,13 +88,18 @@ export function makeAction(name: string): ArmAction {
 // ---------------------------------------------------------------------------
 // Storage
 
+/** An action's header; its keyframes are as the editor saved them. */
+function isArmAction(v: unknown): v is ArmAction {
+  return isRecord(v) && isString(v.id) && isString(v.name) && Array.isArray(v.keyframes) &&
+    isNumber(v.returnDuration);
+}
+
+function isArmActions(v: unknown): v is ArmAction[] {
+  return Array.isArray(v) && v.every(isArmAction);
+}
+
 function load(): Record<string, ArmAction[]> {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : {};
-  } catch {
-    return {};
-  }
+  return recordOf(readStoredJson(STORAGE_KEY), isArmActions);
 }
 
 function save(all: Record<string, ArmAction[]>): void {
