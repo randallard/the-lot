@@ -110,6 +110,15 @@ import { lateralClearance, rigidParts } from "../services/body-shapes";
 import { armMetrics, touchHold } from "./arm-pose";
 import { CASUAL, DUCK_UNDER, GABLE, accommodationFor, type TurnUnderStyle } from "./turn-under";
 
+/**
+ * The turn-under styles that have a pose of their own (see `unbuiltStyle`). Today that is all
+ * three: `GABLE` is what the arch has always rendered as; 🧪 2026-10-12 `CASUAL` draws its own
+ * pose, a forearm lifted from a hanging elbow; 🧪 2026-09-26 `DUCK_UNDER` has the torso drop
+ * `sizeArch` sizes and `duckProfile` spreads across the turn. A style added to `TurnUnderStyle`
+ * without a pose isn't in this set, so it says so on its own until it's added here.
+ */
+const BUILT_STYLES: ReadonlySet<TurnUnderStyle> = new Set([GABLE, CASUAL, DUCK_UNDER]);
+
 const PANEL_WIDTH = 340;
 
 /** Chest height, the same target the debug scene orbits — see its note. */
@@ -377,14 +386,7 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
    * a pose that was never built — indistinguishable later from ratings of one that was.
    */
   const unbuiltStyle =
-    cell.step.turnUnder !== undefined &&
-    cell.step.turnUnder !== GABLE &&
-    // 🧪 2026-10-12: `CASUAL` draws its own pose — a forearm lifted from a hanging elbow.
-    cell.step.turnUnder !== CASUAL &&
-    // 🧪 2026-09-26: `DUCK_UNDER` has a pose now — the torso drop `sizeArch` sizes and
-    // `duckProfile` spreads across the turn. Removed from this guard one style at a time, as
-    // each lands, which is what the guard's own note asks for.
-    cell.step.turnUnder !== DUCK_UNDER;
+    cell.step.turnUnder !== undefined && !BUILT_STYLES.has(cell.step.turnUnder);
 
   /**
    * The figure's steps grouped by **moment** — one row of chips per pose, with the branched
@@ -551,7 +553,7 @@ export function DanceReviewScene({ initialCell }: { initialCell: ReviewCell }) {
   const noteRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
+      const target = e.target instanceof HTMLElement ? e.target : null;
       const typing =
         target !== null &&
         (target.tagName === "TEXTAREA" ||

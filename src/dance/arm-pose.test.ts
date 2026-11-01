@@ -1323,14 +1323,14 @@ describe("a hand's reach from its own centre, in any direction", () => {
     const n = Math.hypot(v[0], v[1], v[2]);
     return [v[0] / n, v[1] / n, v[2] / n];
   };
-  const AIMS = [
+  const AIMS = ([
     [0, -1, 0],
     [0, 1, 0],
     [0, 0, 1],
     [0.6, -0.8, 0],
     [-0.3, -0.5, 0.81],
     [0.5, 0.5, 0.707],
-  ].map((v) => unit(v as [number, number, number]));
+  ] satisfies [number, number, number][]).map((v) => unit(v));
 
   it("agrees with the closed form on world up, on every hand the cast has", () => {
     for (const [name, shape] of CAST) {

@@ -46,7 +46,7 @@ function Player({ frames, rigs, shapes, clock }: {
     const f = frameAt(frames, Math.min(beats, c.beat) * PER_BEAT);
     const objs = rigs.map((r) => r.current).filter((r): r is THREE.Group => r !== null);
     if (objs.length !== 4) return;
-    const values = Object.assign({}, ...f.map((d, k) => toDials(d, k))) as Record<string, number>;
+    const values = Object.assign({}, ...f.map((d, k) => toDials(d, k))) as Record<string, number> /* cast: merging the dancers' dial records (ADR-0071) */;
     applyToRigs(objs, shapes, values);
     c.onBeat(c.beat);
   });
@@ -110,7 +110,10 @@ step   ${((m?.step ?? 0) * 100).toFixed(0)} cm`}
             <meshStandardMaterial color="#e8e8e2" />
           </mesh>
           <gridHelper args={[40, 40, "#b9b9b3", "#d6d6d0"]} />
-          {rigs.map((rig, i) => <Dancer key={i} rig={rig} shape={shapes[i]!} color={COLORS[i]} />)}
+          {rigs.map((rig, i) => {
+            const shape = shapes[i];
+            return shape === undefined ? null : <Dancer key={i} rig={rig} shape={shape} color={COLORS[i]} />;
+          })}
           {solved !== null && <Player frames={solved.frames} rigs={rigs} shapes={shapes} clock={clock} />}
         </Canvas>
       </div>

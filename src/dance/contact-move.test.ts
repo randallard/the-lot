@@ -643,7 +643,7 @@ describe("the approach — a move may bring the pair into position", () => {
 
   it("defaults an absent field to none, so moves authored before this keep behaving", () => {
     const legacy = { ...move };
-    delete (legacy as { approach?: unknown }).approach;
+    delete (legacy as { approach?: unknown } /* cast: deleting a field to build a legacy move (ADR-0071) */).approach;
     expect(approachOf(legacy)).toBe("none");
   });
 

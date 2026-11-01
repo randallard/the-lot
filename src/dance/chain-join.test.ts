@@ -22,7 +22,7 @@ const placed = (beau: readonly PathSample[], belle: readonly PathSample[], i: nu
   return [
     { x: pb.x / 100, z: pb.z / 100, yaw: pb.facing * D2R, arms: [] },
     { x: pl.x / 100, z: pl.z / 100, yaw: pl.facing * D2R, arms: [] },
-  ] as never;
+  ] as never /* cast: a test fixture with no arms (ADR-0071) */;
 };
 
 describe("🧪 calls chain (step 4, 2026-10-27; square-one ADR-0026)", () => {
@@ -84,7 +84,7 @@ describe("🧪 calls chain (step 4, 2026-10-27; square-one ADR-0026)", () => {
         x: p[d].x / 100 + (d === 0 ? sx / 100 : 0),
         z: p[d].z / 100 + (d === 0 ? sz / 100 : 0),
         yaw: p[d].facing * D2R,
-      })) as unknown as Frame);
+      })) as unknown as Frame /* cast: a frame mapped dancer for dancer keeps its two dancers (ADR-0071) */);
     }
     const got = metrics({ bodies: sb2, frames, holds: [{ from: 0, to: 1, beau: 1, belle: 0 }] }, frames);
     expect(got.holdGap).toBeLessThan(0.015);

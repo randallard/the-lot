@@ -14,7 +14,7 @@ const couple = (a: string, b: string) => {
   const shapes = [getBodyShape(a), getBodyShape(b)] as const;
   const bodies: [Body, Body] = [bodyOf(shapes[0]), bodyOf(shapes[1])];
   const paths = couplePaths("california-twirl", shapes, REVIEW2_SIZING);
-  const P = { pairing: `${a}-${b}`, figure: "california-twirl", shapes: [a, b] as [string, string], beau: paths.beau, belle: paths.belle };
+  const P = { pairing: `${a}-${b}`, figure: "california-twirl", shapes: [a, b] satisfies [string, string], beau: paths.beau, belle: paths.belle };
   return { shapes, bodies, P };
 };
 

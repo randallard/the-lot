@@ -1,28 +1,48 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import type { GameState, PhaseOverride, GamePhase, Board, ResumePoint } from "./types";
+import type { GameState, PhaseOverride, GamePhase, Board, BoardMove, CellContent, ResumePoint } from "./types";
 import { INITIAL_STATE } from "./types";
 import { derivePhase, getActivePhase } from "./derivePhase";
 import type { GameResults } from "../services/parse-results";
+import { arrayOf, isBoolean, isNumber, isRecord, isString } from "../services/json-guards";
 
 const STORAGE_KEY = "townage-game-state";
+
+// The saved state is read field by field (json-guards.ts): an older save, a hand edit or another
+// build's data keeps what's valid, and each field that isn't falls back to INITIAL_STATE's.
+const isCell = (v: unknown): v is CellContent => v === "empty" || v === "piece" || v === "trap" || v === "final";
+const isMove = (v: unknown): v is BoardMove =>
+  isRecord(v) && isRecord(v.position) && isNumber(v.position.row) && isNumber(v.position.col) &&
+  (v.type === "piece" || v.type === "trap" || v.type === "final") && isNumber(v.order);
+const isBoard = (v: unknown): v is Board =>
+  isRecord(v) && isString(v.id) && isNumber(v.boardSize) && isNumber(v.createdAt) &&
+  Array.isArray(v.grid) && v.grid.every((row) => Array.isArray(row) && row.every(isCell)) &&
+  Array.isArray(v.sequence) && v.sequence.every(isMove);
+const isResumePoint = (v: unknown): v is ResumePoint =>
+  v === "opponents-list" || v === "game-select" || v === "board-creation";
+const isPartsCollected = (v: unknown): v is GameState["partsCollected"] => v === 0 || v === 1 || v === 2;
 
 function loadPersistedState(): GameState {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      const parsed = JSON.parse(saved) as GameState;
+      const parsed: unknown = JSON.parse(saved);
+      if (!isRecord(parsed)) return INITIAL_STATE;
       // If returning from a game with NPC Ryan, bring him back immediately
       // (must happen before first render so the Npc component doesn't start walking to camp)
       const returningNpc = localStorage.getItem("townage-playing-npc");
       const returningFromRyan = returningNpc === "ryan";
       console.log("[loadState] returningNpc:", returningNpc, "parsedRelaxing:", parsed.npcRelaxing, "→ npcRelaxing:", returningFromRyan ? false : parsed.npcRelaxing);
+      const bool = (v: unknown, fallback: boolean) => (isBoolean(v) ? v : fallback);
       return {
-        ...INITIAL_STATE,
-        ...parsed,
+        partsCollected: isPartsCollected(parsed.partsCollected) ? parsed.partsCollected : INITIAL_STATE.partsCollected,
+        assembled: bool(parsed.assembled, INITIAL_STATE.assembled),
+        npcSpoken: bool(parsed.npcSpoken, INITIAL_STATE.npcSpoken),
+        tutorialComplete: bool(parsed.tutorialComplete, INITIAL_STATE.tutorialComplete),
+        boards: arrayOf(parsed.boards, isBoard),
         phaseOverride: null,
         gameResults: null,
-        npcRelaxing: returningFromRyan ? false : (parsed.npcRelaxing ?? false),
-        resumePhase: returningFromRyan ? null : (parsed.resumePhase ?? null),
+        npcRelaxing: returningFromRyan ? false : bool(parsed.npcRelaxing, false),
+        resumePhase: returningFromRyan || !isResumePoint(parsed.resumePhase) ? null : parsed.resumePhase,
       };
     }
   } catch {}
@@ -52,7 +72,7 @@ export function useGameState() {
   // Actions — all return complete state replacement
   const collectPart = useCallback(() => {
     setState((prev) => {
-      const next = Math.min(prev.partsCollected + 1, 2) as 0 | 1 | 2;
+      const next: GameState["partsCollected"] = prev.partsCollected === 0 ? 1 : 2;
       const override: PhaseOverride =
         next === 1 ? { type: "part1-cutscene" } : { type: "assembly-cutscene" };
       console.log("[collectPart] partsCollected:", prev.partsCollected, "→", next, "override:", override.type);
@@ -121,7 +141,8 @@ export function useGameState() {
         override = { type: "opponents-list" };
       } else if (resume === "game-select") {
         override = { type: "game-select" };
-      } else if (resume === "board-creation") {
+      } else {
+        // "board-creation", the last ResumePoint.
         override = { type: "board-creation" };
       }
 

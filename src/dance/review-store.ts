@@ -30,6 +30,8 @@
  * green matrix that was scored against code nobody runs any more.
  */
 
+import { isRecord } from "../services/json-guards";
+
 const STORAGE_KEY = "townage-dance-review";
 
 /** 0 terrible · 1 bad · 2 can't tell · 3 good · 4 perfect. */
@@ -62,15 +64,16 @@ export function loadReviews(): ReviewRecords {
     const data = localStorage.getItem(STORAGE_KEY);
     if (data === null) return {};
     const parsed: unknown = JSON.parse(data);
-    if (typeof parsed !== "object" || parsed === null) return {};
+    if (!isRecord(parsed)) return {};
     // Filtered on the way in rather than trusted: this store is hand-edited and
     // hand-imported by design, and one bad row should cost one row.
     const out: Record<string, ReviewRecord> = {};
-    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
-      const r = value as Partial<ReviewRecord>;
-      if (typeof r?.rating !== "number" || !isRating(r.rating)) continue;
+    for (const [id, r] of Object.entries(parsed)) {
+      if (!isRecord(r)) continue;
+      const rating = r.rating;
+      if (typeof rating !== "number" || !isRating(rating)) continue;
       out[id] = {
-        rating: r.rating,
+        rating,
         note: typeof r.note === "string" ? r.note : "",
         at: typeof r.at === "number" ? r.at : 0,
       };
@@ -122,8 +125,7 @@ export function noteCell(records: ReviewRecords, id: string, note: string): Revi
 
 /** Drop a cell's record entirely — the undo for a mis-keyed score. */
 export function clearCell(records: ReviewRecords, id: string): ReviewRecords {
-  const next = { ...records };
-  delete next[id];
+  const next = Object.fromEntries(Object.entries(records).filter(([key]) => key !== id));
   saveReviews(next);
   return next;
 }

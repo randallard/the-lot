@@ -19,6 +19,7 @@
 import type { CharacterBodyShape } from "../services/body-shapes";
 import { bodyPrint } from "./baked-tracks";
 import { toDials, type Arm, type DancerFrame } from "./whole-move";
+import { isRecord } from "../services/json-guards";
 
 export const FOUR_FORMAT = "townage-baked-four";
 
@@ -65,6 +66,13 @@ export function decodeRows(rows: readonly (readonly number[])[]): DancerFrame[][
   });
 }
 
+/** A checked index read, local on purpose (journal 10-31 (8): an imported helper is slower in the bakes). */
+const nth = <T>(a: readonly T[], i: number): T => {
+  const x = a[i];
+  if (x === undefined) throw new RangeError(`baked-four: index ${String(i)} outside ${String(a.length)}`);
+  return x;
+};
+
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /** Sample `u` (fractional) of the frames: each number straight between its neighbours. */
@@ -72,10 +80,10 @@ export function frameAt(frames: readonly (readonly DancerFrame[])[], u: number):
   const i = Math.max(0, Math.min(frames.length - 1, Math.floor(u)));
   const j = Math.min(frames.length - 1, i + 1);
   const t = Math.max(0, Math.min(1, u - i));
-  const a = frames[i]!;
-  const b = frames[j]!;
+  const a = nth(frames, i);
+  const b = nth(frames, j);
   return a.map((d, k) => {
-    const e = b[k]!;
+    const e = nth(b, k);
     const arm = (s: 0 | 1): Arm => {
       const p = d.arms[s];
       const q = e.arms[s];
@@ -90,7 +98,7 @@ export function frameAt(frames: readonly (readonly DancerFrame[])[], u: number):
 
 /** Every dancer's dials at `beat`, as `applyToRigs` takes them. */
 export function dialsAt(frames: readonly (readonly DancerFrame[])[], perBeat: number, beat: number): Record<string, number> {
-  return Object.assign({}, ...frameAt(frames, beat * perBeat).map((d, k) => toDials(d, k))) as Record<string, number>;
+  return Object.assign({}, ...frameAt(frames, beat * perBeat).map((d, k) => toDials(d, k))) as Record<string, number> /* cast: merging the dancers' dial records (ADR-0071) */;
 }
 
 export function fourFileName(call: FourCall, cast: readonly string[]): string {
@@ -98,7 +106,7 @@ export function fourFileName(call: FourCall, cast: readonly string[]): string {
 }
 
 function isFourBake(x: unknown): x is FourBake {
-  return typeof x === "object" && x !== null && (x as { format?: unknown }).format === FOUR_FORMAT;
+  return isRecord(x) && x.format === FOUR_FORMAT;
 }
 
 const files = import.meta.glob("./baked-four/*.json", { import: "default" });

@@ -46,7 +46,7 @@ const SIDES = ["left", "right"] as const;
 
 /** The debug scene's cast, and deliberately a mixed pair: squat Myco and tall Ember. */
 const CAST: readonly [CharacterBodyShape, CharacterBodyShape] = [MYCO_DEFAULTS, EMBER_DEFAULTS];
-const METRICS = CAST.map((s) => armMetrics(s)) as [ArmMetrics, ArmMetrics];
+const METRICS = CAST.map((s) => armMetrics(s)) as [ArmMetrics, ArmMetrics] /* cast: two dancers or two arms, mapped from a pair (ADR-0071) */;
 
 interface Arm {
   readonly dancer: 0 | 1;
@@ -95,7 +95,7 @@ function armsAt(call: CallName, beat: number, yaw = 0.4, emoting = false): Arm[]
   const placements = states.map((st): Placement => {
     const world = toWorld(frame, st.position);
     return { x: world.x, z: world.z, yaw: facingToRotationY(frame, st.facing) };
-  }) as [Placement, Placement];
+  }) as [Placement, Placement] /* cast: two dancers or two arms, mapped from a pair (ADR-0071) */;
 
   const arms: Arm[] = [];
   for (const dancer of [0, 1] as const) {
@@ -250,7 +250,7 @@ describe("a forearm grip, over the whole Allemande", () => {
 
   it("uses the same hand on both dancers, the one the engine named", () => {
     for (const { beat, arms } of gripped) {
-      const [a, b] = arms as [Arm, Arm];
+      const [a, b] = arms as [Arm, Arm] /* cast: two dancers or two arms, mapped from a pair (ADR-0071) */;
       expect(a.side, `beat ${beat}`).toBe("left");
       expect(b.side).toBe("left");
     }
@@ -258,7 +258,7 @@ describe("a forearm grip, over the whole Allemande", () => {
 
   it("holds both forearms horizontal, at one shared height", () => {
     for (const { beat, arms } of gripped) {
-      const [a, b] = arms as [Arm, Arm];
+      const [a, b] = arms as [Arm, Arm] /* cast: two dancers or two arms, mapped from a pair (ADR-0071) */;
       const height = (a.metrics.elbowY + b.metrics.elbowY) / 2;
       for (const arm of arms) {
         expect(arm.segment.elbow.y, `beat ${beat}`).toBeCloseTo(height, 9);
@@ -269,7 +269,7 @@ describe("a forearm grip, over the whole Allemande", () => {
 
   it("alternates them — each forearm points the opposite way", () => {
     for (const { beat, arms } of gripped) {
-      const [a, b] = arms as [Arm, Arm];
+      const [a, b] = arms as [Arm, Arm] /* cast: two dancers or two arms, mapped from a pair (ADR-0071) */;
       const da = unit(sub(a.segment.hand, a.segment.elbow));
       const db = unit(sub(b.segment.hand, b.segment.elbow));
       expect(dot(da, db), `beat ${beat}`).toBeCloseTo(-1, 6);
@@ -278,7 +278,7 @@ describe("a forearm grip, over the whole Allemande", () => {
 
   it("keeps each hand on the partner's forearm, holding it", () => {
     for (const { beat, arms } of gripped) {
-      const [a, b] = arms as [Arm, Arm];
+      const [a, b] = arms as [Arm, Arm] /* cast: two dancers or two arms, mapped from a pair (ADR-0071) */;
       for (const [holder, held] of [
         [a, b],
         [b, a],
@@ -319,7 +319,7 @@ describe("a forearm grip, over the whole Allemande", () => {
 
   it("stays centred on the pivot the pair turns about", () => {
     for (const { beat, arms } of gripped) {
-      const [a, b] = arms as [Arm, Arm];
+      const [a, b] = arms as [Arm, Arm] /* cast: two dancers or two arms, mapped from a pair (ADR-0071) */;
       // The two hands straddle the pivot, so their midpoint is it. Compare against
       // the dancers' own midpoint by rebuilding it from the same frame.
       const mid = {

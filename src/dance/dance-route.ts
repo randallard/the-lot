@@ -79,7 +79,7 @@ export const DEBUG_CALLS: readonly CallName[] = DEBUG_FIGURES.filter(
   (f) => f.sequence === undefined,
 ).map((f) => f.call);
 
-const DEFAULT_FIGURE = DEBUG_FIGURES[0] as DebugFigure;
+const DEFAULT_FIGURE = DEBUG_FIGURES[0] as DebugFigure /* cast: the first of a non-empty constant list (ADR-0071) */;
 
 /** `#dance` → Dosado; `#dance=two-trades` → that figure; anything else → the default. */
 export function danceSceneFigure(hash: string): DebugFigure | null {

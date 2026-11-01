@@ -75,6 +75,7 @@ import {
   type Anchor,
   type Session,
 } from "./review2-session";
+import { isRecord, readStoredJson } from "../services/json-guards";
 
 const ORBIT_TARGET: [number, number, number] = [0, 0.9, 0];
 const BOTTOM_HEIGHT = 128;
@@ -116,7 +117,8 @@ const VIEW_KEY = "townage-review2-view";
 
 function readView(): Partial<Pick<Session, "topOpen" | "panelOpacity">> {
   try {
-    const v = JSON.parse(localStorage.getItem(VIEW_KEY) ?? "{}") as { topOpen?: unknown; panelOpacity?: unknown };
+    const v = readStoredJson(VIEW_KEY);
+    if (!isRecord(v)) return {};
     return {
       ...(typeof v.topOpen === "boolean" ? { topOpen: v.topOpen } : {}),
       ...(typeof v.panelOpacity === "number" ? { panelOpacity: Math.min(1, Math.max(PANEL_OPACITY_MIN, v.panelOpacity)) } : {}),
@@ -287,7 +289,7 @@ function setOpacity(root: THREE.Object3D, opacity: number): void {
   root.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
-    for (const m of mats as THREE.Material[]) {
+    for (const m of mats as THREE.Material[] /* cast: `instanceof THREE.Mesh` gives `Mesh<any, any>`; a mesh's material is a Material or an array of them (ADR-0071) */) {
       const fading = opacity < 1;
       if (m.transparent !== fading) {
         m.transparent = fading;
@@ -357,7 +359,7 @@ function CoupleSlot({ id, coord, spacing, shown, turned, children }: { id: strin
  * angle you were looking from is kept.
  */
 function FollowFocus({ to }: { to: { x: number; z: number } }) {
-  const controls = useThree((st) => st.controls) as unknown as { target: THREE.Vector3; update: () => void } | null;
+  const controls = useThree((st) => st.controls) as unknown as { target: THREE.Vector3; update: () => void } | null /* cast: the scene's controls are the OrbitControls it mounts (ADR-0071) */;
   const camera = useThree((st) => st.camera);
   useFrame((_, dt) => {
     if (controls === null) return;
@@ -650,7 +652,9 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
     // Where the couple stands on screen right now: both dancers' boxes, projected.
     const box = new THREE.Box3();
     for (const d of rig.parent.children) if (d.name === "dancer") box.expandByObject(d);
-    const rect = (e.nativeEvent.target as HTMLElement).getBoundingClientRect();
+    const canvas = e.nativeEvent.target;
+    if (!(canvas instanceof Element)) return;
+    const rect = canvas.getBoundingClientRect();
     let left = Infinity;
     let right = -Infinity;
     for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
@@ -716,7 +720,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement | null;
+      const el = e.target instanceof HTMLElement ? e.target : null;
       if (e.ctrlKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
         e.preventDefault();
         e.stopPropagation();
@@ -783,8 +787,8 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
 
   const describeKey = (k: DialKey) => {
     if (k === WIDTH_KEY) return { who: "couple", part: "", aspect: "width", unit: "cm" };
-    const [d, part, aspect] = k.split(".") as [string, PartId, string];
-    const spec = PARTS[part] as (typeof PARTS)[PartId] | undefined;
+    const [d, part, aspect] = k.split(".") as [string, PartId, string] /* cast: a dial key is `<dancer>.<part>.<aspect>` (pose-events.ts) (ADR-0071) */;
+    const spec = PARTS[part] as (typeof PARTS)[PartId] | undefined /* cast: a part from an older key may be missing, so `| undefined` (ADR-0071) */;
     const a = spec?.aspects.find((x) => x.id === aspect);
     return { who: nameOf(Number(d)), part: spec?.label ?? part, aspect: a?.label ?? aspect, unit: a?.unit ?? "" };
   };
@@ -1139,7 +1143,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
           />
           <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 12, minWidth: 40 }}>{spacing.toFixed(2)} m</span>
           <button style={btn} onClick={setKeyframe} title="k" disabled={frozen}>◆ set keyframe</button>
-          <select value={mode} onChange={(e) => { dispatch({ type: "setMode", mode: e.target.value as "solver" | "keyframes" }); }} title="what play shows">
+          <select value={mode} onChange={(e) => { dispatch({ type: "setMode", mode: e.target.value as "solver" | "keyframes" /* cast: a `<select>` whose options are exactly this union (ADR-0071) */ }); }} title="what play shows">
             <option value="solver">play: the move as solved</option>
             <option value="keyframes">play: my keyframes</option>
           </select>
@@ -1191,7 +1195,7 @@ export function Review2Scene({ initialTarget }: { initialTarget: PoseTarget }) {
             </Explain>
             <select
               value={accommodation}
-              onChange={(e) => { dispatch({ type: "accommodation", to: e.target.value as "coin" | "reshape" | "break" }); }}
+              onChange={(e) => { dispatch({ type: "accommodation", to: e.target.value as "coin" | "reshape" | "break" /* cast: a `<select>` whose options are exactly this union (ADR-0071) */ }); }}
               style={{ fontSize: 12 }}
             >
               <option value="coin">🎲 coin flip</option>

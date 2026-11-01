@@ -151,17 +151,27 @@ first block is always the place to pick up.
 
 **the-lot takes the provable-code standard** from
 [`cr-ci-cd-rust-typescript-template`](https://github.com/randallard/cr-ci-cd-rust-typescript-template)
-(its `project-conventions` skill and standards ADRs 1000–1017). It predates the template, so it's
+(its `project-conventions` skill and standards ADRs 1000–1019). It predates the template, so it's
 adopting the standard **piece by piece** rather than in one pass (Ryan, 2026-10-29). Until a piece
 lands, the gap is open, not an exception. What's in and what's left is in
 [`docs/PROGRESS.md`](docs/PROGRESS.md)'s Standards line and the newest note in
 [`docs/compliance/`](docs/compliance/).
 
-**Tier: none claimed yet** (ADR-1002 claims only what CI enforces). Toward provable-lite:
-`fast-check` properties now cover both screen reducers (`review2-session`, `voice-test-session`),
-and CI's test job is green (since 2026-10-31: the 38 old failures fixed or kept as `it.fails`
-findings), and the tsconfig half of the strictness bar (ADR-1011) is on (since 2026-10-31, `api/` included).
-The lint half isn't: `strictTypeChecked` and the three named rules. Claim provable-lite when it is.
+**Tier: provable-lite** (since 2026-11-01; ADR-1002 claims only what CI enforces). CI enforces:
+
+- the strictness bar in both halves (ADR-1011): the tsconfig flags, `api/` included, and
+  `strictTypeChecked` with the three named rules, at zero warnings (`pnpm lint`, ADR-0070);
+- `fast-check` properties over both screen reducers (`review2-session`, `voice-test-session`), in
+  a green test job (the old failures are fixed or kept as `it.fails` findings).
+
+Kept by review, not CI: every remaining cast is justified inline and registered in
+[`docs/any-registry.md`](docs/any-registry.md) (ADR-0071).
+
+Not claimed: accessibility lint (deferred, ADR-0072) and a Rust core (none, ADR-0068).
+
+The two `api/` functions are described in [`openapi.yaml`](openapi.yaml). CI's `api lint` job checks
+it against a vendored `api-standards` ruleset (ADR-1019), and `.spectral.yaml` records each
+departure with its reason.
 
 ## Docs
 

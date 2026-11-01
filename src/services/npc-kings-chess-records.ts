@@ -3,6 +3,8 @@
  * Stored in localStorage under "townage-npc-kings-chess-records".
  */
 
+import { isNumber, isRecord, readStoredJson, recordOf } from "./json-guards";
+
 const STORAGE_KEY = "townage-npc-kings-chess-records";
 
 /** localStorage key used by kings-cooking to store mid-game saves. */
@@ -29,13 +31,17 @@ function defaultRecord(): KingsChessRecord {
   };
 }
 
+function isKingsChessRecord(v: unknown): v is KingsChessRecord {
+  return (
+    isRecord(v) &&
+    isNumber(v.wins) && isNumber(v.losses) && isNumber(v.ties) && isNumber(v.totalGames) &&
+    isNumber(v.currentWinStreak) && isNumber(v.currentLossStreak) &&
+    (v.bestWinStreak === undefined || isNumber(v.bestWinStreak))
+  );
+}
+
 function loadAll(): Record<string, KingsChessRecord> {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? (JSON.parse(data) as Record<string, KingsChessRecord>) : {};
-  } catch {
-    return {};
-  }
+  return recordOf(readStoredJson(STORAGE_KEY), isKingsChessRecord);
 }
 
 function saveAll(records: Record<string, KingsChessRecord>): void {

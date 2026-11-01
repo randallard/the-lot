@@ -60,7 +60,7 @@ export function standingFrame(shapes: readonly [CharacterBodyShape, CharacterBod
     const hand: Vec = [at[0] + (toward * half * dx) / l, at[1], at[2] + (toward * half * dz) / l];
     const arms = [0, 1].map((side) =>
       side === heldSide ? reachArm(body, heldSide, d, hand, back) : restArm(body),
-    ) as [Arm, Arm];
+    ) as [Arm, Arm] /* cast: two dancers or two arms, mapped from a pair (ADR-0071) */;
     return { x: d.x, z: d.z, yaw: d.yaw, arms };
   };
   return [pose(b, bodies[0], 1, -1), pose(g, bodies[1], 0, 1)];
@@ -75,7 +75,7 @@ export function standingTargets(shapes: readonly [CharacterBodyShape, CharacterB
     if (f === undefined) continue;
     standingFrame(shapes, bodies, f).forEach((d, dancer) => {
       d.arms.forEach((a, side) => {
-        for (const key of ARM_KEYS) out.push({ i, dancer: dancer as 0 | 1, side: side as 0 | 1, key, value: a[key], weight: HOME_WEIGHT });
+        for (const key of ARM_KEYS) out.push({ i, dancer: dancer as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */, side: side as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */, key, value: a[key], weight: HOME_WEIGHT });
       });
     });
   }
@@ -154,7 +154,7 @@ export function twirlMove(
   const dx = f0[1].x - f0[0].x;
   const dz = f0[1].z - f0[0].z;
   const l = Math.hypot(dx, dz) || 1;
-  const plane = { p: [(f0[0].x + f0[1].x) / 2, 0, (f0[0].z + f0[1].z) / 2] as Vec, n: [dx / l, 0, dz / l] as Vec };
+  const plane = { p: [(f0[0].x + f0[1].x) / 2, 0, (f0[0].z + f0[1].z) / 2] satisfies Vec, n: [dx / l, 0, dz / l] satisfies Vec };
   const move: Move = {
     bodies,
     frames: path,

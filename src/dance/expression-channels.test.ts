@@ -50,7 +50,7 @@ describe("CHANNELS", () => {
   // an unclassified channel still fails here rather than silently reaching a dancer.
   it("classifies every channel of a ResolvedPose", () => {
     for (const key of Object.keys(NEUTRAL_POSE)) {
-      expect(CHANNELS[key as keyof ResolvedPose]).toBeDefined();
+      expect(CHANNELS[key as keyof ResolvedPose /* cast: `Object.keys` of a `ResolvedPose` (ADR-0071) */]).toBeDefined();
     }
     expect(Object.keys(CHANNELS).sort()).toEqual(Object.keys(NEUTRAL_POSE).sort());
   });

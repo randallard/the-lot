@@ -172,7 +172,7 @@ describe("🧪 the exact gradient (2026-10-26, step 2)", () => {
       v[i + 27] = rnd() * 0.16 - 0.08;
     }
     const plans = planOf(m);
-    const guide = { at: [0.05, 1.7, 0] as Vec, weight: 120 };
+    const guide = { at: [0.05, 1.7, 0] satisfies Vec, weight: 120 };
     let clipping = 0;
     for (let i = 0; i < frames.length; i++) {
       const base = defined(frames[i], "frames[i]");
@@ -296,7 +296,7 @@ describe("🧪 growing and shrinking (2026-10-27, step 3b)", () => {
 
   it("round-trips a height change through the dials", () => {
     const ryan = bodyOf(getBodyShape("ryan"));
-    const d = { x: 0.1, z: 0, yaw: 0, arms: [restArm(ryan), restArm(ryan)] as [Arm, Arm], grow: -0.123 };
+    const d = { x: 0.1, z: 0, yaw: 0, arms: [restArm(ryan), restArm(ryan)] satisfies [Arm, Arm], grow: -0.123 };
     expect(fromDials(toDials(d, 1), 1, ryan).grow).toBeCloseTo(-0.123, 3);
     expect(toDials({ ...d, grow: 0 }, 1)["1.torso.grow"]).toBeUndefined();
   });
@@ -305,7 +305,7 @@ describe("🧪 growing and shrinking (2026-10-27, step 3b)", () => {
 describe("🧪 a forearm grip between unequal forearms (10-28, 12)", () => {
   const sprout = bodyOf(getBodyShape("sprout"));
   const ember = bodyOf(getBodyShape("ember"));
-  const hang = (b: typeof sprout) => [restArm(b), restArm(b)] as [Arm, Arm];
+  const hang = (b: typeof sprout) => [restArm(b), restArm(b)] satisfies [Arm, Arm];
   const m: Move = {
     bodies: [sprout, ember],
     frames: [[{ x: 0, z: 0, yaw: 0, arms: hang(sprout) }, { x: 1, z: 0, yaw: Math.PI, arms: hang(ember) }]],
@@ -329,7 +329,7 @@ describe("🧪 a forearm grip between unequal forearms (10-28, 12)", () => {
     const wrist = toFloor(w, f[1]);
     const on = (u: number): Vec => [elbow[0] + (wrist[0] - elbow[0]) * u, elbow[1] + (wrist[1] - elbow[1]) * u, elbow[2] + (wrist[2] - elbow[2]) * u];
     const s = toFloor(sprout.shoulder[0], f[0]);
-    const holdOnly = { ...Object.fromEntries(Object.keys(WEIGHTS).map((k) => [k, 0])), hold: WEIGHTS.hold, clasp: WEIGHTS.clasp } as typeof WEIGHTS;
+    const holdOnly = { ...Object.fromEntries(Object.keys(WEIGHTS).map((k) => [k, 0])), hold: WEIGHTS.hold, clasp: WEIGHTS.clasp } as typeof WEIGHTS /* cast: zeroes for every weight key, then two set (ADR-0071) */;
     const cost = (mv: Move, u: number) => {
       const arm = armThrough(sprout, 0, f[0], [s[0], s[1] - 0.1, s[2]], on(u));
       return frameCost(mv, 0, [{ ...f[0], arms: [arm, f[0].arms[1]] }, f[1]], holdOnly);

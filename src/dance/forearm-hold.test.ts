@@ -214,7 +214,7 @@ describe("🧪 an arm turn's grip from the skeletons (armTurnGrip, 2026-10-28)",
 
   it("counts a shoulder carried forward of the body (ember's, 22 cm)", () => {
     const ember = body("ember");
-    const flat = { ...ember, shoulder: [[ember.shoulder[0][0], ember.shoulder[0][1], 0], ember.shoulder[1]] as typeof ember.shoulder };
+    const flat = { ...ember, shoulder: [[ember.shoulder[0][0], ember.shoulder[0][1], 0], ember.shoulder[1]] satisfies typeof ember.shoulder };
     expect(armTurnGrip(ember, ember).radius).toBeLessThan(armTurnGrip(flat, flat).radius);
   });
 });

@@ -41,6 +41,13 @@ export interface RltOptions {
   readonly pullAfter?: number;
 }
 
+/** A checked index read, local on purpose (journal 10-31 (8): an imported helper is slower in the bakes). */
+const nth = <T>(a: readonly T[], i: number): T => {
+  const x = a[i];
+  if (x === undefined) throw new RangeError(`whole-move-rlt: index ${String(i)} outside ${String(a.length)}`);
+  return x;
+};
+
 const ease = (x: number) => x * x * (3 - 2 * x);
 /** The chart's, from facing couples. */
 const BEATS = 6;
@@ -73,7 +80,7 @@ export function rightAndLeftThru(shapes: readonly CharacterBodyShape[], o: RltOp
   // Sized as the floor sizes a couple (10-27: four Ryans at a 0.5 m width stepped 20–35 cm apart,
   // because their torsos alone are 0.6 m across): the standing width is `touchHold`'s, and two
   // bodies pass a lane apart (`passingWidth`, as the engine's Pass Thru lane is).
-  const s = shapes as readonly [CharacterBodyShape, CharacterBodyShape, CharacterBodyShape, CharacterBodyShape];
+  const s = shapes as readonly [CharacterBodyShape, CharacterBodyShape, CharacterBodyShape, CharacterBodyShape] /* cast: the length was checked to be 4 just above (ADR-0071) */;
   const width = (a: CharacterBodyShape, b: CharacterBodyShape) => o.width ?? touchHold(armMetrics(a), armMetrics(b)).width;
   const W1 = width(s[0], s[1]);
   const W2 = width(s[2], s[3]);
@@ -131,7 +138,7 @@ export function rightAndLeftThru(shapes: readonly CharacterBodyShape[], o: RltOp
       const yaw = unwrap(last[d], facingToRotationY(frame, at.facing));
       last[d] = yaw;
       // She forward, he back, by half the lead each; his partner is the next dancer, hers the last.
-      const ahead = (d % 2 === 1 ? 1 : -1) * lead(i / per, bodies[d % 2 === 1 ? d : d + 1]!);
+      const ahead = (d % 2 === 1 ? 1 : -1) * lead(i / per, nth(bodies, d % 2 === 1 ? d : d + 1));
       return { x: p.x + ahead * Math.sin(yaw), z: p.z + ahead * Math.cos(yaw), yaw, arms: [restArm(b), restArm(b)] };
     }),
   );
@@ -148,12 +155,12 @@ export function rightAndLeftThru(shapes: readonly CharacterBodyShape[], o: RltOp
   const reachK = o.pullReach ?? PULL_REACH;
   const after = Math.round((o.pullAfter ?? PULL_AFTER) * per);
   for (const [a, b] of [[0, 3], [1, 2]] as const) {
-    const A = bodies[a]!, B = bodies[b]!;
+    const A = nth(bodies, a), B = nth(bodies, b);
     const reach = Math.min(PULL_JOIN_MAX, reachK * (A.upper0 + A.fore0 + B.upper0 + B.fore0));
     const apart = frames.map((f, i) => {
       if (i / per > PULL) return Infinity;
-      const sa = toFloor(A.shoulder[1], f[a]!);
-      const sb = toFloor(B.shoulder[1], f[b]!);
+      const sa = toFloor(A.shoulder[1], nth(f, a));
+      const sb = toFloor(B.shoulder[1], nth(f, b));
       return Math.hypot(sa[0] - sb[0], sa[2] - sb[2]);
     });
     const cross = apart.indexOf(Math.min(...apart));
@@ -191,14 +198,14 @@ export function rightAndLeftThru(shapes: readonly CharacterBodyShape[], o: RltOp
     // 29 cm in (four Ryans); and a tall gent with the smallest lady (ember–sprout, shoulder 1.40 m,
     // her back 0.52, arm 0.94) can reach her back only at the turn's tightest, so a fixed window
     // flipped his arm over trying (93°, 29 cm short).
-    const G = bodies[g]!, L = bodies[l]!;
+    const G = nth(bodies, g), L = nth(bodies, l);
     const lo = Math.round((PULL + BACK_IN) * per), hi = Math.round((BEATS - BACK_IN) * per);
     let best: [number, number] | null = null;
     for (let i = lo, run = -1; i <= hi + 1; i++) {
       const f = frames[i];
       const ok = f !== undefined && i <= hi && (() => {
-        const sh = toFloor(G.shoulder[1], f[g]!);
-        const bk = toFloor(backPoint(L), f[l]!);
+        const sh = toFloor(G.shoulder[1], nth(f, g));
+        const bk = toFloor(backPoint(L), nth(f, l));
         return Math.hypot(sh[0] - bk[0], sh[1] - bk[1], sh[2] - bk[2]) < BACK_REACH * (G.upper0 + G.fore0);
       })();
       if (ok && run < 0) run = i;

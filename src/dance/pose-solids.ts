@@ -36,9 +36,9 @@ function hullOf(mesh: THREE.Mesh): Hull {
   const points = new Float64Array(at.count * 3);
   for (let i = 0; i < at.count; i++) {
     const x = at.getX(i), y = at.getY(i), z = at.getZ(i);
-    points[i * 3] = (e[0] ?? 0) * x + (e[4] ?? 0) * y + (e[8] ?? 0) * z + (e[12] ?? 0);
-    points[i * 3 + 1] = (e[1] ?? 0) * x + (e[5] ?? 0) * y + (e[9] ?? 0) * z + (e[13] ?? 0);
-    points[i * 3 + 2] = (e[2] ?? 0) * x + (e[6] ?? 0) * y + (e[10] ?? 0) * z + (e[14] ?? 0);
+    points[i * 3] = e[0] * x + e[4] * y + e[8] * z + e[12];
+    points[i * 3 + 1] = e[1] * x + e[5] * y + e[9] * z + e[13];
+    points[i * 3 + 2] = e[2] * x + e[6] * y + e[10] * z + e[14];
   }
   return { points };
 }
@@ -52,7 +52,7 @@ function readArm(
   // The forearm is the arm group's one cylinder. Found by geometry rather than by index, so a
   // marker added to the group later cannot be mistaken for it.
   const fore = arm.children.find(
-    (c): c is THREE.Mesh => (c as THREE.Mesh).geometry instanceof THREE.CylinderGeometry,
+    (c): c is THREE.Mesh => c instanceof THREE.Mesh && c.geometry instanceof THREE.CylinderGeometry,
   );
   if (fore === undefined) return null;
   // The arm group's origin *is* the elbow (ADR-0017).
@@ -89,7 +89,7 @@ export function readSolids(
 
   // The head group holds the head and its facing marker; the head is the first sphere in it.
   const head = headGroup.children.find(
-    (c): c is THREE.Mesh => (c as THREE.Mesh).geometry instanceof THREE.SphereGeometry,
+    (c): c is THREE.Mesh => c instanceof THREE.Mesh && c.geometry instanceof THREE.SphereGeometry,
   );
   if (head === undefined) return null;
 

@@ -21,7 +21,9 @@ export function BackupModal({ onClose }: BackupModalProps) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      const result = importBackup(reader.result as string);
+      // readAsText below, so the result is a string; anything else is a failed read.
+      if (typeof reader.result !== "string") return;
+      const result = importBackup(reader.result);
       if (result.ok) {
         setStatus({ type: "ok", text: `restored ${result.restoredKeys.length} items — refresh to apply` });
       } else {

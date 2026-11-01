@@ -641,7 +641,7 @@ export function DanceFloor({
 
   const coupleWidthEngine = useMemo(
     () => coupleWidthWorld / (scale ?? DEFAULT_SCALE),
-    [coupleWidthWorld, scale, shapes],
+    [coupleWidthWorld, scale],
   );
 
   /**
@@ -1113,7 +1113,7 @@ export function DanceFloor({
       const dt = goingHome || seeking ? 0 : Math.min(delta, 0.1);
       const states = goingHome
         ? runtime.home()
-        : seeking && seekTo !== null
+        : seeking
           ? runtime.poseAt(seekTo)
           : runtime.advance(dt);
 
@@ -1796,7 +1796,7 @@ export function DanceFloor({
             // seated at the worn length while the cylinder stayed the length it was built. It
             // hangs from the elbow (the group's origin), so it scales about its top.
             const fore = arm.children.find(
-              (c): c is THREE.Mesh => (c as THREE.Mesh).geometry instanceof THREE.CylinderGeometry,
+              (c): c is THREE.Mesh => c instanceof THREE.Mesh && c.geometry instanceof THREE.CylinderGeometry,
             );
             if (fore !== undefined) {
               fore.scale.y = forearmLength / baseShape.forearm.height;
@@ -2031,8 +2031,9 @@ export function DanceFloor({
          */
         report.solids = null;
         report.findings = [];
-        // Only when somebody is listening: this walks every mesh's world matrix.
-        if (onArms !== undefined && keys.length === 2) {
+        // Only when somebody is listening: this walks every mesh's world matrix. (Two dancers
+        // is already given: this is inside the `keys.length === 2` block above.)
+        if (onArms !== undefined) {
           const pair = keys.map((key, i) => {
             const rig = rigs[key]?.current;
             const arms = armRigs[key];

@@ -36,7 +36,7 @@ function patchPose(
   axis: 0 | 1 | 2,
   value: number,
 ): ActionKeyframe {
-  const rot = [...kf.pose[part]] as [number, number, number];
+  const rot = [...kf.pose[part]] satisfies [number, number, number];
   rot[axis] = value;
   return { ...kf, pose: { ...kf.pose, [part]: rot } };
 }

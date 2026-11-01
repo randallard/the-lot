@@ -58,7 +58,7 @@ export function NpcChatBubble({
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Only drag from the bubble border area on desktop, not from interactive elements
-    if ((e.target as HTMLElement).closest("button, input")) return;
+    if (e.target instanceof Element && e.target.closest("button, input")) return;
     e.preventDefault();
     e.stopPropagation();
     startDrag(e.clientX, e.clientY);
@@ -66,7 +66,7 @@ export function NpcChatBubble({
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     // On mobile, allow dragging from anywhere on the bubble
-    if ((e.target as HTMLElement).closest("input")) return;
+    if (e.target instanceof Element && e.target.closest("input")) return;
     const t = e.touches[0];
     if (!t) return;
     startDrag(t.clientX, t.clientY);

@@ -66,15 +66,15 @@ function walkTwirl(beauShape: CharacterBodyShape, belleShape: CharacterBodyShape
   );
   const shapeAt = () => ({ width: sized.width / scale, archClearance: sized.wanted / scale });
   const motions = flattenSequence(
-    danceCoupleSequence(["california-twirl"] as never, couple, shapeAt),
-  ) as Record<string, { beats: number; grips: readonly { hand: string; grip: string }[] }>;
+    danceCoupleSequence(["california-twirl"], couple, shapeAt),
+  );
 
   const archHand = (key: string) =>
-    (defined(motions[key], "motions[key]").grips.find((g) => g.grip === "arch")?.hand ?? "none") as "left" | "right" | "none";
+    defined(motions[key], "motions[key]").grips.find((g) => g.grip === "arch")?.hand ?? "none";
 
   const frame = makeFrame({ x: 0, z: 0 }, scale, 0);
   const at = (key: string, beat: number) => {
-    const s = sampleMotion(defined(motions[key], "motions[key]") as never, beat);
+    const s = sampleMotion(defined(motions[key], "motions[key]"), beat);
     const w = toWorld(frame, s.position);
     return { x: w.x, z: w.z, yaw: facingToRotationY(frame, s.facing) };
   };
@@ -100,6 +100,12 @@ const PAIRS = CAST.flatMap(([beauName, beauShape]) =>
     ([belleName, belleShape]) => [`${beauName}/${belleName}`, beauShape, belleShape] as const,
   ),
 );
+
+/** A declared arch hand, which the twirl always has; "none" would mean the engine lost it. */
+function handed(hand: "left" | "right" | "none"): "left" | "right" {
+  if (hand === "none") throw new Error("no arch hand declared");
+  return hand;
+}
 
 describe("🔴 a declared hold keeps the hand the figure named", () => {
   it("🔑 square-one names the arch's hand, and it is the same one for the whole span", () => {
@@ -144,11 +150,11 @@ describe("🔴 a declared hold keeps the hand the figure named", () => {
       const { declared, hold, frames } = walkTwirl(beauShape, belleShape);
       for (const f of frames) {
         expect(
-          touchingSide(f.beau, f.belle, hold, declared.beau as "left" | "right"),
+          touchingSide(f.beau, f.belle, hold, handed(declared.beau)),
           `${name}: the beau at beat ${f.beat}`,
         ).toBe("right");
         expect(
-          touchingSide(f.belle, f.beau, hold, declared.belle as "left" | "right"),
+          touchingSide(f.belle, f.beau, hold, handed(declared.belle)),
           `${name}: the belle at beat ${f.beat}`,
         ).toBe("left");
       }

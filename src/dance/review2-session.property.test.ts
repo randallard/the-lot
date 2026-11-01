@@ -42,8 +42,12 @@ const action: fc.Arbitrary<Action> = fc.oneof(
 );
 
 const runs = fc.array(action, { maxLength: 60 }).map((actions) => {
-  const states: Session[] = [initialSession(SCOPES[0], "twirl|ee", COUPLES, COUPLES[0])];
-  for (const a of actions) states.push(reduce(states[states.length - 1] ?? states[0] as Session, a));
+  let s = initialSession(SCOPES[0], "twirl|ee", COUPLES, COUPLES[0]);
+  const states: Session[] = [s];
+  for (const a of actions) {
+    s = reduce(s, a);
+    states.push(s);
+  }
   return { states, actions };
 });
 

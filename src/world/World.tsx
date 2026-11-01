@@ -144,7 +144,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
   const { camera } = useThree();
 
   // Capture NPC position when it first appears (relative to player)
-  if (showNpc && !npcPos.current && playerPos.current) {
+  if (showNpc && !npcPos.current) {
     npcPos.current = [
       playerPos.current.x + NPC_OFFSET.x,
       0,
@@ -155,7 +155,6 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
 
   // Track player screen position + expose world position
   useFrame(() => {
-    if (!playerPos.current) return;
     if (playerWorldPos) {
       playerWorldPos.current = { x: playerPos.current.x, z: playerPos.current.z };
     }
@@ -266,9 +265,11 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
   const trackerActive = (part1Spawned && !part1Collected) || (part2Spawned && !part2Collected) || !!findTargetNpcId;
   useTrinketTracker(playerPos, currentTarget, trackerActive, trinketTracker);
 
+  // Decided once, at mount: the spawn timer and listeners below are for a fresh start only.
+  const [resuming] = useState(() => partsCollected >= 1);
   useEffect(() => {
     // Skip spawn logic if parts already collected (resuming)
-    if (partsCollected >= 1) return;
+    if (resuming) return;
 
     const timer = setTimeout(() => setPart1Spawned(true), SPAWN_DELAY);
 
@@ -288,7 +289,7 @@ export function World({ onPart1Pickup, onPart2Pickup, part1CutsceneDone, inputDi
       window.removeEventListener("keydown", handleInteract);
       window.removeEventListener("click", handleInteract);
     };
-  }, []);
+  }, [resuming]);
 
   const handlePart1Pickup = () => {
     setPart1Collected(true);

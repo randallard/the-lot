@@ -29,7 +29,7 @@
  * Pure, so it's tested on the runs' own transcripts.
  */
 
-import { callsFrom, endingsFrom, STANDARD_APPLICATIONS, type ApplicationCallId, type FormationId, type StandardApplication } from "square-one";
+import { callsFrom, endingsFrom, STANDARD_APPLICATIONS, type ApplicationCallId, type FormationId } from "square-one";
 import { VOICE_CALLS, type VoiceCall } from "./call-vocabulary";
 import { normalise } from "./match-call";
 
@@ -39,7 +39,7 @@ import { normalise } from "./match-call";
  */
 export const FIXED_ENDING: ReadonlyMap<string, FormationId> = new Map(
   Object.entries(STANDARD_APPLICATIONS).flatMap(([id, c]) => {
-    const ends = new Set((c.applications as readonly StandardApplication[]).map((a) => a.to));
+    const ends = new Set(c.applications.map((a) => a.to));
     const [only] = ends;
     return ends.size === 1 && only !== undefined && only !== "same" ? [[id, only] as const] : [];
   }),
@@ -191,7 +191,7 @@ export function hearCalls(transcript: string, start: FormationId | readonly Form
       i++;
       continue;
     }
-    const call = best.s.call.id as ApplicationCallId;
+    const call = best.s.call.id as ApplicationCallId /* cast: a call drawn from `STANDARD_APPLICATIONS` (ADR-0071) */;
     const next: FormationId[] = at === null ? [] : [...new Set(at.flatMap((f) => endingsFrom(call, f)))];
     const fixed = FIXED_ENDING.get(call);
     const to = next.length > 0 ? next : fixed === undefined ? null : [fixed];

@@ -51,7 +51,7 @@ function wideArms(): Emote {
   const swing = (time: number, degrees: number) => ({
     id: id(),
     time,
-    pose: { ...ZERO_POSE, upperArmRotation: [0, 0, degrees] as [number, number, number] },
+    pose: { ...ZERO_POSE, upperArmRotation: [0, 0, degrees] satisfies [number, number, number] },
     easing: "ease-in-out" as const,
   });
   const e = emote("wide arms", 2.4);
@@ -99,7 +99,7 @@ function spin(): Emote {
   const sweep = (time: number, y: number, tilt: number) => ({
     id: id(),
     time,
-    pose: { ...ZERO_POSE, upperArmRotation: [0, y, tilt] as [number, number, number] },
+    pose: { ...ZERO_POSE, upperArmRotation: [0, y, tilt] satisfies [number, number, number] },
     easing: "linear" as const,
   });
   const armTrack = (tilt: number) => [
@@ -120,7 +120,7 @@ function lookAround(): Emote {
   const head = (time: number, y: number) => ({
     id: id(),
     time,
-    deltaRotation: [0, y, 0] as [number, number, number],
+    deltaRotation: [0, y, 0] satisfies [number, number, number],
     offsetX: 0,
     offsetY: 0,
     offsetZ: 0,
@@ -157,7 +157,7 @@ function puffUp(): Emote {
   const head = (time: number, radiusDelta: number) => ({
     id: id(),
     time,
-    deltaRotation: [0, 0, 0] as [number, number, number],
+    deltaRotation: [0, 0, 0] satisfies [number, number, number],
     offsetX: 0,
     offsetY: 0,
     offsetZ: 0,

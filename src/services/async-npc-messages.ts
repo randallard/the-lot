@@ -9,7 +9,7 @@ import { getNpcCommentary } from "./haiku-npc";
 import { recordResult } from "./npc-records";
 import { shouldNpcComment } from "./npc-response-chance";
 import { clearActiveSession } from "./active-sessions";
-import type { GameResults } from "./parse-results";
+import { isWinner, type GameResults } from "./parse-results";
 
 export interface AsyncResult {
   sessionId: string;
@@ -62,12 +62,14 @@ export async function processAsyncResults(
       playerScore: result.playerScore,
       opponentScore: result.opponentScore,
       winner: result.winner,
-      rounds: result.rounds.map((r) => ({
+      // Rounds arrive as the game server sent them (fetch-pending-results.ts); one whose winner
+      // isn't a winner is dropped, as parseResults drops it.
+      rounds: result.rounds.flatMap((r) => (isWinner(r.winner) ? [{
         round: r.round,
         playerPoints: r.playerPoints,
         opponentPoints: r.opponentPoints,
-        winner: r.winner as "player" | "opponent" | "tie",
-      })),
+        winner: r.winner,
+      }] : [])),
     };
 
     let commentary: string;

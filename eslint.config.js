@@ -9,17 +9,32 @@ export default defineConfig([
   globalIgnores(['dist']),
   {
     files: ['**/*.{ts,tsx}'],
+    // strictTypeChecked plus ADR-1011's three rules (ADR-0070). It was measured in a separate
+    // eslint.strict.config.js until the lint pass reached zero findings (journal 11-01 (2)).
     extends: [
       js.configs.recommended,
-      tseslint.configs.recommended,
+      tseslint.configs.strictTypeChecked,
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
+      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
     },
     rules: {
+      // ADR-1011's three, stated so a preset change can't drop them.
+      '@typescript-eslint/no-non-null-assertion': 'error',
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
+      // ADR-0070: React handlers in arrow shorthand, and numbers in template strings.
+      '@typescript-eslint/no-confusing-void-expression': ['error', { ignoreArrowShorthand: true }],
+      '@typescript-eslint/restrict-template-expressions': ['error', {
+        allowNumber: true,
+        allowAny: false, allowBoolean: false, allowNullish: false, allowRegExp: false,
+        allowNever: false, allowArray: false,
+      }],
+
       // Empty catch is this codebase's idiom for best-effort localStorage:
       // storage can throw (quota, private mode, disabled) and the game must
       // carry on regardless. ADR-0009.
@@ -82,5 +97,10 @@ export default defineConfig([
     rules: {
       'react-hooks/refs': 'off',
     },
+  },
+  // ADR-0070: the bake and solve scripts are in no tsconfig, so they're linted without types.
+  {
+    files: ['scripts/**/*.ts'],
+    extends: [tseslint.configs.disableTypeChecked],
   },
 ])

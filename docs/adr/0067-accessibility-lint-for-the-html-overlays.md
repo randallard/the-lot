@@ -1,5 +1,5 @@
 # ADR-0067: Accessibility lint (jsx-a11y) for the HTML overlays
-- Status: Accepted
+- Status: Superseded by [ADR-0072](0072-accessibility-lint-is-deferred.md)
 - Date: 2026-10-30
 - Deciders: Ryan (proposed by Claude, from the 2026-10-30 compliance review)
 

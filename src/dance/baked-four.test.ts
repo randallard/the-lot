@@ -37,7 +37,7 @@ describe("four-dancer bakes (2026-10-28)", () => {
     for (const p of reviewPairings()) {
       const cast = [p.beau, p.belle, p.beau, p.belle];
       const file = fourFileName("right-and-left-thru", cast);
-      const bake = files[`./baked-four/${file}`] as FourBake | undefined;
+      const bake = files[`./baked-four/${file}`] as FourBake | undefined /* cast: the glob's modules are the committed bakes (ADR-0071) */;
       expect(bake, file).toBeDefined();
       if (bake === undefined) continue;
       expect(bake.bodies, file).toEqual(cast.map((id) => bodyPrint(getBodyShape(id))));

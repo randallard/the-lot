@@ -19,6 +19,13 @@ import type { PathSample } from "./baked-tracks";
 import { growRoom, startOnPath, toFloor, type Body, type Frame, type GrowStyle, type Hold, type Move, type Vec } from "./whole-move";
 import { pathFrames, twirlMove } from "./whole-move-twirl";
 
+/** A checked index read, local on purpose (journal 10-31 (8): an imported helper is slower in the bakes). */
+const nth = <T>(a: readonly T[], i: number): T => {
+  const x = a[i];
+  if (x === undefined) throw new RangeError(`whole-move-figure: index ${String(i)} outside ${String(a.length)}`);
+  return x;
+};
+
 export interface FigurePaths {
   readonly beau: PathSample[];
   readonly belle: PathSample[];
@@ -75,7 +82,7 @@ export function figureMove(
   // The arms start reaching for the point between the two, at the grip's height (`gripHeight`, the
   // floor's `planForearm`), or the lower shoulder's less 10 cm.
   const at = (i: number): Vec => {
-    const f = path[i] ?? path[0]!;
+    const f = path[i] ?? nth(path, 0);
     const sa = toFloor(bodies[0].shoulder[0], f[0]);
     const sb = toFloor(bodies[1].shoulder[0], f[1]);
     return [(f[0].x + f[1].x) / 2, o.gripHeight ?? Math.min(sa[1], sb[1]) - 0.1, (f[0].z + f[1].z) / 2];
@@ -83,11 +90,12 @@ export function figureMove(
   // 🧪 The pair's height trade (`armTurnGrip`), worn over the grip and eased in over the step-in and
   // out over the step-out, so the call starts and ends as built. Left to find it, player → myco
   // traded the wrong way once myco's arm went overhead (10-28).
-  const span = holds[0]!;
-  const seeded: Frame[] = o.trade === undefined || move.grow === undefined ? path : path.map((f, i) => {
+  const span = nth(holds, 0);
+  const trade = o.trade;
+  const seeded: Frame[] = trade === undefined || move.grow === undefined ? path : path.map((f, i) => {
     const t = path.length > 1 ? i / (path.length - 1) : 0;
     const u = Math.max(0, Math.min(1, span.from > 0 ? t / span.from : 1, span.to < 1 ? (1 - t) / (1 - span.to) : 1));
-    return [{ ...f[0], grow: o.trade![0] * u }, { ...f[1], grow: o.trade![1] * u }];
+    return [{ ...f[0], grow: trade[0] * u }, { ...f[1], grow: trade[1] * u }];
   });
   const start = startOnPath({ ...move, frames: seeded }, at);
   // 🧪 Before the grip the held arms hang, facing the way they'll lift (10-28, 12): a hanging
@@ -96,10 +104,10 @@ export function figureMove(
   const first = start.findIndex((_, i) => i / Math.max(1, start.length - 1) >= span.from - 1e-9);
   const contact = start[first];
   if (contact !== undefined) for (let i = 0; i < first; i++) {
-    const f = start[i]!;
+    const f = nth(start, i);
     start[i] = [
-      { ...f[0], arms: f[0].arms.map((a, s) => (s === span.beau ? { ...a, heading: contact[0].arms[s].heading } : a)) as typeof f[0]["arms"] },
-      { ...f[1], arms: f[1].arms.map((a, s) => (s === span.belle ? { ...a, heading: contact[1].arms[s].heading } : a)) as typeof f[1]["arms"] },
+      { ...f[0], arms: f[0].arms.map((a, s) => (s === span.beau ? { ...a, heading: contact[0].arms[s].heading } : a)) as typeof f[0]["arms"] /* cast: two dancers or two arms, mapped from a pair (ADR-0071) */ },
+      { ...f[1], arms: f[1].arms.map((a, s) => (s === span.belle ? { ...a, heading: contact[1].arms[s].heading } : a)) as typeof f[1]["arms"] /* cast: two dancers or two arms, mapped from a pair (ADR-0071) */ },
     ];
   }
   return { move, path, start };

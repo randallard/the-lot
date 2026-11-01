@@ -26,7 +26,10 @@ const pose = review2Target(window.location.hash);
 const reviewCell = reviewSceneCell(window.location.hash);
 const danceFigure = reviewCell === null ? danceSceneFigure(window.location.hash) : null;
 
-createRoot(document.getElementById("root")!).render(
+const root = document.getElementById("root");
+if (root === null) throw new Error("index.html has no #root");
+
+createRoot(root).render(
   <StrictMode>
     {voiceTest ? (
       <VoiceTestScene />

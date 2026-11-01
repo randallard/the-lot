@@ -88,7 +88,7 @@ function HeadKfCard({ kf, onChange, onDelete, isActive, onSelect }: {
   isActive: boolean; onSelect: () => void;
 }) {
   const patch = (axis: 0|1|2, v: number) => {
-    const r = [...kf.deltaRotation] as [number,number,number];
+    const r = [...kf.deltaRotation] satisfies [number, number, number];
     r[axis] = v;
     onChange({ ...kf, deltaRotation: r });
   };
@@ -122,7 +122,7 @@ function ArmKfCard({ kf, onChange, onDelete, isActive, onSelect, label }: {
   isActive: boolean; onSelect: () => void; label: string;
 }) {
   const patchPose = (part: keyof ArmPose, axis: 0|1|2, v: number) => {
-    const rot = [...kf.pose[part]] as [number,number,number];
+    const rot = [...kf.pose[part]] satisfies [number, number, number];
     rot[axis] = v;
     onChange({ ...kf, pose: { ...kf.pose, [part]: rot } });
   };
@@ -179,7 +179,7 @@ function EyeKfCard({ kf, onChange, onDelete, isActive, onSelect }: {
   kf: EyeKeyframe; onChange: (k: EyeKeyframe) => void; onDelete: () => void;
   isActive: boolean; onSelect: () => void;
 }) {
-  const activeKeys = Object.keys(kf.override) as (keyof EyeShape)[];
+  const activeKeys = Object.keys(kf.override) as (keyof EyeShape)[] /* cast: `Object.keys` of an object with only these keys (ADR-0071) */;
   const addableFields = EYE_NUM_FIELDS.filter(f => !activeKeys.includes(f.key));
 
   return (
@@ -240,7 +240,7 @@ function EffectKfCard({ kf, onChange, onDelete, isActive, onSelect }: {
       <SliderRow label="offset Y"    value={kf.offsetY}  min={0}   max={2}   step={0.05} onChange={v => onChange({ ...kf, offsetY: v })} />
       <div style={ROW}>
         <span style={LBL}>type</span>
-        <select value={kf.type} onChange={e => onChange({ ...kf, type: e.target.value as typeof kf.type })}
+        <select value={kf.type} onChange={e => onChange({ ...kf, type: e.target.value as typeof kf.type /* cast: a `<select>` whose options are exactly this union (ADR-0071) */ })}
           style={{ flex: 1, background: "#0d0d1a", border: "1px solid #2a2a40", borderRadius: 5, color: "#9b8abf", fontSize: 11, padding: "2px 6px" }}>
           {EFFECT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
@@ -354,7 +354,7 @@ function EditorView({ emote: initial, shape, color, onBack, onSave, isWide }: Ed
   // When a keyframe is selected, preview at that keyframe's time so edits are immediately visible.
   // Otherwise fall back to the manual scrub position.
   const activeKfTime = activeKfId
-    ? (emote.tracks[activeTrack] as Array<{ id: string; time: number }>).find(k => k.id === activeKfId)?.time
+    ? (emote.tracks[activeTrack] as Array<{ id: string; time: number }> /* cast: every track's keyframes have an `id` and a `time` (ADR-0071) */).find(k => k.id === activeKfId)?.time
     : undefined;
   const previewTime = activeKfTime ?? scrubTime;
   const scrubPose = !isPlaying ? sampleEmote(emote, previewTime) : undefined;
@@ -376,8 +376,8 @@ function EditorView({ emote: initial, shape, color, onBack, onSave, isWide }: Ed
   }
 
   function deleteKf(track: TrackName, id: string) {
-    const updated = (emote.tracks[track] as Array<{ id: string }>).filter(k => k.id !== id);
-    updateTrack(track, updated as EmoteTracks[typeof track]);
+    const updated = (emote.tracks[track] as Array<{ id: string }> /* cast: every track's keyframes have an `id` and a `time` (ADR-0071) */).filter(k => k.id !== id);
+    updateTrack(track, updated as EmoteTracks[typeof track] /* cast: every track's keyframes have an `id` and a `time` (ADR-0071) */);
     if (activeKfId === id) setActiveKfId(null);
   }
 
@@ -386,7 +386,7 @@ function EditorView({ emote: initial, shape, color, onBack, onSave, isWide }: Ed
     setActiveKfId(id);
   }
 
-  const trackKfs = emote.tracks[activeTrack] as Array<{ id: string; time: number }>;
+  const trackKfs = emote.tracks[activeTrack] as Array<{ id: string; time: number }> /* cast: every track's keyframes have an `id` and a `time` (ADR-0071) */;
   const sortedKfs = [...trackKfs].sort((a, b) => a.time - b.time);
 
   return (
@@ -451,7 +451,7 @@ function EditorView({ emote: initial, shape, color, onBack, onSave, isWide }: Ed
         {/* Mode toggle + track tabs */}
         <div style={{ borderTop: "1px solid #1a1a28", borderBottom: "1px solid #1a1a28", padding: "6px 12px", flexShrink: 0 }}>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            {(["cards", "timeline"] as EditorMode[]).map(m => (
+            {(["cards", "timeline"] satisfies EditorMode[]).map(m => (
               <button key={m} onClick={() => setMode(m)}
                 style={{ ...BTN, borderColor: mode === m ? "#6a4c93" : "#2a2a40", color: mode === m ? "#c080e0" : "#555", fontSize: 10 }}>
                 {m === "cards" ? "≡ cards" : "— timeline"}
@@ -506,32 +506,32 @@ function EditorView({ emote: initial, shape, color, onBack, onSave, isWide }: Ed
               };
               switch (activeTrack) {
                 case "body": return (
-                  <BodyKfCard key={id} kf={kf as BodyKeyframe}
+                  <BodyKfCard key={id} kf={kf as BodyKeyframe /* cast: the switch above narrows the track, so its keyframes are this kind (ADR-0071) */}
                     onChange={k => { const kfs = emote.tracks.body.map(x => x.id === id ? k : x); updateTrack("body", kfs); }}
                     {...commonProps} />
                 );
                 case "head": return (
-                  <HeadKfCard key={id} kf={kf as HeadKeyframe}
+                  <HeadKfCard key={id} kf={kf as HeadKeyframe /* cast: the switch above narrows the track, so its keyframes are this kind (ADR-0071) */}
                     onChange={k => { const kfs = emote.tracks.head.map(x => x.id === id ? k : x); updateTrack("head", kfs); }}
                     {...commonProps} />
                 );
                 case "rightArm": return (
-                  <ArmKfCard key={id} kf={kf as ArmKeyframe} label="R arm"
+                  <ArmKfCard key={id} kf={kf as ArmKeyframe /* cast: the switch above narrows the track, so its keyframes are this kind (ADR-0071) */} label="R arm"
                     onChange={k => { const kfs = emote.tracks.rightArm.map(x => x.id === id ? k : x); updateTrack("rightArm", kfs); }}
                     {...commonProps} />
                 );
                 case "leftArm": return (
-                  <ArmKfCard key={id} kf={kf as ArmKeyframe} label="L arm"
+                  <ArmKfCard key={id} kf={kf as ArmKeyframe /* cast: the switch above narrows the track, so its keyframes are this kind (ADR-0071) */} label="L arm"
                     onChange={k => { const kfs = emote.tracks.leftArm.map(x => x.id === id ? k : x); updateTrack("leftArm", kfs); }}
                     {...commonProps} />
                 );
                 case "eyes": return (
-                  <EyeKfCard key={id} kf={kf as EyeKeyframe}
+                  <EyeKfCard key={id} kf={kf as EyeKeyframe /* cast: the switch above narrows the track, so its keyframes are this kind (ADR-0071) */}
                     onChange={k => { const kfs = emote.tracks.eyes.map(x => x.id === id ? k : x); updateTrack("eyes", kfs); }}
                     {...commonProps} />
                 );
                 case "effects": return (
-                  <EffectKfCard key={id} kf={kf as EffectKeyframe}
+                  <EffectKfCard key={id} kf={kf as EffectKeyframe /* cast: the switch above narrows the track, so its keyframes are this kind (ADR-0071) */}
                     onChange={k => { const kfs = emote.tracks.effects.map(x => x.id === id ? k : x); updateTrack("effects", kfs); }}
                     {...commonProps} />
                 );

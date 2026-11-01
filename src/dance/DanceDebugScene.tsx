@@ -583,7 +583,7 @@ export function DanceDebugScene({ initialFigure }: { initialFigure: DebugFigure 
         </div>
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           bodies
-          {(Object.keys(BODY_RADII) as SizeCast[]).map((s) => (
+          {(Object.keys(BODY_RADII) as SizeCast[] /* cast: `Object.keys` of an object with only these keys (ADR-0071) */).map((s) => (
             <button
               key={s}
               onClick={() => { setSizes(s); }}

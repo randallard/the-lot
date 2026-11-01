@@ -90,7 +90,7 @@ function patchHeadRotation(
   axis: 0 | 1 | 2,
   value: number,
 ): CharacterBodyShape {
-  const rot = [...shape.head.rotation] as [number, number, number];
+  const rot = [...shape.head.rotation] satisfies [number, number, number];
   rot[axis] = value;
   return { ...shape, head: { ...shape.head, rotation: rot } };
 }
@@ -101,7 +101,7 @@ function patchHandRotation(
   axis: 0 | 1 | 2,
   value: number,
 ): CharacterBodyShape {
-  const rot = [...shape.hand[pose].rotation] as [number, number, number];
+  const rot = [...shape.hand[pose].rotation] satisfies [number, number, number];
   rot[axis] = value;
   return {
     ...shape,

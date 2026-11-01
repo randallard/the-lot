@@ -1,5 +1,15 @@
 export const config = { runtime: "edge" };
 
+/** A JSON value's own field, or `undefined` (the same reader as npc-chat.ts; `api/` files deploy alone). */
+function field(v: unknown, key: string): unknown {
+  if (typeof v !== "object" || v === null || !(key in v)) return undefined;
+  const value: unknown = Reflect.get(v, key);
+  return value;
+}
+
+/** The value if it's a non-empty string. */
+const text = (v: unknown): string | undefined => (typeof v === "string" && v !== "" ? v : undefined);
+
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -17,9 +27,12 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    const { email, message, npcId } = await req.json();
+    const body: unknown = await req.json();
+    const email = text(field(body, "email"));
+    const message = text(field(body, "message"));
+    const npcId = text(field(body, "npcId"));
 
-    if (!email || !message) {
+    if (email === undefined || message === undefined) {
       return new Response(JSON.stringify({ error: "Email and message required" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },

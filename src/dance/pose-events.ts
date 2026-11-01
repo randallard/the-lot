@@ -33,6 +33,8 @@
  * Exploratory and unrecorded in an ADR on purpose: the model is being played with.
  */
 
+import { isRecord } from "../services/json-guards";
+
 /** `<dancer>.<part>.<aspect>`, e.g. `1.hand-left.bend` — the key every dial value is stored under. */
 export type DialKey = string;
 
@@ -73,8 +75,8 @@ export function makeEvent(body: PoseEventBody, now: Date = new Date(), id: strin
 }
 
 export function isPoseEvent(x: unknown): x is PoseEvent {
-  if (typeof x !== "object" || x === null) return false;
-  const e = x as Record<string, unknown>;
+  if (!isRecord(x)) return false;
+  const e = x;
   return typeof e["id"] === "string" && typeof e["at"] === "string" && e["v"] === 1 && typeof e["kind"] === "string";
 }
 
@@ -134,7 +136,7 @@ export function reduce(events: readonly PoseEvent[]): PoseState {
 
   // A locked pairing's own keyframes can't change; an edit that reaches the log anyway (another
   // device, an old bundle) is skipped rather than quietly changing what was accepted.
-  const isLocked = (f: Mutable, scope: Scope | string) =>
+  const isLocked = (f: Mutable, scope: Extract<Scope, object> | string) =>
     typeof scope === "object" ? f.locked.has(scope.pairing) : scope !== "draft" && scope !== "all" && f.locked.has(scope);
 
   for (const e of unique) {
@@ -276,10 +278,10 @@ export function fromBundle(text: string): { events: readonly PoseEvent[] } | { e
   } catch {
     return { error: "not JSON" };
   }
-  if (typeof raw !== "object" || raw === null || (raw as Record<string, unknown>)["format"] !== BUNDLE_FORMAT) {
+  if (!isRecord(raw) || raw["format"] !== BUNDLE_FORMAT) {
     return { error: `not a ${BUNDLE_FORMAT} file` };
   }
-  const events = (raw as Record<string, unknown>)["events"];
+  const events = raw["events"];
   if (!Array.isArray(events)) return { error: "no events in it" };
   return { events: events.filter(isPoseEvent) };
 }

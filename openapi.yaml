@@ -95,8 +95,8 @@ components:
     Error:
       description: |
         A failure, with a short reason. 405: not POST (the client's health check relies on it).
-        400: email or message missing (support only). 500: the server's secret isn't configured,
-        or an internal error. 502: Claude or Discord refused.
+        400: email or message missing, empty or not a string (support only). 500: the server's
+        secret isn't configured, or an internal error. 502: Claude or Discord refused.
       content:
         application/json:
           schema:
@@ -178,12 +178,14 @@ components:
       properties:
         email:
           type: string
+          minLength: 1
           description: Free text as the player typed it; not validated as an address.
         message:
           type: string
+          minLength: 1
         npcId:
           type: string
-          description: The NPC the player was talking to; `ryan` when absent.
+          description: The NPC the player was talking to; `ryan` when absent, empty or not a string.
     SupportAccepted:
       type: object
       required: [ok]

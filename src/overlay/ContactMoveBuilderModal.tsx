@@ -185,7 +185,7 @@ function Editor({ move: initial, cast, castOptions, castIds, onCast, onSave, onB
         i === 0
           ? {
               ...c,
-              anchors: c.anchors.map((an) => (an.role === role ? { ...an, ...p } : an)) as unknown as ContactConstraint["anchors"],
+              anchors: c.anchors.map((an) => (an.role === role ? { ...an, ...p } : an)) as unknown as ContactConstraint["anchors"] /* cast: each anchor keeps its role, so the tuple shape holds (ADR-0071) */,
             }
           : c,
       ),
@@ -274,7 +274,7 @@ function Editor({ move: initial, cast, castOptions, castIds, onCast, onSave, onB
 
         <p style={SUB}>who's in it</p>
         <div style={PANEL}>
-          {(["A", "B"] as RoleId[]).map((role) => (
+          {(["A", "B"] satisfies RoleId[]).map((role) => (
             <div key={role} style={{ marginBottom: 6 }}>
               <span style={{ color: "#9b8abf", fontSize: 10, marginRight: 6 }}>role {role}</span>
               <select
@@ -348,7 +348,7 @@ function Editor({ move: initial, cast, castOptions, castIds, onCast, onSave, onB
           <>
             <p style={SUB}>what touches</p>
             <div style={PANEL}>
-              {(["A", "B"] as RoleId[]).map((role) => {
+              {(["A", "B"] satisfies RoleId[]).map((role) => {
                 const a = anchorFor(role);
                 if (!a) return null;
                 return (

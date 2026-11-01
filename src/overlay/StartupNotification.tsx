@@ -23,7 +23,7 @@ export function StartupNotification({ onOpenSettings }: StartupNotificationProps
   useEffect(() => {
     if (!visible) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      if (ref.current && !(e.target instanceof Node && ref.current.contains(e.target))) {
         setVisible(false);
       }
     };

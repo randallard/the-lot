@@ -241,13 +241,13 @@ function lerpEyeOverride(
   t: number,
 ): Partial<EyeShape> {
   const result: Partial<EyeShape> = { ...a };
-  for (const key of Object.keys(b) as (keyof EyeShape)[]) {
+  for (const key of Object.keys(b) as (keyof EyeShape)[] /* cast: `Object.keys` of an object with only these keys (ADR-0071) */) {
     const bv = b[key];
     const av = a[key];
     if (typeof bv === "number" && typeof av === "number") {
-      (result as Record<string, unknown>)[key] = lerpNum(av, bv, t);
+      (result as Record<string, unknown> /* cast: a per-key write into a partial of the same shape (ADR-0071) */)[key] = lerpNum(av, bv, t);
     } else if (bv !== undefined) {
-      (result as Record<string, unknown>)[key] = bv;
+      (result as Record<string, unknown> /* cast: a per-key write into a partial of the same shape (ADR-0071) */)[key] = bv;
     }
   }
   return result;
@@ -326,7 +326,7 @@ export function sampleBodyTrack(kfs: BodyKeyframe[], time: number, duration: num
 }
 
 type HeadSample = { rotation: [number,number,number]; offsetX: number; offsetY: number; offsetZ: number; radiusDelta: number };
-const HEAD_NEUTRAL = (): HeadKeyframe => ({ id: "", time: 0, deltaRotation: [0,0,0] as [number,number,number], offsetX: 0, offsetY: 0, offsetZ: 0, radiusDelta: 0, easing: "linear" });
+const HEAD_NEUTRAL = (): HeadKeyframe => ({ id: "", time: 0, deltaRotation: [0,0,0] satisfies [number, number, number], offsetX: 0, offsetY: 0, offsetZ: 0, radiusDelta: 0, easing: "linear" });
 
 export function sampleHeadTrack(kfs: HeadKeyframe[], time: number, duration: number): HeadSample {
   const zero: HeadSample = { rotation: [0,0,0], offsetX: 0, offsetY: 0, offsetZ: 0, radiusDelta: 0 };
@@ -485,7 +485,7 @@ export function mergeAnimation(shape: CharacterBodyShape, rp: ResolvedPose): Cha
         shape.head.rotation[0] + rp.headDeltaRotation[0],
         shape.head.rotation[1] + rp.headDeltaRotation[1],
         shape.head.rotation[2] + rp.headDeltaRotation[2],
-      ] as [number, number, number],
+      ] satisfies [number, number, number],
       offsetX: shape.head.offsetX + rp.headOffsetX,
       offsetY: shape.head.offsetY + rp.headOffsetY,
       offsetZ: shape.head.offsetZ + rp.headOffsetZ,

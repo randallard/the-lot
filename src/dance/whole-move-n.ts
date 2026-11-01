@@ -121,7 +121,7 @@ export function unpackN(v: Float64Array, i: number, base: readonly DancerFrame[]
   return base.map((d, j) => {
     let k = (i * nd + j) * PER_DANCER;
     const arm = (): Arm => {
-      const a = {} as Arm;
+      const a = {} as Arm /* cast: every `ARM_KEYS` field is set on the next line (ADR-0071) */;
       for (const key of ARM_KEYS) a[key] = v[k++] ?? 0;
       return a;
     };
@@ -296,8 +296,8 @@ function frameCostN(m: NMove, plan: Plan, i: number, v: Float64Array, w: Weights
     for (let sd = 0; sd < 2; sd++) {
       const k = o + sd * 6;
       const raise = rd(v, k), toward = rd(v, k + 1), ulen = rd(v, k + 2), pitch = rd(v, k + 3), heading = rd(v, k + 4), flen = rd(v, k + 5);
-      const S = b.shoulder[sd as 0 | 1];
-      const g = sign(sd as 0 | 1);
+      const S = b.shoulder[sd as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */];
+      const g = sign(sd as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */);
       const sr = Math.sin(raise), cr = Math.cos(raise), st = Math.sin(toward), ct = Math.cos(toward);
       const sp = Math.sin(pitch), cp = Math.cos(pitch), sh = Math.sin(heading), ch = Math.cos(heading);
       const ex = S[0] + g * sr * st * ulen, ey = S[1] - cr * ulen, ez = S[2] + sr * ct * ulen;
@@ -548,7 +548,7 @@ export function startN(m: NMove): Float64Array {
   const n = m.frames.length;
   const frames = m.frames.map((f, i) => {
     const t = n > 1 ? i / (n - 1) : 0;
-    const out = f.map((d, j) => ({ ...d, arms: [restArm(nth(m.bodies, j)), restArm(nth(m.bodies, j))] as [Arm, Arm] }));
+    const out = f.map((d, j) => ({ ...d, arms: [restArm(nth(m.bodies, j)), restArm(nth(m.bodies, j))] satisfies [Arm, Arm] }));
     for (const h of m.holds) {
       if (t < h.from - 1e-9 || t > h.to + 1e-9) continue;
       const A = nth(m.bodies, h.a.dancer);

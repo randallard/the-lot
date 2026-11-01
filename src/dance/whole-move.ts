@@ -591,7 +591,7 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
   // Each dancer's own arms against their own head and torso (an arm overhead goes round the head;
   // no arm goes through its own body). The upper arm starts at the shoulder, clear of the torso.
   [A, B].forEach((S, k) => {
-    const body = m.bodies[k as 0 | 1];
+    const body = m.bodies[k as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */];
     for (let j = 2; j < S.length; j++) for (const own of [0, 1] as const) {
       const s1 = S[j];
       const s2 = S[own];
@@ -682,7 +682,7 @@ export function frameCost(m: Move, i: number, f: Frame, w: Weights = WEIGHTS, gu
       // Held arms low against their own shoulder, so growing isn't paid for twice.
       const isHeld = hs.some((h) => (k === 0 ? h.beau : h.belle) === side);
       if (isHeld) {
-        const p = armPoints(body, side as 0 | 1, a);
+        const p = armPoints(body, side as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */, a);
         c += w.gravity * (p.e[1] + p.h[1] - 2 * body.shoulder[0][1]);
       } else {
         const r = restArm(body);
@@ -789,10 +789,10 @@ export function unpackOne(v: Float64Array, i: number, base: Frame): Frame {
   let k = i * PER;
   const dancer = (d: DancerFrame, dx: number, dz: number): DancerFrame => {
     const arms = d.arms.map(() => {
-      const a = {} as Arm;
+      const a = {} as Arm /* cast: every `ARM_KEYS` field is set on the next line (ADR-0071) */;
       for (const key of ARM_KEYS) a[key] = v[k++] ?? 0;
       return a;
-    }) as [Arm, Arm];
+    }) as [Arm, Arm] /* cast: two dancers or two arms, mapped from a pair (ADR-0071) */;
     return { ...d, x: d.x + dx, z: d.z + dz, arms };
   };
   const grow = (d: 0 | 1) => v[GROW_AT(i, d)] ?? 0;
@@ -1041,8 +1041,8 @@ export function frameCostGrad(
   const side = rd(v, o + 25);
   // Forward: every point in the floor frame.
   for (let d = 0; d < 2; d++) {
-    const b = m.bodies[d as 0 | 1];
-    const f = base[d as 0 | 1];
+    const b = m.bodies[d as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */];
+    const f = base[d as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */];
     const c = Math.cos(f.yaw);
     const s = Math.sin(f.yaw);
     const tx = f.x + (d === 0 ? ux * out - uz * side : 0);
@@ -1062,10 +1062,10 @@ export function frameCostGrad(
     for (let sd = 0; sd < 2; sd++) {
       const k = o + d * 12 + sd * 6;
       const raise = rd(v, k), toward = rd(v, k + 1), ulen = rd(v, k + 2), pitch = rd(v, k + 3), heading = rd(v, k + 4), flen = rd(v, k + 5);
-      const S0 = b.shoulder[sd as 0 | 1];
-      const RS = R.shoulder[sd as 0 | 1];
+      const S0 = b.shoulder[sd as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */];
+      const RS = R.shoulder[sd as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */];
       const S = [S0[0] + RS[0] * gr, S0[1] + RS[1] * gr, S0[2] + RS[2] * gr] as const;
-      const g = sign(sd as 0 | 1);
+      const g = sign(sd as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */);
       const sr = Math.sin(raise), cr = Math.cos(raise), st = Math.sin(toward), ct = Math.cos(toward);
       const sp = Math.sin(pitch), cp = Math.cos(pitch), sh = Math.sin(heading), ch = Math.cos(heading);
       const ex = S[0] + g * sr * st * ulen, ey = S[1] - cr * ulen, ez = S[2] + sr * ct * ulen;
@@ -1085,7 +1085,7 @@ export function frameCostGrad(
     }
   }
   for (let d = 0; d < 2; d++) {
-    const b = m.bodies[d as 0 | 1];
+    const b = m.bodies[d as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */];
     const r = SHAPE_R;
     const q = d * 8;
     r[q] = b.torso.r; r[q + 1] = b.head.r;
@@ -1108,11 +1108,11 @@ export function frameCostGrad(
     addPt(q2, -k * segT, nx, ny, nz);
   };
   for (let a = 0; a < 8; a++) for (let b = 0; b < 8; b++) if (plan.exempt[a * 8 + b] !== 1) pen(0, a, 1, b, plan.exempt[a * 8 + b] === 2 ? Math.min(w.margin, HELD_MARGIN) : w.margin);
-  for (let d = 0; d < 2; d++) for (let s = 2; s < 8; s++) for (const own of [0, 1] as const) pen(d, s, d, own, ownMargin(m.bodies[d as 0 | 1], s, own, w.margin));
+  for (let d = 0; d < 2; d++) for (let s = 2; s < 8; s++) for (const own of [0, 1] as const) pen(d, s, d, own, ownMargin(m.bodies[d as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */], s, own, w.margin));
   // Hands above the floor.
   for (let d = 0; d < 2; d++) for (let sd = 0; sd < 2; sd++) {
-    const p = (d * NPT + HAND_PT(sd as 0 | 1)) * 3;
-    const under = m.bodies[d as 0 | 1].handR - rd(PTS, p + 1);
+    const p = (d * NPT + HAND_PT(sd as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */)) * 3;
+    const under = m.bodies[d as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */].handR - rd(PTS, p + 1);
     if (under > 0) {
       cost += w.clip * under * under;
       GPT[p + 1] = rd(GPT, p + 1) - 2 * w.clip * under;
@@ -1218,7 +1218,7 @@ export function frameCostGrad(
   }
   // Natural, straight on the dials (gravity on the elbow's and hand's height over the shoulder's).
   for (let d = 0; d < 2; d++) {
-    const b = m.bodies[d as 0 | 1];
+    const b = m.bodies[d as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */];
     const gk = o + 26 + d;
     const gr = rd(v, gk);
     const room = m.grow?.[d];
@@ -1317,8 +1317,8 @@ export function frameCostGrad(
   }
   // Back: points → dials and the beau's step.
   for (let d = 0; d < 2; d++) {
-    const b = m.bodies[d as 0 | 1];
-    const f = base[d as 0 | 1];
+    const b = m.bodies[d as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */];
+    const f = base[d as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */];
     const c = Math.cos(f.yaw);
     const s = Math.sin(f.yaw);
     let sumX = 0;
@@ -1344,7 +1344,7 @@ export function frameCostGrad(
         return rd(GPT, j) * r[0] + rd(GPT, j + 1) * r[1] + rd(GPT, j + 2) * r[2];
       };
       let gg = at(1, R.top) + at(2, R.head);
-      for (let sd = 0; sd < 2; sd++) for (let p = 3; p < 7; p++) gg += at(p + 4 * sd, R.shoulder[sd as 0 | 1]);
+      for (let sd = 0; sd < 2; sd++) for (let p = 3; p < 7; p++) gg += at(p + 4 * sd, R.shoulder[sd as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */]);
       grad[o + 26 + d] = rd(grad, o + 26 + d) + gg;
     }
     for (let sd = 0; sd < 2; sd++) {
@@ -1560,7 +1560,7 @@ export function metrics(m: Move, frames: readonly Frame[], path?: readonly Frame
     };
     for (const s1 of A) for (const s2 of B) if (!exempt(m, t, s1.name, s2.name)) check(s1, s2, "beau/belle");
     [A, B].forEach((S, k) => {
-      const body = m.bodies[k as 0 | 1];
+      const body = m.bodies[k as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */];
       for (let j = 2; j < S.length; j++) for (const own of [0, 1] as const) {
         const s1 = S[j];
         const s2 = S[own];
@@ -1753,7 +1753,7 @@ function forearmStart(m: Move, f: Frame, h: Hold, height: number): Frame {
     return [from[0] + (to[0] - from[0]) * k, height, from[2] + (to[2] - from[2]) * k];
   };
   const set = (d: DancerFrame, body: Body, side: 0 | 1, e: Vec, hand: Vec): DancerFrame => {
-    const arms = [...d.arms] as [Arm, Arm];
+    const arms = [...d.arms] as [Arm, Arm] /* cast: two dancers or two arms, mapped from a pair (ADR-0071) */;
     arms[side] = armThrough(body, side, d, e, hand);
     return { ...d, arms };
   };
@@ -1797,10 +1797,10 @@ export function startOnPath(m: Move, at: (i: number) => Vec): Frame[] {
         if (!isHeld) return a;
         const s = toFloor(side === 0 ? body.shoulder[0] : body.shoulder[1], d);
         const out: Vec = [s[0] - d.x, -0.4, s[2] - d.z];
-        return reachArm(body, side as 0 | 1, d, at(i), out);
-      }) as [Arm, Arm];
+        return reachArm(body, side as 0 | 1 /* cast: the index runs over a pair, so it is 0 or 1 (ADR-0071) */, d, at(i), out);
+      }) as [Arm, Arm] /* cast: two dancers or two arms, mapped from a pair (ADR-0071) */;
       return { ...d, arms };
-    }) as Frame;
+    }) as Frame /* cast: a frame mapped dancer for dancer keeps its two dancers (ADR-0071) */;
   });
   for (let i = 1; i < frames.length; i++) {
     const prev = frames[i - 1];

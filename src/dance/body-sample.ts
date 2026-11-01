@@ -37,7 +37,7 @@ export function blendBody(a: CharacterBodyShape, b: CharacterBodyShape, u: numbe
   const scaled = (p: number, q: number, bound: { min: number; max: number }) => clamp(mix(p, q) * j(), bound);
   const moved = (p: number, q: number, bound: { min: number; max: number }) => clamp(mix(p, q) + spread * 0.1 * (2 * r() - 1), bound);
   const B = SHAPE_BOUNDS;
-  const out: CharacterBodyShape = JSON.parse(JSON.stringify(a)) as CharacterBodyShape;
+  const out: CharacterBodyShape = structuredClone(a);
   out.head.radius = scaled(a.head.radius, b.head.radius, B.head.radius);
   out.head.offsetX = moved(a.head.offsetX, b.head.offsetX, B.head.offsetX);
   out.head.offsetY = moved(a.head.offsetY, b.head.offsetY, B.head.offsetY);

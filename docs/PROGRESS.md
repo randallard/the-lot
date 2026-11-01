@@ -4,9 +4,30 @@ _Last updated: 2026-11-01_
 
 ## Status / next
 
-**Standards:** compliance review 2026-11-01 ([note](compliance/2026-11-01.md)) and stance review 2026-11-01 ([review](reviews/2026-11-01-stance-review.md)). **Done since then** ([journal 11-01 (1)](journal/2026-11-01-1-osv-pnpm-12-and-an-openapi-contract.md)): ADR-1018 (OSV v2.7.0); pnpm 12.16.1; ADR-1019, with `openapi.yaml` for `api/` linting clean against api-standards v0.1.0 (four scoped overrides with reasons, including no auth on npc-chat and plain-JSON errors). Still open from the review: the PICK UP block below trails the lint thread; the minimatch ignore can retire via eslint 10 + an override; Haiku 4.5 still Active (deferred). TypeScript **6.0.3** in, with no code change ([journal 10-31 (4)](journal/2026-10-31-4-typescript-6.md)). tsconfig flags on, 179 errors fixed, `api/` now typechecked ([journal 10-31 (5)](journal/2026-10-31-5-the-tsconfig-flags.md)). Lint pass begun ([journal 10-31 (6)](journal/2026-10-31-6-the-lint-pass-begins.md), [ADR-0070](adr/0070-strict-lint-with-two-react-shaped-options.md)): `pnpm lint:strict` measures it, **81 findings** after the big files, every test file, the scripts, services and overlays ([10-31 (7)](journal/2026-10-31-7-whole-move-reads-are-checked.md)–[(20)](journal/2026-10-31-20-services-and-overlays.md); untrusted JSON now goes through `src/services/json-guards.ts`, and the playtest list is in (20)); left: mostly `src/dance/`, then `api/support.ts` and `src/world/` ([10-31 (7)](journal/2026-10-31-7-whole-move-reads-are-checked.md), [(8)](journal/2026-10-31-8-whole-move-n-and-the-shared-helper-trap.md): local `rd`/`nth` checked reads). ⏳ **Still to take:** the lint pass to zero · jsx-a11y (ADR-0067) · swap the configs, `--max-warnings 0` · ADR-0066's cast registry · then claim provable-lite. The minimatch ignore (GHSA-g3hv-75wg-m249) stays until eslint/typescript-eslint use minimatch ≥ 11.0.1 or 3.x/10.x get a backport ([note](compliance/2026-10-31.md))
+**Standards:** compliance review 2026-11-01 ([note](compliance/2026-11-01.md)) and stance review 2026-11-01 ([review](reviews/2026-11-01-stance-review.md)). **Done since then** ([journal 11-01 (1)](journal/2026-11-01-1-osv-pnpm-12-and-an-openapi-contract.md)): ADR-1018 (OSV v2.7.0); pnpm 12.16.1; ADR-1019, with `openapi.yaml` for `api/` linting clean against api-standards v0.1.0 (four scoped overrides with reasons, including no auth on npc-chat and plain-JSON errors). Still open from the review: the minimatch ignore can retire via eslint 10 + an override; Haiku 4.5 still Active (deferred). TypeScript **6.0.3** in, with no code change ([journal 10-31 (4)](journal/2026-10-31-4-typescript-6.md)). tsconfig flags on, 179 errors fixed, `api/` now typechecked ([journal 10-31 (5)](journal/2026-10-31-5-the-tsconfig-flags.md)). Lint pass begun 10-31 ([journal 10-31 (6)](journal/2026-10-31-6-the-lint-pass-begins.md), [ADR-0070](adr/0070-strict-lint-with-two-react-shaped-options.md)) and **done 11-01: 0 findings, configs swapped, `pnpm lint` is strict with `--max-warnings 0`** ([journal 11-01 (2)](journal/2026-11-01-2-the-lint-pass-reaches-zero.md); its playtest list is there; bakes byte-identical). **Then (11-01 (3), [journal](journal/2026-11-01-3-the-cast-registry.md)): the cast registry** ([ADR-0071](adr/0071-every-cast-is-registered.md), supersedes 0066): 177 casts by the AST, 86 replaced (untrusted JSON guarded, `instanceof`, `satisfies`, test re-typings dropped), 91 registered in [`docs/any-registry.md`](any-registry.md) with inline reasons; **jsx-a11y deferred** ([ADR-0072](adr/0072-accessibility-lint-is-deferred.md), supersedes 0067) until it supports ESLint 10; **README claims provable-lite.** Committed locally with 11-01 (2) at Ryan's request, not pushed; both playtest lists are in the journals. The minimatch ignore (GHSA-g3hv-75wg-m249) stays until eslint/typescript-eslint use minimatch ≥ 11.0.1 or 3.x/10.x get a backport ([note](compliance/2026-10-31.md))
 
-> ### ▶ PICK UP HERE — 2026-10-31 (2) — the shoulder rides the torso; 27 bakes re-made
+> ### ▶ PICK UP HERE — 2026-11-01 (3) — lint at zero and the cast registry, committed, not pushed
+>
+> [`journal/2026-11-01-2-the-lint-pass-reaches-zero.md`](journal/2026-11-01-2-the-lint-pass-reaches-zero.md)
+> · [`journal/2026-11-01-3-the-cast-registry.md`](journal/2026-11-01-3-the-cast-registry.md) · 🧪
+> committed locally at Ryan's request; no playtest result is recorded. Lint, `tsc -b`, tests (1240
+> passed, 29 expected fail, 3 skipped) and build pass.
+>
+> ⏳ **Next:**
+>
+> 1. Ryan plays both journals' playtest lists, if not already done. Then `gr push --only the-lot`,
+>    and push to GitHub `origin`.
+> 2. Unblocked by the lint pass reaching zero, not started (stance review 11-01): **eslint 10**,
+>    with react-hooks 7.1.1 and react-refresh 0.5.x, then override minimatch 10 → 11 and retire
+>    GHSA-g3hv-75wg-m249 from both scanners in one commit, re-checking ADR-0069's five files under
+>    7.1's ref validation. **vite 8 + vitest 5**: the deferral's last condition is now met, so
+>    evaluate it.
+> 3. After the playtest: RFC 9457 errors in `api/` (`.spectral.yaml`'s `as-problem-json` override).
+> 4. The dance work resumes at 10-31 (2)'s next step, below.
+>
+> ---
+>
+> ### 2026-10-31 (2) — the shoulder rides the torso; 27 bakes re-made
 >
 > [`journal/2026-10-31-2-the-shoulder-rides-the-torso.md`](journal/2026-10-31-2-the-shoulder-rides-the-torso.md)
 >

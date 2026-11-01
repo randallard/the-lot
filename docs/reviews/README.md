@@ -54,7 +54,7 @@ By hand, the checklist is:
 
 ## In this repo
 
-Two items the template's checklist doesn't carry:
+Three items the template's checklist doesn't carry:
 
 - **The model behind NPC dialogue.** [ADR-0006](../adr/0006-npc-dialogue-through-a-serverless-proxy.md)
   routes it through `api/npc-chat.ts`, which pins a specific Claude model id. Model ids are deprecated
@@ -64,6 +64,9 @@ Two items the template's checklist doesn't carry:
   adopted the standard piece by piece (`README.md`). Compare against a checkout of
   `cr-ci-cd-rust-typescript-template` instead: the inherited ADRs (`docs/adr/1*.md`), the two skills,
   the workflows, `scripts/docs-hygiene.py` and this file.
+- **Accessibility lint, deferred.** [ADR-0072](../adr/0072-accessibility-lint-is-deferred.md) waits for
+  `eslint-plugin-jsx-a11y` to support ESLint 10. Check
+  `npm view eslint-plugin-jsx-a11y@latest peerDependencies.eslint` for `^10`.
 
 ## Outcome
 

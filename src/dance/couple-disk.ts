@@ -70,14 +70,21 @@ export function diskSlots(center: Coord, n: number): Coord[] {
   return out;
 }
 
+/** A checked index read, local on purpose (journal 10-31 (8): an imported helper is slower in the bakes). */
+const nth = <T>(a: readonly T[], i: number): T => {
+  const x = a[i];
+  if (x === undefined) throw new RangeError(`couple-disk: index ${String(i)} outside ${String(a.length)}`);
+  return x;
+};
+
 export type Layout = Readonly<Record<string, Coord>>;
 
 /** The first layout: the focus at the origin, everyone else filling the disk in the given order. */
 export function initialLayout(ids: readonly string[], focus: string): Layout {
   const slots = diskSlots([0, 0], ids.length);
   const others = ids.filter((id) => id !== focus);
-  const out: Record<string, Coord> = { [focus]: slots[0]! };
-  others.forEach((id, i) => { out[id] = slots[i + 1]!; });
+  const out: Record<string, Coord> = { [focus]: nth(slots, 0) };
+  others.forEach((id, i) => { out[id] = nth(slots, i + 1); });
   return out;
 }
 
@@ -92,17 +99,17 @@ export function refocus(layout: Layout, ids: readonly string[], focus: string): 
   if (center === undefined) return initialLayout(ids, focus);
   const [, ...spots] = diskSlots(center, ids.length);
   const others = ids.filter((id) => id !== focus);
-  const pairs: { id: string; spot: number; d: number }[] = [];
+  const pairs: { id: string; spot: number; to: Coord; d: number }[] = [];
   for (const id of others) {
     const at = layout[id];
-    spots.forEach((s, spot) => pairs.push({ id, spot, d: at === undefined ? Infinity : dist(at, s) }));
+    spots.forEach((s, spot) => pairs.push({ id, spot, to: s, d: at === undefined ? Infinity : dist(at, s) }));
   }
   pairs.sort((a, b) => a.d - b.d || a.spot - b.spot);
   const out: Record<string, Coord> = { [focus]: center };
   const used = new Set<number>();
   for (const p of pairs) {
     if (out[p.id] !== undefined || used.has(p.spot)) continue;
-    out[p.id] = spots[p.spot]!;
+    out[p.id] = p.to;
     used.add(p.spot);
   }
   return out;

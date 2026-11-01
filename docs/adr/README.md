@@ -162,11 +162,13 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0063](0063-an-unclassified-expression-channel-is-owned.md) | An unclassified expression channel is owned | Accepted |
 | [0064](0064-the-channel-contract-governs-engine-driven-dancers-only.md) | The channel contract governs engine-driven dancers only | Accepted |
 | [0065](0065-state-is-managed-facts-managed-position-and-derived-values.md) | State is managed facts, a managed position, and derived values — and a screen's transitions go through one pure reducer | Accepted |
-| [0066](0066-casts-are-not-registered-until-the-lint-pass.md) | No `any` registry until the strict lint pass has run | Accepted |
-| [0067](0067-accessibility-lint-for-the-html-overlays.md) | Accessibility lint (jsx-a11y) for the HTML overlays | Accepted |
+| [0066](0066-casts-are-not-registered-until-the-lint-pass.md) | No `any` registry until the strict lint pass has run | Superseded by [0071](0071-every-cast-is-registered.md) |
+| [0067](0067-accessibility-lint-for-the-html-overlays.md) | Accessibility lint (jsx-a11y) for the HTML overlays | Superseded by [0072](0072-accessibility-lint-is-deferred.md) |
 | [0068](0068-no-rust-core.md) | No Rust/WASM core in the client; the-lot's logic stays at TypeScript with property tests | Accepted |
 | [0069](0069-the-react-hooks-exception-names-the-dance-files-that-write-from-a-frame-loop.md) | The react-hooks exception names the dance files that write from a frame loop, not `src/dance/**` | Accepted |
 | [0070](0070-strict-lint-with-two-react-shaped-options.md) | The strict lint pass runs `strictTypeChecked` with two options relaxed for React, and lints `scripts/` without types | Accepted |
+| [0071](0071-every-cast-is-registered.md) | Every cast is justified inline and registered | Accepted |
+| [0072](0072-accessibility-lint-is-deferred.md) | Accessibility lint is deferred until it supports ESLint 10 | Accepted |
 | [1000](1000-template-standards-adrs-are-inherited.md) | Template standards ADRs are inherited, numbered 1000 and up | Accepted |
 | [1001](1001-project-conventions-is-the-canonical-standard.md) | project-conventions is the canonical provable-code standard | Accepted |
 | [1002](1002-provable-is-a-four-rung-ladder.md) | "Provable" means a four-rung ladder, and a project claims only the rungs CI enforces | Accepted |

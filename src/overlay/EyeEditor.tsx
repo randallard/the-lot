@@ -184,9 +184,9 @@ function ExpressionRow({ name, baseRight, override, onUpdate, onDelete }: Expres
   function handleChange(updated: EyeShape) {
     // Build sparse override: only include fields that differ from base
     const sparse: Partial<EyeShape> = {};
-    (Object.keys(updated) as (keyof EyeShape)[]).forEach(k => {
+    (Object.keys(updated) as (keyof EyeShape)[] /* cast: `Object.keys` of an object with only these keys (ADR-0071) */).forEach(k => {
       if (updated[k] !== baseRight[k]) {
-        (sparse as Record<string, unknown>)[k] = updated[k];
+        (sparse as Record<string, unknown> /* cast: a per-key write into a partial of the same shape (ADR-0071) */)[k] = updated[k];
       }
     });
     onUpdate(sparse);
@@ -324,9 +324,9 @@ export function EyeEditor({ eyes, onChange }: EyeEditorProps) {
       const otherBase = eyeTab === "right" ? eyes.left : eyes.right;
       const activeBase = eyeTab === "right" ? eyes.right : eyes.left;
       const otherUpdate = { ...otherBase };
-      (Object.keys(updated) as (keyof EyeShape)[]).forEach(k => {
+      (Object.keys(updated) as (keyof EyeShape)[] /* cast: `Object.keys` of an object with only these keys (ADR-0071) */).forEach(k => {
         if (updated[k] !== activeBase[k]) {
-          (otherUpdate as Record<string, unknown>)[MIRROR_MAP[k] ?? k] = updated[k];
+          (otherUpdate as Record<string, unknown> /* cast: a per-key write into a partial of the same shape (ADR-0071) */)[MIRROR_MAP[k] ?? k] = updated[k];
         }
       });
       if (updated.rotation !== activeBase.rotation) {

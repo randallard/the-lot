@@ -179,7 +179,7 @@ export function MoodSlider({
     if (step !== "responding" || showOptIn) return;
     const onKey = (e: KeyboardEvent) => {
       // Skip if typing in an external input (e.g. MoodResponsesModal)
-      const target = e.target as HTMLElement;
+      const target = e.target;
       const isOurInput = target === sliderRef.current || target === inputRef.current;
       if ((target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) && !isOurInput) return;
 

@@ -99,7 +99,7 @@ export function GameNpc({
           mesh.position.set(z.offset * 0.5, 0.6 + z.phase * 1.2, 0);
           const scale = 0.06 + z.phase * 0.08;
           mesh.scale.set(scale, scale, scale);
-          (mesh.material as THREE.MeshStandardMaterial).opacity = 1 - z.phase;
+          (mesh.material as THREE.MeshStandardMaterial /* cast: the material its JSX declares (ADR-0071) */).opacity = 1 - z.phase;
         }
       }
     }

@@ -74,7 +74,7 @@ export function BoardGrid({
                   );
                 }
                 const color =
-                  (move as BoardMove & { color?: string }).color ??
+                  (move as BoardMove & { color?: string } /* cast: reads an optional field another source may add (ADR-0071) */).color ??
                   pieceColor ??
                   BLUE;
                 return (

@@ -188,10 +188,8 @@ export function Npc({ position, playerPosition, onClick, relaxing, talking, scre
       const dist = toTarget.length();
 
       if (dist < 0.3) {
-        // Arrived at camp
-        if (behavior === "walking-to-camp") {
-          setBehavior("sitting");
-        }
+        // Arrived at camp (still "walking-to-camp": the enclosing branch checked it)
+        setBehavior("sitting");
       } else {
         const dir = toTarget.normalize();
         pos.addScaledVector(dir, WALK_SPEED * delta);
@@ -438,8 +436,8 @@ function Campfire({ position }: { position: [number, number, number] }) {
   );
 
   useFrame((_, delta) => {
+    // Only meshes that mounted are in the array (the ref callback skips null).
     smokeRefs.current.forEach((mesh, i) => {
-      if (!mesh) return;
       const d = smokeData.current[i];
       if (!d) return; // one datum per smoke mesh, so never
       // Rise and reset
@@ -449,7 +447,7 @@ function Campfire({ position }: { position: [number, number, number] }) {
       mesh.position.x = Math.sin(Date.now() * 0.001 + d.offset) * 0.08;
       // Fade as it rises
       const t = (mesh.position.y - 0.25) / 0.95;
-      const mat = mesh.material as THREE.MeshStandardMaterial;
+      const mat = mesh.material as THREE.MeshStandardMaterial /* cast: the material its JSX declares (ADR-0071) */;
       mat.opacity = 0.35 * (1 - t);
       // Grow as it rises
       const s = 0.04 + t * 0.08;

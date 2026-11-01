@@ -45,7 +45,7 @@ function clearHash(): void {
 
 type Winner = GameResults["rounds"][number]["winner"];
 
-const isWinner = (v: unknown): v is Winner => v === "player" || v === "opponent" || v === "tie";
+export const isWinner = (v: unknown): v is Winner => v === "player" || v === "opponent" || v === "tie";
 const isFinalOrIncomplete = (v: unknown): v is GameResults["winner"] => isWinner(v) || v === "incomplete";
 const isId = (v: unknown): v is string => isString(v) && v !== "";
 

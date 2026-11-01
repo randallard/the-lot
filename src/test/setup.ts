@@ -3,27 +3,28 @@ import { beforeEach } from 'vitest';
 
 // Mock localStorage for tests
 const localStorageMock = (() => {
-  let store: Record<string, string> = {};
+  // A Map, so removal isn't a dynamic `delete`. `|| null` below keeps the old mock's reading of a
+  // stored "" as absent, so no test sees a difference.
+  const store = new Map<string, string>();
 
   return {
     getItem: (key: string): string | null => {
-      return store[key] || null;
+      return store.get(key) || null;
     },
     setItem: (key: string, value: string): void => {
-      store[key] = value.toString();
+      store.set(key, value);
     },
     removeItem: (key: string): void => {
-      delete store[key];
+      store.delete(key);
     },
     clear: (): void => {
-      store = {};
+      store.clear();
     },
     key: (index: number): string | null => {
-      const keys = Object.keys(store);
-      return keys[index] || null;
+      return [...store.keys()][index] || null;
     },
     get length(): number {
-      return Object.keys(store).length;
+      return store.size;
     },
   };
 })();

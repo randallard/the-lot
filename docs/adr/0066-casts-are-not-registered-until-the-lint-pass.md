@@ -1,5 +1,5 @@
 # ADR-0066: No `any` registry until the strict lint pass has run
-- Status: Accepted
+- Status: Superseded by [ADR-0071](0071-every-cast-is-registered.md)
 - Date: 2026-10-30
 - Deciders: Ryan (proposed by Claude, from the 2026-10-30 compliance review)
 

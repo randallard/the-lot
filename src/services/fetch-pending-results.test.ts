@@ -87,7 +87,7 @@ describe("fetchPendingResults", () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
     const deleteCall = defined(mockFetch.mock.calls[1], "mockFetch.mock.calls[1]");
     expect(defined(deleteCall[1], "deleteCall[1]").method).toBe("DELETE");
-    expect(JSON.parse(defined(deleteCall[1], "deleteCall[1]").body as string)).toEqual({
+    expect(JSON.parse(defined(deleteCall[1], "deleteCall[1]").body as string /* cast: the request body the code builds is a JSON string (ADR-0071) */)).toEqual({
       sessions: ["session-1"],
     });
   });

@@ -137,6 +137,13 @@ export const dialKey = (dancer: number, part: PartId, aspect: string): DialKey =
 /** The couple's width: the two dancers' floor positions apart, in cm. */
 export const WIDTH_KEY: DialKey = "couple.width";
 
+/** A checked index read, local on purpose (journal 10-31 (8): an imported helper is slower in the bakes). */
+const nth = <T>(a: readonly T[], i: number): T => {
+  const x = a[i];
+  if (x === undefined) throw new RangeError(`pose-dials: index ${String(i)} outside ${String(a.length)}`);
+  return x;
+};
+
 const R2D = 180 / Math.PI;
 const round = (v: number, step: number) => Math.round(v / step) * step;
 const wrap = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
@@ -386,9 +393,9 @@ export function sampleTrack(
     return mixPoses(solver, last.values, ease(Math.min(1, w)));
   }
   let i = 0;
-  while (i < frames.length - 1 && frames[i + 1]!.t <= t) i++;
-  const a = frames[i]!;
-  const b = frames[Math.min(i + 1, frames.length - 1)]!;
+  while (i < frames.length - 1 && nth(frames, i + 1).t <= t) i++;
+  const a = nth(frames, i);
+  const b = nth(frames, Math.min(i + 1, frames.length - 1));
   const span = b.t - a.t;
   const u = span <= 1e-9 ? 0 : Math.min(1, Math.max(0, (t - a.t) / span));
   return mixPoses(a.values, b.values, ease(u));

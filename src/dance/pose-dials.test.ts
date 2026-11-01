@@ -35,7 +35,7 @@ function rig(x: number): THREE.Group {
   return g;
 }
 
-const shapes = [{ body: { height: 1 } }, { body: { height: 1 } }] as unknown as CharacterBodyShape[];
+const shapes = [{ body: { height: 1 } }, { body: { height: 1 } }] as unknown as CharacterBodyShape[] /* cast: a fixture with only the field the code reads (ADR-0071) */;
 
 describe("dials written back onto the rig", () => {
   it("🔑 round-trips: what you dial is what the rig then reads — the L included", () => {

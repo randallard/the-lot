@@ -39,14 +39,14 @@ export function ChoiceBubble({ choices, defaultIndex = 0, speakerScreenPos }: Ch
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest("button")) return;
+    if (e.target instanceof Element && e.target.closest("button")) return;
     e.preventDefault();
     e.stopPropagation();
     startDrag(e.clientX, e.clientY);
   }, [startDrag]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if ((e.target as HTMLElement).closest("button")) return;
+    if (e.target instanceof Element && e.target.closest("button")) return;
     const t = e.touches[0];
     if (!t) return;
     startDrag(t.clientX, t.clientY);

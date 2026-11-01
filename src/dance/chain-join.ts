@@ -97,7 +97,7 @@ function placeOnto(f: readonly Frame[], from: Frame, onto: Frame): Frame[] {
     const x = d.x - from[0].x;
     const z = d.z - from[0].z;
     return { ...d, x: x * c + z * s + onto[0].x, z: -x * s + z * c + onto[0].z, yaw: d.yaw + phi, arms: [...d.arms] };
-  }) as Frame);
+  }) as Frame /* cast: a frame mapped dancer for dancer keeps its two dancers (ADR-0071) */);
 }
 
 /** The solver's variables for one sample of a bake, against the path frame it was solved on. */
@@ -151,7 +151,7 @@ function unpackValues(v: Float64Array, i: number, base: Frame, original: Readonl
     return a;
   };
   for (const d of [0, 1] as const) {
-    const arms = [arm(), arm()] as Frame[0]["arms"];
+    const arms = [arm(), arm()] satisfies Frame[0]["arms"];
     for (const [key, x] of Object.entries(toDials({ ...base[d], arms }, d))) if (ARM_DIAL.test(key)) values[key] = x;
   }
   const out = rd(v, k);
@@ -172,6 +172,8 @@ function unpackValues(v: Float64Array, i: number, base: Frame, original: Readonl
 
 /** The angles that go round (`toward`, `heading`) of each arm, as offsets within a sample. */
 const ROUND = [1, 4, 7, 10, 13, 16, 19, 22] as const;
+/** `ROUND` as plain numbers, so a loop index can be looked up in it. */
+const ROUND_AT: readonly number[] = ROUND;
 const wrapTo = (x: number, near: number) => x - 2 * Math.PI * Math.round((x - near) / (2 * Math.PI));
 
 /**
@@ -202,7 +204,7 @@ function eased(bake: Float64Array, n: number, onto: Float64Array, at: number, sh
   const v = Float64Array.from(bake);
   for (let k = 0; k < PER; k++) {
     let d = rd(onto, k) - rd(bake, at * PER + k);
-    if ((ROUND as readonly number[]).includes(k)) d = wrapTo(d, 0);
+    if (ROUND_AT.includes(k)) d = wrapTo(d, 0);
     for (let j = 0; j < n; j++) v[j * PER + k] = rd(bake, j * PER + k) + d * share(j);
   }
   return v;
@@ -367,7 +369,7 @@ export function joinChain(
     const mid = new Float64Array(PER);
     for (let k = 0; k < PER; k++) {
       const x = rd(a, J * PER + k);
-      const y = (ROUND as readonly number[]).includes(k) ? wrapTo(rd(b, k), x) : rd(b, k);
+      const y = ROUND_AT.includes(k) ? wrapTo(rd(b, k), x) : rd(b, k);
       mid[k] = (x + y) / 2;
     }
     // The held arms: the arch, held (unless a break is on either side: then the hands only reach),

@@ -240,7 +240,7 @@ describe("chain prompts are chains a caller could call", () => {
       let at: FormationId = chain.start;
       for (const step of chain.steps) {
         expect(callsFrom(at), `${step.id} from ${at}`).toContain(step.id);
-        expect(endingsFrom(step.id as ApplicationCallId, at), `${step.id} from ${at}`).toContain(step.to);
+        expect(endingsFrom(step.id as ApplicationCallId /* cast: a chain built from `STANDARD_APPLICATIONS` (ADR-0071) */, at), `${step.id} from ${at}`).toContain(step.to);
         at = step.to;
       }
     }

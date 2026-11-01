@@ -100,8 +100,8 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
     if (!groupRef.current) return;
 
     // --- Animation tick ---
-    const rp        = animController?.current?.tick(state.clock.elapsedTime) ?? NEUTRAL_POSE;
-    const isEmoting = animController?.current?.isPlaying() ?? false;
+    const rp        = animController?.current.tick(state.clock.elapsedTime) ?? NEUTRAL_POSE;
+    const isEmoting = animController?.current.isPlaying() ?? false;
     const animShape = mergeAnimation(shape, rp);
     const pos       = computePositions(animShape, PLAYER_BODY_CENTER_Y, handPose);
 
@@ -174,7 +174,8 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
     }
 
     // --- Rush fade ---
-    const isRushing = rushMode.current !== 0 && rushTarget.current;
+    const rushTo = rushMode.current !== 0 ? rushTarget.current : null;
+    const isRushing = rushTo !== null;
     if (matRef.current) {
       const targetOpacity = isRushing ? 0.3 : 1;
       for (const mat of [matRef.current, headMatRef.current, ...armMatsRef.current]) {
@@ -195,7 +196,7 @@ export function Player({ positionRef, inputDir, rushMode, rushTarget, hidden, bo
     if (bodyDriven) {
       // Nothing — the driver has it.
     } else if (isRushing) {
-      const target = rushTarget.current!;
+      const target = rushTo;
       const toTarget = new THREE.Vector3(
         target.x - groupRef.current.position.x,
         0,

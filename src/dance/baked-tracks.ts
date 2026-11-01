@@ -34,6 +34,7 @@ import type { CharacterBodyShape } from "../services/body-shapes";
 import { applyToRigs, mixPoses } from "./pose-dials";
 import type { DialKey } from "./pose-events";
 import { bodyOf } from "./whole-move";
+import { isRecord } from "../services/json-guards";
 
 export const BAKE_FORMAT = "townage-baked-track";
 
@@ -115,8 +116,8 @@ export interface BakedTrack {
 }
 
 export function isBakedTrack(x: unknown): x is BakedTrack {
-  if (typeof x !== "object" || x === null) return false;
-  const r = x as Record<string, unknown>;
+  if (!isRecord(x)) return false;
+  const r = x;
   return (
     r.format === BAKE_FORMAT &&
     r.version === 1 &&
@@ -132,8 +133,8 @@ export function isBakedTrack(x: unknown): x is BakedTrack {
 function canonical(v: unknown): string {
   if (typeof v === "number") return String(Math.round(v * 1e4) / 1e4);
   if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
-  if (typeof v === "object" && v !== null) {
-    const o = v as Record<string, unknown>;
+  if (isRecord(v)) {
+    const o = v;
     return `{${Object.keys(o).sort().map((k) => `${k}:${canonical(o[k])}`).join(",")}}`;
   }
   return JSON.stringify(v);
@@ -215,17 +216,24 @@ export function bakedGrow(values: Readonly<Record<DialKey, number>>, d: number):
   return (values[`${String(d)}.torso.grow`] ?? 0) / 100;
 }
 
+/** A checked index read, local on purpose (journal 10-31 (8): an imported helper is slower in the bakes). */
+const nth = <T>(a: readonly T[], i: number): T => {
+  const x = a[i];
+  if (x === undefined) throw new RangeError(`baked-tracks: index ${String(i)} outside ${String(a.length)}`);
+  return x;
+};
+
 /** The pose at `t` (0–1 of the call): linear between keyframes, held past either end. */
 export function sampleBaked(track: BakedTrack, t: number): Record<DialKey, number> {
   const ks = track.keyframes;
-  const first = ks[0]!;
-  const last = ks[ks.length - 1]!;
+  const first = nth(ks, 0);
+  const last = nth(ks, ks.length - 1);
   if (t <= first.t) return { ...first.values };
   if (t >= last.t) return { ...last.values };
   let i = 0;
-  while (i < ks.length - 2 && ks[i + 1]!.t <= t) i++;
-  const a = ks[i]!;
-  const b = ks[i + 1]!;
+  while (i < ks.length - 2 && nth(ks, i + 1).t <= t) i++;
+  const a = nth(ks, i);
+  const b = nth(ks, i + 1);
   const span = b.t - a.t;
   return mixPoses(a.values, b.values, span <= 1e-9 ? 0 : (t - a.t) / span);
 }
@@ -304,8 +312,8 @@ export function relativeKeyframes(
   const at = (p: readonly PathSample[], t: number): PathSample => {
     const u = Math.min(1, Math.max(0, t)) * (p.length - 1);
     const i = Math.min(p.length - 2, Math.floor(u));
-    const a = p[i]!;
-    const b = p[i + 1]!;
+    const a = nth(p, i);
+    const b = nth(p, i + 1);
     const f = u - i;
     let dy = b.facing - a.facing;
     dy = ((((dy + 180) % 360) + 360) % 360) - 180;

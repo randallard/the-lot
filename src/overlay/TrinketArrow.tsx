@@ -47,10 +47,10 @@ export function TrinketArrow({ tracker, onRush }: TrinketArrowProps) {
         transition: "opacity 0.15s",
       }}
       onPointerEnter={(e) => {
-        (e.target as HTMLElement).style.opacity = "1";
+        if (e.target instanceof HTMLElement) e.target.style.opacity = "1";
       }}
       onPointerLeave={(e) => {
-        (e.target as HTMLElement).style.opacity = "0.6";
+        if (e.target instanceof HTMLElement) e.target.style.opacity = "0.6";
       }}
     >
       <div

@@ -263,13 +263,9 @@ export default function App() {
 
       // Process any bundled pending results from other completed games
       if (results.pendingResults && results.pendingResults.length > 0) {
-        const asyncResults = results.pendingResults
-          .filter((r) => r.winner !== "incomplete")
-          .map((r) => ({
-            ...r,
-            winner: r.winner as "player" | "opponent" | "tie",
-            completedAt: Date.now(),
-          }));
+        const asyncResults = results.pendingResults.flatMap((r) =>
+          r.winner === "incomplete" ? [] : [{ ...r, winner: r.winner, completedAt: Date.now() }],
+        );
         void processAsyncResults(asyncResults).then((count) => {
           if (count > 0) setUnreadCount(getTotalUnreadCount());
         });
@@ -900,8 +896,7 @@ export default function App() {
     const onClick = (e: MouseEvent) => {
       // Only trigger on clicks that hit the canvas (empty space), not UI elements
       // Skip if rushMode already set by a 3D object click (e.g. bot parts)
-      const target = e.target as HTMLElement;
-      if (target.tagName === "CANVAS" && showArrowRef.current && !hasModalRef.current && rushMode.current === 0) {
+      if (e.target instanceof HTMLCanvasElement && showArrowRef.current && !hasModalRef.current && rushMode.current === 0) {
         handleRush();
       }
     };

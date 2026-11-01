@@ -591,8 +591,8 @@ function applyTwist(
   const fraction = contactFraction(a, b, height, max, max);
   const c = move.constraints[0];
   const pairs = [
-    { p: out.a, m: a, d: sep * fraction, role: "A" as RoleId },
-    { p: out.b, m: b, d: sep * (1 - fraction), role: "B" as RoleId },
+    { p: out.a, m: a, d: sep * fraction, role: "A" as const },
+    { p: out.b, m: b, d: sep * (1 - fraction), role: "B" as const },
   ];
   for (const { p, m, d, role } of pairs) {
     const t = twistFor(m, height, d, max);

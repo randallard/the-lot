@@ -18,7 +18,7 @@ type CreationPhase = "choosing-start" | "building" | "confirming";
 function createEmptyGrid(size: number): CellContent[][] {
   return Array(size)
     .fill(null)
-    .map(() => Array(size).fill("empty") as CellContent[]);
+    .map(() => Array.from({ length: size }, (): CellContent => "empty"));
 }
 
 

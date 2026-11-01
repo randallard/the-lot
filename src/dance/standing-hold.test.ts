@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defined } from "../test/defined";
-import { danceCoupleSequence, partnerUp, createPerformance, flattenSequence } from "square-one";
+import { danceCoupleSequence, partnerUp, createPerformance, flattenSequence, type CallName } from "square-one";
 import { armMetrics, touchHold, standingAsCouple } from "./arm-pose";
 import {
   lateralClearance, rigidParts,
@@ -47,7 +47,7 @@ const scale = DEFAULT_SCALE;
 function atBeatZero(
   beauShape: CharacterBodyShape,
   belleShape: CharacterBodyShape,
-  sequence: readonly string[],
+  sequence: readonly CallName[],
 ) {
   const b = armMetrics(beauShape);
   const l = armMetrics(belleShape);
@@ -72,11 +72,8 @@ function atBeatZero(
   const shapeAt = isArch
     ? () => ({ width: sized.width / scale, archClearance: sized.wanted / scale })
     : undefined;
-  const motions = flattenSequence(danceCoupleSequence(sequence as never, couple, shapeAt));
-  const states = createPerformance({ motions: motions }).sample() as {
-    position: { x: number; y: number };
-    facing: number;
-  }[];
+  const motions = flattenSequence(danceCoupleSequence(sequence, couple, shapeAt));
+  const states = createPerformance({ motions: motions }).sample();
 
   const frame = makeFrame({ x: 0, z: 0 }, scale, 0);
   const at = states.map((s) => {
@@ -95,7 +92,8 @@ function atBeatZero(
 }
 
 describe("🔴 a couple is holding hands at beat 0, whoever they are", () => {
-  for (const seq of [["partner-trade", "partner-trade"], ["california-twirl", "california-twirl"]]) {
+  const sequences: readonly (readonly CallName[])[] = [["partner-trade", "partner-trade"], ["california-twirl", "california-twirl"]];
+  for (const seq of sequences) {
     for (const [beauName, beauShape] of CAST) {
       for (const [belleName, belleShape] of CAST) {
         if (beauName === belleName) continue;

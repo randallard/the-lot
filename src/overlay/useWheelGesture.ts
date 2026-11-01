@@ -74,7 +74,7 @@ interface Capturable {
  */
 function capturePointer(e: WheelPointerEvent): void {
   for (const handle of [e.currentTarget, e.target]) {
-    const c = handle as Capturable | null | undefined;
+    const c = handle as Capturable | null | undefined /* cast: checked for `setPointerCapture` on the next line (ADR-0071) */;
     if (typeof c?.setPointerCapture === "function") {
       c.setPointerCapture(e.pointerId);
       return;

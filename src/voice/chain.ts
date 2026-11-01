@@ -53,7 +53,7 @@ export function phraseOf(id: ApplicationCallId, app: StandardApplication): strin
 /** Every way the chain can go on from `at`: a call, what to say, and where it ends. */
 export function nextSteps(at: FormationId): readonly ChainStep[] {
   const out: ChainStep[] = [];
-  for (const id of Object.keys(STANDARD_APPLICATIONS) as ApplicationCallId[]) {
+  for (const id of Object.keys(STANDARD_APPLICATIONS) as ApplicationCallId[] /* cast: `Object.keys` of an object with only these keys (ADR-0071) */) {
     for (const app of STANDARD_APPLICATIONS[id].applications) {
       if (app.to === undefined || app.from === "any" || !formationsHolding(app.from).includes(at)) continue;
       const say = phraseOf(id, app);
@@ -95,7 +95,7 @@ function shuffled<T>(xs: readonly T[], rand: () => number): readonly T[] {
   const out = [...xs];
   for (let i = out.length - 1; i > 0; i--) {
     const j = Math.floor(rand() * (i + 1));
-    [out[i], out[j]] = [out[j] as T, out[i] as T];
+    [out[i], out[j]] = [out[j] as T /* cast: both indices are in range (Fisher–Yates) (ADR-0071) */, out[i] as T /* cast: both indices are in range (Fisher–Yates) (ADR-0071) */];
   }
   return out;
 }

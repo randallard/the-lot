@@ -307,12 +307,12 @@ describe("🔴 the belle's DRAWN hand, through the real pose path", () => {
     );
     const shapeAt = () => ({ width: sized.width / scale, archClearance: sized.wanted / scale });
     const motions = flattenSequence(
-      danceCoupleSequence(["california-twirl"] as never, couple, shapeAt),
-    ) as Record<string, { beats: number }>;
+      danceCoupleSequence(["california-twirl"], couple, shapeAt),
+    );
 
     const frame = makeFrame({ x: 0, z: 0 }, scale, 0);
     const at = (key: string, beat: number): Placement => {
-      const s = sampleMotion(defined(motions[key], "motions[key]") as never, beat);
+      const s = sampleMotion(defined(motions[key], "motions[key]"), beat);
       const w = toWorld(frame, s.position);
       return { x: w.x, z: w.z, yaw: facingToRotationY(frame, s.facing) };
     };

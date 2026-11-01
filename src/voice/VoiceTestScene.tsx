@@ -23,6 +23,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { VOICE_CALLS, type VoiceCall } from "./call-vocabulary";
 import { callsFrom } from "square-one";
+import { isRecord, isString } from "../services/json-guards";
 import { CHAIN_LENGTH, formationName, makeChain } from "./chain";
 import { hearCalls } from "./sound-alike";
 import { VAD_START, vadStep } from "./vad";
@@ -59,7 +60,7 @@ const speechWindow = window as unknown as {
   SpeechRecognition?: RecognitionClass;
   webkitSpeechRecognition?: RecognitionClass;
   SpeechRecognitionPhrase?: PhraseClass;
-};
+} /* cast: optional browser globals, checked before use (ADR-0071) */;
 const RecognitionImpl = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
 const LANG = "en-US";
 
@@ -263,7 +264,8 @@ export function VoiceTestScene() {
     try {
       const r = await fetch("/__voice-results", { method: "POST", headers: { "content-type": "application/json" }, body: results() });
       if (!r.ok) throw new Error(await r.text());
-      const { path } = (await r.json()) as { path: string };
+      const body: unknown = await r.json();
+      const path = isRecord(body) && isString(body.path) ? body.path : "(no path in the reply)";
       dispatch({ type: "notice", text: `Saved to ${path}` });
     } catch (e) {
       dispatch({ type: "notice", text: `Save failed: ${String(e)}` });
@@ -296,7 +298,7 @@ export function VoiceTestScene() {
         <div style={row}>
           <label style={label}>
             mode{" "}
-            <select value={s.mode} onChange={(e) => { dispatch({ type: "mode", mode: e.target.value as Mode }); }}>
+            <select value={s.mode} onChange={(e) => { dispatch({ type: "mode", mode: e.target.value as Mode /* cast: a `<select>` whose options are exactly this union (ADR-0071) */ }); }}>
               <option value="prompt">prompt: say the call shown</option>
               <option value="chain">chain: say the {CHAIN_LENGTH} calls shown, in one go</option>
               <option value="free">free: call freely, the floor follows</option>
@@ -304,7 +306,7 @@ export function VoiceTestScene() {
           </label>
           <label style={label}>
             calls{" "}
-            <select value={pool} disabled={s.mode === "chain"} onChange={(e) => { const p = e.target.value as Pool; setPool(p); dispatch({ type: "target", id: pick(poolOf(p), null) }); }}>
+            <select value={pool} disabled={s.mode === "chain"} onChange={(e) => { const p = e.target.value as Pool /* cast: a `<select>` whose options are exactly this union (ADR-0071) */; setPool(p); dispatch({ type: "target", id: pick(poolOf(p), null) }); }}>
               <option value="dancing">the 7 square-one dances</option>
               <option value="basic">CALLERLAB Basic</option>
               <option value="all">Basic + Mainstream</option>

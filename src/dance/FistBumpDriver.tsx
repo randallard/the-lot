@@ -49,7 +49,7 @@ import {
   type Placement,
   type Vec3,
 } from "./arm-pose";
-import { bumpContact, envelopeWith, type BumpEnvelope } from "./fist-bump";
+import { bumpContact, envelopeWith } from "./fist-bump";
 import {
   APPROACH_SECONDS,
   NPC_OPEN_TO_EVERYTHING,
@@ -70,7 +70,6 @@ import {
   type ContactMove,
   type RigHandedness,
   type RoleResolution,
-  type RoleScratch,
 } from "./contact-move";
 import { NPC_BODY_CENTER_Y, PLAYER_BODY_CENTER_Y, type CharacterBodyShape } from "../services/body-shapes";
 
@@ -162,6 +161,11 @@ const PLAYER_NPC_RIG: RigHandedness = "left-positive";
 
 /** The rig's resting aim: straight down, which is what `restPose` returns. */
 const DOWN = new THREE.Vector3(0, -1, 0);
+
+/** The frame-loop scratch's resolution. Its `side` is overwritten every frame; "right" is a placeholder. */
+function freshResolution(): RoleResolution {
+  return { pose: armPose(), side: "right", contact: bumpContact() };
+}
 
 function readPlacement(out: Placement, rig: THREE.Group): void {
   out.x = rig.position.x;
@@ -261,15 +265,15 @@ export function FistBumpDriver({
   // Frame-loop scratch, allocated once. The dance code's convention, and the reason
   // this can run every frame without churning the heap.
   const scratch = useRef({
-    env: { t: 0, touching: false, done: false } as BumpEnvelope,
-    self: { x: 0, z: 0, yaw: 0 } as Placement,
-    other: { x: 0, z: 0, yaw: 0 } as Placement,
-    role: { local: { x: 0, z: 0, yaw: 0 }, rest: armPose() } as RoleScratch,
-    out: { pose: armPose(), side: "right", contact: bumpContact() } as RoleResolution,
+    env: { t: 0, touching: false, done: false },
+    self: { x: 0, z: 0, yaw: 0 },
+    other: { x: 0, z: 0, yaw: 0 },
+    role: { local: { x: 0, z: 0, yaw: 0 }, rest: armPose() },
+    out: freshResolution(),
     aim: new THREE.Vector3(),
     elbow: vec3(),
-    metrics: null as { player: ArmMetrics; npc: ArmMetrics } | null,
-    shapes: null as { player: CharacterBodyShape; npc: CharacterBodyShape } | null,
+    metrics: null as { player: ArmMetrics; npc: ArmMetrics } | null /* cast: a scratch slot that starts empty (ADR-0071) */,
+    shapes: null as { player: CharacterBodyShape; npc: CharacterBodyShape } | null /* cast: a scratch slot that starts empty (ADR-0071) */,
     origins: { player: NaN, npc: NaN },
     constraintId: "",
     owning: false,
@@ -280,18 +284,12 @@ export function FistBumpDriver({
     // resolved per frame because either character may be drifting; the approach *is* the
     // thing moving them, so a target recomputed from positions it is itself changing is a
     // feedback loop that would creep. Two fixed placements and an eased parameter cannot.
-    from: { a: { x: 0, z: 0, yaw: 0 }, b: { x: 0, z: 0, yaw: 0 } } as {
-      a: Placement; b: Placement;
-    },
-    to: { a: { x: 0, z: 0, yaw: 0 }, b: { x: 0, z: 0, yaw: 0 } } as {
-      a: Placement; b: Placement;
-    },
+    from: { a: { x: 0, z: 0, yaw: 0 }, b: { x: 0, z: 0, yaw: 0 } },
+    to: { a: { x: 0, z: 0, yaw: 0 }, b: { x: 0, z: 0, yaw: 0 } },
     // Where they end up: the staged positions with the twist taken back out. Squaring up
     // as the hand comes away is part of the gesture, and a twist that outlives the
     // contact is what Ryan's watch caught from both ends at once.
-    settle: { a: { x: 0, z: 0, yaw: 0 }, b: { x: 0, z: 0, yaw: 0 } } as {
-      a: Placement; b: Placement;
-    },
+    settle: { a: { x: 0, z: 0, yaw: 0 }, b: { x: 0, z: 0, yaw: 0 } },
     staged: false,
   });
 
@@ -314,7 +312,7 @@ export function FistBumpDriver({
     const pArm = playerForearm.current;
     const nArm = npcForearm.current;
 
-    if (!req || !driven) return;
+    // `request` and `drivenArms` always hold a value (App and World create them with one).
     if (!pRig || !nRig || !pArm || !nArm) return;
 
     // One constraint today. The schema is a list because a star is four contacts at one
