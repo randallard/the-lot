@@ -1,12 +1,28 @@
 # Progress & Status
 
-_Last updated: 2026-11-21_
+_Last updated: 2026-11-22_
 
 ## Status / next
 
 **Standards:** last compliance review 2026-11-01 (second, [note](compliance/2026-11-01-2.md)): 5 gaps, all closed the same day ([journal 11-01 (5)](journal/2026-11-01-5-the-compliance-gaps.md)): `osv-scanner.toml`'s command, the pick-up block, `contact-move`'s random source, and ADRs 0073 (rung 3 here) and 0074 (`#review` and `App.tsx` wait for reducers). Stance review 2026-11-01 ([review](reviews/2026-11-01-stance-review.md)).
 
-> ### ▶ PICK UP HERE — 2026-11-21 (1) — Renovate automerge (ADR-1023)
+> ### ▶ PICK UP HERE — 2026-11-22 (2) — ADR-1024 adopted; Renovate off the Vercel quota (ADR-0077)
+>
+> [`journal/2026-11-22-2-adr-1024-and-renovate-off-the-build-quota.md`](journal/2026-11-22-2-adr-1024-and-renovate-off-the-build-quota.md)
+> · branch `adr-1024-and-0077`, PR set to auto-merge when CI is green. Template ADR-1024: `deny.toml` and
+> cargo-deny-action v2.1.3 (Renovate #18 closes once this merges). [ADR-0077](adr/0077-renovate-stays-off-the-vercel-build-quota.md):
+> `vercel.json` turns off previews for `renovate/**`, and Renovate runs 2–8am Pacific on Mondays.
+>
+> ⏳ **Next:**
+>
+> 1. Confirm the PR merged itself, and that `gr sync the-lot` brings it home.
+> 2. After the merge: the next `renovate/*` push shows no Vercel check, and Monday's window drains the queue.
+>    *Allow auto-merge* is on (11-22), so green Renovate PRs merge without waiting for its next run.
+> 3. Still open from 11-01: the playtest lists; vite 8 is PR #32 and waits on it.
+>
+> ---
+>
+> ### 2026-11-21 (1) — Renovate automerge (ADR-1023)
 >
 > [`journal/2026-11-21-1-adr-1023-renovate-automerge.md`](journal/2026-11-21-1-adr-1023-renovate-automerge.md) · template ADR-1023:
 > minor and patch updates of 1.0+ packages, plus digest, pin and lockfile updates, automerge once CI passes. Majors and 0.x
@@ -41,7 +57,7 @@ _Last updated: 2026-11-21_
 > ⏳ **Next:**
 >
 > 1. Ryan plays the playtest lists in journals 11-01 (2) and (3), if not already done.
-> 2. **vite 8 + vitest 5**: the deferral's last condition is now met, so evaluate it.
+> 2. **vite 8**: vitest 5 merged on 11-21 (#29). vite 8 with plugin-react 6 is PR #32 (branch `vite-8-plugin-react-6`), waiting on the playtest, then a playtest of its own for the bundler change.
 > 3. After the playtest: RFC 9457 errors in `api/` (`.spectral.yaml`'s `as-problem-json` override).
 > 4. The dance work resumes at 10-31 (2)'s next step, below.
 >

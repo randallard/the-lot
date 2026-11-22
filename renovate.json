@@ -3,8 +3,11 @@
   "extends": ["config:recommended", "helpers:pinGitHubActionDigestsToSemver"],
   "minimumReleaseAge": "1 day",
   "rangeStrategy": "pin",
+  "timezone": "America/Los_Angeles",
+  "schedule": ["* 2-7 * * 1"],
   "lockFileMaintenance": {
-    "enabled": true
+    "enabled": true,
+    "schedule": ["* 2-7 * * 1"]
   },
   "packageRules": [
     {

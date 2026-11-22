@@ -172,6 +172,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0073](0073-rung-three-here-means-fast-check-on-the-reducers.md) | Rung 3 here means `fast-check` on the screen reducers; the solver keeps its seeded tests | Accepted |
 | [0074](0074-the-review-and-game-screens-wait-for-their-reducers.md) | `#review` and `App.tsx` wait for their reducers until the work next reaches them | Accepted |
 | [0075](0075-react-hooks-7-1-and-the-wider-ref-boundary.md) | react-hooks is pinned at 7.1.1 for ESLint 10, and its new findings are excepted by file | Accepted |
+| [0077](0077-renovate-stays-off-the-vercel-build-quota.md) | Renovate stays off the Vercel build quota: no previews for its branches, and it runs on Monday mornings | Accepted |
 | [1000](1000-template-standards-adrs-are-inherited.md) | Template standards ADRs are inherited, numbered 1000 and up | Accepted |
 | [1001](1001-project-conventions-is-the-canonical-standard.md) | project-conventions is the canonical provable-code standard | Accepted |
 | [1002](1002-provable-is-a-four-rung-ladder.md) | "Provable" means a four-rung ladder, and a project claims only the rungs CI enforces | Accepted |
@@ -196,6 +197,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [1021](1021-projects-start-with-a-renovate-config.md) | Projects start with a Renovate config that encodes the standards it could break | Accepted |
 | [1022](1022-ci-the-engines-floor-and-types-node-share-the-active-lts.md) | CI, the engines floor and `@types/node` all follow the Active LTS (Node 26) | Accepted |
 | [1023](1023-routine-renovate-updates-merge-themselves.md) | Routine Renovate updates merge themselves once CI passes; majors stay manual | Accepted |
+| [1024](1024-the-template-ships-an-explicit-deny-toml.md) | The template ships an explicit `deny.toml`, and unmaintained crates are checked across the whole graph | Accepted |
 
 ## Decisions this repo inherits
 
