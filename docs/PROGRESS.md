@@ -1,16 +1,24 @@
 # Progress & Status
 
-_Last updated: 2026-11-01_
+_Last updated: 2026-11-21_
 
 ## Status / next
 
 **Standards:** last compliance review 2026-11-01 (second, [note](compliance/2026-11-01-2.md)): 5 gaps, all closed the same day ([journal 11-01 (5)](journal/2026-11-01-5-the-compliance-gaps.md)): `osv-scanner.toml`'s command, the pick-up block, `contact-move`'s random source, and ADRs 0073 (rung 3 here) and 0074 (`#review` and `App.tsx` wait for reducers). Stance review 2026-11-01 ([review](reviews/2026-11-01-stance-review.md)).
 
-> ### ▶ PICK UP HERE — 2026-11-01 (7) — Node 26 as the floor
+> ### ▶ PICK UP HERE — 2026-11-21 (1) — Renovate automerge (ADR-1023)
+>
+> [`journal/2026-11-21-1-adr-1023-renovate-automerge.md`](journal/2026-11-21-1-adr-1023-renovate-automerge.md) · template ADR-1023:
+> minor and patch updates of 1.0+ packages, plus digest, pin and lockfile updates, automerge once CI passes. Majors and 0.x
+> minors stay manual. `main` now has branch protection (8 required checks; it had none). **Next:** confirm the first
+> automerge; triage the open majors (vitest 5, vite 8, globals 17, plugin-react 6, jest-dom 8, setup-node v7).
+>
+> ---
+>
+> ### 2026-11-01 (7) — Node 26 as the floor
 >
 > [`journal/2026-11-01-7-node-26-floor.md`](journal/2026-11-01-7-node-26-floor.md) · template ADR-1022: `engines` `>=26.0.0`, `@types/node` 26.6.6.
-> ADR-1021 too: `renovate.json` from the template. Local gates passed. ⏳ **Ryan: install the Renovate app
-> on this repo**; until then the file does nothing.
+> ADR-1021 too: `renovate.json` from the template. Local gates passed. The Renovate app was installed 2026-11-01.
 >
 > ---
 >
