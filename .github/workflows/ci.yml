@@ -235,7 +235,7 @@ jobs:
           persist-credentials: false
       # Syft scans the project directly — a single static binary, no npm or cargo
       # dependency of its own, so it sidesteps package-manager layout problems.
-      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+      - uses: anchore/sbom-action@dfcb83b97731532d72be422cbc51ee64adb6fd56 # v0.24.4
         with:
           path: .
           format: cyclonedx-json
