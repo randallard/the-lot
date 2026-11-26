@@ -8,8 +8,12 @@
 name: daily check
 
 on:
-  schedule:
-    - cron: "0 14 * * *" # 14:00 UTC daily: 06:00 Pacific in winter, 07:00 in summer
+  # ⏸ Schedule paused 2026-11-26 (Ryan): the Railway agent servers are down on a lapsed
+  # subscription, and the game work is parked (work/the-lot-game) while the dance screens come
+  # first. A scheduled run now would only fail every day. Run it by hand from the Actions tab.
+  # Put the schedule back once the services are up again:
+  # schedule:
+  #   - cron: "0 14 * * *" # 14:00 UTC daily: 06:00 Pacific in winter, 07:00 in summer
   workflow_dispatch: {}
 
 permissions:

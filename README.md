@@ -61,7 +61,7 @@ second, competing deployment of the same app.
 can't see: townage.app, one real NPC chat round-trip, both games, Spaces Game's CPU board decks, and
 each game's agent server, which gets one real move request. A failure fails the run and opens or
 updates a `daily-check` issue, which closes itself on the next passing day. Run it locally with
-`node scripts/daily-check/run.ts` ([ADR-0076](docs/adr/0076-a-daily-check-of-the-live-services.md)).
+`node scripts/daily-check/run.ts` ([ADR-0076](docs/adr/0076-a-daily-check-of-the-live-services.md)). **Its schedule is paused** while the Railway agent servers are down; it runs only by hand until they're back (`daily-check.yml`'s `on:` block says how to turn it on).
 
 ## Controls
 
