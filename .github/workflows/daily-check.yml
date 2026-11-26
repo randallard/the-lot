@@ -1,0 +1,70 @@
+# ADR-0076: once a day, check the live services a player touches: townage.app, NPC chat
+# (Haiku), both games, Spaces Game's CPU board decks, and each game's agent server, which
+# gets one real move request. CI can't see these: they are other repos and other hosts.
+#
+# A failure fails this run (GitHub emails whoever last changed the schedule) and opens one
+# `daily-check` issue, or edits it after that, so a long outage doesn't notify every day.
+# The issue closes itself on the first passing day.
+name: daily check
+
+on:
+  schedule:
+    - cron: "0 14 * * *" # 14:00 UTC daily: 06:00 Pacific in winter, 07:00 in summer
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: live services
+    runs-on: ubuntu-latest
+    timeout-minutes: 15 # ADR-1005
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26 # ADR-1022; runs scripts/daily-check/run.ts with type stripping
+
+      # No install: run.ts uses only Node's own fetch and fs.
+      - name: check
+        id: check
+        continue-on-error: true
+        env:
+          # Overrides for when a service moves before the discovery patterns know about it.
+          SPACES_AGENT_URL: ${{ vars.SPACES_AGENT_URL }}
+          KINGS_AGENT_URL: ${{ vars.KINGS_AGENT_URL }}
+          DAILY_CHECK_SUMMARY: ${{ runner.temp }}/daily-check-summary.md
+        run: node scripts/daily-check/run.ts
+
+      - name: open, update or close the daily-check issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.check.outcome }}
+          SUMMARY: ${{ runner.temp }}/daily-check-summary.md
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list --label daily-check --state open --json number --jq '.[0].number // empty')
+          { cat "$SUMMARY"; echo; echo "[This run]($RUN_URL)"; } > "$RUNNER_TEMP/body.md"
+          if [ "$OUTCOME" = "success" ]; then
+            if [ -n "$existing" ]; then
+              gh issue close "$existing" --comment "$(cat "$RUNNER_TEMP/body.md")"
+              echo "Closed #$existing: every check passes."
+            fi
+          elif [ -z "$existing" ]; then
+            gh label create daily-check --description "The daily check of live services is failing" \
+              --color B60205 2>/dev/null || true
+            gh issue create --title "Daily check failing" --label daily-check --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh issue edit "$existing" --body-file "$RUNNER_TEMP/body.md"
+            echo "Updated #$existing."
+          fi
+
+      - name: fail the run if a check failed
+        if: steps.check.outcome != 'success'
+        run: exit 1

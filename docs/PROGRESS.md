@@ -4,7 +4,7 @@ _Last updated: 2026-11-22_
 
 ## Status / next
 
-**Standards:** last compliance review 2026-11-01 (second, [note](compliance/2026-11-01-2.md)): 5 gaps, all closed the same day ([journal 11-01 (5)](journal/2026-11-01-5-the-compliance-gaps.md)): `osv-scanner.toml`'s command, the pick-up block, `contact-move`'s random source, and ADRs 0073 (rung 3 here) and 0074 (`#review` and `App.tsx` wait for reducers). Stance review 2026-11-01 ([review](reviews/2026-11-01-stance-review.md)).
+**Standards:** last compliance review 2026-11-22: compliant apart from 1 small gap in hand (CI action pins trail the template; Renovate PRs open), all 5 of 11-01's closed, inherited ADRs current through 1023 ([note](compliance/2026-11-22.md))
 
 > ### ▶ PICK UP HERE — 2026-11-22 (2) — ADR-1024 adopted; Renovate off the Vercel quota (ADR-0077)
 >
@@ -19,6 +19,16 @@ _Last updated: 2026-11-22_
 > 2. After the merge: the next `renovate/*` push shows no Vercel check, and Monday's window drains the queue.
 >    *Allow auto-merge* is on (11-22), so green Renovate PRs merge without waiting for its next run.
 > 3. Still open from 11-01: the playtest lists; vite 8 is PR #32 and waits on it.
+>
+> ---
+>
+> ### Also open — 2026-11-22 (1) — a daily check, and the agent servers are gone
+>
+> [`journal/2026-11-22-1-daily-check.md`](journal/2026-11-22-1-daily-check.md) · [ADR-0076](adr/0076-a-daily-check-of-the-live-services.md):
+> `daily-check.yml` (14:00 UTC) checks townage.app, a real Haiku chat, both games, the CPU board decks, and each game's agent
+> server with one real move. It's committed on branch `daily-check` and pushed to `data` (2026-11-26), not yet checked by Ryan or merged. **Both agent servers (Railway) are gone:
+> `404 "Application not found"`.** Chat and everything else is up. **Next:** Ryan checks and merges, then runs it once by
+> hand; Ryan checks the Railway account and redeploys or rehosts both servers; Ryan playtests **#32** (vite 8 + plugin-react 6; Vercel previews are rate-limited until ~11-23 21:00 UTC, so use `pnpm build && pnpm preview` before then). Majors #24/#29/#25/#27 merged today (vitest 5 needed `jest-dom/vitest` in `src/test/setup.ts`).
 >
 > ---
 >

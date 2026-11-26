@@ -172,6 +172,7 @@ Copy [`TEMPLATE.md`](TEMPLATE.md).
 | [0073](0073-rung-three-here-means-fast-check-on-the-reducers.md) | Rung 3 here means `fast-check` on the screen reducers; the solver keeps its seeded tests | Accepted |
 | [0074](0074-the-review-and-game-screens-wait-for-their-reducers.md) | `#review` and `App.tsx` wait for their reducers until the work next reaches them | Accepted |
 | [0075](0075-react-hooks-7-1-and-the-wider-ref-boundary.md) | react-hooks is pinned at 7.1.1 for ESLint 10, and its new findings are excepted by file | Accepted |
+| [0076](0076-a-daily-check-of-the-live-services.md) | A daily check of the live services a player touches, with agents asked to play | Accepted |
 | [0077](0077-renovate-stays-off-the-vercel-build-quota.md) | Renovate stays off the Vercel build quota: no previews for its branches, and it runs on Monday mornings | Accepted |
 | [1000](1000-template-standards-adrs-are-inherited.md) | Template standards ADRs are inherited, numbered 1000 and up | Accepted |
 | [1001](1001-project-conventions-is-the-canonical-standard.md) | project-conventions is the canonical provable-code standard | Accepted |

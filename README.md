@@ -57,6 +57,12 @@ second, competing deployment of the same app.
 
 `ANTHROPIC_API_KEY` and the KV binding live on the Vercel project, not in the repo.
 
+**A daily check** (`.github/workflows/daily-check.yml`, 14:00 UTC) tests what a player touches but CI
+can't see: townage.app, one real NPC chat round-trip, both games, Spaces Game's CPU board decks, and
+each game's agent server, which gets one real move request. A failure fails the run and opens or
+updates a `daily-check` issue, which closes itself on the next passing day. Run it locally with
+`node scripts/daily-check/run.ts` ([ADR-0076](docs/adr/0076-a-daily-check-of-the-live-services.md)).
+
 ## Controls
 
 | Input | Action |
