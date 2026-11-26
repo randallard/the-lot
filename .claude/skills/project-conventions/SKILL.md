@@ -237,7 +237,7 @@ Two honest caveats:
   build time with your permissions. That's where the 2026 `arrayref` payload ran. When adding or
   updating a dependency, do the first build in an ephemeral container or CI, not on a
   workstation with credentials. Read the `build.rs` and proc-macros of every new *direct*
-  dependency, and put known-bad names in `cargo-deny`'s `[bans]`
+  dependency, and put known-bad names in `deny.toml`'s `[bans]` `deny` list
   ([ADR-1008](../../../docs/adr/1008-build-scripts-are-the-rust-attack-surface.md)).
 - Third-party CI actions pinned to full-length commit SHAs, not tags. Tags are mutable.
 - Every CI job has `timeout-minutes`: 30 for proofs, 15 otherwise. The one exception is a job

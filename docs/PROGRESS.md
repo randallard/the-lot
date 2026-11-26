@@ -1,24 +1,48 @@
 # Progress & Status
 
-_Last updated: 2026-11-22_
+_Last updated: 2026-11-26_
 
 ## Status / next
 
-**Standards:** last compliance review 2026-11-22: compliant apart from 1 small gap in hand (CI action pins trail the template; Renovate PRs open), all 5 of 11-01's closed, inherited ADRs current through 1023 ([note](compliance/2026-11-22.md))
+**Standards:** last compliance review 2026-11-26: mostly compliant, 3 small gaps (a `project-conventions` line behind ADR-1024, the 11-22 (3) docs uncommitted, ADR-0076 only on waed-7561, which lands with the `daily-check` merge); the first two fixed the same day and the third asked of waed-7561 ([journal 11-26 (1)](journal/2026-11-26-1-compliance-review-and-its-fixes.md)); the 5 from 11-01 (2) are closed ([note](compliance/2026-11-26.md)). Stance review 2026-11-01, due by 2026-12-01.
 
-> ### ▶ PICK UP HERE — 2026-11-22 (2) — ADR-1024 adopted; Renovate off the Vercel quota (ADR-0077)
+> ### 2026-11-26 (1) — compliance review and its fixes
+> 
+> [`journal/2026-11-26-1-compliance-review-and-its-fixes.md`](journal/2026-11-26-1-compliance-review-and-its-fixes.md). The `project-conventions` line from ADR-1024 is taken, `main` is fast-forwarded to `13dfaaa`, and there's no Kiro agent (Kiro is court-only). Still open: ADR-0076 and journal 11-22 (1), on waed-7561 only, wait for Ryan's local check of the daily-check code they describe (branch `daily-check` there). The next step below is unchanged.
+>
+> ---
+>
+> ### ▶ PICK UP HERE — 2026-11-22 (3) — the playtest splits: dance screens here, the game to its own effort
+>
+> [`journal/2026-11-22-3-the-playtest-splits.md`](journal/2026-11-22-3-the-playtest-splits.md) · Ryan: *"the game needs work … for now
+> we're going to work on the dance screens"*. **The game work has moved to
+> `work/the-lot-game` (`~/Development/work/the-lot-game/PROGRESS.md`, not in this repo)**: bringing back the Railway agent servers (404 since 11-21), the tutorial,
+> the fist bump, and possibly a from-scratch initial flow. The game half of the 11-01 playtest list is saved there, unchecked.
+>
+> ⏳ **Next:**
+>
+> 1. **Ryan plays the dance screens' half of the 11-01 list:**
+>    - `#review`: ratings load, and "clear" removes one.
+>    - `#solve4` and the solved floor draw all four dancers.
+>    - `#review2`: its top panel and opacity are remembered.
+>    - `#voice-test`: "save to dev machine" works.
+> 2. Then **vite 8 + plugin-react 6 (PR #32)**. Ryan is holding it until the dance screens pass (*"don't unblock #32 yet"*), and then it
+>    gets a playtest of its own.
+> 3. Then the dance work resumes at 10-31 (2)'s next step: Myco's grown figures in `#review2`.
+>
+> ---
+>
+> ### 2026-11-22 (2) — ADR-1024 adopted; Renovate off the Vercel quota (ADR-0077)
 >
 > [`journal/2026-11-22-2-adr-1024-and-renovate-off-the-build-quota.md`](journal/2026-11-22-2-adr-1024-and-renovate-off-the-build-quota.md)
-> · branch `adr-1024-and-0077`, PR set to auto-merge when CI is green. Template ADR-1024: `deny.toml` and
+> · merged as #33 (`edb6b5e`). Template ADR-1024: `deny.toml` and
 > cargo-deny-action v2.1.3 (Renovate #18 closes once this merges). [ADR-0077](adr/0077-renovate-stays-off-the-vercel-build-quota.md):
 > `vercel.json` turns off previews for `renovate/**`, and Renovate runs 2–8am Pacific on Mondays.
 >
 > ⏳ **Next:**
 >
-> 1. Confirm the PR merged itself, and that `gr sync the-lot` brings it home.
-> 2. After the merge: the next `renovate/*` push shows no Vercel check, and Monday's window drains the queue.
+> 1. The next `renovate/*` push shows no Vercel check, and Monday's window drains the queue.
 >    *Allow auto-merge* is on (11-22), so green Renovate PRs merge without waiting for its next run.
-> 3. Still open from 11-01: the playtest lists; vite 8 is PR #32 and waits on it.
 >
 > ---
 >
@@ -26,9 +50,8 @@ _Last updated: 2026-11-22_
 >
 > [`journal/2026-11-22-1-daily-check.md`](journal/2026-11-22-1-daily-check.md) · [ADR-0076](adr/0076-a-daily-check-of-the-live-services.md):
 > `daily-check.yml` (14:00 UTC) checks townage.app, a real Haiku chat, both games, the CPU board decks, and each game's agent
-> server with one real move. It's committed on branch `daily-check` and pushed to `data` (2026-11-26), not yet checked by Ryan or merged. **Both agent servers (Railway) are gone:
-> `404 "Application not found"`.** Chat and everything else is up. **Next:** Ryan checks and merges, then runs it once by
-> hand; Ryan checks the Railway account and redeploys or rehosts both servers; Ryan playtests **#32** (vite 8 + plugin-react 6; Vercel previews are rate-limited until ~11-23 21:00 UTC, so use `pnpm build && pnpm preview` before then). Majors #24/#29/#25/#27 merged today (vitest 5 needed `jest-dom/vitest` in `src/test/setup.ts`).
+> server with one real move. Checked by Ryan and merged 2026-11-26, **with its schedule paused** (`f98d7cd`): the Railway subscription lapsed and the game work is parked, so it runs only by hand until the servers are back. The reminder to turn it on is in `work/the-lot-game`'s PROGRESS, step 1. **Both agent servers (Railway) are gone:
+> `404 "Application not found"`.** Chat and everything else is up. **Next (game, parked):** renew Railway or rehost both servers, then turn the schedule back on and run it once by hand; Ryan playtests **#32** (vite 8 + plugin-react 6; Vercel previews are rate-limited until ~11-23 21:00 UTC, so use `pnpm build && pnpm preview` before then). Majors #24/#29/#25/#27 merged today (vitest 5 needed `jest-dom/vitest` in `src/test/setup.ts`).
 >
 > ---
 >
