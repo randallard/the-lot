@@ -4,7 +4,7 @@ _Last updated: 2026-11-26_
 
 ## Status / next
 
-**Standards:** last compliance review 2026-11-26: mostly compliant, 3 small gaps (a `project-conventions` line behind ADR-1024, the 11-22 (3) docs uncommitted, ADR-0076 only on waed-7561); the first two fixed the same day and the third asked of waed-7561 ([journal 11-26 (1)](journal/2026-11-26-1-compliance-review-and-its-fixes.md)); the 5 from 11-01 (2) are closed ([note](compliance/2026-11-26.md)). Stance review 2026-11-01, due by 2026-12-01.
+**Standards:** last compliance review 2026-11-26: mostly compliant, 3 small gaps (a `project-conventions` line behind ADR-1024, the 11-22 (3) docs uncommitted, ADR-0076 only on waed-7561, which lands with the `daily-check` merge); the first two fixed the same day and the third asked of waed-7561 ([journal 11-26 (1)](journal/2026-11-26-1-compliance-review-and-its-fixes.md)); the 5 from 11-01 (2) are closed ([note](compliance/2026-11-26.md)). Stance review 2026-11-01, due by 2026-12-01.
 
 > ### 2026-11-26 (1) — compliance review and its fixes
 > 
@@ -43,6 +43,15 @@ _Last updated: 2026-11-26_
 >
 > 1. The next `renovate/*` push shows no Vercel check, and Monday's window drains the queue.
 >    *Allow auto-merge* is on (11-22), so green Renovate PRs merge without waiting for its next run.
+>
+> ---
+>
+> ### Also open — 2026-11-22 (1) — a daily check, and the agent servers are gone
+>
+> [`journal/2026-11-22-1-daily-check.md`](journal/2026-11-22-1-daily-check.md) · [ADR-0076](adr/0076-a-daily-check-of-the-live-services.md):
+> `daily-check.yml` (14:00 UTC) checks townage.app, a real Haiku chat, both games, the CPU board decks, and each game's agent
+> server with one real move. Checked by Ryan and merged 2026-11-26, **with its schedule paused** (`f98d7cd`): the Railway subscription lapsed and the game work is parked, so it runs only by hand until the servers are back. The reminder to turn it on is in `work/the-lot-game`'s PROGRESS, step 1. **Both agent servers (Railway) are gone:
+> `404 "Application not found"`.** Chat and everything else is up. **Next (game, parked):** renew Railway or rehost both servers, then turn the schedule back on and run it once by hand; Ryan playtests **#32** (vite 8 + plugin-react 6; Vercel previews are rate-limited until ~11-23 21:00 UTC, so use `pnpm build && pnpm preview` before then). Majors #24/#29/#25/#27 merged today (vitest 5 needed `jest-dom/vitest` in `src/test/setup.ts`).
 >
 > ---
 >
