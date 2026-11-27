@@ -49,7 +49,7 @@
     "license-checker-rseidelsohn": "5.0.1",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.1",
-    "vite": "7.3.7",
+    "vite": "8.4.0",
     "vitest": "5.1.1"
   }
 }
